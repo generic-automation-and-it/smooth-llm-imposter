@@ -1,0 +1,1 @@
+# L1 persistence component tests against a real isolated database (Respawn-reset) — add the DB fixtures when persistence lands.

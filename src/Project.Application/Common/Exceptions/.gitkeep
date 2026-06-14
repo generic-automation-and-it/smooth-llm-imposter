@@ -1,0 +1,1 @@
+# Application-level exceptions (e.g. UnknownResourceException) mapped to HTTP problem details in the Host.

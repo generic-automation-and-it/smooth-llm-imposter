@@ -1,0 +1,5 @@
+interface:
+  display_name: "AI Template Sync"
+  short_description: "UPSERT smooth-devex-template scaffold into an existing repo"
+  default_prompt: "Sync the smooth-devex-template agentic scaffold into my repo. Ask me which tools to configure (Claude Code, Codex, Copilot), whether to include .NET solutioning, and how to handle existing file conflicts."
+  model: gpt-5.5

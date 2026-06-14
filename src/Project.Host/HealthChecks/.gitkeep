@@ -1,0 +1,1 @@
+# Custom IHealthCheck implementations exposed via the health endpoint.

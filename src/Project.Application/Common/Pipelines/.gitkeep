@@ -1,0 +1,1 @@
+# Mediator pipeline behaviors (e.g. fail-fast FluentValidation, error logging) shared across feature slices.

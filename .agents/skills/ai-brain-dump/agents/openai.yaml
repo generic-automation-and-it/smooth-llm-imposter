@@ -1,0 +1,5 @@
+interface:
+  display_name: "Brain Dump"
+  short_description: "Run listen-first requirement braindumps"
+  default_prompt: "Start a braindump session for a ticket or idea. Listen and capture context until I ask you to synthesize or update an artifact."
+  model: gpt-5.5

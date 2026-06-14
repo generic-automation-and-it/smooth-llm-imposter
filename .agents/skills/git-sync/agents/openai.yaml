@@ -1,0 +1,5 @@
+interface:
+  display_name: "Git Sync"
+  short_description: "Sync current branch with origin/main"
+  default_prompt: "Sync the current working branch with the latest changes from origin/main. Use safe mode to stop on conflicts or auto-resolve mode to handle them automatically."
+  model: gpt-5.4-mini

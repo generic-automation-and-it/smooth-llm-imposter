@@ -1,0 +1,1 @@
+# ServiceCollection extensions (AddInfrastructure / AddPersistence) that register DbContext, stores, and clients.

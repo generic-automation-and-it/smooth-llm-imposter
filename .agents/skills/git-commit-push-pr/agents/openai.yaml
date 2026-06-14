@@ -1,0 +1,5 @@
+interface:
+  display_name: "Git Commit, Push and PR"
+  short_description: "Commit, push, and create or update a GitHub pull request"
+  default_prompt: "Commit current changes, push to remote, and create or update a pull request on GitHub using the project's PR template. Supports draft and ready states."
+  model: gpt-5.4

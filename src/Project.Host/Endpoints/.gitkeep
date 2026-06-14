@@ -1,0 +1,1 @@
+# Minimal API endpoints — one per use case. Each maps HTTP to a Mediator request; no business logic.

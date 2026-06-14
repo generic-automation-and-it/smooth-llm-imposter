@@ -1,0 +1,27 @@
+name: Aspire test with coverage
+description: Start Aspire test dependencies, run ordered tests with coverage, generate reports, and clean up Aspire.
+
+inputs:
+  build-configuration:
+    description: MSBuild configuration to test.
+    required: false
+    default: Release
+  artifacts-root:
+    description: Root folder for test and coverage artifacts.
+    required: false
+    default: artifacts
+  dependency-timeout-seconds:
+    description: Seconds to wait for Aspire-managed test dependencies.
+    required: false
+    default: "120"
+
+runs:
+  using: composite
+  steps:
+    - name: Run Aspire tests with coverage
+      shell: bash
+      env:
+        BUILD_CONFIGURATION: ${{ inputs.build-configuration }}
+        ARTIFACTS_ROOT: ${{ inputs.artifacts-root }}
+        DEPENDENCY_TIMEOUT_SECONDS: ${{ inputs.dependency-timeout-seconds }}
+      run: bash "${{ github.action_path }}/run.sh"

@@ -1,0 +1,143 @@
+{
+  "env": {
+    "CLAUDE_CODE_USE_POWERSHELL_TOOL": "1"
+  },
+  "compileCommands": [
+    "dotnet build"
+  ],
+  "testCommands": [
+    "dotnet test"
+  ],
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": [
+      "Read(**)",
+      "Edit(**)",
+      "Write(**)",
+      "Bash(cat:*)",
+      "Bash(curl:*)",
+      "Bash(docker-compose:*)",
+      "Bash(dotnet ef migrations add:*)",
+      "Bash(dotnet tool install:*)",
+      "Bash(dotnet tool restore:*)",
+      "Bash(env)",
+      "Bash(gh api:*)",
+      "Bash(gh pr edit:*)",
+      "Bash(gh pr reviews:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh run view:*)",
+      "Bash(az:*)",
+      "Bash(git grep:*)",
+      "Bash(git stash:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git pull:*)",
+      "Bash(git reset:*)",
+      "Skill(agile-github-task-from-diff)",
+      "Skill(ai-brain-dump)",
+      "Skill(ai-mansplain)",
+      "Skill(ai-template-sync)",
+      "Skill(context-load-agents-context)",
+      "Skill(context-load-context)",
+      "Skill(git-commit)",
+      "Skill(git-commit-push)",
+      "Skill(git-commit-push-pr)",
+      "Skill(git-sync)",
+      "Skill(manage-rule-system)",
+      "Bash(node:*)",
+      "Bash(powershell.exe:*)",
+      "Bash(python3:*)",
+      "Bash(ren:*)",
+      "Bash(rmdir:*)",
+      "Bash(sqlcmd:*)",
+      "Bash(where:*)",
+      "Bash(yamllint:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.conventionalcommits.org)"
+    ],
+    "deny": [
+      "Bash(gh pr merge*--delete-branch*)",
+      "Bash(gh pr merge*-d*)",
+      "Bash(gh api*DELETE*refs/heads*)",
+      "Bash(gh api*DELETE*git/refs*)",
+      "Bash(dotnet ef database update:*)",
+      "Bash(sqlcmd*INSERT*)",
+      "Bash(sqlcmd*insert*)",
+      "Bash(sqlcmd*UPDATE*)",
+      "Bash(sqlcmd*update*)",
+      "Bash(sqlcmd*DELETE*)",
+      "Bash(sqlcmd*delete*)",
+      "Bash(sqlcmd*DROP*)",
+      "Bash(sqlcmd*drop*)",
+      "Bash(sqlcmd*TRUNCATE*)",
+      "Bash(sqlcmd*truncate*)"
+    ],
+    "ask": [
+      "Bash(gh pr close:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .agents/hooks/slnx-docs-sync.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".agents/hooks/load-agents-context.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".agents/hooks/manage-rule-system-context.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".agents/hooks/code-review-standards-context.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".agents/hooks/worktask-create.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".agents/hooks/agentmd-create-update.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".agents/hooks/knowledge-rule-enforce.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

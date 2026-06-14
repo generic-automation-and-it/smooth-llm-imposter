@@ -1,0 +1,1 @@
+# L1 component tests per feature slice — handlers exercised against in-memory EF Core and TestDoubles/ fakes.

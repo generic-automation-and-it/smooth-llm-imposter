@@ -1,0 +1,5 @@
+interface:
+  display_name: "Load AGENTS Context"
+  short_description: "Load ancestor AGENTS.md context for a target file"
+  default_prompt: "Load AGENTS context for the target file before reading or editing it."
+  model: gpt-5.4-mini

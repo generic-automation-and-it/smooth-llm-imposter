@@ -1,0 +1,1 @@
+# Persistence store contracts (interfaces only). Infrastructure provides the EF Core implementations.

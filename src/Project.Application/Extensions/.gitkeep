@@ -1,0 +1,1 @@
+# ServiceCollection extensions (AddApplication) that register Mediator, validators, and pipeline behaviors.

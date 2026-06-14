@@ -1,0 +1,5 @@
+interface:
+  display_name: "Manage Rule System"
+  short_description: "Create or update rule files in .agents/rules/"
+  default_prompt: "Create, update, or modify rule files in .agents/rules/ with correct frontmatter for Claude Code, Copilot, Cursor, and Codex compatibility."
+  model: gpt-5.4

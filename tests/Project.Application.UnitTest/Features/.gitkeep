@@ -1,0 +1,1 @@
+# L0 unit tests per feature slice, mirroring src Application/Features/<FeatureName>/ (validators, handler logic).

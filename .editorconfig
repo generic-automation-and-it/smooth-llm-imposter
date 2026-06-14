@@ -1,0 +1,25 @@
+root = true
+
+[*]
+indent_style = space
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.{cs,csx}]
+indent_size = 4
+
+[*.{csproj,props,targets,slnx}]
+indent_size = 2
+
+[*.{json,yml,yaml}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+# EF Core migration files — tell Roslyn-based analysers that these are generated
+# code so they are skipped during analysis, reducing build-time overhead.
+[src/Project.Infrastructure/Persistence/Migrations/**]
+generated_code = true

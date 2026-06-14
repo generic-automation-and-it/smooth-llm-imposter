@@ -1,0 +1,5 @@
+interface:
+  display_name: "Mansplain"
+  short_description: "Reformat one reply into terse, high-density output with a TL;DR"
+  default_prompt: "Reformat this turn's reply: answer first, bullets/tables, no preamble or niceties, end with a TL;DR block. Applies to this turn only."
+  model: gpt-5.4-mini

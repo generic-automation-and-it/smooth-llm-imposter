@@ -1,0 +1,5 @@
+interface:
+  display_name: "Task from Diff"
+  short_description: "Create a GitHub Task (sub-issue) from the current git diff"
+  default_prompt: "Create a GitHub Task issue from the current git diff vs main, add it to the local GitHub Project, and link it as a sub-issue of the given parent Feature issue. Include a horizontally sliced scope (one technical layer), a diff summary, and an acceptance criteria checklist."
+  model: gpt-5.4
