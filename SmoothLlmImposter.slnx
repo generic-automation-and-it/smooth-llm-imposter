@@ -1,0 +1,61 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SmoothLlmImposter.Domain/SmoothLlmImposter.Domain.csproj" />
+    <Project Path="src/SmoothLlmImposter.Application/SmoothLlmImposter.Application.csproj" />
+    <Project Path="src/SmoothLlmImposter.Infrastructure/SmoothLlmImposter.Infrastructure.csproj" />
+    <Project Path="src/SmoothLlmImposter.Host/SmoothLlmImposter.Host.csproj" />
+  </Folder>
+  <Folder Name="/tests/TestFramework/">
+    <Project Path="tests/SmoothLlmImposter.TestFramework/SmoothLlmImposter.TestFramework.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/L0/">
+    <Project Path="tests/SmoothLlmImposter.Domain.UnitTest/SmoothLlmImposter.Domain.UnitTest.csproj" />
+    <Project Path="tests/SmoothLlmImposter.Application.UnitTest/SmoothLlmImposter.Application.UnitTest.csproj" />
+    <Project Path="tests/SmoothLlmImposter.Infrastructure.UnitTest/SmoothLlmImposter.Infrastructure.UnitTest.csproj" />
+    <Project Path="tests/SmoothLlmImposter.Host.UnitTest/SmoothLlmImposter.Host.UnitTest.csproj" />
+  </Folder>
+  <Folder Name="/tests/L2/">
+    <Project Path="tests/SmoothLlmImposter.Host.IntegrationTest/SmoothLlmImposter.Host.IntegrationTest.csproj" />
+  </Folder>
+  <Folder Name="/.agents/">
+    <File Path=".agents/AI_DEVELOPMENT_AGENTS.md" />
+    <File Path=".agents/hooks.json" />
+    <File Path=".agents/launch.json" />
+    <File Path=".agents/settings.json" />
+  </Folder>
+  <Folder Name="/.agents/rules/">
+    <File Path=".agents/rules/ai-workflow-rules.instructions.md" />
+    <File Path=".agents/rules/code-review-standards.instructions.md" />
+    <File Path=".agents/rules/project-overview.instructions.md" />
+  </Folder>
+  <Folder Name="/.agents/rules/backend/">
+    <File Path=".agents/rules/backend/api-mediator-validation.instructions.md" />
+    <File Path=".agents/rules/backend/architecture-slices.instructions.md" />
+    <File Path=".agents/rules/backend/backend-logging-conventions.instructions.md" />
+    <File Path=".agents/rules/backend/external-api-clients.instructions.md" />
+    <File Path=".agents/rules/backend/migrations.instructions.md" />
+    <File Path=".agents/rules/backend/wiremock-stubbing.instructions.md" />
+  </Folder>
+  <Folder Name="/.agents/rules/git/">
+    <File Path=".agents/rules/git/git-policy.instructions.md" />
+    <File Path=".agents/rules/git/pr-standards.instructions.md" />
+  </Folder>
+  <Folder Name="/.agents/rules/meta/">
+    <File Path=".agents/rules/meta/knowledge-conventional-contexts-quality.instructions.md" />
+    <File Path=".agents/rules/meta/rules.instructions.md" />
+  </Folder>
+  <Folder Name="/.docs/">
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/.docs/wiki/">
+    <File Path=".docs/wiki/ai-tooling.md" />
+    <File Path=".docs/wiki/architecture.md" />
+    <File Path=".docs/wiki/ci.md" />
+    <File Path=".docs/wiki/testing.md" />
+  </Folder>
+  <Folder Name="/.docs/hld/" />
+  <Folder Name="/.docs/adr/" />
+  <Folder Name="/.docs/nfr/" />
+  <File Path="AGENTS.md" />
+</Solution>
