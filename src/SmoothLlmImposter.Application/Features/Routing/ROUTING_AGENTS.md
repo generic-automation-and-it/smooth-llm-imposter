@@ -40,6 +40,17 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   Routing failures → 400/404; upstream transport failures → 502.
 - **`anthropic-version`** header defaults to `2023-06-01`, overridable per provider via `AnthropicVersion`.
 
+## Migration Plans
+
+- **HLD 002 — credential persistence & overrides** (`.docs/hld/002-credential-persistence-overrides/`, status
+  *Proposed*) reintroduces EF Core + PostgreSQL for stored **passthrough** credentials and adds a Mediator-based
+  `/admin/credentials` API. It touches routing at exactly **one seam**: the no-match → default/passthrough
+  branch will consult an active stored credential (decrypt secret, apply `AuthScheme`, optional `BaseUrlOverride`)
+  via `ICredentialStore`. **Do not** extend this to matched-imposter routes — those stay config-key-only and
+  DB-free (HLD 002 LADR-004). The hot-path non-negotiables above are unchanged; the admin API uses
+  Mediator/FluentValidation while routing stays raw (HLD 002 LADR-005). Supersedes HLD 001 LADR-002, amends
+  HLD 001 NFR-002.
+
 ## Test References
 
 - **L0** `Domain.UnitTest/Routing` — matcher, dialect parser.
@@ -54,3 +65,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-14 | Moved full LADRs + C4/flow/sequence diagrams to HLD 001; trimmed this file to minimal AI-coder context. | — |
 | 2026-06-15 | HLD 001 split into `README.md` index + `diagrams/`, `nfrs/`, `ladrs/` subfolders. | — |
 | 2026-06-15 | Default config: removed `IsDefault` providers (type-only impostering, 404 on unmatched; LADR-005). New providers opencode-go/openrouter/opencode-anthropic. | — |
+| 2026-06-15 | Added Migration Plans note for HLD 002 (passthrough credential persistence + overrides; one routing seam, imposter path unchanged). | HLD 002 |
