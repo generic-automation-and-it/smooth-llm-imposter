@@ -66,13 +66,12 @@ Target a single test project directly when needed (e.g. `dotnet test tests/Smoot
 
 ## Test Framework
 
-xunit.v3 · Shouldly · Bogus · Respawn. Three tiers (the distinction is non-obvious and drives where a test belongs):
+xunit.v3 · Shouldly · Bogus. Tiers (the distinction drives where a test belongs):
 
-- **L0** `*.UnitTest` — no I/O, all in-process.
-- **L1** component — `Application.ComponentTest` uses in-memory EF Core; `Infrastructure.ComponentTest` uses a real isolated DB + Respawn.
-- **L2** `*.IntegrationTest` — full stack, real PostgreSQL.
+- **L0** `*.UnitTest` — no I/O, all in-process (Domain / Application / Infrastructure / Host).
+- **L2** `SmoothLlmImposter.Host.IntegrationTest` — boots the real Host in-process via `WebApplicationFactory` and swaps the `imposter-upstream` HTTP client for a stub transport. No DB, no containers — this router is stateless and key-less.
 
-Shared fixtures live in `tests/Project.TestFramework/`; the Aspire dependency host (PostgreSQL + WireMock containers) in `tests/Project.TestFramework.Aspire/`. See `.docs/wiki/testing.md`.
+Shared fixtures live in `tests/SmoothLlmImposter.TestFramework/`. CI provisions a single WireMock service container (`127.0.0.1:19091`) for integration tests that stub upstream LLM endpoints over HTTP. See `.docs/wiki/testing.md`.
 
 ## Style and Dependencies
 
@@ -84,7 +83,7 @@ Human-facing reviewer documentation lives in `.docs/wiki/`. Detailed high-level 
 
 ## CI/CD
 
-PR gate — `.github/workflows/pr-gate.yml` (triggers: `pull_request` → `main`, `push` → `main`, `workflow_dispatch`): restore → build (Release) → Aspire-backed test with coverage via the local action `.github/actions/aspire-test-with-coverage`, then publish + upload the coverage report. Full step list, service ports, timing, and local .NET tools: `.docs/wiki/ci.md`.
+PR gate — `.github/workflows/pr-gate.yml` (triggers: `pull_request` → `main`, `push` → `main`, `workflow_dispatch`): restore → build (Release) → test with coverage via the local action `.github/actions/test-with-coverage`, then publish + upload the coverage report. The job declares one WireMock service container (`127.0.0.1:19091`) as its only external dependency — no PostgreSQL/Redis/Aspire. Full step list, service ports, and local .NET tools: `.docs/wiki/ci.md`.
 
 ## Git Constraints
 

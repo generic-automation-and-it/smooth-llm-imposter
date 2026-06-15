@@ -44,7 +44,15 @@ public sealed class ImposterAppFixture : WebApplicationFactory<HostApp::Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(Config));
+        // Start from a clean slate: drop appsettings.json (and every other inherited source) so the
+        // shipped providers cannot bleed in through key-by-key config merge. The in-memory collection
+        // is then the single, authoritative routing config — the fixture starts with no imposters
+        // except the ones declared in Config.
+        builder.ConfigureAppConfiguration((_, config) =>
+        {
+            config.Sources.Clear();
+            config.AddInMemoryCollection(Config);
+        });
 
         builder.ConfigureServices(services =>
             services.AddHttpClient("imposter-upstream")

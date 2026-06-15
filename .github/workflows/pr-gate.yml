@@ -32,6 +32,12 @@ jobs:
       BUILD_CONFIGURATION: Release
       DOTNET_VERSION: 10.0.x
 
+    services:
+      wiremock:
+        image: wiremock/wiremock:3.13.1
+        ports:
+          - 19091:8080
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,17 +48,18 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore SmoothLlmImposter.slnx
 
       - name: Build
-        run: dotnet build --configuration "$BUILD_CONFIGURATION" --no-restore
+        run: dotnet build SmoothLlmImposter.slnx --configuration "$BUILD_CONFIGURATION" --no-restore
 
-      - name: Aspire test with coverage
-        uses: ./.github/actions/aspire-test-with-coverage
+      - name: Test with coverage
+        uses: ./.github/actions/test-with-coverage
         timeout-minutes: 25
         with:
           build-configuration: ${{ env.BUILD_CONFIGURATION }}
           artifacts-root: artifacts
+          wiremock-url: http://127.0.0.1:19091
 
       - name: Publish coverage summary
         if: always()

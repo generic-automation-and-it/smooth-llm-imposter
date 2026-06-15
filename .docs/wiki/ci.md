@@ -7,19 +7,22 @@ The pipeline is a single PR gate that builds and tests every change before it ca
 - **Workflow:** `.github/workflows/pr-gate.yml`
 - **Triggers:** `pull_request` → `main` (including PR branch updates), `push` → `main`, and manual `workflow_dispatch`.
 
+### Service container
+
+The `build-and-test` job declares a single GitHub Actions service container — **WireMock** (`wiremock/wiremock`), published on `127.0.0.1:19091` → container `8080`. It is the only external dependency: this router is stateless and key-less, so there is **no PostgreSQL, Redis, or Aspire host**. The current test suite stubs the upstream transport in-process; the WireMock service is provisioned for integration tests that stub real upstream LLM endpoints over HTTP.
+
 ### Steps
 
 1. **Checkout** — `actions/checkout@v4`.
 2. **Install .NET SDK** — `actions/setup-dotnet@v4` (version from the `DOTNET_VERSION` env, currently `10.0.x`).
-3. **Restore** — `dotnet restore Project.slnx`.
-4. **Build** — `dotnet build --no-restore --configuration Release`.
-5. **Aspire test with coverage** — local action `.github/actions/aspire-test-with-coverage`:
-   - Starts `tests/Project.TestFramework.Aspire`, keeps its PID inside the action script, and waits for PostgreSQL (`127.0.0.1:15432`), Redis (`127.0.0.1:16379`), and WireMock (`http://127.0.0.1:19091/__admin/health`).
-   - Restores .NET tools (`dotnet tool restore`) after the dependency pre-warm, matching the proven CI timing before tests start.
+3. **Restore** — `dotnet restore SmoothLlmImposter.slnx`.
+4. **Build** — `dotnet build SmoothLlmImposter.slnx --no-restore --configuration Release`.
+5. **Test with coverage** — local action `.github/actions/test-with-coverage`:
+   - Waits for the WireMock service health endpoint (`http://127.0.0.1:19091/__admin/health`) before running tests.
+   - Restores .NET tools (`dotnet tool restore`).
    - Prepares `artifacts/testresults/` and `artifacts/coverage/`.
-   - Runs test projects in order: Host integration → Application/Infrastructure component → Domain/Application/Infrastructure/Host unit tests.
+   - Runs the whole solution in one pass (`dotnet test SmoothLlmImposter.slnx`) with Cobertura coverage scoped to `[SmoothLlmImposter.*]*`.
    - Generates coverage reports with `dotnet tool run reportgenerator`.
-   - Stops the Aspire host from the action script's teardown trap once tests and coverage have finished or failed.
 6. **Publish coverage summary** (`if: always()`) — appends `artifacts/coverage/SummaryGithub.md` to the GitHub step summary.
 7. **Upload coverage artifacts** (`if: always()`) — uploads `artifacts/coverage/` as `coverage-report`.
 
