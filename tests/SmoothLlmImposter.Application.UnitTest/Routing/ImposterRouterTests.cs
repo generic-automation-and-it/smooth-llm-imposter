@@ -66,17 +66,17 @@ public class ImposterRouterTests
     }
 
     [Fact]
-    public void Plan_throws_when_model_missing()
+    public async Task Plan_throws_when_model_missing()
     {
         ImposterRouter router = Build();
-        Should.ThrowAsync<RoutingException>(() => router.PlanAsync(ApiDialect.OpenAi, """{"messages":[]}""", TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<RoutingException>(() => router.PlanAsync(ApiDialect.OpenAi, """{"messages":[]}""", TestContext.Current.CancellationToken));
     }
 
     [Fact]
-    public void Plan_throws_on_non_object_body()
+    public async Task Plan_throws_on_non_object_body()
     {
         ImposterRouter router = Build();
-        Should.ThrowAsync<RoutingException>(() => router.PlanAsync(ApiDialect.OpenAi, "[]", TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<RoutingException>(() => router.PlanAsync(ApiDialect.OpenAi, "[]", TestContext.Current.CancellationToken));
     }
 
     private sealed class StubSecretProtector : ISecretProtector
