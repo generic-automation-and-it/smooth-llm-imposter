@@ -1,0 +1,32 @@
+name: Test with coverage
+description: Wait for the WireMock stub service, run the test suite with coverage, and generate reports.
+
+inputs:
+  build-configuration:
+    description: MSBuild configuration to test.
+    required: false
+    default: Release
+  artifacts-root:
+    description: Root folder for test and coverage artifacts.
+    required: false
+    default: artifacts
+  wiremock-url:
+    description: Base URL of the WireMock stub service to wait for before tests run.
+    required: false
+    default: http://127.0.0.1:19091
+  dependency-timeout-seconds:
+    description: Seconds to wait for the WireMock stub service.
+    required: false
+    default: "120"
+
+runs:
+  using: composite
+  steps:
+    - name: Run tests with coverage
+      shell: bash
+      env:
+        BUILD_CONFIGURATION: ${{ inputs.build-configuration }}
+        ARTIFACTS_ROOT: ${{ inputs.artifacts-root }}
+        WIREMOCK_URL: ${{ inputs.wiremock-url }}
+        DEPENDENCY_TIMEOUT_SECONDS: ${{ inputs.dependency-timeout-seconds }}
+      run: bash "${{ github.action_path }}/run.sh"

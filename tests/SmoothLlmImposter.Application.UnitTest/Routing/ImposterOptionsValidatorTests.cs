@@ -1,0 +1,54 @@
+using Microsoft.Extensions.Options;
+using SmoothLlmImposter.Application.Features.Routing;
+
+namespace SmoothLlmImposter.Application.UnitTest.Routing;
+
+public class ImposterOptionsValidatorTests
+{
+    private readonly ImposterOptionsValidator _validator = new();
+
+    private static ImposterOptions Options(params ProviderOptions[] providers) =>
+        new() { Providers = [.. providers] };
+
+    private static ProviderOptions Valid(string name, string api = "openai", bool isDefault = false) =>
+        new() { Name = name, Api = api, BaseUrl = "https://" + name + ".example", IsDefault = isDefault };
+
+    [Fact]
+    public void Valid_configuration_succeeds() =>
+        _validator.Validate(null, Options(Valid("a", isDefault: true))).Succeeded.ShouldBeTrue();
+
+    [Fact]
+    public void Empty_providers_fails() =>
+        _validator.Validate(null, Options()).Failed.ShouldBeTrue();
+
+    [Fact]
+    public void Duplicate_names_fail() =>
+        _validator.Validate(null, Options(Valid("dup"), Valid("dup"))).Failed.ShouldBeTrue();
+
+    [Fact]
+    public void Unknown_dialect_fails() =>
+        _validator.Validate(null, Options(Valid("a", api: "gemini"))).Failed.ShouldBeTrue();
+
+    [Fact]
+    public void Non_absolute_base_url_fails()
+    {
+        var bad = new ProviderOptions { Name = "a", Api = "openai", BaseUrl = "not-a-url" };
+        _validator.Validate(null, Options(bad)).Failed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Two_defaults_for_same_dialect_fail() =>
+        _validator.Validate(null, Options(Valid("a", isDefault: true), Valid("b", isDefault: true)))
+            .Failed.ShouldBeTrue();
+
+    [Fact]
+    public void Mapping_missing_to_fails()
+    {
+        var provider = new ProviderOptions
+        {
+            Name = "a", Api = "openai", BaseUrl = "https://a.example",
+            Models = [new ModelMappingOptions { From = "x", To = "" }]
+        };
+        _validator.Validate(null, Options(provider)).Failed.ShouldBeTrue();
+    }
+}

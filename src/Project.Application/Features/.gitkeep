@@ -1,1 +1,0 @@
-# Vertical-slice use cases. One folder per feature: Features/<FeatureName>/<UseCase>.cs (request, response, validator, handler colocated). No Commands/ or Queries/ split.

@@ -1,20 +1,14 @@
 # AGENTS.md
 
-This file provides guidance for AI coding agents working in the Project repository.
+This file provides guidance for AI coding agents working in the SmoothLlmImposter repository.
 
-> **⚠️ TEMPLATE NOTICE — read before working.**
-> This repository is currently a **template**. `Project` is a placeholder name used throughout the `.agents` tree, root `AGENTS.md`, rule files, skill docs, and the solution/project layout (`Project.slnx`, `src/Project.*`, `tests/Project.*`).
->
-> **As soon as the project is given a real name, you MUST:**
-> 1. Replace every occurrence of `Project` / `project` (PascalCase namespaces/paths and lowercase prose) across all `.agents` files, root `AGENTS.md`, rule files, skill docs, `Project.slnx`, and the GitHub URL/slug with the chosen name.
-> 2. Update the glossary and the Project Overview description below to describe the real project.
-> 3. **Remove this entire TEMPLATE NOTICE block** — including this instruction — once the rename is complete.
+> **Note on remaining `Project` placeholders.** This repo was scaffolded from a template. The functional/buildable identifiers (solution, projects, namespaces, folders) have been renamed to `SmoothLlmImposter`. Lowercase `project` references and examples still remaining in `.agents/rules/**` and `.docs/**` prose are deferred template cleanup, not real references — replace them opportunistically when touching those files.
 
 ## Project Overview
 
-Project is an AI-spec-driven, AI-agnostic development project. It documents reusable patterns, blueprints, and component specifications that guide automated and AI-assisted software delivery. _(Placeholder description — update once the project is named; see Template Notice above.)_
+SmoothLlmImposter is a **stateless, key-less LLM request router**. It exposes OpenAI- and Anthropic-dialect endpoints and, per configuration, redirects an inbound model to an alternate upstream ("imposter") — rewriting the model name and optionally injecting prompt caching — or passes it through to the real provider. Unlike the Smooth Claude Proxy it stores nothing (keys come from config/env only) and routes within a single dialect (no OpenAI⇄Anthropic translation). See `src/SmoothLlmImposter.Application/Features/Routing/ROUTING_AGENTS.md`.
 
-**Tech stack:** .NET 10 · ASP.NET Core · Clean Architecture (Domain / Application / Infrastructure / Host) · EF Core + PostgreSQL · Mediator (source-gen CQRS) · xunit.v3
+**Tech stack:** .NET 10 · ASP.NET Core minimal APIs · Clean Architecture (Domain / Application / Infrastructure / Host) · `IHttpClientFactory` streaming forwarder (no DB) · Serilog · xunit.v3
 
 ## AI Context Files
 
@@ -40,11 +34,10 @@ All planned work is tracked as worktasks under `.context/work-tasks/` (gitignore
 
 | Layer | Path | Purpose |
 |---|---|---|
-| Domain | `src/Project.Domain/` | Core entities, value objects — no external deps |
-| Application | `src/Project.Application/` | Vertical-slice use cases via Mediator — `Features/<Name>/`, shared code in `Common/` |
-| Infrastructure | `src/Project.Infrastructure/` | EF Core + PostgreSQL (`Persistence/`), HTTP clients (`Clients/`) |
-| Host | `src/Project.Host/` | ASP.NET Core Web API, Serilog, Scalar OpenAPI |
-| ChatHost | `src/Project.ChatHost/` | Standalone LLM microservice — owns Anthropic SDK; talks to Host via HTTP only |
+| Domain | `src/SmoothLlmImposter.Domain/` | Pure routing model — `ApiDialect`, `ProviderRoute`, `RouteDecision`, `ModelMatcher` |
+| Application | `src/SmoothLlmImposter.Application/` | Routing pipeline in `Features/Routing/` — options, catalog, resolver, transformers, router |
+| Infrastructure | `src/SmoothLlmImposter.Infrastructure/` | `UpstreamForwarder` — `IHttpClientFactory` streaming forwarder (no DB) |
+| Host | `src/SmoothLlmImposter.Host/` | Minimal-API dialect endpoints, options binding + `ValidateOnStart`, Serilog |
 
 Detailed backend coding rules are maintained in `.agents/rules/backend/` and scoped per-file via frontmatter (see Rules section).
 
@@ -64,23 +57,21 @@ All rules live under `.agents/rules/` as `*.instructions.md` files and are auto-
 ## Build / Test Commands
 
 ```bash
-dotnet build Project.slnx                     # build
-dotnet test  Project.slnx                     # run all tests
-dotnet run --project src/Project.AppHost      # dev Aspire AppHost
-dotnet run --project src/Project.ChatHost     # ChatHost standalone (separate process from the API Host)
+dotnet build SmoothLlmImposter.slnx                 # build
+dotnet test  SmoothLlmImposter.slnx                 # run all tests
+dotnet run --project src/SmoothLlmImposter.Host     # run the router locally
 ```
 
-Target a single test project directly when needed (e.g. `dotnet test tests/Project.Domain.UnitTest`); `ls tests/` lists them — no Trait annotations required. **Gotcha:** the dev Aspire dashboard runs at `http://localhost:15278`; when started from a terminal, use the printed `/login?t=...` URL on first browser visit.
+Target a single test project directly when needed (e.g. `dotnet test tests/SmoothLlmImposter.Domain.UnitTest`); `ls tests/` lists them. Tests are infra-free (no Docker/DB) — integration tests stub the upstream transport in-process.
 
 ## Test Framework
 
-xunit.v3 · Shouldly · Bogus · Respawn. Three tiers (the distinction is non-obvious and drives where a test belongs):
+xunit.v3 · Shouldly · Bogus. Tiers (the distinction drives where a test belongs):
 
-- **L0** `*.UnitTest` — no I/O, all in-process.
-- **L1** component — `Application.ComponentTest` uses in-memory EF Core; `Infrastructure.ComponentTest` uses a real isolated DB + Respawn.
-- **L2** `*.IntegrationTest` — full stack, real PostgreSQL.
+- **L0** `*.UnitTest` — no I/O, all in-process (Domain / Application / Infrastructure / Host).
+- **L2** `SmoothLlmImposter.Host.IntegrationTest` — boots the real Host in-process via `WebApplicationFactory` and swaps the `imposter-upstream` HTTP client for a stub transport. No DB, no containers — this router is stateless and key-less.
 
-Shared fixtures live in `tests/Project.TestFramework/`; the Aspire dependency host (PostgreSQL + WireMock containers) in `tests/Project.TestFramework.Aspire/`. See `.docs/wiki/testing.md`.
+Shared fixtures live in `tests/SmoothLlmImposter.TestFramework/`. CI provisions a single WireMock service container (`127.0.0.1:19091`) for integration tests that stub upstream LLM endpoints over HTTP. See `.docs/wiki/testing.md`.
 
 ## Style and Dependencies
 
@@ -92,7 +83,7 @@ Human-facing reviewer documentation lives in `.docs/wiki/`. Detailed high-level 
 
 ## CI/CD
 
-PR gate — `.github/workflows/pr-gate.yml` (triggers: `pull_request` → `main`, `push` → `main`, `workflow_dispatch`): restore → build (Release) → Aspire-backed test with coverage via the local action `.github/actions/aspire-test-with-coverage`, then publish + upload the coverage report. Full step list, service ports, timing, and local .NET tools: `.docs/wiki/ci.md`.
+PR gate — `.github/workflows/pr-gate.yml` (triggers: `pull_request` → `main`, `push` → `main`, `workflow_dispatch`): restore → build (Release) → test with coverage via the local action `.github/actions/test-with-coverage`, then publish + upload the coverage report. The job declares one WireMock service container (`127.0.0.1:19091`) as its only external dependency — no PostgreSQL/Redis/Aspire. Full step list, service ports, and local .NET tools: `.docs/wiki/ci.md`.
 
 ## Git Constraints
 
