@@ -24,6 +24,10 @@ All notable changes to SmoothLlmImposter are documented here.
 - Split HLD 001 into a `README.md` index plus `diagrams/`, `nfrs/`, and `ladrs/` subfolders (one file
   per diagram, NFR, and LADR) instead of a single monolithic document.
 - Removed redundant `.gitkeep` files from folders that now contain code (`Features/`, `Endpoints/`).
+- Default `appsettings.json` providers reworked: `opencode-go` → `https://opencode.ai/zen/go` with
+  `gpt5.4` → `kimi-k2.7`; added `openrouter` (openai) and `opencode-anthropic` (`claude-haiku-*` →
+  `minimax-m3`). Removed the `IsDefault` passthrough providers — impostering is now type-only and an
+  unmatched model returns a 404 (HLD LADR-005). The `IsDefault` capability remains supported in code.
 
 ### Removed
 - EF Core / PostgreSQL and the Aspire/WireMock/Respawn test stack (the service is stateless). Integration

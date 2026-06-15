@@ -16,8 +16,11 @@ A stateless ASP.NET Core minimal-API service. Inbound dialect is determined by t
 (`/v1/chat/completions`, `/v1/responses` → OpenAI; `/v1/messages` → Anthropic). For each request the
 router reads `model`, selects the first matching provider mapping (config order), rewrites the model,
 optionally injects caching, applies the provider's configured key, and streams the upstream response back
-unbuffered. Unmatched models pass through to the dialect's default provider unchanged. Routing is
-**same-dialect only** — there is no OpenAI⇄Anthropic body translation.
+unbuffered. The service **imposters only on configured model types**: an unmatched model returns a
+dialect-shaped 404 (the shipped config declares no default provider — clients point their SDK directly at
+the real provider for calls they don't want impostered; see [LADR-005](ladrs/LADR-005-no-default-passthrough-type-only.md)).
+A dialect-default passthrough provider remains optionally supported in code. Routing is **same-dialect
+only** — there is no OpenAI⇄Anthropic body translation.
 
 ## Diagrams
 
@@ -29,17 +32,19 @@ unbuffered. Unmatched models pass through to the dialect's default provider unch
 
 - Bound from the `Imposter` section; **environment variables override `appsettings.json`** (env wins),
   e.g. `Imposter__Providers__1__ApiKey=sk-...`.
-- A **provider** = `Name` + `Api` (dialect) + `BaseUrl` (server root, no `/v1`) + `ApiKey` + `IsDefault`,
-  holding nested `Models[]` of `{ From, To, Caching }`. `From` supports exact + trailing-`*` wildcard.
+- A **provider** = `Name` + `Api` (dialect) + `BaseUrl` (server root, no `/v1`; the inbound request path is
+  appended verbatim) + `ApiKey` + optional `IsDefault`, holding nested `Models[]` of `{ From, To, Caching }`.
+  `From` supports exact + trailing-`*` wildcard. A provider with no `Models` is inert until one is added.
 - Keys are configuration-only and never persisted. Startup validation (`ValidateOnStart`) rejects unknown
   dialects, non-absolute base URLs, duplicate names, malformed mappings, and >1 default per dialect.
 
 ```jsonc
 "Imposter": { "Providers": [
-  { "Name": "openai-official", "Api": "openai", "BaseUrl": "https://api.openai.com", "ApiKey": "", "IsDefault": true },
-  { "Name": "opencode-go", "Api": "openai", "BaseUrl": "https://opencode.example", "ApiKey": "",
-    "Models": [ { "From": "gpt5.4", "To": "opencode/grok-code", "Caching": true } ] },
-  { "Name": "anthropic-official", "Api": "anthropic", "BaseUrl": "https://api.anthropic.com", "ApiKey": "", "IsDefault": true }
+  { "Name": "opencode-go", "Api": "openai", "BaseUrl": "https://opencode.ai/zen/go", "ApiKey": "",
+    "Models": [ { "From": "gpt5.4", "To": "kimi-k2.7", "Caching": true } ] },
+  { "Name": "openrouter", "Api": "openai", "BaseUrl": "https://openrouter.ai", "ApiKey": "" },
+  { "Name": "opencode-anthropic", "Api": "anthropic", "BaseUrl": "https://opencode.ai/zen/go", "ApiKey": "",
+    "Models": [ { "From": "claude-haiku-*", "To": "minimax-m3", "Caching": true } ] }
 ] }
 ```
 
@@ -63,6 +68,7 @@ pure string-in/string-out in Application; all HTTP I/O is in Host; Infrastructur
 - [LADR-002 — Stateless, no EF Core / PostgreSQL](ladrs/LADR-002-stateless-no-ef-postgresql.md)
 - [LADR-003 — Infinite client timeout, no resilience handler](ladrs/LADR-003-infinite-timeout-no-resilience-handler.md)
 - [LADR-004 — Integration tests stub the outbound transport in-process](ladrs/LADR-004-in-process-transport-stub.md)
+- [LADR-005 — Type-only impostering, no default passthrough configured](ladrs/LADR-005-no-default-passthrough-type-only.md)
 
 ## Out of scope (for now)
 

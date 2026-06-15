@@ -31,6 +31,8 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 - **`From` matching** is exact or single trailing-`*` wildcard (`claude-haiku-*`), case-insensitive (`ModelMatcher`).
 - **No match → default passthrough** (model unchanged, no caching) via the dialect's `IsDefault` provider.
   No match **and** no default → `RoutingException(404)`. At most one `IsDefault` per dialect (startup-validated).
+  The **shipped `appsettings.json` declares no defaults** (type-only impostering → 404 on unmatched; HLD LADR-005);
+  `IsDefault` stays supported in code for deployments that opt back in.
 - **Caching is per-dialect** (only when `Caching: true`): Anthropic injects ephemeral `cache_control` on the
   `system` block (a string `system` is converted to a one-element block array) and on the last content block
   of the last message; OpenAI sets `prompt_cache_key` to the **inbound** model name.
@@ -51,3 +53,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-14 | Initial routing feature: same-dialect router, config-driven imposters, per-dialect caching, SSE streaming. | — |
 | 2026-06-14 | Moved full LADRs + C4/flow/sequence diagrams to HLD 001; trimmed this file to minimal AI-coder context. | — |
 | 2026-06-15 | HLD 001 split into `README.md` index + `diagrams/`, `nfrs/`, `ladrs/` subfolders. | — |
+| 2026-06-15 | Default config: removed `IsDefault` providers (type-only impostering, 404 on unmatched; LADR-005). New providers opencode-go/openrouter/opencode-anthropic. | — |
