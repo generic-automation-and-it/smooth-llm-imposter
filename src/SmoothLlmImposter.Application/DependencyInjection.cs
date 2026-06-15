@@ -1,6 +1,9 @@
+using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using SmoothLlmImposter.Application.Common.Pipelines;
+using SmoothLlmImposter.Application.Features.Credentials;
 using SmoothLlmImposter.Application.Features.Routing;
 
 namespace SmoothLlmImposter.Application;
@@ -8,9 +11,8 @@ namespace SmoothLlmImposter.Application;
 public static class DependencyInjection
 {
     /// <summary>
-    /// Registers the routing pipeline (catalog, resolver, transformers, router, error factory) and the
-    /// startup options validator. Options binding itself is performed by the Host so environment
-    /// variables can override <c>appsettings.json</c>.
+    /// Registers the routing pipeline (catalog, resolver, transformers, router, error factory), admin
+    /// credential slices, and startup options validator. Options binding itself is performed by the Host.
     /// </summary>
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
@@ -18,10 +20,17 @@ public static class DependencyInjection
         services.AddSingleton<IRouteResolver, RouteResolver>();
         services.AddSingleton<IRequestTransformer, OpenAiRequestTransformer>();
         services.AddSingleton<IRequestTransformer, AnthropicRequestTransformer>();
-        services.AddSingleton<IImposterRouter, ImposterRouter>();
+        services.AddScoped<IImposterRouter, ImposterRouter>();
         services.AddSingleton<IErrorResponseFactory, ErrorResponseFactory>();
 
         services.AddSingleton<IValidateOptions<ImposterOptions>, ImposterOptionsValidator>();
+
+        services.AddMediator(options =>
+        {
+            options.ServiceLifetime = ServiceLifetime.Scoped;
+            options.PipelineBehaviors = [typeof(ValidationPipelineBehavior<,>)];
+        });
+        services.AddValidatorsFromAssemblyContaining<CreateCredential.Request>(includeInternalTypes: true);
 
         return services;
     }

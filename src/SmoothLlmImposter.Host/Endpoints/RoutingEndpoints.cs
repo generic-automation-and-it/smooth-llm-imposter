@@ -44,7 +44,7 @@ internal static class RoutingEndpoints
         RoutePlan plan;
         try
         {
-            plan = router.Plan(dialect, requestBody);
+            plan = await router.PlanAsync(dialect, requestBody, cancellationToken);
         }
         catch (RoutingException ex)
         {
@@ -57,6 +57,7 @@ internal static class RoutingEndpoints
         {
             upstream = await forwarder.SendAsync(
                 plan.Decision,
+                plan.CredentialOverride,
                 dialect,
                 plan.TransformedBody,
                 context.Request.Path,

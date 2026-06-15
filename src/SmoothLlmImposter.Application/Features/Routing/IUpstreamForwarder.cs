@@ -10,12 +10,14 @@ namespace SmoothLlmImposter.Application.Features.Routing;
 public interface IUpstreamForwarder
 {
     /// <param name="decision">Resolved route (provider base URL, key, dialect-specific headers).</param>
+    /// <param name="credentialOverride">Optional stored credential, present only on passthrough/default routes.</param>
     /// <param name="dialect">Wire dialect, selecting auth header style.</param>
     /// <param name="body">Transformed JSON body to send.</param>
     /// <param name="path">Inbound request path, appended to the provider base URL (e.g. <c>/v1/messages</c>).</param>
     /// <param name="queryString">Inbound query string including leading '?', or null.</param>
     Task<HttpResponseMessage> SendAsync(
         RouteDecision decision,
+        RouteCredentialOverride? credentialOverride,
         ApiDialect dialect,
         string body,
         string path,

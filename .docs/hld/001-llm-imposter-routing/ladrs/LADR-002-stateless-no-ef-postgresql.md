@@ -1,6 +1,11 @@
 # LADR-002 — Stateless, no EF Core / PostgreSQL
 
-- **Date / Status:** 2026-06-14 · Accepted
+- **Date / Status:** 2026-06-14 · Accepted · **Superseded (2026-06-15)** for the credential concern by
+  [HLD 002 LADR-001](../../002-credential-persistence-overrides/ladrs/LADR-001-ef-postgresql-for-credentials.md)
+
+> **Superseded for stored credentials.** HLD 002 reintroduces EF Core + PostgreSQL **only** for persisted
+> passthrough credentials. The imposter routing path remains stateless as described below — this record
+> stays as the rationale for why the hot path stores nothing.
 
 ## Context
 

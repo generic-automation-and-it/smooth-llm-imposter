@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authentication;
 using Serilog;
 using SmoothLlmImposter.Application;
 using SmoothLlmImposter.Application.Features.Routing;
+using SmoothLlmImposter.Host.Configuration;
 using SmoothLlmImposter.Host.Endpoints;
 using SmoothLlmImposter.Infrastructure;
 
@@ -22,12 +24,25 @@ builder.Services
     .ValidateOnStart();
 
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure();
+builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services
+    .AddAuthentication(AdminApiKeyAuthenticationHandler.SchemeName)
+    .AddScheme<AuthenticationSchemeOptions, AdminApiKeyAuthenticationHandler>(AdminApiKeyAuthenticationHandler.SchemeName, _ => { });
+builder.Services.AddAuthorization(options =>
+    options.AddPolicy(AdminApiKeyAuthenticationHandler.AdminPolicy, policy =>
+        policy.RequireRole("CredentialAdmin")));
+
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
 
 WebApplication app = builder.Build();
 
+app.UseExceptionHandler();
 app.UseSerilogRequestLogging();
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapImposterEndpoints();
+app.MapCredentialAdminEndpoints();
 
 app.Run();
 
