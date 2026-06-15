@@ -1,7 +1,7 @@
 # NFR-001 — Secret Encryption at Rest
 
 - **Category:** Security
-- **Status:** Proposed · 2026-06-15
+- **Status:** Accepted · 2026-06-15
 
 Persisted provider secrets are **encrypted at rest** and never stored, logged, or returned in plaintext.
 

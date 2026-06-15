@@ -1,7 +1,7 @@
 # NFR-002 — Admin Endpoint Authorization
 
 - **Category:** Security
-- **Status:** Proposed · 2026-06-15
+- **Status:** Accepted · 2026-06-15
 
 The credential admin API (`/admin/credentials*`) manages secrets and therefore must be **authenticated and
 authorized** — it must not be reachable by the same unauthenticated surface as the routing endpoints.

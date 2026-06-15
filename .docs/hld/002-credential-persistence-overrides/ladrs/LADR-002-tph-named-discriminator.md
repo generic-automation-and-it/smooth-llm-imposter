@@ -1,6 +1,6 @@
 # LADR-002 — TPH with a named discriminator over a shared base
 
-- **Date / Status:** 2026-06-15 · Proposed
+- **Date / Status:** 2026-06-15 · Accepted
 
 ## Context
 

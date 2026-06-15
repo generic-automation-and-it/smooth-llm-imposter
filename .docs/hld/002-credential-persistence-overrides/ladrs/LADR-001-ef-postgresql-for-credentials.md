@@ -1,6 +1,6 @@
 # LADR-001 — Reintroduce EF Core + PostgreSQL for credentials
 
-- **Date / Status:** 2026-06-15 · Proposed
+- **Date / Status:** 2026-06-15 · Accepted
 - **Supersedes:** [HLD 001 LADR-002 — Stateless, no EF Core / PostgreSQL](../../001-llm-imposter-routing/ladrs/LADR-002-stateless-no-ef-postgresql.md)
 
 ## Context

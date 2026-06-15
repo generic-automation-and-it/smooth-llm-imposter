@@ -5,6 +5,7 @@
   <!-- App packages — Microsoft baseline -->
   <ItemGroup>
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.AspNetCore.DataProtection" Version="10.0.7" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.8" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Abstractions" Version="10.0.8" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8" />
@@ -12,14 +13,14 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.8" />
     <PackageVersion Include="Microsoft.Extensions.Caching.Hybrid" Version="10.5.0" />
     <PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.7" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.7" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.7" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.7" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.1.0" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.7" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.7" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.8" />
     <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.5.0" />
     <PackageVersion Include="Microsoft.FeatureManagement" Version="4.4.0" />
   </ItemGroup>

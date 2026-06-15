@@ -4,6 +4,10 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using SmoothLlmImposter.Application.Common.Persistence;
+using SmoothLlmImposter.Domain.Credentials;
+using SmoothLlmImposter.Domain.Routing;
 
 namespace SmoothLlmImposter.Host.IntegrationTest;
 
@@ -55,7 +59,28 @@ public sealed class ImposterAppFixture : WebApplicationFactory<HostApp::Program>
         });
 
         builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<ICredentialStore>();
+            services.AddSingleton<ICredentialStore, NoopCredentialStore>();
             services.AddHttpClient("imposter-upstream")
-                .ConfigurePrimaryHttpMessageHandler(() => Upstream));
+                .ConfigurePrimaryHttpMessageHandler(() => Upstream);
+        });
+    }
+
+    private sealed class NoopCredentialStore : ICredentialStore
+    {
+        public Task<ProviderCredential> AddAsync(ProviderCredential credential, CancellationToken cancellationToken) => Task.FromResult(credential);
+
+        public Task<IReadOnlyList<ProviderCredential>> ListAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ProviderCredential>>(Array.Empty<ProviderCredential>());
+
+        public Task<ProviderCredential?> GetAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult<ProviderCredential?>(null);
+
+        public Task<ProviderCredential?> GetActiveAsync(ApiDialect dialect, CancellationToken cancellationToken) => Task.FromResult<ProviderCredential?>(null);
+
+        public Task DeleteAsync(Guid id, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<ProviderCredential> UpdateAsync(ProviderCredential credential, CancellationToken cancellationToken) => Task.FromResult(credential);
+
+        public Task<ProviderCredential> ActivateAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult<ProviderCredential>(new OpenAiCredential("unused", "cipher", CredentialAuthScheme.Bearer, null));
     }
 }

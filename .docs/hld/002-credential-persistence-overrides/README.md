@@ -1,6 +1,6 @@
 # HLD 002 — Credential Persistence & Overrides
 
-Status: Proposed · 2026-06-15
+Status: Accepted · 2026-06-15
 
 > **Supersedes / amends HLD 001.** This design reintroduces persistence that HLD 001 deliberately
 > removed. It **supersedes [HLD 001 LADR-002](../001-llm-imposter-routing/ladrs/LADR-002-stateless-no-ef-postgresql.md)**

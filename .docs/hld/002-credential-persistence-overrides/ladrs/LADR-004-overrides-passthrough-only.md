@@ -1,6 +1,6 @@
 # LADR-004 — Overrides scoped to the passthrough path only
 
-- **Date / Status:** 2026-06-15 · Proposed
+- **Date / Status:** 2026-06-15 · Accepted
 
 ## Context
 
