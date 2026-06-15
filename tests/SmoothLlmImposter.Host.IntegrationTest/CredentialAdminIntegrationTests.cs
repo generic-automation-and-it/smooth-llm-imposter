@@ -49,6 +49,26 @@ public sealed class CredentialAdminIntegrationTests(CredentialAppFixture fixture
     }
 
     [Fact]
+    public async Task Invalid_payload_returns_validation_problem_not_server_error()
+    {
+        HttpClient client = AuthenticatedClient();
+
+        using HttpResponseMessage response = await client.PostAsJsonAsync(
+            "/admin/credentials",
+            new
+            {
+                providerDialect = "not-a-dialect",
+                name = "",
+                secret = "",
+                authScheme = "Nonsense"
+            },
+            Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType!.MediaType.ShouldBe("application/problem+json");
+    }
+
+    [Fact]
     public async Task Active_passthrough_credential_overrides_auth_scheme_and_base_url_without_touching_imposter_route()
     {
         HttpClient client = AuthenticatedClient();

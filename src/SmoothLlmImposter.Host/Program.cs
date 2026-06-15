@@ -32,8 +32,12 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(AdminApiKeyAuthenticationHandler.AdminPolicy, policy =>
         policy.RequireRole("CredentialAdmin")));
 
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
+
 WebApplication app = builder.Build();
 
+app.UseExceptionHandler();
 app.UseSerilogRequestLogging();
 app.UseAuthentication();
 app.UseAuthorization();

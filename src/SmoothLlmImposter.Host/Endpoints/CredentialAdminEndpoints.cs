@@ -1,4 +1,3 @@
-using FluentValidation;
 using Mediator;
 using Microsoft.AspNetCore.Http.HttpResults;
 using SmoothLlmImposter.Application.Features.Credentials;
@@ -21,25 +20,18 @@ internal static class CredentialAdminEndpoints
         group.MapPut("/{id:guid}/activate", ActivateAsync);
     }
 
-    private static async Task<IResult> CreateAsync(CreateCredentialBody body, ISender sender, HttpContext context, CancellationToken cancellationToken)
+    private static async Task<Created<CredentialResponse>> CreateAsync(CreateCredentialBody body, ISender sender, HttpContext context, CancellationToken cancellationToken)
     {
-        try
-        {
-            var response = await sender.Send(new CreateCredential.Request(
-                body.ProviderDialect,
-                body.Name,
-                body.Secret,
-                body.AuthScheme,
-                body.BaseUrlOverride,
-                body.AnthropicVersion,
-                Actor(context)), cancellationToken);
+        CredentialMutationResponse response = await sender.Send(new CreateCredential.Request(
+            body.ProviderDialect,
+            body.Name,
+            body.Secret,
+            body.AuthScheme,
+            body.BaseUrlOverride,
+            body.AnthropicVersion,
+            Actor(context)), cancellationToken);
 
-            return Results.Created($"/admin/credentials/{response.Credential.Id}", response.Credential);
-        }
-        catch (ValidationException ex)
-        {
-            return ValidationProblem(ex);
-        }
+        return TypedResults.Created($"/admin/credentials/{response.Credential.Id}", response.Credential);
     }
 
     private static async Task<Ok<IReadOnlyList<CredentialResponse>>> ListAsync(ISender sender, CancellationToken cancellationToken) =>
@@ -51,25 +43,18 @@ internal static class CredentialAdminEndpoints
         return response is null ? TypedResults.NotFound() : TypedResults.Ok(response);
     }
 
-    private static async Task<IResult> UpdateAsync(Guid id, UpdateCredentialBody body, ISender sender, HttpContext context, CancellationToken cancellationToken)
+    private static async Task<Results<Ok<CredentialResponse>, NotFound>> UpdateAsync(Guid id, UpdateCredentialBody body, ISender sender, HttpContext context, CancellationToken cancellationToken)
     {
-        try
-        {
-            CredentialMutationResponse? response = await sender.Send(new UpdateCredential.Request(
-                id,
-                body.Name,
-                body.AuthScheme,
-                body.Secret,
-                body.BaseUrlOverride,
-                body.AnthropicVersion,
-                Actor(context)), cancellationToken);
+        CredentialMutationResponse? response = await sender.Send(new UpdateCredential.Request(
+            id,
+            body.Name,
+            body.AuthScheme,
+            body.Secret,
+            body.BaseUrlOverride,
+            body.AnthropicVersion,
+            Actor(context)), cancellationToken);
 
-            return response is null ? Results.NotFound() : Results.Ok(response.Credential);
-        }
-        catch (ValidationException ex)
-        {
-            return ValidationProblem(ex);
-        }
+        return response is null ? TypedResults.NotFound() : TypedResults.Ok(response.Credential);
     }
 
     private static async Task<Results<NoContent, NotFound>> DeleteAsync(Guid id, ISender sender, HttpContext context, CancellationToken cancellationToken)
@@ -83,11 +68,6 @@ internal static class CredentialAdminEndpoints
         CredentialMutationResponse? response = await sender.Send(new ActivateCredential.Request(id, Actor(context)), cancellationToken);
         return response is null ? TypedResults.NotFound() : TypedResults.Ok(response.Credential);
     }
-
-    private static IResult ValidationProblem(ValidationException exception) =>
-        Results.ValidationProblem(exception.Errors
-            .GroupBy(failure => failure.PropertyName)
-            .ToDictionary(group => group.Key, group => group.Select(failure => failure.ErrorMessage).ToArray()));
 
     private static string? Actor(HttpContext context) => context.User.Identity?.Name;
 
