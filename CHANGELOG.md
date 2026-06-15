@@ -21,6 +21,9 @@ All notable changes to SmoothLlmImposter are documented here.
 ### Changed
 - Renamed the template scaffold `Project.*` → `SmoothLlmImposter.*` (solution, projects, namespaces,
   folders) and removed the template notice from `AGENTS.md`.
+- Split HLD 001 into a `README.md` index plus `diagrams/`, `nfrs/`, and `ladrs/` subfolders (one file
+  per diagram, NFR, and LADR) instead of a single monolithic document.
+- Removed redundant `.gitkeep` files from folders that now contain code (`Features/`, `Endpoints/`).
 
 ### Removed
 - EF Core / PostgreSQL and the Aspire/WireMock/Respawn test stack (the service is stateless). Integration

@@ -4,8 +4,8 @@
 
 Stateless same-dialect LLM router: reads the inbound `model`, rewrites it to a configured upstream
 ("imposter") or passes through to the dialect's default provider, optionally injecting prompt caching,
-and streams the response back. Design rationale, diagrams, and LADRs live in
-`.docs/hld/001-llm-imposter-routing/`.
+and streams the response back. Design rationale lives in `.docs/hld/001-llm-imposter-routing/`
+(`README.md` index → `diagrams/`, `nfrs/`, `ladrs/` subfolders).
 
 ## Non-Negotiables
 
@@ -50,3 +50,4 @@ and streams the response back. Design rationale, diagrams, and LADRs live in
 |:-----|:-------|:----|
 | 2026-06-14 | Initial routing feature: same-dialect router, config-driven imposters, per-dialect caching, SSE streaming. | — |
 | 2026-06-14 | Moved full LADRs + C4/flow/sequence diagrams to HLD 001; trimmed this file to minimal AI-coder context. | — |
+| 2026-06-15 | HLD 001 split into `README.md` index + `diagrams/`, `nfrs/`, `ladrs/` subfolders. | — |
