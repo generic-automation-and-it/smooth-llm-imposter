@@ -7,14 +7,22 @@ The pipeline is a single PR gate that builds and tests every change before it ca
 - **Workflow:** `.github/workflows/pr-gate.yml`
 - **Triggers:** `pull_request` → `main` (including PR branch updates), `push` → `main`, and manual `workflow_dispatch`.
 
+### Jobs
+
+The workflow is three jobs so the gate always reports a result even when a PR touches no buildable files (a `paths:` trigger would silently skip and leave a required check pending forever):
+
+1. **`changes`** — checks out with `fetch-depth: 0` and decides whether the build is needed. For `push` and `workflow_dispatch` it always returns `src=true`; for `pull_request` it runs `git diff base..head` and matches `^(\.config/|\.github/|Directory\.Packages\.props|SmoothLlmImposter\.slnx|src/|tests/)`.
+2. **`build-and-test`** — runs only when `changes.outputs.src == 'true'`. Restore → build → test with coverage (steps below).
+3. **`ci-gate`** — runs `if: always()` and is the single check intended to be marked required on `main`. It passes when `build-and-test` is `success` **or** `skipped`, and fails otherwise.
+
 ### Service container
 
 The `build-and-test` job declares a single GitHub Actions service container — **WireMock** (`wiremock/wiremock`), published on `127.0.0.1:19091` → container `8080`. It is the only external dependency: this router is stateless and key-less, so there is **no PostgreSQL, Redis, or Aspire host**. The current test suite stubs the upstream transport in-process; the WireMock service is provisioned for integration tests that stub real upstream LLM endpoints over HTTP.
 
 ### Steps
 
-1. **Checkout** — `actions/checkout@v4`.
-2. **Install .NET SDK** — `actions/setup-dotnet@v4` (version from the `DOTNET_VERSION` env, currently `10.0.x`).
+1. **Checkout** — `actions/checkout@v6`.
+2. **Install .NET SDK** — `actions/setup-dotnet@v5` (version from the `DOTNET_VERSION` env, currently `10.0.x`).
 3. **Restore** — `dotnet restore SmoothLlmImposter.slnx`.
 4. **Build** — `dotnet build SmoothLlmImposter.slnx --no-restore --configuration Release`.
 5. **Test with coverage** — local action `.github/actions/test-with-coverage`:
@@ -24,7 +32,7 @@ The `build-and-test` job declares a single GitHub Actions service container — 
    - Runs the whole solution in one pass (`dotnet test SmoothLlmImposter.slnx`) with Cobertura coverage scoped to `[SmoothLlmImposter.*]*`.
    - Generates coverage reports with `dotnet tool run reportgenerator`.
 6. **Publish coverage summary** (`if: always()`) — appends `artifacts/coverage/SummaryGithub.md` to the GitHub step summary.
-7. **Upload coverage artifacts** (`if: always()`) — uploads `artifacts/coverage/` as `coverage-report`.
+7. **Upload coverage artifacts** (`if: always()`) — `actions/upload-artifact@v7`, uploads `artifacts/coverage/` as `coverage-report`.
 
 ## .NET local tools
 

@@ -4,25 +4,42 @@ on:
   push:
     branches:
       - main
-    paths:
-      - Directory.Packages.props
-      - src/**
-      - tests/**
-      - .github/actions/**
-      - .github/workflows/pr-gate.yml
   pull_request:
     branches:
       - main
-    paths:
-      - Directory.Packages.props
-      - src/**
-      - tests/**
-      - .github/actions/**
-      - .github/workflows/pr-gate.yml
   workflow_dispatch:
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      src: ${{ steps.filter.outputs.src }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - id: filter
+        name: Detect relevant changes
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            # push to main and manual dispatch always run the full gate
+            echo "src=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only \
+                "${{ github.event.pull_request.base.sha }}" \
+                "${{ github.event.pull_request.head.sha }}" \
+              | grep -qE '^(\.config/|\.github/|Directory\.Packages\.props|SmoothLlmImposter\.slnx|src/|tests/)'; then
+            echo "src=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "src=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build-and-test:
+    needs: [changes]
+    if: needs.changes.outputs.src == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -40,10 +57,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install .NET SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -70,8 +87,24 @@ jobs:
 
       - name: Upload coverage artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: artifacts/coverage/
           if-no-files-found: warn
+
+  ci-gate:
+    needs: [build-and-test]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require build-and-test to pass or be skipped
+        run: |
+          result="${{ needs.build-and-test.result }}"
+          if [[ "$result" == "success" || "$result" == "skipped" ]]; then
+            echo "CI gate passed (build-and-test: $result)"
+          else
+            echo "CI gate failed (build-and-test: $result)"
+            exit 1
+          fi
