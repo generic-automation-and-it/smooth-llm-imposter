@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
@@ -32,17 +34,33 @@ internal sealed class AdminApiKeyAuthenticationHandler(
         string? adminKey = configuration["Admin:ApiKey"];
         string? operatorKey = configuration["Admin:OperatorApiKey"];
 
-        if (!string.IsNullOrEmpty(adminKey) && supplied == adminKey)
+        if (KeysMatch(supplied, adminKey))
         {
             return Task.FromResult(AuthenticateResult.Success(CreateTicket(isAdmin: true)));
         }
 
-        if (!string.IsNullOrEmpty(operatorKey) && supplied == operatorKey)
+        if (KeysMatch(supplied, operatorKey))
         {
             return Task.FromResult(AuthenticateResult.Success(CreateTicket(isAdmin: false)));
         }
 
         return Task.FromResult(AuthenticateResult.Fail("Invalid admin API key."));
+    }
+
+    /// <summary>
+    /// Compares the supplied key against a configured key in constant time to avoid leaking key length
+    /// or content through timing. Returns false when the configured key is absent.
+    /// </summary>
+    private static bool KeysMatch(string supplied, string? configured)
+    {
+        if (string.IsNullOrEmpty(configured))
+        {
+            return false;
+        }
+
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(supplied),
+            Encoding.UTF8.GetBytes(configured));
     }
 
     private AuthenticationTicket CreateTicket(bool isAdmin)
