@@ -6,6 +6,8 @@
 
 > **⚠️ Template repository.** `Project` is a placeholder name used throughout the solution (`Project.slnx`, `src/Project.*`, `tests/Project.*`), the `.agents` tree, and this README. When the project is given a real name, rename every `Project`/`project` occurrence and update the descriptions below. See the Template Notice in [`AGENTS.md`](AGENTS.md) for the full checklist.
 
+> 🚀 **Setup & deployment:** see [`.docs/wiki/setup.md`](.docs/wiki/setup.md) — build & run on `:5080`, configure the `Imposter` routing section, point a client at it, and the [Conductor fresh-sandbox script](.docs/wiki/setups/conductor.build-smooth-llm-imposter.md).
+
 ---
 
 ## Tech Stack
