@@ -1,0 +1,5 @@
+interface:
+  display_name: "Create HLD"
+  short_description: "Author a design-only High-Level Design (intent + spec, no implementation)"
+  default_prompt: "Author a High-Level Design at discovery phase: clarify scope, scaffold .docs/hlds/NNN-<slug>/, then draft README, LADRs, NFRs, and diagrams. No implementation, no code outside examples/."
+  model: gpt-5.5
