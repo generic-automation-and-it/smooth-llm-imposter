@@ -1,0 +1,20 @@
+# Keep the build context lean — only src + central build files are needed to
+# publish the Host. Everything below is irrelevant to the image.
+**/bin/
+**/obj/
+**/.vs/
+**/*.user
+.git/
+.github/
+.docs/
+.agents/
+.claude/
+.codex/
+.cursor/
+.config/
+.context/
+tests/
+publish/
+Dockerfile
+.dockerignore
+*.md
