@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using SmoothLlmImposter.Application.Common.Persistence;
+using SmoothLlmImposter.Application.Features.AuthorizationOverride;
 using SmoothLlmImposter.Domain.Credentials;
 using SmoothLlmImposter.Domain.Routing;
 
@@ -11,6 +12,7 @@ internal sealed class ImposterRouter : IImposterRouter
     private readonly IRouteResolver _resolver;
     private readonly ICredentialStore _credentialStore;
     private readonly ISecretProtector _secretProtector;
+    private readonly IAuthorizationOverrideSwitch _overrideSwitch;
     private readonly IReadOnlyDictionary<ApiDialect, IRequestTransformer> _transformers;
     private readonly ILogger<ImposterRouter> _logger;
 
@@ -18,12 +20,14 @@ internal sealed class ImposterRouter : IImposterRouter
         IRouteResolver resolver,
         ICredentialStore credentialStore,
         ISecretProtector secretProtector,
+        IAuthorizationOverrideSwitch overrideSwitch,
         IEnumerable<IRequestTransformer> transformers,
         ILogger<ImposterRouter> logger)
     {
         _resolver = resolver;
         _credentialStore = credentialStore;
         _secretProtector = secretProtector;
+        _overrideSwitch = overrideSwitch;
         _transformers = transformers.ToDictionary(t => t.Dialect);
         _logger = logger;
     }
@@ -58,10 +62,19 @@ internal sealed class ImposterRouter : IImposterRouter
 
     private async Task<RouteCredentialOverride?> ResolvePassthroughCredentialAsync(ApiDialect dialect, CancellationToken cancellationToken)
     {
+        // The authorization override switch is consulted ONLY here, on the passthrough branch. A matched
+        // imposter route never enters this method, so it never reads the switch or the store (LADR-003).
+        bool forceBearer = _overrideSwitch.IsEnabled(dialect);
+
         ProviderCredential? credential = await _credentialStore.GetActiveAsync(dialect, cancellationToken);
         if (credential is null)
         {
-            return null;
+            // Override ON + no active credential ⇒ fail closed (403), never fall back to x-api-key/config key (LADR-005).
+            return forceBearer
+                ? throw new RoutingException(
+                    $"The {dialect} passthrough authorization override is enabled but no active stored credential is configured.",
+                    statusCode: 403)
+                : null;
         }
 
         Uri? baseUrlOverride = null;
@@ -75,7 +88,8 @@ internal sealed class ImposterRouter : IImposterRouter
             _secretProtector.Unprotect(credential.SecretCiphertext),
             credential.AuthScheme,
             baseUrlOverride,
-            credential is AnthropicCredential anthropic ? anthropic.AnthropicVersion : null);
+            credential is AnthropicCredential anthropic ? anthropic.AnthropicVersion : null,
+            ForceBearer: forceBearer);
     }
 
     private static string ExtractModel(string requestBody)

@@ -63,6 +63,12 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         {
             ApplyDefaultAuthentication(request, dialect, secret);
         }
+        else if (credentialOverride.ForceBearer)
+        {
+            // HLD 003: override ON ⇒ force Bearer from the active credential regardless of its stored scheme.
+            // Headers are only ever added, so x-api-key is inherently never sent for this request.
+            request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {secret}");
+        }
         else
         {
             ApplyStoredCredentialAuthentication(request, credentialOverride.AuthScheme, secret);

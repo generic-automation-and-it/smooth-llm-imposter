@@ -140,6 +140,7 @@ internal static class RoutingEndpoints
 
     private static string ErrorTypeFor(int statusCode) => statusCode switch
     {
+        StatusCodes.Status403Forbidden => "permission_error",
         StatusCodes.Status404NotFound => "not_found_error",
         StatusCodes.Status500InternalServerError => "api_error",
         _ => "invalid_request_error"

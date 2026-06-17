@@ -27,7 +27,7 @@ internal sealed class CredentialStore(ImposterDbContext dbContext) : ICredential
 
     public async Task<ProviderCredential?> GetActiveAsync(ApiDialect dialect, CancellationToken cancellationToken) =>
         await dbContext.ProviderCredentials
-            .FirstOrDefaultAsync(c => EF.Property<string>(c, "ProviderDialect") == ToToken(dialect) && c.IsActive, cancellationToken);
+            .FirstOrDefaultAsync(c => EF.Property<string>(c, "ProviderDialect") == dialect.ToToken() && c.IsActive, cancellationToken);
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -91,11 +91,4 @@ internal sealed class CredentialStore(ImposterDbContext dbContext) : ICredential
             return null;
         }
     }
-
-    private static string ToToken(ApiDialect dialect) => dialect switch
-    {
-        ApiDialect.OpenAi => OpenAiCredential.DialectToken,
-        ApiDialect.Anthropic => AnthropicCredential.DialectToken,
-        _ => throw new ArgumentOutOfRangeException(nameof(dialect), dialect, "Unsupported provider dialect.")
-    };
 }
