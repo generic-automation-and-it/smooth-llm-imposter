@@ -14,12 +14,14 @@ services:
       - "5080:5080"
     environment:
       ASPNETCORE_URLS: http://+:5080
-      # Upstream provider keys — index = provider order in appsettings.json.
-      # Supply via shell export or a gitignored .env file; the :- default keeps
-      # compose quiet when a key is unset (the Host starts, but routed calls to
-      # that provider fail upstream).
-      Imposter__Providers__0__ApiKey: ${Imposter__Providers__0__ApiKey:-}
-      Imposter__Providers__1__ApiKey: ${Imposter__Providers__1__ApiKey:-}
+      # Upstream provider keys — index = provider order in appsettings.json
+      # (0 opencode-go, 1 openrouter, 2 opencode-anthropic). Supply via shell
+      # export or a gitignored .env file; the :- default keeps compose quiet
+      # when a key is unset (the Host starts, but routed calls to that provider
+      # fail upstream).
+      Imposter__Providers__0__ApiKey: ${OPENCODE_API_KEY:-}
+      Imposter__Providers__1__ApiKey: ${OPENROUTER_API_KEY:-}
+      Imposter__Providers__2__ApiKey: ${OPENCODE_API_KEY:-}
     # Only needed for the optional /admin/credentials API (requires PostgreSQL):
     # persist Data Protection keys so stored secrets survive a container rebuild.
     # volumes:

@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-Bring the Host up on `localhost:5080` with one command using the repo's [`compose.yaml`](../../../compose.yaml). It
+Bring the Host up on `localhost:5080` with one command using the repo's [`docker-compose.yml`](../../../docker-compose.yml). It
 is **dual-mode**: `build: .` builds the image from the local [`Dockerfile`](../../../Dockerfile), and `image:`
 points at the published GHCR tag — so you can either build locally or `pull`. `restart: unless-stopped` keeps it
 running across reboots. Works with **`docker compose`** (v2) and **`podman-compose`**.
@@ -14,13 +14,17 @@ running across reboots. Works with **`docker compose`** (v2) and **`podman-compo
 ## Supply keys
 
 Compose auto-loads a `./.env` file (gitignored via `*.env`) for `${...}` interpolation, or reads exported shell
-variables. Create `.env` next to `compose.yaml`:
+variables. Create `.env` next to `docker-compose.yml`:
 
 ```dotenv
 # .env  (never committed — *.env is gitignored)
-Imposter__Providers__0__ApiKey=sk-your-opencode-key
-Imposter__Providers__1__ApiKey=sk-your-anthropic-route-key
+OPENCODE_API_KEY=sk-your-opencode-key      # feeds providers 0 (opencode-go) and 2 (opencode-anthropic)
+OPENROUTER_API_KEY=sk-your-openrouter-key  # feeds provider 1 (openrouter)
 ```
+
+`docker-compose.yml` maps these named variables onto the indexed
+`Imposter__Providers__N__ApiKey` settings — edit the `environment:` block there if your provider order
+differs from the shipped `appsettings.json`.
 
 ## Up / down
 
@@ -77,6 +81,6 @@ curl -fsS http://localhost:5080/v1/chat/completions \
 
 ## Credential-admin API (optional)
 
-If you use `/admin/credentials` (needs PostgreSQL), uncomment the `volumes:` block in `compose.yaml` to persist
+If you use `/admin/credentials` (needs PostgreSQL), uncomment the `volumes:` block in `docker-compose.yml` to persist
 Data Protection keys (`slli-dpkeys:/home/app/.aspnet/DataProtection-Keys`) so encrypted secrets survive a rebuild,
 and add `Admin__ApiKey` / `ConnectionStrings__ImposterDb` to your `.env`. Pure imposter routing needs neither.

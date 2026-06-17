@@ -19,5 +19,7 @@ Dockerfile
 .dockerignore
 compose*.yaml
 compose*.yml
+docker-compose*.yml
+docker-compose*.yaml
 *.env
 *.md
