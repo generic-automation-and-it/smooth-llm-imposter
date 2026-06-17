@@ -61,3 +61,4 @@ Measurable NFRs live in [`./nfrs/`](./nfrs/). Constraints that change how code i
 | Date | Change | Ref |
 | :---- | :---- | :---- |
 | 2026-06-17 | HLD authored — in-memory per-dialect passthrough Bearer override; PUT/DELETE/GET control; passthrough-only; fail-closed. | [NO-TICKET] |
+| 2026-06-17 | Implemented per the approved plan (Application switch + slices, Infrastructure force-Bearer, Host admin endpoints, L0+L2 tests). LADRs 001–005 remain **Draft** — recommend promotion to **Prototype** on review (not flipped here). | [NO-TICKET] |

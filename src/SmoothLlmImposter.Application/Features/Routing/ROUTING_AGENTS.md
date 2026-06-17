@@ -50,6 +50,20 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   routes — those stay config-key-only and DB-free (HLD 002 LADR-004). The hot-path non-negotiables above are
   unchanged; the admin API uses Mediator/FluentValidation while routing stays raw (HLD 002 LADR-005).
 
+## Authorization Override (HLD 003)
+
+- **`IAuthorizationOverrideSwitch`** (`Features/AuthorizationOverride/`, in-memory singleton, default OFF) is read
+  on **exactly one line** — `ResolvePassthroughCredentialAsync`, the same seam above. When ON for a dialect, the
+  returned `RouteCredentialOverride` carries **`ForceBearer = true`**, and the forwarder presents the active
+  credential's secret as `Authorization: Bearer` while omitting `x-api-key`, regardless of the stored `AuthScheme`.
+  Because the imposter branch returns `null` before this method, it never reads the switch or the store (LADR-003) —
+  a throwing-spy unit test enforces this.
+- **Fail closed:** override ON + no active credential ⇒ `RoutingException(statusCode: 403)`, surfaced as a
+  dialect-shaped `permission_error` (`RoutingEndpoints.ErrorTypeFor`). Never falls back to `x-api-key`/config key
+  (LADR-005). Arm-time refusal (no active credential at `PUT`) is handled in the Mediator slice, not here.
+- The switch adds **no** DB read of its own — it gates HLD 002's existing active-credential lookup (NFR-003).
+  See `Features/AuthorizationOverride/AUTHORIZATION_OVERRIDE_AGENTS.md` for the toggle slices and endpoint contract.
+
 ## Test References
 
 - **L0** `Domain.UnitTest/Routing` — matcher, dialect parser.
@@ -65,3 +79,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-15 | HLD 001 split into `README.md` index + `diagrams/`, `nfrs/`, `ladrs/` subfolders. | — |
 | 2026-06-15 | Default config: removed `IsDefault` providers (type-only impostering, 404 on unmatched; LADR-005). New providers opencode-go/openrouter/opencode-anthropic. | — |
 | 2026-06-15 | Implemented HLD 002 passthrough credential override seam; matched imposter routes remain config-key-only and DB-free. | HLD 002 |
+| 2026-06-17 | Implemented HLD 003 passthrough authorization override: in-memory per-dialect force-Bearer switch read only on the passthrough seam, fail-closed 403 (`permission_error`), imposter path untouched. | HLD 003 |
