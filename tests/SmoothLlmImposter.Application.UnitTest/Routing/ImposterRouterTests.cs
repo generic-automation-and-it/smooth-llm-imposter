@@ -20,10 +20,10 @@ public class ImposterRouterTests
             [
                 new ProviderOptions
                 {
-                    Name = "opencode", Api = "openai", BaseUrl = "https://opencode.example",
+                    Name = "opencode", Dialect = "openai", BaseUrl = "https://opencode.example",
                     Models = [new ModelMappingOptions { From = "gpt5.4", To = "grok-code", Caching = true }]
                 },
-                new ProviderOptions { Name = "openai-official", Api = "openai", BaseUrl = "https://api.openai.com", IsDefault = true }
+                new ProviderOptions { Name = "openai-official", Dialect = "openai", BaseUrl = "https://api.openai.com", IsDefault = true }
             ]
         });
 

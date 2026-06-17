@@ -10,8 +10,8 @@ public class ImposterOptionsValidatorTests
     private static ImposterOptions Options(params ProviderOptions[] providers) =>
         new() { Providers = [.. providers] };
 
-    private static ProviderOptions Valid(string name, string api = "openai", bool isDefault = false) =>
-        new() { Name = name, Api = api, BaseUrl = "https://" + name + ".example", IsDefault = isDefault };
+    private static ProviderOptions Valid(string name, string dialect = "openai", bool isDefault = false) =>
+        new() { Name = name, Dialect = dialect, BaseUrl = "https://" + name + ".example", IsDefault = isDefault };
 
     [Fact]
     public void Valid_configuration_succeeds() =>
@@ -27,12 +27,12 @@ public class ImposterOptionsValidatorTests
 
     [Fact]
     public void Unknown_dialect_fails() =>
-        _validator.Validate(null, Options(Valid("a", api: "gemini"))).Failed.ShouldBeTrue();
+        _validator.Validate(null, Options(Valid("a", dialect: "gemini"))).Failed.ShouldBeTrue();
 
     [Fact]
     public void Non_absolute_base_url_fails()
     {
-        var bad = new ProviderOptions { Name = "a", Api = "openai", BaseUrl = "not-a-url" };
+        var bad = new ProviderOptions { Name = "a", Dialect = "openai", BaseUrl = "not-a-url" };
         _validator.Validate(null, Options(bad)).Failed.ShouldBeTrue();
     }
 
@@ -46,7 +46,7 @@ public class ImposterOptionsValidatorTests
     {
         var provider = new ProviderOptions
         {
-            Name = "a", Api = "openai", BaseUrl = "https://a.example",
+            Name = "a", Dialect = "openai", BaseUrl = "https://a.example",
             Models = [new ModelMappingOptions { From = "x", To = "" }]
         };
         _validator.Validate(null, Options(provider)).Failed.ShouldBeTrue();

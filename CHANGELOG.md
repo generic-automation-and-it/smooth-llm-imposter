@@ -28,6 +28,9 @@ All notable changes to SmoothLlmImposter are documented here.
   `gpt5.4` → `kimi-k2.7`; added `openrouter` (openai) and `opencode-anthropic` (`claude-haiku-*` →
   `minimax-m3`). Removed the `IsDefault` passthrough providers — impostering is now type-only and an
   unmatched model returns a 404 (HLD LADR-005). The `IsDefault` capability remains supported in code.
+- **Breaking config:** renamed the provider wire-dialect key `Api` → `Dialect` (e.g.
+  `Imposter:Providers:0:Dialect`, env `Imposter__Providers__0__Dialect`) to match the `ApiDialect`
+  domain vocabulary. Existing configs using `Api` must be updated — the old key is no longer bound.
 
 ### Removed
 - EF Core / PostgreSQL and the Aspire/WireMock/Respawn test stack (the service is stateless). Integration

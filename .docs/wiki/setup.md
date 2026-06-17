@@ -62,7 +62,7 @@ appended verbatim), an upstream key, and optional `From → To` model mappings w
     "Providers": [
       {
         "Name": "opencode-go",
-        "Api": "openai",
+        "Dialect": "openai",
         "BaseUrl": "https://opencode.ai/zen/go",
         "ApiKey": "",
         "Models": [
@@ -71,7 +71,7 @@ appended verbatim), an upstream key, and optional `From → To` model mappings w
       },
       {
         "Name": "opencode-anthropic",
-        "Api": "anthropic",
+        "Dialect": "anthropic",
         "BaseUrl": "https://opencode.ai/zen/go",
         "ApiKey": "",
         "Models": [

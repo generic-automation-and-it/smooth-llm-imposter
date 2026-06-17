@@ -16,7 +16,7 @@ internal sealed class ProviderCatalog : IProviderCatalog
     {
         foreach (ProviderOptions provider in options.Value.Providers)
         {
-            ApiDialect dialect = ApiDialectParser.Parse(provider.Api);
+            ApiDialect dialect = ApiDialectParser.Parse(provider.Dialect);
 
             var route = new ProviderRoute(
                 provider.Name,

@@ -21,7 +21,7 @@ public sealed class EnvironmentOverrideTests
     private static readonly Dictionary<string, string?> BaseConfig = new()
     {
         ["Imposter:Providers:0:Name"] = "opencode-go",
-        ["Imposter:Providers:0:Api"] = "openai",
+        ["Imposter:Providers:0:Dialect"] = "openai",
         ["Imposter:Providers:0:BaseUrl"] = "https://opencode.test",
         ["Imposter:Providers:0:ApiKey"] = "",
         ["Imposter:Providers:0:Models:0:From"] = "gpt5.4",
