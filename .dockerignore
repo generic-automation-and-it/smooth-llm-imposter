@@ -17,4 +17,7 @@ tests/
 publish/
 Dockerfile
 .dockerignore
+compose*.yaml
+compose*.yml
+*.env
 *.md

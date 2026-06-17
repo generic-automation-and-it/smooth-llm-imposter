@@ -1,0 +1,29 @@
+# Run the SmoothLlmImposter Host in a container with `docker compose` or
+# `podman-compose`. `build: .` builds from the repo Dockerfile; `image:` lets
+# you instead `pull` the published GHCR image. Keys come from your shell or a
+# gitignored .env (compose auto-loads ./.env for ${...} interpolation).
+#
+# See .docs/wiki/setups/compose.run-smooth-llm-imposter.md
+services:
+  smooth-llm-imposter:
+    image: ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
+    build: .
+    container_name: smooth-llm-imposter
+    restart: unless-stopped
+    ports:
+      - "5080:5080"
+    environment:
+      ASPNETCORE_URLS: http://+:5080
+      # Upstream provider keys — index = provider order in appsettings.json.
+      # Supply via shell export or a gitignored .env file; the :- default keeps
+      # compose quiet when a key is unset (the Host starts, but routed calls to
+      # that provider fail upstream).
+      Imposter__Providers__0__ApiKey: ${Imposter__Providers__0__ApiKey:-}
+      Imposter__Providers__1__ApiKey: ${Imposter__Providers__1__ApiKey:-}
+    # Only needed for the optional /admin/credentials API (requires PostgreSQL):
+    # persist Data Protection keys so stored secrets survive a container rebuild.
+    # volumes:
+    #   - slli-dpkeys:/home/app/.aspnet/DataProtection-Keys
+
+# volumes:
+#   slli-dpkeys:
