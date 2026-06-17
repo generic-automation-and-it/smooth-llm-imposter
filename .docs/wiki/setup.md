@@ -3,9 +3,9 @@
 > **What this is.** SmoothLlmImposter is a stateless, key-less LLM request router. It exposes OpenAI- and
 > Anthropic-dialect endpoints, reads the inbound `model`, and either rewrites it to a configured upstream
 > ("imposter") — optionally injecting prompt caching — or passes it through. Keys come from config/env only;
-> nothing about a request is persisted. There is **no `claude login` and no token capture**, and **no published
-> container image** — you run the Host with `dotnet` (or build a local image from the repo
-> [`Dockerfile`](../../Dockerfile)) and point your existing OpenAI/Anthropic client's base URL at it.
+> nothing about a request is persisted. There is **no `claude login` and no token capture** — you run the Host with
+> `dotnet`, pull the published GHCR image, or build a local image from the repo
+> [`Dockerfile`](../../Dockerfile), and point your existing OpenAI/Anthropic client's base URL at it.
 
 ## Setups
 
@@ -16,7 +16,9 @@ Pick the setup that matches how you want to run the router. Each links to a self
 |---|---|---|
 | **Local (`dotnet run`)** | Quickest start — build and run the Host on `:5080` with the SDK. Covered inline under [Build & run](#build--run) below. | _(this doc)_ |
 | **Local debug + dev secrets** | Run from source with a debugger (VS / Rider / VS Code), launch profiles, and `dotnet user-secrets` for keys. | [`setups/local-debug.run-smooth-llm-imposter.md`](setups/local-debug.run-smooth-llm-imposter.md) |
-| **Docker / Podman** | Build the Host image from the repo `Dockerfile` and run it in a container on `:5080` (no registry image — built locally). | [`setups/docker.run-smooth-llm-imposter.md`](setups/docker.run-smooth-llm-imposter.md) |
+| **Docker / Podman (local build)** | Build the Host image from the repo `Dockerfile` and run it in a container on `:5080`. | [`setups/docker.run-smooth-llm-imposter.md`](setups/docker.run-smooth-llm-imposter.md) |
+| **GHCR published image** | Pull the prebuilt image (`ghcr.io/…/smooth-llm-imposter`, published on `main` + `v*` tags) and run it with `--restart unless-stopped`. | [`setups/ghcr.run-smooth-llm-imposter.md`](setups/ghcr.run-smooth-llm-imposter.md) |
+| **Compose** | One-command up/down (and full rebuild) via `docker compose` / `podman-compose` from `compose.yaml`. | [`setups/compose.run-smooth-llm-imposter.md`](setups/compose.run-smooth-llm-imposter.md) |
 | **Conductor.Build fresh-sandbox** | Install .NET, build & run the Host on `:5080`, and point a client at it. | [`setups/conductor.build-smooth-llm-imposter.md`](setups/conductor.build-smooth-llm-imposter.md) |
 
 ## Prerequisites
