@@ -7,9 +7,12 @@ using SmoothLlmImposter.Domain.Routing;
 namespace SmoothLlmImposter.Infrastructure.Routing;
 
 /// <summary>
-/// Forwards the transformed request to the resolved upstream and returns the live response, read
-/// headers-first so SSE bodies stream through. Auth is applied per dialect from the provider's
-/// configured key unless a passthrough credential override is supplied.
+/// Forwards the request to the resolved upstream and returns the live response, read headers-first so SSE
+/// bodies stream through. Acts as a transparent proxy: the caller's inbound headers are relayed verbatim
+/// (minus hop-by-hop and content headers, which the transport owns), and the body is unchanged except for
+/// imposter caching/model rewrites done upstream. The <b>only</b> header the forwarder manages is auth —
+/// the caller's own credential passes through on key-less passthrough, or is replaced by the provider key /
+/// stored credential / force-Bearer override.
 /// </summary>
 /// <remarks>
 /// The named client uses an infinite <see cref="HttpClient.Timeout"/> and relies on the caller's
@@ -29,6 +32,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         string body,
         string path,
         string? queryString,
+        CallerHeaders callerHeaders,
         CancellationToken cancellationToken)
     {
         Uri baseUrl = credentialOverride?.BaseUrlOverride ?? decision.Provider.BaseUrl;
@@ -39,7 +43,10 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
 
-        ApplyAuthentication(request, decision, credentialOverride, dialect);
+        // Proxy the caller's headers through unchanged (minus hop-by-hop/content/auth), then manage auth only.
+        ForwardCallerHeaders(request, callerHeaders);
+        ApplyAuthentication(request, decision, credentialOverride, dialect, callerHeaders);
+        EnsureAnthropicVersion(request, decision, credentialOverride, dialect);
 
         logger.LogDebug("Forwarding to {Provider} at {Target}", decision.Provider.Name, target);
 
@@ -47,33 +54,92 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         return await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
     }
 
+    // Headers the transport owns or that are unsafe to relay verbatim. Auth headers are excluded here and
+    // handled by ApplyAuthentication; content headers belong on HttpContent and the body may be rewritten.
+    private static readonly HashSet<string> NonForwardableHeaders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Host", "Authorization", "x-api-key",
+        "Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization",
+        "TE", "Trailer", "Transfer-Encoding", "Upgrade", "Expect", "Accept-Encoding",
+        "Content-Length", "Content-Type", "Content-Encoding", "Content-Language",
+        "Content-Location", "Content-MD5", "Content-Range",
+    };
+
+    private static void ForwardCallerHeaders(HttpRequestMessage request, CallerHeaders callerHeaders)
+    {
+        foreach (KeyValuePair<string, IReadOnlyList<string>> header in callerHeaders.Items)
+        {
+            if (NonForwardableHeaders.Contains(header.Key))
+            {
+                continue;
+            }
+
+            request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+        }
+    }
+
     private static void ApplyAuthentication(
+        HttpRequestMessage request,
+        RouteDecision decision,
+        RouteCredentialOverride? credentialOverride,
+        ApiDialect dialect,
+        CallerHeaders callerHeaders)
+    {
+        string? secret = credentialOverride?.Secret ?? decision.Provider.ApiKey;
+
+        if (!string.IsNullOrEmpty(secret))
+        {
+            if (credentialOverride is null)
+            {
+                ApplyDefaultAuthentication(request, dialect, secret);
+            }
+            else if (credentialOverride.ForceBearer)
+            {
+                // HLD 003: override ON ⇒ force Bearer from the active credential regardless of its stored scheme.
+                // Headers are only ever added, so x-api-key is inherently never sent for this request.
+                request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {secret}");
+            }
+            else
+            {
+                ApplyStoredCredentialAuthentication(request, credentialOverride.AuthScheme, secret);
+            }
+
+            return;
+        }
+
+        // Key-less passthrough: forward the caller's own credential verbatim so the router still authenticates.
+        // A matched imposter route forwards no caller auth — its (here empty) configured key governs instead.
+        if (!decision.IsImposter)
+        {
+            if (callerHeaders.Get("Authorization") is { Count: > 0 } authorization)
+            {
+                request.Headers.TryAddWithoutValidation("Authorization", authorization);
+            }
+
+            if (callerHeaders.Get("x-api-key") is { Count: > 0 } apiKey)
+            {
+                request.Headers.TryAddWithoutValidation("x-api-key", apiKey);
+            }
+        }
+    }
+
+    private static void EnsureAnthropicVersion(
         HttpRequestMessage request,
         RouteDecision decision,
         RouteCredentialOverride? credentialOverride,
         ApiDialect dialect)
     {
-        string? secret = credentialOverride?.Secret ?? decision.Provider.ApiKey;
-        if (string.IsNullOrEmpty(secret))
+        // The caller's own anthropic-version is already forwarded by ForwardCallerHeaders and is left
+        // untouched. Only supply a value when the caller omitted it, so the upstream still gets a required
+        // header: a configured override/provider version if present, otherwise the documented default.
+        if (dialect != ApiDialect.Anthropic || request.Headers.Contains("anthropic-version"))
         {
             return;
         }
 
-        if (credentialOverride is null)
-        {
-            ApplyDefaultAuthentication(request, dialect, secret);
-        }
-        else
-        {
-            ApplyStoredCredentialAuthentication(request, credentialOverride.AuthScheme, secret);
-        }
-
-        if (dialect == ApiDialect.Anthropic)
-        {
-            request.Headers.TryAddWithoutValidation(
-                "anthropic-version",
-                credentialOverride?.AnthropicVersion ?? decision.Provider.AnthropicVersion ?? DefaultAnthropicVersion);
-        }
+        request.Headers.TryAddWithoutValidation(
+            "anthropic-version",
+            credentialOverride?.AnthropicVersion ?? decision.Provider.AnthropicVersion ?? DefaultAnthropicVersion);
     }
 
     private static void ApplyDefaultAuthentication(HttpRequestMessage request, ApiDialect dialect, string secret)

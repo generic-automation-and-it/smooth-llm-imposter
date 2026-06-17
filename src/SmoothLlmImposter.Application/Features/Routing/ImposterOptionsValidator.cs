@@ -36,9 +36,9 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
                 failures.Add($"{prefix}:Name '{provider.Name}' is duplicated.");
             }
 
-            if (!ApiDialectParser.TryParse(provider.Api, out ApiDialect dialect))
+            if (!ApiDialectParser.TryParse(provider.Dialect, out ApiDialect dialect))
             {
-                failures.Add($"{prefix}:Api '{provider.Api}' is invalid (expected 'openai' or 'anthropic').");
+                failures.Add($"{prefix}:Dialect '{provider.Dialect}' is invalid (expected 'openai' or 'anthropic').");
             }
             else if (provider.IsDefault)
             {

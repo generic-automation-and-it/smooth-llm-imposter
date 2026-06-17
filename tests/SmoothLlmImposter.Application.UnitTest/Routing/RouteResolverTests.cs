@@ -10,7 +10,7 @@ public class RouteResolverTests
         new(new ProviderCatalog(Options.Create(new ImposterOptions { Providers = [.. providers] })));
 
     private static ProviderOptions OpenAi(string name, bool isDefault = false, params ModelMappingOptions[] models) =>
-        new() { Name = name, Api = "openai", BaseUrl = "https://" + name + ".example", IsDefault = isDefault, Models = [.. models] };
+        new() { Name = name, Dialect = "openai", BaseUrl = "https://" + name + ".example", IsDefault = isDefault, Models = [.. models] };
 
     [Fact]
     public void Exact_mapping_is_an_imposter_route_with_rewritten_model()

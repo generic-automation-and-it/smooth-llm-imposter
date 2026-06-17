@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Common.Pipelines;
+using SmoothLlmImposter.Application.Features.AuthorizationOverride;
 using SmoothLlmImposter.Application.Features.Credentials;
 using SmoothLlmImposter.Application.Features.Routing;
 
@@ -22,6 +23,7 @@ public static class DependencyInjection
         services.AddSingleton<IRequestTransformer, AnthropicRequestTransformer>();
         services.AddScoped<IImposterRouter, ImposterRouter>();
         services.AddSingleton<IErrorResponseFactory, ErrorResponseFactory>();
+        services.AddSingleton<IAuthorizationOverrideSwitch, AuthorizationOverrideSwitch>();
 
         services.AddSingleton<IValidateOptions<ImposterOptions>, ImposterOptionsValidator>();
 

@@ -18,11 +18,15 @@ internal sealed class ProviderCredentialConfiguration : IEntityTypeConfiguration
         builder.Property(x => x.CreatedAtUtc).IsRequired();
         builder.Property(x => x.UpdatedAtUtc).IsRequired();
 
+        // The CLR ProviderDialect is a computed, read-only discriminant on each subtype, so it is not a
+        // mapped column. The TPH discriminator is a separate shadow property named "Dialect" — it must NOT
+        // reuse the ignored CLR property's name, or EF Core's HasDiscriminator throws while reconciling the
+        // ignored property (NullReferenceException in GetOrCreateDiscriminatorProperty).
         builder.Ignore(x => x.ProviderDialect);
-        builder.HasDiscriminator<string>("ProviderDialect")
+        builder.HasDiscriminator<string>("Dialect")
             .HasValue<OpenAiCredential>(OpenAiCredential.DialectToken)
             .HasValue<AnthropicCredential>(AnthropicCredential.DialectToken);
 
-        builder.HasIndex("ProviderDialect", nameof(ProviderCredential.Name)).IsUnique();
+        builder.HasIndex("Dialect", nameof(ProviderCredential.Name)).IsUnique();
     }
 }

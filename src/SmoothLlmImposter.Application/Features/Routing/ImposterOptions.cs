@@ -19,7 +19,7 @@ public sealed class ProviderOptions
     public string Name { get; init; } = string.Empty;
 
     /// <summary>Wire dialect: <c>openai</c> or <c>anthropic</c>.</summary>
-    public string Api { get; init; } = string.Empty;
+    public string Dialect { get; init; } = string.Empty;
 
     /// <summary>Server root WITHOUT the version path, e.g. <c>https://api.openai.com</c>. The inbound request path is appended.</summary>
     public string BaseUrl { get; init; } = string.Empty;

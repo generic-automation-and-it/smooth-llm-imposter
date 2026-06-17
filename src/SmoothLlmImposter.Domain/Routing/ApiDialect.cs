@@ -33,4 +33,12 @@ public static class ApiDialectParser
         TryParse(value, out ApiDialect dialect)
             ? dialect
             : throw new ArgumentException($"Unknown API dialect '{value}'. Expected 'openai' or 'anthropic'.", nameof(value));
+
+    /// <summary>Renders a dialect back to its canonical wire token ("openai" / "anthropic").</summary>
+    public static string ToToken(this ApiDialect dialect) => dialect switch
+    {
+        ApiDialect.OpenAi => "openai",
+        ApiDialect.Anthropic => "anthropic",
+        _ => throw new ArgumentOutOfRangeException(nameof(dialect), dialect, "Unsupported API dialect.")
+    };
 }

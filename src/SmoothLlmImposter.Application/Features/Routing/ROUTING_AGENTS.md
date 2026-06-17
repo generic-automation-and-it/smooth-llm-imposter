@@ -10,8 +10,18 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 ## Non-Negotiables
 
 - **Never persist, log, or echo `ApiKey` values.** They live only in `ImposterOptions` (config/env). Logs
-  carry provider name + model names only. The inbound caller's own `Authorization`/`x-api-key` is **not**
-  forwarded — the provider's configured key replaces it.
+  carry provider name + model names only.
+- **Transparent proxy — do not strip or rewrite the request.** The forwarder relays the caller's inbound
+  headers and body to the upstream **unchanged**, with exactly two exceptions: (1) the **auth** header is
+  managed (see below), and (2) **caching injection** rewrites the body on a matched imposter route. Adding a
+  bespoke filter that drops a caller header (e.g. `anthropic-beta`) breaks beta body fields like
+  `context_management` — only the fixed hop-by-hop/content set (`Host`, `Content-*`, `Connection`,
+  `Transfer-Encoding`, `Accept-Encoding`, …) is withheld. The caller's own `anthropic-version` passes through;
+  the default `2023-06-01` is supplied **only** when the caller omitted it.
+- **Auth header is the one managed header, route-dependent:** a matched imposter route sends the provider's
+  configured key (never the caller's). On **passthrough**: the HLD-003 override ON ⇒ active stored Bearer; else
+  a configured provider key / stored credential if present; else the caller's own `Authorization`/`x-api-key`
+  is forwarded verbatim, so a key-less router authenticates with the caller's credential.
 - **Same-dialect only.** Do not add OpenAI⇄Anthropic body translation here. An `openai` provider serves
   openai requests; an `anthropic` provider serves anthropic requests.
 - **`BaseUrl` is the server root WITHOUT a version path** (`https://api.openai.com`, not `.../v1`). The
@@ -31,14 +41,19 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 - **`From` matching** is exact or single trailing-`*` wildcard (`claude-haiku-*`), case-insensitive (`ModelMatcher`).
 - **No match → default passthrough** (model unchanged, no caching) via the dialect's `IsDefault` provider.
   No match **and** no default → `RoutingException(404)`. At most one `IsDefault` per dialect (startup-validated).
-  The **shipped `appsettings.json` declares no defaults** (type-only impostering → 404 on unmatched; HLD LADR-005);
-  `IsDefault` stays supported in code for deployments that opt back in.
+  The shipped `appsettings.json` declares **catch-all key-less defaults** for `anthropic` (`api.anthropic.com`)
+  and `openai` (`api.openai.com`); remove them for type-only impostering (404 on unmatched; HLD LADR-005).
 - **Caching is per-dialect** (only when `Caching: true`): Anthropic injects ephemeral `cache_control` on the
   `system` block (a string `system` is converted to a one-element block array) and on the last content block
   of the last message; OpenAI sets `prompt_cache_key` to the **inbound** model name.
 - **Errors are dialect-shaped**: OpenAI `{error:{message,type}}`, Anthropic `{type:"error",error:{type,message}}`.
   Routing failures → 400/404; upstream transport failures → 502.
-- **`anthropic-version`** header defaults to `2023-06-01`, overridable per provider via `AnthropicVersion`.
+- **`anthropic-version`**: the caller's value is forwarded as-is; `2023-06-01` (or a configured
+  `AnthropicVersion`) is supplied only when the caller omitted the header.
+- **Header forwarding** is driven by `CallerHeaders` (the full inbound header set, captured at the Host edge in
+  `RoutingEndpoints` so `HttpContext` never leaks downstream). `UpstreamForwarder.ForwardCallerHeaders` copies
+  every header except the fixed `NonForwardableHeaders` set (hop-by-hop, content, and the auth headers, which
+  `ApplyAuthentication` owns). This is what lets vendor `x-*` and `anthropic-beta` headers reach the upstream.
 
 ## Credential Overrides
 
@@ -49,6 +64,25 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   and passes a decrypted `RouteCredentialOverride` to the forwarder. **Do not** extend this to matched-imposter
   routes — those stay config-key-only and DB-free (HLD 002 LADR-004). The hot-path non-negotiables above are
   unchanged; the admin API uses Mediator/FluentValidation while routing stays raw (HLD 002 LADR-005).
+- **Persistence is opt-in.** `AddInfrastructure` wires EF Core + `CredentialStore` **only** when
+  `ConnectionStrings:ImposterDb` is set; otherwise it registers a `NullCredentialStore`. This keeps the
+  stateless/key-less default booting with **no database**: the passthrough seam resolves a `null` credential
+  (then forwards caller auth, above) instead of opening a connection. The credential-admin and authorization-
+  override features simply require a connection string to be available.
+
+## Authorization Override (HLD 003)
+
+- **`IAuthorizationOverrideSwitch`** (`Features/AuthorizationOverride/`, in-memory singleton, default OFF) is read
+  on **exactly one line** — `ResolvePassthroughCredentialAsync`, the same seam above. When ON for a dialect, the
+  returned `RouteCredentialOverride` carries **`ForceBearer = true`**, and the forwarder presents the active
+  credential's secret as `Authorization: Bearer` while omitting `x-api-key`, regardless of the stored `AuthScheme`.
+  Because the imposter branch returns `null` before this method, it never reads the switch or the store (LADR-003) —
+  a throwing-spy unit test enforces this.
+- **Fail closed:** override ON + no active credential ⇒ `RoutingException(statusCode: 403)`, surfaced as a
+  dialect-shaped `permission_error` (`RoutingEndpoints.ErrorTypeFor`). Never falls back to `x-api-key`/config key
+  (LADR-005). Arm-time refusal (no active credential at `PUT`) is handled in the Mediator slice, not here.
+- The switch adds **no** DB read of its own — it gates HLD 002's existing active-credential lookup (NFR-003).
+  See `Features/AuthorizationOverride/AUTHORIZATION_OVERRIDE_AGENTS.md` for the toggle slices and endpoint contract.
 
 ## Test References
 
@@ -65,3 +99,7 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-15 | HLD 001 split into `README.md` index + `diagrams/`, `nfrs/`, `ladrs/` subfolders. | — |
 | 2026-06-15 | Default config: removed `IsDefault` providers (type-only impostering, 404 on unmatched; LADR-005). New providers opencode-go/openrouter/opencode-anthropic. | — |
 | 2026-06-15 | Implemented HLD 002 passthrough credential override seam; matched imposter routes remain config-key-only and DB-free. | HLD 002 |
+| 2026-06-17 | Implemented HLD 003 passthrough authorization override: in-memory per-dialect force-Bearer switch read only on the passthrough seam, fail-closed 403 (`permission_error`), imposter path untouched. | HLD 003 |
+| 2026-06-17 | Renamed provider config key `Api` → `Dialect` (`ImposterOptions.ProviderOptions.Dialect`) to match the `ApiDialect` ubiquitous language; breaking config change — `Imposter__Providers__N__Api` is no longer bound. | — |
+| 2026-06-17 | Forwarder is now a transparent proxy: relays the caller's full inbound header set (`CallerHeaders`) verbatim minus a fixed hop-by-hop/content/auth set — so `anthropic-beta` (and the matching `context_management` body field), vendor `x-*`, and the caller's `anthropic-version` reach the upstream. Only the auth header is managed: key-less passthrough forwards the caller's own `Authorization`/`x-api-key`; imposter routes use the provider key; HLD-003 override forces the active stored Bearer. | — |
+| 2026-06-17 | Persistence is opt-in: `AddInfrastructure` registers a `NullCredentialStore` when `ConnectionStrings:ImposterDb` is unset, so the stateless default boots without PostgreSQL. Fixed EF discriminator NRE (shadow column `ProviderDialect` → `Dialect`) that crashed model build on the passthrough path. | HLD 002 |

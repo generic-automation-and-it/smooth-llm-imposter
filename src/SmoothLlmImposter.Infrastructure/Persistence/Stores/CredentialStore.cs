@@ -18,7 +18,7 @@ internal sealed class CredentialStore(ImposterDbContext dbContext) : ICredential
 
     public async Task<IReadOnlyList<ProviderCredential>> ListAsync(CancellationToken cancellationToken) =>
         await dbContext.ProviderCredentials
-            .OrderBy(c => EF.Property<string>(c, "ProviderDialect"))
+            .OrderBy(c => EF.Property<string>(c, "Dialect"))
             .ThenBy(c => c.Name)
             .ToArrayAsync(cancellationToken);
 
@@ -27,7 +27,7 @@ internal sealed class CredentialStore(ImposterDbContext dbContext) : ICredential
 
     public async Task<ProviderCredential?> GetActiveAsync(ApiDialect dialect, CancellationToken cancellationToken) =>
         await dbContext.ProviderCredentials
-            .FirstOrDefaultAsync(c => EF.Property<string>(c, "ProviderDialect") == ToToken(dialect) && c.IsActive, cancellationToken);
+            .FirstOrDefaultAsync(c => EF.Property<string>(c, "Dialect") == dialect.ToToken() && c.IsActive, cancellationToken);
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -54,9 +54,9 @@ internal sealed class CredentialStore(ImposterDbContext dbContext) : ICredential
 
         await using IDbContextTransaction? transaction = await BeginTransactionIfSupportedAsync(cancellationToken);
 
-        string dialect = EF.Property<string>(credential, "ProviderDialect");
+        string dialect = EF.Property<string>(credential, "Dialect");
         ProviderCredential[] siblings = await dbContext.ProviderCredentials
-            .Where(c => EF.Property<string>(c, "ProviderDialect") == dialect)
+            .Where(c => EF.Property<string>(c, "Dialect") == dialect)
             .ToArrayAsync(cancellationToken);
 
         foreach (ProviderCredential sibling in siblings)
@@ -91,11 +91,4 @@ internal sealed class CredentialStore(ImposterDbContext dbContext) : ICredential
             return null;
         }
     }
-
-    private static string ToToken(ApiDialect dialect) => dialect switch
-    {
-        ApiDialect.OpenAi => OpenAiCredential.DialectToken,
-        ApiDialect.Anthropic => AnthropicCredential.DialectToken,
-        _ => throw new ArgumentOutOfRangeException(nameof(dialect), dialect, "Unsupported provider dialect.")
-    };
 }

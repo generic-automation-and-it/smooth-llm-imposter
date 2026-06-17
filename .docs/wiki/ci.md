@@ -1,6 +1,6 @@
 # CI/CD
 
-The pipeline is a single PR gate that builds and tests every change before it can merge to `main`.
+Two workflows: a **PR gate** that builds and tests every change before it can merge to `main`, and a **publish-image** workflow that builds and pushes the Host container image to GHCR from `main` and version tags.
 
 ## PR Gate
 
@@ -33,6 +33,16 @@ The `build-and-test` job declares a single GitHub Actions service container — 
    - Generates coverage reports with `dotnet tool run reportgenerator`.
 6. **Publish coverage summary** (`if: always()`) — appends `artifacts/coverage/SummaryGithub.md` to the GitHub step summary.
 7. **Upload coverage artifacts** (`if: always()`) — `actions/upload-artifact@v7`, uploads `artifacts/coverage/` as `coverage-report`.
+
+## Publish image
+
+- **Workflow:** `.github/workflows/publish-image.yml`
+- **Triggers:** `push` → `main` (tagged `:latest`), `push` tags `v*` (semver tags), and manual `workflow_dispatch`.
+- **Permissions:** `contents: read`, `packages: write` (pushes to GHCR with the job's `GITHUB_TOKEN`).
+- **Image:** `ghcr.io/<owner>/smooth-llm-imposter` (from `github.repository`), built from the repo `Dockerfile` (multi-stage, non-root, listens on `5080`).
+- **Tags** (via `docker/metadata-action`): `latest` on the default branch, `{{version}}` + `{{major}}.{{minor}}` on `v*` tags, and a short-`sha` tag for traceability.
+- **Caching:** GitHub Actions build cache (`type=gha`, `mode=max`).
+- **One-time:** the first push creates a **private** package — an org owner sets it public (or consumers `docker login ghcr.io`). See [`setups/ghcr.run-smooth-llm-imposter.md`](setups/ghcr.run-smooth-llm-imposter.md).
 
 ## .NET local tools
 

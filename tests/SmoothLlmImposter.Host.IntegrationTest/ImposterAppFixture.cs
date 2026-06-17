@@ -23,13 +23,13 @@ public sealed class ImposterAppFixture : WebApplicationFactory<HostApp::Program>
     private static readonly Dictionary<string, string?> Config = new()
     {
         ["Imposter:Providers:0:Name"] = "openai-official",
-        ["Imposter:Providers:0:Api"] = "openai",
+        ["Imposter:Providers:0:Dialect"] = "openai",
         ["Imposter:Providers:0:BaseUrl"] = "https://api.openai.test",
         ["Imposter:Providers:0:ApiKey"] = "openai-key",
         ["Imposter:Providers:0:IsDefault"] = "true",
 
         ["Imposter:Providers:1:Name"] = "opencode-go",
-        ["Imposter:Providers:1:Api"] = "openai",
+        ["Imposter:Providers:1:Dialect"] = "openai",
         ["Imposter:Providers:1:BaseUrl"] = "https://opencode.test",
         ["Imposter:Providers:1:ApiKey"] = "opencode-key",
         ["Imposter:Providers:1:Models:0:From"] = "gpt5.4",
@@ -37,7 +37,7 @@ public sealed class ImposterAppFixture : WebApplicationFactory<HostApp::Program>
         ["Imposter:Providers:1:Models:0:Caching"] = "true",
 
         ["Imposter:Providers:2:Name"] = "anthropic-official",
-        ["Imposter:Providers:2:Api"] = "anthropic",
+        ["Imposter:Providers:2:Dialect"] = "anthropic",
         ["Imposter:Providers:2:BaseUrl"] = "https://api.anthropic.test",
         ["Imposter:Providers:2:ApiKey"] = "anthropic-key",
         ["Imposter:Providers:2:IsDefault"] = "true",

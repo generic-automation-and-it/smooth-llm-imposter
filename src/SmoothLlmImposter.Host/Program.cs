@@ -43,6 +43,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapImposterEndpoints();
 app.MapCredentialAdminEndpoints();
+app.MapAuthorizationOverrideEndpoints();
 
 app.Run();
 

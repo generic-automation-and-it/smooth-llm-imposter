@@ -40,10 +40,10 @@ only** — there is no OpenAI⇄Anthropic body translation.
 
 ```jsonc
 "Imposter": { "Providers": [
-  { "Name": "opencode-go", "Api": "openai", "BaseUrl": "https://opencode.ai/zen/go", "ApiKey": "",
+  { "Name": "opencode-go", "Dialect": "openai", "BaseUrl": "https://opencode.ai/zen/go", "ApiKey": "",
     "Models": [ { "From": "gpt5.4", "To": "kimi-k2.7", "Caching": true } ] },
-  { "Name": "openrouter", "Api": "openai", "BaseUrl": "https://openrouter.ai", "ApiKey": "" },
-  { "Name": "opencode-anthropic", "Api": "anthropic", "BaseUrl": "https://opencode.ai/zen/go", "ApiKey": "",
+  { "Name": "openrouter", "Dialect": "openai", "BaseUrl": "https://openrouter.ai", "ApiKey": "" },
+  { "Name": "opencode-anthropic", "Dialect": "anthropic", "BaseUrl": "https://opencode.ai/zen/go", "ApiKey": "",
     "Models": [ { "From": "claude-haiku-*", "To": "minimax-m3", "Caching": true } ] }
 ] }
 ```
