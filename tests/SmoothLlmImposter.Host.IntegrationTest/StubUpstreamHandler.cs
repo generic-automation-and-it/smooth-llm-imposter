@@ -14,6 +14,7 @@ public sealed class StubUpstreamHandler : HttpMessageHandler
     public string? LastAuthorization { get; private set; }
     public string? LastApiKey { get; private set; }
     public string? LastAnthropicVersion { get; private set; }
+    public string? LastAnthropicBeta { get; private set; }
 
     public Func<HttpResponseMessage> ResponseFactory { get; set; } = () => new HttpResponseMessage(HttpStatusCode.OK)
     {
@@ -27,6 +28,7 @@ public sealed class StubUpstreamHandler : HttpMessageHandler
         LastAuthorization = request.Headers.TryGetValues("Authorization", out IEnumerable<string>? auth) ? string.Join(",", auth) : null;
         LastApiKey = request.Headers.TryGetValues("x-api-key", out IEnumerable<string>? key) ? string.Join(",", key) : null;
         LastAnthropicVersion = request.Headers.TryGetValues("anthropic-version", out IEnumerable<string>? ver) ? string.Join(",", ver) : null;
+        LastAnthropicBeta = request.Headers.TryGetValues("anthropic-beta", out IEnumerable<string>? beta) ? string.Join(",", beta) : null;
 
         return ResponseFactory();
     }

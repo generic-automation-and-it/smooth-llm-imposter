@@ -62,6 +62,7 @@ internal static class RoutingEndpoints
                 plan.TransformedBody,
                 context.Request.Path,
                 context.Request.QueryString.Value,
+                CaptureCallerHeaders(context),
                 cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -86,6 +87,19 @@ internal static class RoutingEndpoints
         {
             await StreamResponseAsync(context, upstream, cancellationToken);
         }
+    }
+
+    private static CallerHeaders CaptureCallerHeaders(HttpContext context)
+    {
+        // Capture the full inbound header set at the Host edge so the forwarder can proxy it through
+        // verbatim (HttpContext must not leak into Application/Infrastructure).
+        var items = new List<KeyValuePair<string, IReadOnlyList<string>>>(context.Request.Headers.Count);
+        foreach (KeyValuePair<string, Microsoft.Extensions.Primitives.StringValues> header in context.Request.Headers)
+        {
+            items.Add(new(header.Key, header.Value.Select(value => value ?? string.Empty).ToArray()));
+        }
+
+        return new CallerHeaders(items);
     }
 
     private static async Task<string> ReadBodyAsync(HttpContext context, CancellationToken cancellationToken)

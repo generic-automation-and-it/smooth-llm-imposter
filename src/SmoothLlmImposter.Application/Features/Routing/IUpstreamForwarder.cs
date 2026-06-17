@@ -15,6 +15,12 @@ public interface IUpstreamForwarder
     /// <param name="body">Transformed JSON body to send.</param>
     /// <param name="path">Inbound request path, appended to the provider base URL (e.g. <c>/v1/messages</c>).</param>
     /// <param name="queryString">Inbound query string including leading '?', or null.</param>
+    /// <param name="callerHeaders">
+    /// The caller's full inbound header set. The forwarder relays it verbatim (minus hop-by-hop/content
+    /// headers) so the request is proxied unchanged; only the auth header is managed — the caller's own
+    /// credential is forwarded on key-less passthrough, or replaced by the provider key / stored credential /
+    /// force-Bearer override.
+    /// </param>
     Task<HttpResponseMessage> SendAsync(
         RouteDecision decision,
         RouteCredentialOverride? credentialOverride,
@@ -22,5 +28,6 @@ public interface IUpstreamForwarder
         string body,
         string path,
         string? queryString,
+        CallerHeaders callerHeaders,
         CancellationToken cancellationToken);
 }

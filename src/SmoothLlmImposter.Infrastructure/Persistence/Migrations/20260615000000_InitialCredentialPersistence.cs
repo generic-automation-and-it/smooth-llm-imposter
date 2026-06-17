@@ -25,7 +25,7 @@ public partial class InitialCredentialPersistence : Migration
                 BaseUrlOverride = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),
                 CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                 UpdatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                ProviderDialect = table.Column<string>(type: "character varying(13)", maxLength: 13, nullable: false),
+                Dialect = table.Column<string>(type: "character varying(13)", maxLength: 13, nullable: false),
                 AnthropicVersion = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true)
             },
             constraints: table =>
@@ -34,9 +34,9 @@ public partial class InitialCredentialPersistence : Migration
             });
 
         migrationBuilder.CreateIndex(
-            name: "IX_ProviderCredentials_ProviderDialect_Name",
+            name: "IX_ProviderCredentials_Dialect_Name",
             table: "ProviderCredentials",
-            columns: new[] { "ProviderDialect", "Name" },
+            columns: new[] { "Dialect", "Name" },
             unique: true);
     }
 

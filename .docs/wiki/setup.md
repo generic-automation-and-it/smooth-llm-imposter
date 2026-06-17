@@ -89,10 +89,16 @@ Routing rules to keep in mind:
   and takes the first `Models[].From` that matches. Order providers and mappings most-specific first.
 - **`From` matching** is exact or a single trailing-`*` wildcard (`claude-haiku-*`), case-insensitive.
 - **No match → passthrough** via the dialect's `IsDefault` provider (model unchanged, no caching). **No match and
-  no default → 404.** The shipped `appsettings.json` declares **no defaults**, so unmatched models 404 (type-only
-  impostering). Set `"IsDefault": true` on a provider to opt back into passthrough.
-- The inbound caller's own `Authorization` / `x-api-key` is **not** forwarded — the provider's configured key
-  replaces it. `anthropic-version` defaults to `2023-06-01`, overridable per provider via `AnthropicVersion`.
+  no default → 404.** The shipped `appsettings.json` declares catch-all `IsDefault` providers for `anthropic`
+  (`https://api.anthropic.com`) and `openai` (`https://api.openai.com`), so unmatched models pass through to the
+  real provider. Remove them for type-only impostering (unmatched → 404).
+- **Transparent proxy.** The request is relayed to the upstream unchanged — all caller headers (incl.
+  `anthropic-beta`, vendor `x-*`) and the body pass through; the only mutations are caching injection on a
+  matched imposter route and the auth header. **Auth** is route-dependent: an imposter route sends the
+  provider's configured key; a **key-less passthrough** (default provider, no `ApiKey`, no stored credential)
+  forwards the caller's own `Authorization` / `x-api-key` — so the catch-all defaults need no key in the
+  router. The caller's `anthropic-version` is forwarded as-is; `2023-06-01` (or a configured `AnthropicVersion`)
+  is supplied only when the caller omits it.
 
 ### Supplying keys via environment (preferred)
 

@@ -20,14 +20,25 @@ public static class DependencyInjection
         services.AddHttpClient(UpstreamForwarder.HttpClientName, client =>
             client.Timeout = Timeout.InfiniteTimeSpan);
 
-        services.AddDbContext<ImposterDbContext>(options =>
-            options.UseNpgsql(configuration.GetConnectionString("ImposterDb") ??
-                "Host=localhost;Port=5432;Database=smoothllmimposter;Username=postgres;Password=postgres"));
-
         services.AddDataProtection();
         services.AddSingleton<IUpstreamForwarder, UpstreamForwarder>();
-        services.AddScoped<ICredentialStore, CredentialStore>();
         services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
+
+        // Stored passthrough credentials (HLD 002) and the authorization override (HLD 003) are an
+        // optional add-on that requires PostgreSQL. The router is stateless and key-less by default:
+        // when no connection string is configured we register a no-op store, so the catch-all
+        // passthrough resolves a null credential (and forwards the caller's own auth) instead of
+        // opening a database connection. Only wire EF Core when an operator opts in.
+        string? connectionString = configuration.GetConnectionString("ImposterDb");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            services.AddSingleton<ICredentialStore, NullCredentialStore>();
+        }
+        else
+        {
+            services.AddDbContext<ImposterDbContext>(options => options.UseNpgsql(connectionString));
+            services.AddScoped<ICredentialStore, CredentialStore>();
+        }
 
         return services;
     }
