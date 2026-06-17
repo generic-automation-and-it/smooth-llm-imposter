@@ -15,13 +15,13 @@ services:
     environment:
       ASPNETCORE_URLS: http://+:5066
       # Upstream provider keys — index = provider order in appsettings.json
-      # (0 opencode-go, 1 openrouter, 2 opencode-anthropic). Supply via shell
-      # export or a gitignored .env file; the :- default keeps compose quiet
-      # when a key is unset (the Host starts, but routed calls to that provider
-      # fail upstream).
-      Imposter__Providers__0__ApiKey: ${OPENCODE_API_KEY:-}
-      Imposter__Providers__1__ApiKey: ${OPENROUTER_API_KEY:-}
+      # (0 anthropic-default, 1 openai-default, 2 opencode-go, 3 openrouter,
+      # 4 opencode-anthropic). The two *-default real providers are catch-all
+      # passthrough and take NO key here. Supply imposter keys via shell export
+      # or a gitignored .env file; :- keeps compose quiet when a key is unset.
       Imposter__Providers__2__ApiKey: ${OPENCODE_API_KEY:-}
+      Imposter__Providers__3__ApiKey: ${OPENROUTER_API_KEY:-}
+      Imposter__Providers__4__ApiKey: ${OPENCODE_API_KEY:-}
     # Only needed for the optional /admin/credentials API (requires PostgreSQL):
     # persist Data Protection keys so stored secrets survive a container rebuild.
     # volumes:

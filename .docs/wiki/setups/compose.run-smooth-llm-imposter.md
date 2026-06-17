@@ -26,6 +26,58 @@ OPENROUTER_API_KEY=sk-your-openrouter-key  # feeds provider 1 (openrouter)
 `Imposter__Providers__N__ApiKey` settings — edit the `environment:` block there if your provider order
 differs from the shipped `appsettings.json`.
 
+## Build & first run (local dockerized testing)
+
+The image must be built before it can run. `podman-compose up -d` auto-builds (the compose file has
+`build: .`), but building explicitly first makes any build failure obvious instead of silently skipping the
+start. Full first-run sequence:
+
+```bash
+# 0) Be in the repo root — the folder that contains docker-compose.yml
+cd /path/to/smooth-llm-imposter        # your conductor workspace dir
+ls docker-compose.yml                  # sanity check: should print the filename
+
+# 1) (optional) upstream keys — only needed for ROUTED calls, NOT for /health.
+#    *.env is gitignored. Skip this step if you just want to test /health.
+cat > .env <<'EOF'
+OPENCODE_API_KEY=sk-your-opencode-key
+OPENROUTER_API_KEY=sk-your-openrouter-key
+EOF
+
+# 2) Build the image from the Dockerfile
+podman-compose build
+
+# 3) FIRST run in the foreground so you SEE the startup logs / any error live
+podman-compose up
+#    -> watch for Serilog "Now listening on: http://[::]:5066"
+#    -> if it boots OK, press Ctrl-C to stop, then start detached:
+podman-compose up -d
+
+# 4) Confirm it's actually running
+podman ps                              # should list smooth-llm-imposter, ports 5066->5066
+podman logs smooth-llm-imposter        # startup logs
+
+# 5) Verify from the host
+curl -fsS http://localhost:5066/health     # {"status":"ok"}
+
+# 6) Stop when done
+podman-compose down                    # stop + remove
+# or keep it for a quick restart:
+podman-compose stop  &&  podman-compose start
+```
+
+> Running step 3 in the **foreground** is the key diagnostic: if the container "vanishes" (`podman-compose ps`
+> reports *no container found*), the foreground run shows whether it boots and listens on `:5066` or crashes
+> with a startup/config error — right in your terminal. `/health` needs **no keys**; test it first to confirm
+> the container runs, then supply keys for routed `/v1/...` calls.
+>
+> If `podman ps` lists the container under a project-prefixed name (e.g. `…_smooth-llm-imposter_1`) rather than
+> plain `smooth-llm-imposter`, that is a `podman-compose` + `container_name:` quirk — reference the prefixed
+> name, or drop `container_name:` from `docker-compose.yml`.
+
+The subsections below break out the individual lifecycle commands (start/stop without rebuild, full rebuild,
+verify).
+
 ## Up / down
 
 ```bash
@@ -44,6 +96,36 @@ Pull the published GHCR image instead of building locally:
 ```bash
 docker compose pull && docker compose up -d
 ```
+
+## Local run — start / stop / restart (no rebuild)
+
+For day-to-day local testing once the image is built, you don't need the full rebuild. Use `stop`/`start` to
+keep the container around (fastest), or `down`/`up` to recreate it:
+
+```bash
+# Stop but KEEP the container — fastest pause/resume
+podman-compose stop
+podman-compose start
+
+# Restart in place
+podman-compose restart
+
+# Stop and REMOVE container + network, then recreate
+podman-compose down
+podman-compose up -d
+
+# Follow logs / check status
+podman-compose logs -f
+podman-compose ps
+```
+
+`docker compose` (v2) accepts the same subcommands. Only reach for the **Full rebuild** below when a code change
+isn't being picked up.
+
+> **`EXPOSE 5080` in the build output is expected and harmless.** It's static metadata from the `Dockerfile`
+> and does **not** set the published port. The compose file binds the app to **5066** (`ASPNETCORE_URLS:
+> http://+:5066`, which overrides the image's default) and publishes `5066:5066`, so the router is reachable at
+> `http://localhost:5066` regardless of the `EXPOSE` line.
 
 ## Full rebuild (use when code changes aren't being picked up)
 
