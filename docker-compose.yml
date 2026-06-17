@@ -11,9 +11,9 @@ services:
     container_name: smooth-llm-imposter
     restart: unless-stopped
     ports:
-      - "5080:5080"
+      - "5066:5066"
     environment:
-      ASPNETCORE_URLS: http://+:5080
+      ASPNETCORE_URLS: http://+:5066
       # Upstream provider keys — index = provider order in appsettings.json
       # (0 opencode-go, 1 openrouter, 2 opencode-anthropic). Supply via shell
       # export or a gitignored .env file; the :- default keeps compose quiet

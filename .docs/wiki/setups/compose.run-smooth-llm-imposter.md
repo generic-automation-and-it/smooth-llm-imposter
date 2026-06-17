@@ -2,12 +2,12 @@
 
 ## TL;DR
 
-Bring the Host up on `localhost:5080` with one command using the repo's [`docker-compose.yml`](../../../docker-compose.yml). It
+Bring the Host up on `localhost:5066` with one command using the repo's [`docker-compose.yml`](../../../docker-compose.yml). It
 is **dual-mode**: `build: .` builds the image from the local [`Dockerfile`](../../../Dockerfile), and `image:`
 points at the published GHCR tag — so you can either build locally or `pull`. `restart: unless-stopped` keeps it
 running across reboots. Works with **`docker compose`** (v2) and **`podman-compose`**.
 
-> SmoothLlmImposter is **stateless and key-less** — no `/data` volume, port **5080**, keys are
+> SmoothLlmImposter is **stateless and key-less** — no `/data` volume, port **5066**, keys are
 > `Imposter__Providers__N__ApiKey`. (The Smooth Claude Proxy's compose, with `WORKSPACE_PATH`/`LlmService__*`, is a
 > different service.)
 
@@ -66,7 +66,7 @@ podman-compose down \
 ## Verify
 
 ```bash
-curl -fsS http://localhost:5080/health        # {"status":"ok"}
+curl -fsS http://localhost:5066/health        # {"status":"ok"}
 docker compose logs -f                         # podman-compose logs -f
 ```
 
@@ -74,7 +74,7 @@ Send a routed request — with the shipped config, OpenAI `gpt5.4` is rewritten 
 opencode-go (requires `Imposter__Providers__0__ApiKey`):
 
 ```bash
-curl -fsS http://localhost:5080/v1/chat/completions \
+curl -fsS http://localhost:5066/v1/chat/completions \
   -H "content-type: application/json" \
   -d '{ "model": "gpt5.4", "messages": [ { "role": "user", "content": "Say hello in one sentence." } ] }'
 ```
