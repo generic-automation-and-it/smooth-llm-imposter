@@ -25,7 +25,11 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 - **Same-dialect only.** Do not add OpenAI⇄Anthropic body translation here. An `openai` provider serves
   openai requests; an `anthropic` provider serves anthropic requests.
 - **`BaseUrl` is the server root WITHOUT a version path** (`https://api.openai.com`, not `.../v1`). The
-  inbound request path is appended verbatim; adding `/v1` to config double-prefixes the path.
+  upstream request path is appended verbatim; adding `/v1` to config double-prefixes the path. The `/v1`
+  belongs in exactly one place — the caller's path or the provider `BaseUrl`, never both. (E.g. OpenRouter
+  nests its OpenAI surface under `/api/v1`, so its `BaseUrl` is `https://openrouter.ai/api`.) For dialect-
+  prefixed inbound routes the Host strips the `/openai` or `/anthropic` prefix first, so the forwarder still
+  receives a clean upstream path (`/v1/...`).
 - **Do not add a standard resilience handler to the `imposter-upstream` client.** SSE streams outlive its
   timeouts and a half-streamed POST can't be replayed; the client uses an infinite timeout bounded by the
   caller's `CancellationToken` (see HLD LADR-003).
@@ -54,6 +58,20 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   `RoutingEndpoints` so `HttpContext` never leaks downstream). `UpstreamForwarder.ForwardCallerHeaders` copies
   every header except the fixed `NonForwardableHeaders` set (hop-by-hop, content, and the auth headers, which
   `ApplyAuthentication` owns). This is what lets vendor `x-*` and `anthropic-beta` headers reach the upstream.
+- **Dialect-prefixed endpoints** are the primary contract: clients call `/openai/{**path}` or
+  `/anthropic/{**path}` (any HTTP method). `RoutingEndpoints` derives the dialect from the prefix, strips it, and
+  forwards `{path}` verbatim with the **inbound method** — so `/v1/models`, `/v1/responses`,
+  `/v1/messages/count_tokens`, etc. proxy with no per-endpoint mapping. The prefix is what disambiguates shared
+  paths like `/v1/models` (byte-identical across both dialects). Legacy unprefixed `POST /v1/chat/completions`,
+  `/v1/responses`, `/v1/messages` stay mapped; unprefixed `/v1/models` is intentionally **not** mapped (ambiguous).
+- **Body-less requests passthrough to the default.** A request with no JSON body (e.g. `GET /v1/models`) has no
+  model to resolve, so `ImposterRouter.PlanPassthroughAsync` → `IRouteResolver.ResolveDefault` routes it to the
+  dialect's `IsDefault` provider with no transform and no caching; the forwarder issues it with the inbound
+  method and **no content**. No default for the dialect ⇒ 404. An imposter route is never selected for a body-less
+  request — imposter matching keys off the body's `model`, which a discovery probe doesn't carry. This passes
+  through the same credential seam (stored credential / HLD-003 force-Bearer / fail-closed 403).
+- **Forwarder method/body**: `UpstreamForwarder.SendAsync` takes the inbound `HttpMethod` and a nullable body;
+  `Content` is attached only when the body is non-empty. GET probes therefore reach the upstream as real GETs.
 
 ## Credential Overrides
 
@@ -103,3 +121,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-17 | Renamed provider config key `Api` → `Dialect` (`ImposterOptions.ProviderOptions.Dialect`) to match the `ApiDialect` ubiquitous language; breaking config change — `Imposter__Providers__N__Api` is no longer bound. | — |
 | 2026-06-17 | Forwarder is now a transparent proxy: relays the caller's full inbound header set (`CallerHeaders`) verbatim minus a fixed hop-by-hop/content/auth set — so `anthropic-beta` (and the matching `context_management` body field), vendor `x-*`, and the caller's `anthropic-version` reach the upstream. Only the auth header is managed: key-less passthrough forwards the caller's own `Authorization`/`x-api-key`; imposter routes use the provider key; HLD-003 override forces the active stored Bearer. | — |
 | 2026-06-17 | Persistence is opt-in: `AddInfrastructure` registers a `NullCredentialStore` when `ConnectionStrings:ImposterDb` is unset, so the stateless default boots without PostgreSQL. Fixed EF discriminator NRE (shadow column `ProviderDialect` → `Dialect`) that crashed model build on the passthrough path. | HLD 002 |
+| 2026-06-19 | Added dialect-prefixed routing (`/openai/{**path}`, `/anthropic/{**path}`, any method): prefix selects dialect, tail forwarded verbatim — disambiguates shared paths like `/v1/models`. Body-less requests (`GET /v1/models`) passthrough to the dialect default via `PlanPassthroughAsync`/`ResolveDefault` (no model to match). Forwarder now forwards the inbound `HttpMethod` with a nullable body. Legacy unprefixed `POST /v1/*` retained; unprefixed `/v1/models` left unmapped (ambiguous). | — |

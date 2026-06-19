@@ -118,13 +118,34 @@ public class UpstreamForwarderTests
         capture.Authorization.ShouldBe("Bearer config-key");
     }
 
+    [Fact]
+    public async Task Body_less_get_forwards_the_get_method_with_no_content()
+    {
+        var capture = new CapturingHandler();
+        UpstreamForwarder forwarder = Build(capture);
+
+        await forwarder.SendAsync(
+            Decision(ApiDialect.OpenAi),
+            credentialOverride: null,
+            ApiDialect.OpenAi,
+            HttpMethod.Get,
+            body: null,
+            "/v1/models",
+            queryString: null,
+            CallerHeaders.None,
+            Ct);
+
+        capture.Method.ShouldBe(HttpMethod.Get);
+        capture.HadContent.ShouldBeFalse();
+    }
+
     private static Task Send(
         UpstreamForwarder forwarder,
         RouteDecision decision,
         RouteCredentialOverride? credentialOverride,
         ApiDialect dialect,
         CallerHeaders caller) =>
-        forwarder.SendAsync(decision, credentialOverride, dialect, "{}", dialect == ApiDialect.Anthropic ? "/v1/messages" : "/v1/chat/completions", queryString: null, caller, TestContext.Current.CancellationToken);
+        forwarder.SendAsync(decision, credentialOverride, dialect, HttpMethod.Post, "{}", dialect == ApiDialect.Anthropic ? "/v1/messages" : "/v1/chat/completions", queryString: null, caller, TestContext.Current.CancellationToken);
 
     private static CallerHeaders Headers(params (string Name, string Value)[] headers) =>
         new(headers.Select(h => new KeyValuePair<string, IReadOnlyList<string>>(h.Name, [h.Value])).ToArray());
@@ -145,6 +166,8 @@ public class UpstreamForwarderTests
         public string? Authorization => Header("Authorization");
         public string? ApiKey => Header("x-api-key");
         public string? AnthropicVersion => Header("anthropic-version");
+        public HttpMethod? Method { get; private set; }
+        public bool HadContent { get; private set; }
 
         public string? Header(string name) =>
             _request is not null && _request.Headers.TryGetValues(name, out IEnumerable<string>? values)
@@ -154,6 +177,8 @@ public class UpstreamForwarderTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             _request = request;
+            Method = request.Method;
+            HadContent = request.Content is not null;
             return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK));
         }
     }

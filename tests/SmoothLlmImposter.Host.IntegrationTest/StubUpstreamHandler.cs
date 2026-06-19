@@ -10,6 +10,7 @@ namespace SmoothLlmImposter.Host.IntegrationTest;
 public sealed class StubUpstreamHandler : HttpMessageHandler
 {
     public Uri? LastRequestUri { get; private set; }
+    public HttpMethod? LastRequestMethod { get; private set; }
     public string? LastRequestBody { get; private set; }
     public string? LastAuthorization { get; private set; }
     public string? LastApiKey { get; private set; }
@@ -24,6 +25,7 @@ public sealed class StubUpstreamHandler : HttpMessageHandler
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         LastRequestUri = request.RequestUri;
+        LastRequestMethod = request.Method;
         LastRequestBody = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
         LastAuthorization = request.Headers.TryGetValues("Authorization", out IEnumerable<string>? auth) ? string.Join(",", auth) : null;
         LastApiKey = request.Headers.TryGetValues("x-api-key", out IEnumerable<string>? key) ? string.Join(",", key) : null;

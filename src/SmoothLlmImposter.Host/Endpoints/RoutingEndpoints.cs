@@ -6,9 +6,13 @@ using SmoothLlmImposter.Domain.Routing;
 namespace SmoothLlmImposter.Host.Endpoints;
 
 /// <summary>
-/// Maps the inbound dialect endpoints. Each handler reads the body, asks the Application to plan the
-/// route (model rewrite + caching), forwards via Infrastructure, and streams the upstream response
-/// back unbuffered. All HTTP concerns live here; Application/Infrastructure stay transport-agnostic.
+/// Maps the inbound dialect endpoints. The router is a transparent same-dialect proxy: clients point their
+/// base URL at a dialect prefix (<c>/openai</c> or <c>/anthropic</c>) and the segment after the prefix is the
+/// upstream path, forwarded verbatim with the inbound method. Each handler reads the body, asks the
+/// Application to plan the route (model rewrite + caching, or default passthrough for body-less requests),
+/// forwards via Infrastructure, and streams the upstream response back unbuffered. Legacy unprefixed
+/// <c>POST /v1/*</c> completion routes are kept for back-compat. All HTTP concerns live here;
+/// Application/Infrastructure stay transport-agnostic.
 /// </summary>
 internal static class RoutingEndpoints
 {
@@ -18,19 +22,37 @@ internal static class RoutingEndpoints
     {
         app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
+        // Dialect-prefixed transparent proxy (any HTTP method). The prefix selects the dialect — which
+        // disambiguates shared paths like /v1/models that are identical across OpenAI and Anthropic — and the
+        // captured tail is forwarded verbatim, so /v1/models, /v1/responses, /v1/messages/count_tokens, etc.
+        // all proxy without a per-route mapping.
+        app.Map("/openai/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, NormalizeUpstreamPath(upstreamPath), router, forwarder, errors, loggerFactory));
+
+        app.Map("/anthropic/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.Anthropic, NormalizeUpstreamPath(upstreamPath), router, forwarder, errors, loggerFactory));
+
+        // Legacy unprefixed completion routes (POST only). The inbound path is the upstream path. Unprefixed
+        // /v1/models is intentionally NOT mapped here — it is dialect-ambiguous; use the /openai or /anthropic prefix.
         app.MapPost("/v1/chat/completions", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, router, forwarder, errors, loggerFactory));
+            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/chat/completions", router, forwarder, errors, loggerFactory));
 
         app.MapPost("/v1/responses", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, router, forwarder, errors, loggerFactory));
+            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/responses", router, forwarder, errors, loggerFactory));
 
         app.MapPost("/v1/messages", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.Anthropic, router, forwarder, errors, loggerFactory));
+            HandleAsync(ctx, ApiDialect.Anthropic, "/v1/messages", router, forwarder, errors, loggerFactory));
     }
+
+    // The {**upstreamPath} catch-all captures the tail WITHOUT a leading slash and excludes the query string.
+    // Restore the leading slash so it appends cleanly to the provider base URL (BaseUrl + path).
+    private static string NormalizeUpstreamPath(string? upstreamPath) =>
+        string.IsNullOrEmpty(upstreamPath) ? "/" : "/" + upstreamPath;
 
     private static async Task HandleAsync(
         HttpContext context,
         ApiDialect dialect,
+        string upstreamPath,
         IImposterRouter router,
         IUpstreamForwarder forwarder,
         IErrorResponseFactory errors,
@@ -44,7 +66,11 @@ internal static class RoutingEndpoints
         RoutePlan plan;
         try
         {
-            plan = await router.PlanAsync(dialect, requestBody, cancellationToken);
+            // A body carries a model → imposter/default resolution + transform. No body (e.g. GET /v1/models)
+            // → passthrough to the dialect default, since there is no model to match on.
+            plan = string.IsNullOrWhiteSpace(requestBody)
+                ? await router.PlanPassthroughAsync(dialect, cancellationToken)
+                : await router.PlanAsync(dialect, requestBody, cancellationToken);
         }
         catch (RoutingException ex)
         {
@@ -59,8 +85,9 @@ internal static class RoutingEndpoints
                 plan.Decision,
                 plan.CredentialOverride,
                 dialect,
-                plan.TransformedBody,
-                context.Request.Path,
+                HttpMethod.Parse(context.Request.Method),
+                string.IsNullOrEmpty(plan.TransformedBody) ? null : plan.TransformedBody,
+                upstreamPath,
                 context.Request.QueryString.Value,
                 CaptureCallerHeaders(context),
                 cancellationToken);

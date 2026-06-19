@@ -29,7 +29,8 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         RouteDecision decision,
         RouteCredentialOverride? credentialOverride,
         ApiDialect dialect,
-        string body,
+        HttpMethod method,
+        string? body,
         string path,
         string? queryString,
         CallerHeaders callerHeaders,
@@ -38,10 +39,13 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         Uri baseUrl = credentialOverride?.BaseUrlOverride ?? decision.Provider.BaseUrl;
         string target = baseUrl.AbsoluteUri.TrimEnd('/') + path + (queryString ?? string.Empty);
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, target)
+        using var request = new HttpRequestMessage(method, target);
+
+        // Body-less requests (e.g. GET /v1/models discovery probes) carry no content.
+        if (!string.IsNullOrEmpty(body))
         {
-            Content = new StringContent(body, Encoding.UTF8, "application/json")
-        };
+            request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+        }
 
         // Proxy the caller's headers through unchanged (minus hop-by-hop/content/auth), then manage auth only.
         ForwardCallerHeaders(request, callerHeaders);

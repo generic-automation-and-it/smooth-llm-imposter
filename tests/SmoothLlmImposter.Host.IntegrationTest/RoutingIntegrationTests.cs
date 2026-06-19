@@ -98,6 +98,60 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
     }
 
     [Fact]
+    public async Task Openai_prefix_matches_imposter_and_strips_prefix_from_upstream_path()
+    {
+        HttpClient client = fixture.CreateClient();
+
+        using HttpResponseMessage response = await client.PostAsync(
+            "/openai/v1/chat/completions",
+            Json("""{"model":"gpt5.4","messages":[{"role":"user","content":"hi"}]}"""),
+            Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        // Prefix stripped: upstream path is /v1/chat/completions, not /openai/v1/chat/completions.
+        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://opencode.test/v1/chat/completions");
+
+        JsonNode forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!;
+        forwarded["model"]!.GetValue<string>().ShouldBe("grok-code");
+    }
+
+    [Fact]
+    public async Task Anthropic_prefix_routes_to_anthropic_dialect_default()
+    {
+        HttpClient client = fixture.CreateClient();
+
+        using HttpResponseMessage response = await client.PostAsync(
+            "/anthropic/v1/messages",
+            Json("""{"model":"claude-opus-4","messages":[{"role":"user","content":"hi"}]}"""),
+            Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://api.anthropic.test/v1/messages");
+        fixture.Upstream.LastApiKey.ShouldBe("anthropic-key");
+    }
+
+    [Fact]
+    public async Task Get_models_under_dialect_prefix_passes_through_to_default_without_body()
+    {
+        // reset to default JSON response (a previous test may have set a streaming factory)
+        fixture.Upstream.ResponseFactory = () => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("""{"data":[]}""", Encoding.UTF8, "application/json")
+        };
+
+        HttpClient client = fixture.CreateClient();
+
+        using HttpResponseMessage response = await client.GetAsync("/openai/v1/models?client_version=0.138.0", Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        // No model to match → passthrough to the OpenAI default, path + query forwarded verbatim, GET with no body.
+        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://api.openai.test/v1/models?client_version=0.138.0");
+        fixture.Upstream.LastRequestMethod.ShouldBe(HttpMethod.Get);
+        fixture.Upstream.LastRequestBody.ShouldBeNull();
+        fixture.Upstream.LastAuthorization.ShouldBe("Bearer openai-key");
+    }
+
+    [Fact]
     public async Task Missing_model_returns_dialect_shaped_error()
     {
         // reset to default JSON response (previous test may have set a streaming factory)
