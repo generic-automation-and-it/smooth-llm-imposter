@@ -160,22 +160,25 @@ curl -fsS http://localhost:5066/health        # {"status":"ok"}
 docker compose logs -f                         # podman-compose logs -f
 ```
 
-Point Codex and Anthropic-dialect clients at the Compose port before sending requests through the router:
+Point Codex and Anthropic-dialect clients at the Compose port **plus the dialect prefix** before sending
+requests through the router. The router selects the dialect from the `/openai` or `/anthropic` prefix and
+forwards the rest of the path verbatim:
 
 ```toml
-# ~/.codex/config.toml
-openai_base_url = "http://localhost:5066"
+# ~/.codex/config.toml  — OpenAI SDK appends bare /responses, so /v1 belongs in the base
+openai_base_url = "http://localhost:5066/openai/v1"
 ```
 
 ```bash
-export ANTHROPIC_BASE_URL="http://localhost:5066"
+# Anthropic SDK appends /v1/messages itself, so NO /v1 here
+export ANTHROPIC_BASE_URL="http://localhost:5066/anthropic"
 ```
 
-Send a routed request — with the shipped config, OpenAI `gpt5.4` is rewritten to `kimi-k2.7` and forwarded to
-opencode-go (requires `Imposter__Providers__0__ApiKey`):
+Send a routed request — with the shipped config, OpenAI `gpt5.4` is rewritten to `z-ai/glm-5.2` and forwarded
+to openrouter (requires the provider's `ApiKey`):
 
 ```bash
-curl -fsS http://localhost:5066/v1/chat/completions \
+curl -fsS http://localhost:5066/openai/v1/chat/completions \
   -H "content-type: application/json" \
   -d '{ "model": "gpt5.4", "messages": [ { "role": "user", "content": "Say hello in one sentence." } ] }'
 ```
