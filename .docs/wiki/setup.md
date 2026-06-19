@@ -130,6 +130,18 @@ Precedence is `appsettings.json < user secrets (Dev) < environment variables` â€
 Send standard OpenAI- or Anthropic-dialect requests to the router instead of the real provider. With the shipped
 config, OpenAI model `gpt5.4` is rewritten to `kimi-k2.7` and forwarded to opencode-go:
 
+For agent clients, set their base URL to the router's host URL before sending requests. The examples in this
+page use `http://localhost:5080`; the Compose setup uses `http://localhost:5066`.
+
+```toml
+# ~/.codex/config.toml
+openai_base_url = "http://localhost:5080"
+```
+
+```bash
+export ANTHROPIC_BASE_URL="http://localhost:5080"
+```
+
 ```bash
 # OpenAI dialect â€” POST /v1/chat/completions (also /v1/responses)
 curl http://localhost:5080/v1/chat/completions \

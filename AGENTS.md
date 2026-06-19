@@ -30,6 +30,10 @@ Keep `*_AGENTS.md` files synchronised with code and documentation changes. Funct
 
 All planned work is tracked as worktasks under `.context/work-tasks/` (gitignored — local only). Use `/create worktask` to scaffold a new one from the template.
 
+Setup docs in `.docs/wiki/setup.md` and `.docs/wiki/setups/` should keep client base-url examples aligned with
+the run mode's published host port, including Codex `openai_base_url` and `ANTHROPIC_BASE_URL` examples where
+the guide is meant to be used by agent clients.
+
 ## Repository Layout (Navigation)
 
 | Layer | Path | Purpose |

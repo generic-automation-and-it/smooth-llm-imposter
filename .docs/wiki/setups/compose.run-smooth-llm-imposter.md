@@ -37,11 +37,19 @@ start. Full first-run sequence:
 cd /path/to/smooth-llm-imposter        # your conductor workspace dir
 ls docker-compose.yml                  # sanity check: should print the filename
 
+#    Shut down + remove any existing smooth-llm-imposter container first, so a
+#    stale one can't hold the name or the port. Both lines are safe no-ops if
+#    nothing is running. (docker: swap podman-compose->docker compose, podman->docker)
+podman-compose down 2>/dev/null || true
+podman rm -f smooth-llm-imposter 2>/dev/null || true
+
 # 1) (optional) upstream keys — only needed for ROUTED calls, NOT for /health.
-#    *.env is gitignored. Skip this step if you just want to test /health.
-cat > .env <<'EOF'
-OPENCODE_API_KEY=sk-your-opencode-key
-OPENROUTER_API_KEY=sk-your-openrouter-key
+#    Pulls the values from your host shell (export them first), so no secrets are
+#    hardcoded; *.env is gitignored. Note the UNQUOTED <<EOF — that is what lets
+#    ${...} expand. Skip this step if you just want to test /health.
+cat > .env <<EOF
+OPENCODE_API_KEY=${OPENCODE_API_KEY:-}
+OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
 EOF
 
 # 2) Build the image from the Dockerfile
@@ -150,6 +158,17 @@ podman-compose down \
 ```bash
 curl -fsS http://localhost:5066/health        # {"status":"ok"}
 docker compose logs -f                         # podman-compose logs -f
+```
+
+Point Codex and Anthropic-dialect clients at the Compose port before sending requests through the router:
+
+```toml
+# ~/.codex/config.toml
+openai_base_url = "http://localhost:5066"
+```
+
+```bash
+export ANTHROPIC_BASE_URL="http://localhost:5066"
 ```
 
 Send a routed request — with the shipped config, OpenAI `gpt5.4` is rewritten to `kimi-k2.7` and forwarded to
