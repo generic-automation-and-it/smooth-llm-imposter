@@ -23,6 +23,13 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   `/v1/chat/completions`; the body conversion lives in Application. Routing/transform semantics live in
   Application — see `Features/Routing/ROUTING_AGENTS.md`.
 - An un-routed request returns `404` (and a body-less request with no dialect prefix has no model to route).
+- **Logging is config-driven.** `Program.cs` sets a baseline `MinimumLevel.Information()` then layers
+  `ReadFrom.Configuration` last, so the `Serilog` section in `appsettings.json` / env vars overrides it (the old
+  `Logging` section was dead config — Serilog never read it). `RoutingEndpoints` logs a **Debug** full-inbound-request
+  dump (method, path, query, all headers, raw body) under the `SmoothLlmImposter.Routing` category, guarded by
+  `IsEnabled(Debug)` so it is free when off. `Authorization`/`x-api-key` values are masked (scheme + last 4). Enable
+  with `Serilog__MinimumLevel__Override__SmoothLlmImposter.Routing=Debug`. See
+  `.docs/wiki/setups/logging.debug-smooth-llm-imposter.md`.
 - Compose/runbook env vars must mirror the concrete `Imposter:Providers` indexes in `appsettings.json`.
   ASP.NET Core config binding treats a sparse env var such as `Imposter__Providers__5__ApiKey` as a sixth
   provider; if only indexes `0..4` exist in JSON, startup validation fails because that created provider has no
@@ -36,3 +43,4 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 | 2026-06-19 | Documented the dialect-prefixed routing endpoints (`/openai/**`, `/anthropic/**`, any method) + retained legacy `POST /v1/*`; corrected stale "bare bootstrap" note. | — |
 | 2026-06-20 | Documented that compose/runbook `Imposter__Providers__N__*` env vars must not reference sparse provider indexes because they create empty providers during binding. | — |
 | 2026-06-20 | Documented `OpenAiUpstreamApi: chat_completions` path override for matched OpenAI imposter routes. | — |
+| 2026-06-20 | Made Serilog level config-driven (`ReadFrom.Configuration`; replaced dead `Logging` section with `Serilog`) and added the `Debug` full-inbound-request dump (auth-masked) on the `SmoothLlmImposter.Routing` category. | — |

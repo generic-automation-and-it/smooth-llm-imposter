@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Text;
 using Microsoft.AspNetCore.Http.Features;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Domain.Routing;
@@ -63,6 +64,8 @@ internal static class RoutingEndpoints
 
         string requestBody = await ReadBodyAsync(context, cancellationToken);
 
+        LogInboundRequest(logger, context, dialect, upstreamPath, requestBody);
+
         RoutePlan plan;
         try
         {
@@ -114,6 +117,58 @@ internal static class RoutingEndpoints
         {
             await StreamResponseAsync(context, upstream, cancellationToken);
         }
+    }
+
+    // Auth headers whose secret value is masked in the Debug request dump so real keys never reach the log sink.
+    private static readonly HashSet<string> SensitiveHeaders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Authorization", "x-api-key",
+    };
+
+    // Debug-only dump of the full inbound request (method, path, query, every header, raw body). Off by default
+    // — the SmoothLlmImposter.Routing logger sits at Information unless its minimum level is overridden to Debug.
+    // The IsEnabled guard keeps it free when disabled (no header/body string is built). Auth secrets are masked.
+    private static void LogInboundRequest(ILogger logger, HttpContext context, ApiDialect dialect, string upstreamPath, string requestBody)
+    {
+        if (!logger.IsEnabled(LogLevel.Debug))
+        {
+            return;
+        }
+
+        var headers = new StringBuilder();
+        foreach (KeyValuePair<string, Microsoft.Extensions.Primitives.StringValues> header in context.Request.Headers)
+        {
+            string value = SensitiveHeaders.Contains(header.Key)
+                ? MaskSecretHeader(header.Value.ToString())
+                : header.Value.ToString();
+            headers.Append("\n  ").Append(header.Key).Append(": ").Append(value);
+        }
+
+        logger.LogDebug(
+            "Inbound {Dialect} request {Method} {Path}{Query}\nHeaders:{Headers}\nBody: {Body}",
+            dialect,
+            context.Request.Method,
+            upstreamPath,
+            context.Request.QueryString.Value,
+            headers.ToString(),
+            string.IsNullOrEmpty(requestBody) ? "(empty)" : requestBody);
+    }
+
+    // Preserve the auth scheme prefix (e.g. "Bearer ") and the secret's last 4 chars; mask the rest. Short
+    // secrets (≤4 chars) are fully masked so nothing recoverable is logged.
+    private static string MaskSecretHeader(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return value;
+        }
+
+        int spaceIndex = value.IndexOf(' ');
+        string scheme = spaceIndex > 0 ? value[..(spaceIndex + 1)] : string.Empty;
+        string secret = spaceIndex > 0 ? value[(spaceIndex + 1)..] : value;
+        string tail = secret.Length > 4 ? secret[^4..] : string.Empty;
+
+        return $"{scheme}***{tail}";
     }
 
     private static CallerHeaders CaptureCallerHeaders(HttpContext context)
