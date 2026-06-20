@@ -21,6 +21,10 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   deliberately unmapped because it's dialect-ambiguous. Routing/transform semantics live in Application — see
   `Features/Routing/ROUTING_AGENTS.md`.
 - An un-routed request returns `404` (and a body-less request with no dialect prefix has no model to route).
+- Compose/runbook env vars must mirror the concrete `Imposter:Providers` indexes in `appsettings.json`.
+  ASP.NET Core config binding treats a sparse env var such as `Imposter__Providers__5__ApiKey` as a sixth
+  provider; if only indexes `0..4` exist in JSON, startup validation fails because that created provider has no
+  `Name`, `Dialect`, or `BaseUrl`.
 
 ## Changelog
 
@@ -28,3 +32,4 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 |:-----|:-------|:----|
 | 2026-05-30 | Created — minimal runnable Host (`Program.cs`, `appsettings(.Development).json`, `Properties/launchSettings.json`) with empty `Configuration/`, `Endpoints/`, `HealthChecks/`, `Workers/`. | — |
 | 2026-06-19 | Documented the dialect-prefixed routing endpoints (`/openai/**`, `/anthropic/**`, any method) + retained legacy `POST /v1/*`; corrected stale "bare bootstrap" note. | — |
+| 2026-06-20 | Documented that compose/runbook `Imposter__Providers__N__*` env vars must not reference sparse provider indexes because they create empty providers during binding. | — |

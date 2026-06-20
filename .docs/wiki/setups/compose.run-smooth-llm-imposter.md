@@ -18,13 +18,15 @@ variables. Create `.env` next to `docker-compose.yml`:
 
 ```dotenv
 # .env  (never committed — *.env is gitignored)
-OPENCODE_API_KEY=sk-your-opencode-key      # feeds providers 0 (opencode-go) and 2 (opencode-anthropic)
-OPENROUTER_API_KEY=sk-your-openrouter-key  # feeds provider 1 (openrouter)
+OPENCODE_API_KEY=sk-your-opencode-key      # feeds providers 2 (opencode-go) and 4 (opencode-anthropic)
+OPENROUTER_API_KEY=sk-your-openrouter-key  # feeds provider 3 (openrouter)
 ```
 
 `docker-compose.yml` maps these named variables onto the indexed
 `Imposter__Providers__N__ApiKey` settings — edit the `environment:` block there if your provider order
-differs from the shipped `appsettings.json`.
+differs from the shipped `appsettings.json`. Do not set a sparse provider index: for example,
+`Imposter__Providers__5__ApiKey` creates an otherwise-empty provider if `appsettings.json` only defines indexes
+`0..4`, and startup validation fails with `Providers[5]:Name is required`.
 
 ## Build & first run (local dockerized testing)
 
@@ -174,8 +176,8 @@ openai_base_url = "http://localhost:5066/openai/v1"
 export ANTHROPIC_BASE_URL="http://localhost:5066/anthropic"
 ```
 
-Send a routed request — with the shipped config, OpenAI `gpt5.4` is rewritten to `z-ai/glm-5.2` and forwarded
-to openrouter (requires the provider's `ApiKey`):
+Send a routed request — with the shipped config, OpenAI `gpt5.4` is rewritten to `kimi-k2.7` and forwarded
+to opencode-go (requires the provider's `ApiKey`):
 
 ```bash
 curl -fsS http://localhost:5066/openai/v1/chat/completions \
