@@ -187,6 +187,11 @@ selected config/profile through Smooth, regardless of whether the active model i
 model selected later with `/model`; Codex login, model-catalog refresh, web search, MCP servers, connectors, and
 cloud tasks are separate network paths.
 
+Keep `wire_api = "responses"` for Codex even when a matched imposter provider uses
+`OpenAiUpstreamApi = "chat_completions"` (for example `opencode-go`). Smooth downgrades the outbound
+`/responses` request to Chat Completions for that upstream and translates the Chat response stream back into
+Responses events for Codex.
+
 For generic OpenAI-compatible SDK/API-key clients, keep `/v1` in the client base URL because those clients append
 bare paths like `/responses`, `/chat/completions`, and `/models`:
 
@@ -229,7 +234,8 @@ curl http://localhost:5080/anthropic/v1/messages \
 The unprefixed `POST /v1/chat/completions`, `/v1/responses`, and `/v1/messages` routes still work for
 back-compat, but unprefixed `/v1/models` is dialect-ambiguous and is not served — use the prefix.
 
-SSE streams are forwarded unbuffered, so `"stream": true` works end-to-end.
+SSE streams are forwarded unbuffered. On the `/responses`→Chat downgrade path, the stream is translated
+incrementally back into Responses events; other streaming routes are relayed byte-for-byte.
 
 ### Strict upstream tool-name validation (Codex → opencode/Moonshot)
 
@@ -243,20 +249,14 @@ Error from provider (Moonshot AI): Invalid request: function name is invalid, mu
 letter and can contain letters, numbers, underscores, and dashes
 ```
 
-The router is a transparent proxy — it forwards your tool definitions **unchanged** and does not rename
-them (see [LADR-006](../hld/001-llm-imposter-routing/ladrs/LADR-006-no-in-proxy-tool-name-sanitization.md)).
-OpenAI accepts these names, so Codex emits them by default; against a strict upstream you must keep the
-client's exposed tools upstream-valid:
+For `OpenAiUpstreamApi = "chat_completions"` imposter routes, Smooth enables `CodexToOpenAiSdk` request
+normalization by default. It keeps upstream-valid `function` tools, flattens namespace wrappers, removes
+unsupported tool types, drops invalid function names such as dotted names, and cleans any `tool_choice`
+that pointed at a removed tool. It never renames tools or rewrites prior-turn tool history. Set
+`RequestNormalization = "none"` on a provider only when you need the raw tool catalog forwarded unchanged.
 
-- **Disable leading-underscore connector/plugin tools** for the profile that targets this imposter — e.g.
-  the GitHub connector's `_search_issues`, `_create_pull_request`, `_update_file`, `_fetch_pr`. Turn the
-  connector off, or don't expose those MCP tools, for that Codex config/profile.
-- **`multi_tool_use.parallel`** (a dotted Codex/OpenAI parallel-tool-calling built-in) may not be fully
-  suppressible. Where it can't be disabled, parallel tool calling against strict upstreams remains an
-  **accepted limitation** — prefer a non-strict upstream/model (e.g. the real OpenAI provider, reached by
-  pointing the client directly at it) for sessions that need the full connector/parallel toolset.
-
-Upstreams with lenient tool-name validation (OpenAI itself) need none of this — their tools forward verbatim.
+Upstreams with lenient validation (OpenAI itself) do not need this normalization; `responses` upstreams keep it
+off by default.
 
 ## Endpoints
 

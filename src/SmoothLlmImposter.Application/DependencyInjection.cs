@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.AddSingleton<IProviderCatalog, ProviderCatalog>();
         services.AddSingleton<IRouteResolver, RouteResolver>();
         services.AddSingleton<IRequestNormalizer, CodexToOpenAiSdkNormalizer>();
+        services.AddSingleton<IChatToResponsesTransformer, ChatToResponsesStreamTransformer>();
         services.AddSingleton<IRequestTransformer, OpenAiRequestTransformer>();
         services.AddSingleton<IRequestTransformer, AnthropicRequestTransformer>();
         services.AddScoped<IImposterRouter, ImposterRouter>();

@@ -15,8 +15,11 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   headers and body to the upstream **unchanged**, with exactly three sanctioned request-rewrite classes: (1) the
   **auth** header is managed (see below), (2) **caching injection** rewrites the body on a matched imposter
   route, and (3) **opt-in request normalization** reshapes the body on a matched OpenAI imposter route that
-  opted in (HLD 004 — see "Request normalization" below). All three are **request-only**; the response stream is
-  never read or rewritten (HLD 001 LADR-003). Adding a
+  opted in (HLD 004 — see "Request normalization" below). These three are **request-only**. The single sanctioned
+  response rewrite is `ChatToResponsesStreamTransformer`, and only on the matched OpenAI imposter
+  `/responses`→Chat downgrade path (`OpenAiUpstreamApi: chat_completions` + inbound `/responses`); it is an
+  incremental SSE transform, never a buffer/replay step (HLD 004 LADR-05 / NFR-05). Every other response stream is
+  byte-relayed unchanged (HLD 001 LADR-003 as narrowed by LADR-05). Adding a
   bespoke filter that drops a caller header (e.g. `anthropic-beta`) breaks beta body fields like
   `context_management` — only the fixed hop-by-hop/content set (`Host`, `Content-*`, `Connection`,
   `Transfer-Encoding`, `Accept-Encoding`, …) is withheld. The caller's own `anthropic-version` passes through;
@@ -52,7 +55,9 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   Completions `messages`. The conversion also **folds `role:"developer"` → `role:"system"`**: Moonshot/kimi
   (and some OpenAI-compatible Chat upstreams) reject the OpenAI `developer` role with "tokenization failed",
   and `developer` is OpenAI's successor to `system`. Real `/responses` upstreams keep `developer` (the
-  conversion only runs for `chat_completions`). Passthrough/default routes stay transparent.
+  conversion only runs for `chat_completions`). The response side is paired: Chat Completions SSE is translated
+  back to Responses SSE on that same downgraded path so Responses clients can keep `wire_api = "responses"`.
+  Passthrough/default routes and direct `/chat/completions` callers stay transparent.
 - **Request normalization is OpenAI-imposter-only, request-only, and ON by default for `chat_completions`
   (HLD 004).** A provider's `RequestNormalization` (`CodexToOpenAiSdk` / `None`) selects a normalizer that
   mutates the parsed request body in `OpenAiRequestTransformer` **before** the Responses→Chat conversion. The
@@ -107,6 +112,13 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   chat upstreams and stay flat for responses upstreams. If no tool survives, `tools`+`tool_choice` are removed
   (absent tools are accepted; an empty array is not guaranteed to be). Prior-turn `function_call`/
   `function_call_output` history for a dropped tool is **left untouched** — v1 only filters `tools[]`.
+- **Response translation — `ChatToResponsesStreamTransformer`.** This is the only response-side transformer. It
+  consumes upstream Chat Completions SSE line-by-line and emits Responses SSE frames as each source frame arrives:
+  `response.created`/`in_progress`, message/content-part open events, text/reasoning/tool-call deltas, done
+  events, then exactly one `response.completed` with assembled output + usage. It carries only bounded per-stream
+  state (current message/content part, accumulated text, per-index function-call arguments, ids, usage) and is
+  gated by the exact `/responses`→`/v1/chat/completions` downgrade predicate. Non-streaming Chat Completion
+  objects are mapped to a Responses object on the same path. Off-path responses use the byte-copy loop.
 - **Errors are dialect-shaped**: OpenAI `{error:{message,type}}`, Anthropic `{type:"error",error:{type,message}}`.
   Routing failures → 400/404; upstream transport failures → 502.
 - **`anthropic-version`**: the caller's value is forwarded as-is; `2023-06-01` (or a configured
@@ -135,14 +147,11 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   gated on `cancellationToken.IsCancellationRequested`, so a genuine streaming failure while the caller is still
   connected still propagates and is logged. The status line + partial SSE are already on the wire, so there is
   nothing to write and (per LADR-003) nothing to retry. This mirrors the existing forward-path guard.
-- **Tool function names are forwarded unchanged — the proxy never sanitizes them.** Strict upstreams
-  (Moonshot/kimi via `opencode-go`) reject names that OpenAI accepts (`^[a-zA-Z][a-zA-Z0-9_-]*$`: no leading
-  underscore, no dots), so Codex's `_*` connector tools and the dotted `multi_tool_use.parallel` 400 upstream.
-  This is a client-tool-naming ⇄ strict-upstream conflict, **not** a proxy bug; the fix is client-side (disable
-  the offending tools — see `setup.md`). Do **not** add in-proxy name rewriting: it would also require rewriting
-  the streamed SSE response (Codex dispatches tools by `function.name`, which the upstream echoes), breaking the
-  transparent-proxy non-negotiable. Recorded in HLD 001 LADR-006 (Accepted); the rewrite design is parked as
-  LADR-007 (Draft) pending its own HLD.
+- **Tool function names are never renamed.** On `chat_completions` imposter routes, HLD 004 request normalization
+  may drop upstream-invalid tool definitions or flatten namespace wrappers, but it does not invent alternate names
+  and it does not rewrite prior-turn tool history. This preserves Codex's dispatch contract while avoiding strict
+  upstream 400s for unsupported tool shapes/names. The LADR-05 response bridge is a **wire-shape** translation for
+  downgraded `/responses` calls, not a tool-name remapper.
 
 ## Credential Overrides
 
@@ -209,3 +218,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-20 | Added request-only request normalization (HLD 004): `RequestNormalization` (`CodexToOpenAiSdk`/`None`) + `Normalization/` seam. v1 keeps only upstream-valid `function` tools (drop unsupported types, flatten `namespace`, drop names failing `^[A-Za-z_][A-Za-z0-9_-]*$`, clean dependent `tool_choice`); runs before Responses→Chat, imposter-only, idempotent. Third sanctioned request-rewrite class; supersedes HLD 001 LADR-006 for OpenAI imposter routes. Added L3 live-eval tier + `pr-evals-gate` workflow. | #19 |
 | 2026-06-20 | Fixed Codex `/responses`→Chat 400 on `opencode-go`: the conversion now folds `role:"developer"` → `role:"system"` (Moonshot rejects `developer` with "tokenization failed"). Independent of tool normalization; covered by an L3 case that reproduces the full #19 failure (bad tools + developer role). | #19 |
 | 2026-06-20 | **Amends HLD 004 LADR-03**: normalization is now **ON by default for `chat_completions`** (resolved in `ProviderCatalog`), `none` to opt out; `responses`/anthropic reject an explicit `codex_to_openai_sdk` (validator). Rationale: the reject rules are the generic OpenAI Chat Completions tool contract (openrouter/Bedrock 400 the same), and normalization is a no-op for clean clients — so opt-in per provider was the wrong default. `opencode-go` no longer needs the explicit flag. | #19 |
+| 2026-06-20 | Implemented the HLD 004 LADR-05 bidirectional bridge: matched OpenAI imposter `/responses` requests downgraded to Chat now translate Chat Completions responses back to Responses SSE incrementally via `ChatToResponsesStreamTransformer`; all off-path responses remain byte-relayed. | #19 |
