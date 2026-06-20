@@ -113,6 +113,7 @@ HLDs under `.docs/hlds/`:
 | [004 — Codex-to-OpenAI-SDK Transformer](.docs/hlds/004-codex-to-openai-sdk-transformer/README.md) | In Discovery | Transform Codex `/responses` payloads to the OpenAI Chat Completions SDK shape for compatible upstreams |
 | [005 — OpenAI /models Endpoint Aggregation](.docs/hlds/005-models-endpoint-aggregation/README.md) | Accepted | `GET /openai/v1/models` returns the distinct union of configured `to` models, synthesized locally |
 | [006 — Responses Chat Tool History Normalization](.docs/hlds/006-responses-chat-tool-history-normalization/README.md) | In Discovery | Normalize prior-turn Responses tool-call history so downgraded Chat requests satisfy strict upstream adjacency rules |
+| [007 — Named Provider Config & Conventional Env Overrides](.docs/hlds/007-named-provider-env-overrides/README.md) | In Discovery | Key providers by name (dictionary, not array) + conventional `<NAME>_<FIELD>` env overrides for stable, ergonomic config |
 
 ---
 
