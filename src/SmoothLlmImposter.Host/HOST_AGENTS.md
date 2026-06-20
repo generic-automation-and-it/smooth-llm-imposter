@@ -31,7 +31,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   with `Serilog__MinimumLevel__Override__SmoothLlmImposter.Routing=Debug`. See
   `.docs/wiki/setups/logging.debug-smooth-llm-imposter.md`.
 - Compose/runbook env vars must mirror the concrete `Imposter:Providers` indexes in `appsettings.json`.
-  ASP.NET Core config binding treats a sparse env var such as `Imposter__Providers__5__ApiKey` as a sixth
+  ASP.NET Core config binding treats a sparse env var such as `Imposter__Providers__5__Secret` as a sixth
   provider; if only indexes `0..4` exist in JSON, startup validation fails because that created provider has no
   `Name`, `Dialect`, or `BaseUrl`.
 

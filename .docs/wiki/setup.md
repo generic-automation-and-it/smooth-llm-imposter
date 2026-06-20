@@ -3,8 +3,8 @@
 > **What this is.** SmoothLlmImposter is a stateless, key-less LLM request router. It exposes OpenAI- and
 > Anthropic-dialect endpoints, reads the inbound `model`, and either rewrites it to a configured upstream
 > ("imposter") — optionally injecting prompt caching — or passes it through. Keys come from config/env only;
-> nothing about a request is persisted. There is **no `claude login` and no token capture** — you run the Host with
-> `dotnet`, pull the published GHCR image, or build a local image from the repo
+> nothing about a request is persisted. There is **no `claude login` inside the Host and no token capture** — you
+> run the Host with `dotnet`, pull the published GHCR image, or build a local image from the repo
 > [`Dockerfile`](../../Dockerfile), and point your existing OpenAI/Anthropic client's base URL at it.
 
 ## Setups
@@ -54,7 +54,8 @@ curl http://localhost:5080/health        # {"status":"ok"}
 
 Routing is driven entirely by the **`Imposter`** configuration section. Each provider declares a wire dialect
 (`openai` or `anthropic`), a base URL (server root, **without** a `/v1` version path — the inbound path is
-appended verbatim), an upstream key, and optional `From → To` model mappings with per-mapping caching.
+appended verbatim), an optional upstream `Secret` plus `AuthScheme`, and optional `From → To` model mappings with
+per-mapping caching.
 
 For the OpenAI **default passthrough** provider, choose the base URL that matches the caller's authentication:
 
@@ -93,7 +94,8 @@ requires_openai_auth = true
         "Name": "opencode-go",
         "Dialect": "openai",
         "BaseUrl": "https://opencode.ai/zen/go",
-        "ApiKey": "",
+        "Secret": "",
+        "AuthScheme": "ApiKey",
         "OpenAiUpstreamApi": "chat_completions",
         "Models": [
           { "From": "gpt-5.4", "To": "kimi-k2.7", "Caching": true }
@@ -103,7 +105,8 @@ requires_openai_auth = true
         "Name": "opencode-anthropic",
         "Dialect": "anthropic",
         "BaseUrl": "https://opencode.ai/zen/go",
-        "ApiKey": "",
+        "Secret": "",
+        "AuthScheme": "ApiKey",
         "Models": [
           { "From": "claude-haiku-*", "To": "minimax-m3", "Caching": true }
         ]
@@ -125,7 +128,8 @@ Routing rules to keep in mind:
 - **Transparent proxy.** The request is relayed to the upstream unchanged — all caller headers (incl.
   `anthropic-beta`, vendor `x-*`) and the body pass through; the only mutations are caching injection on a
   matched imposter route and the auth header. **Auth** is route-dependent: an imposter route sends the
-  provider's configured key; a **key-less passthrough** (default provider, no `ApiKey`, no stored credential)
+  provider's configured `Secret` using its `AuthScheme`; a **key-less passthrough** (default provider, no
+  `Secret`, no stored credential)
   forwards the caller's own `Authorization` / `x-api-key` — so the catch-all defaults need no key in the
   router. The caller's `anthropic-version` is forwarded as-is; `2023-06-01` (or a configured `AnthropicVersion`)
   is supplied only when the caller omits it.
@@ -136,9 +140,12 @@ Never commit real keys. Environment variables override `appsettings.json` (env w
 double-underscore path syntax for the array index:
 
 ```bash
-export Imposter__Providers__2__ApiKey="sk-your-opencode-key"          # opencode-go
-export Imposter__Providers__3__ApiKey="sk-your-openrouter-key"        # openrouter
-export Imposter__Providers__4__ApiKey="sk-your-anthropic-route-key"   # opencode-anthropic
+export Imposter__Providers__2__Secret="sk-your-opencode-key"          # opencode-go
+export Imposter__Providers__2__AuthScheme="ApiKey"                    # send as x-api-key
+export Imposter__Providers__3__Secret="sk-your-openrouter-key"        # openrouter
+export Imposter__Providers__3__AuthScheme="Bearer"                    # send as Authorization: Bearer
+export Imposter__Providers__4__Secret="sk-your-anthropic-route-key"   # opencode-anthropic
+export Imposter__Providers__4__AuthScheme="ApiKey"
 dotnet run --project src/SmoothLlmImposter.Host
 ```
 
@@ -150,11 +157,12 @@ For day-to-day debugging you can keep keys out of your shell entirely using **.N
 
 ```bash
 cd src/SmoothLlmImposter.Host
-dotnet user-secrets set "Imposter:Providers:2:ApiKey" "sk-your-opencode-key"   # note the ':' path separator
+dotnet user-secrets set "Imposter:Providers:2:Secret" "sk-your-opencode-key"   # note the ':' path separator
+dotnet user-secrets set "Imposter:Providers:2:AuthScheme" "ApiKey"
 ```
 
 Precedence is `appsettings.json < user secrets (Dev) < environment variables` — so an exported
-`Imposter__Providers__2__ApiKey` **overrides** the stored secret for a one-off run.
+`Imposter__Providers__2__Secret` **overrides** the stored secret for a one-off run.
 
 ## Point your client at the router
 
@@ -190,6 +198,20 @@ openai_base_url = "http://localhost:5080/openai/v1"
 # Anthropic SDK appends /v1/messages itself, so NO /v1 here
 export ANTHROPIC_BASE_URL="http://localhost:5080/anthropic"
 ```
+
+For Claude subscription-based upstreams, create a token with the Claude CLI and supply it yourself as the
+imposter provider `Secret` override:
+
+```bash
+claude setup-token
+
+# Example: provider 4 is the shipped Anthropic-dialect imposter path.
+export Imposter__Providers__4__Secret="paste-the-claude-token-here"
+export Imposter__Providers__4__AuthScheme="Bearer"
+```
+
+Use `AuthScheme="Bearer"` when the upstream expects `Authorization: Bearer <token>`. Use `AuthScheme="ApiKey"`
+when the upstream expects `x-api-key: <token>`.
 
 ```bash
 # OpenAI dialect — prefix /openai, client appends /v1/chat/completions (also /v1/responses, GET /v1/models)

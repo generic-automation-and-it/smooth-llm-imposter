@@ -8,8 +8,8 @@ points at the published GHCR tag — so you can either build locally or `pull`. 
 running across reboots. Works with **`docker compose`** (v2) and **`podman-compose`**.
 
 > SmoothLlmImposter is **stateless and key-less** — no `/data` volume, port **5066**, keys are
-> `Imposter__Providers__N__ApiKey`. (The Smooth Claude Proxy's compose, with `WORKSPACE_PATH`/`LlmService__*`, is a
-> different service.)
+> `Imposter__Providers__N__Secret` plus `Imposter__Providers__N__AuthScheme`. (The Smooth Claude Proxy's compose,
+> with `WORKSPACE_PATH`/`LlmService__*`, is a different service.)
 
 ## Supply keys
 
@@ -23,9 +23,9 @@ OPENROUTER_API_KEY=sk-your-openrouter-key  # feeds provider 3 (openrouter)
 ```
 
 `docker-compose.yml` maps these named variables onto the indexed
-`Imposter__Providers__N__ApiKey` settings — edit the `environment:` block there if your provider order
+`Imposter__Providers__N__Secret` settings — edit the `environment:` block there if your provider order
 differs from the shipped `appsettings.json`. Do not set a sparse provider index: for example,
-`Imposter__Providers__5__ApiKey` creates an otherwise-empty provider if `appsettings.json` only defines indexes
+`Imposter__Providers__5__Secret` creates an otherwise-empty provider if `appsettings.json` only defines indexes
 `0..4`, and startup validation fails with `Providers[5]:Name is required`.
 
 ## Build & first run (local dockerized testing)
@@ -198,8 +198,22 @@ openai_base_url = "http://localhost:5066/openai/v1"
 export ANTHROPIC_BASE_URL="http://localhost:5066/anthropic"
 ```
 
+For Claude subscription-based upstreams, create a token with the Claude CLI and supply it yourself as the
+imposter provider `Secret` override:
+
+```bash
+claude setup-token
+
+# Example: provider 4 is the shipped Anthropic-dialect imposter path.
+export Imposter__Providers__4__Secret="paste-the-claude-token-here"
+export Imposter__Providers__4__AuthScheme="Bearer"
+```
+
+Use `AuthScheme="Bearer"` when the upstream expects `Authorization: Bearer <token>`. Use `AuthScheme="ApiKey"`
+when the upstream expects `x-api-key: <token>`.
+
 Send a routed request — with the shipped config, OpenAI `gpt-5.4` is rewritten to `kimi-k2.7` and forwarded
-to opencode-go (requires the provider's `ApiKey`):
+to opencode-go (requires the provider's `Secret`):
 
 ```bash
 curl -fsS http://localhost:5066/openai/v1/chat/completions \

@@ -113,7 +113,7 @@ public sealed class KeylessPassthroughIntegrationTests(KeylessPassthroughIntegra
             ["Imposter:Providers:1:Name"] = "opencode-anthropic",
             ["Imposter:Providers:1:Dialect"] = "anthropic",
             ["Imposter:Providers:1:BaseUrl"] = "https://opencode.test",
-            ["Imposter:Providers:1:ApiKey"] = "opencode-key",
+            ["Imposter:Providers:1:Secret"] = "opencode-key",
             ["Imposter:Providers:1:Models:0:From"] = "claude-haiku-*",
             ["Imposter:Providers:1:Models:0:To"] = "minimax-m3"
         };

@@ -33,6 +33,8 @@ All planned work is tracked as worktasks under `.context/work-tasks/` (gitignore
 Setup docs in `.docs/wiki/setup.md` and `.docs/wiki/setups/` should keep client base-url examples aligned with
 the run mode's published host port, including Codex `openai_base_url` and `ANTHROPIC_BASE_URL` examples where
 the guide is meant to be used by agent clients.
+Claude/Anthropic setup sections should also document that `claude setup-token` can create a Claude subscription
+token, which users may supply explicitly as an imposter provider `Secret` with the matching `AuthScheme`.
 
 ## Repository Layout (Navigation)
 

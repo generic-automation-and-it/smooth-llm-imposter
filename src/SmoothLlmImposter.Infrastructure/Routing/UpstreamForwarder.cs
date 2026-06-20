@@ -89,15 +89,11 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         ApiDialect dialect,
         CallerHeaders callerHeaders)
     {
-        string? secret = credentialOverride?.Secret ?? decision.Provider.ApiKey;
+        string? secret = credentialOverride?.Secret ?? decision.Provider.Secret;
 
         if (!string.IsNullOrEmpty(secret))
         {
-            if (credentialOverride is null)
-            {
-                ApplyDefaultAuthentication(request, dialect, secret);
-            }
-            else if (credentialOverride.ForceBearer)
+            if (credentialOverride is { ForceBearer: true })
             {
                 // HLD 003: override ON ⇒ force Bearer from the active credential regardless of its stored scheme.
                 // Headers are only ever added, so x-api-key is inherently never sent for this request.
@@ -105,7 +101,11 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
             }
             else
             {
-                ApplyStoredCredentialAuthentication(request, credentialOverride.AuthScheme, secret);
+                // Scheme is decoupled from dialect: a stored credential's scheme, else the provider's
+                // configured scheme, else the dialect default (openai → Bearer, anthropic → ApiKey).
+                CredentialAuthScheme scheme =
+                    credentialOverride?.AuthScheme ?? decision.Provider.AuthScheme ?? DefaultSchemeFor(dialect);
+                ApplyScheme(request, scheme, secret);
             }
 
             return;
@@ -146,25 +146,16 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
             credentialOverride?.AnthropicVersion ?? decision.Provider.AnthropicVersion ?? DefaultAnthropicVersion);
     }
 
-    private static void ApplyDefaultAuthentication(HttpRequestMessage request, ApiDialect dialect, string secret)
+    // Dialect default when no scheme is configured: OpenAI authenticates with Bearer, Anthropic with x-api-key.
+    private static CredentialAuthScheme DefaultSchemeFor(ApiDialect dialect) => dialect switch
     {
-        switch (dialect)
-        {
-            case ApiDialect.OpenAi:
-                request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {secret}");
-                break;
-            case ApiDialect.Anthropic:
-                request.Headers.TryAddWithoutValidation("x-api-key", secret);
-                break;
-        }
-    }
+        ApiDialect.Anthropic => CredentialAuthScheme.ApiKey,
+        _ => CredentialAuthScheme.Bearer,
+    };
 
-    private static void ApplyStoredCredentialAuthentication(
-        HttpRequestMessage request,
-        CredentialAuthScheme authScheme,
-        string secret)
+    private static void ApplyScheme(HttpRequestMessage request, CredentialAuthScheme scheme, string secret)
     {
-        switch (authScheme)
+        switch (scheme)
         {
             case CredentialAuthScheme.Bearer:
                 request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {secret}");

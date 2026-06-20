@@ -9,7 +9,7 @@ using SmoothLlmImposter.Infrastructure;
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 // Environment variables override appsettings.json (env wins). The default host already adds them last;
-// re-adding here makes the precedence explicit, e.g. Imposter__Providers__0__ApiKey=sk-...
+// re-adding here makes the precedence explicit, e.g. Imposter__Providers__0__Secret=sk-...
 builder.Configuration.AddEnvironmentVariables();
 
 // Default minimum level is Information (set in code so it holds even with no Serilog config section).

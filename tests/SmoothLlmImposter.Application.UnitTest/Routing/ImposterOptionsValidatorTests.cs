@@ -51,4 +51,28 @@ public class ImposterOptionsValidatorTests
         };
         _validator.Validate(null, Options(provider)).Failed.ShouldBeTrue();
     }
+
+    [Fact]
+    public void Invalid_auth_scheme_fails()
+    {
+        var provider = new ProviderOptions
+        {
+            Name = "a", Dialect = "openai", BaseUrl = "https://a.example", AuthScheme = "Token"
+        };
+        _validator.Validate(null, Options(provider)).Failed.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("ApiKey")]
+    [InlineData("bearer")]
+    public void Known_or_omitted_auth_scheme_succeeds(string? authScheme)
+    {
+        var provider = new ProviderOptions
+        {
+            Name = "a", Dialect = "openai", BaseUrl = "https://a.example", AuthScheme = authScheme
+        };
+        _validator.Validate(null, Options(provider)).Succeeded.ShouldBeTrue();
+    }
 }

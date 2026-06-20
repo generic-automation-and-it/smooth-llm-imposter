@@ -42,11 +42,17 @@ docker rm -f smooth-llm-imposter 2>/dev/null || true
 
 docker run -d --name smooth-llm-imposter \
   -p 5080:5080 \
-  -e Imposter__Providers__2__ApiKey="$OPENCODE_GO_API_KEY" \
-  -e Imposter__Providers__3__ApiKey="$OPENROUTER_API_KEY" \
-  -e Imposter__Providers__4__ApiKey="$OPENCODE_GO_API_KEY" \
+  -e Imposter__Providers__2__Secret="$OPENCODE_GO_API_KEY" \
+  -e Imposter__Providers__2__AuthScheme="ApiKey" \
+  -e Imposter__Providers__3__Secret="$OPENROUTER_API_KEY" \
+  -e Imposter__Providers__3__AuthScheme="Bearer" \
+  -e Imposter__Providers__4__Secret="$OPENCODE_GO_API_KEY" \
+  -e Imposter__Providers__4__AuthScheme="ApiKey" \
   smooth-llm-imposter:local
 ```
+
+`AuthScheme` (`ApiKey`|`Bearer`) selects the auth header and defaults by dialect when omitted (openai → Bearer,
+anthropic → ApiKey); the shipped providers set it explicitly.
 
 Podman is identical (`podman run -d --name … -p 5080:5080 -e … smooth-llm-imposter:local`).
 
@@ -78,7 +84,7 @@ curl -fsS http://localhost:5080/health        # {"status":"ok"}
 ```
 
 Send a routed request — with the shipped config, OpenAI `gpt-5.4` is rewritten to `kimi-k2.7` and forwarded to
-opencode-go (requires `Imposter__Providers__2__ApiKey`):
+opencode-go (requires `Imposter__Providers__2__Secret`):
 
 ```bash
 curl -fsS http://localhost:5080/v1/chat/completions \
@@ -101,9 +107,12 @@ docker rm -f smooth-llm-imposter
 docker build -t smooth-llm-imposter:local .
 docker run -d --name smooth-llm-imposter \
   -p 5080:5080 \
-  -e Imposter__Providers__2__ApiKey="$OPENCODE_GO_API_KEY" \
-  -e Imposter__Providers__3__ApiKey="$OPENROUTER_API_KEY" \
-  -e Imposter__Providers__4__ApiKey="$OPENCODE_GO_API_KEY" \
+  -e Imposter__Providers__2__Secret="$OPENCODE_GO_API_KEY" \
+  -e Imposter__Providers__2__AuthScheme="ApiKey" \
+  -e Imposter__Providers__3__Secret="$OPENROUTER_API_KEY" \
+  -e Imposter__Providers__3__AuthScheme="Bearer" \
+  -e Imposter__Providers__4__Secret="$OPENCODE_GO_API_KEY" \
+  -e Imposter__Providers__4__AuthScheme="ApiKey" \
   smooth-llm-imposter:local
 ```
 

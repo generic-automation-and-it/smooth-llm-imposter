@@ -14,13 +14,16 @@ the shipped `appsettings.json`:
 | Anthropic `claude-haiku-*` | `minimax-m3` | opencode-anthropic (`https://opencode.ai/zen/go`) |
 
 The router is **stateless and key-less**: it does not capture or persist the caller's auth, and it does not run
-as a container. Each provider's upstream key comes from the environment (`Imposter__Providers__N__ApiKey`); the
+as a container. Each provider's upstream key comes from the environment (`Imposter__Providers__N__Secret`, with a
+sibling `Imposter__Providers__N__AuthScheme` of `ApiKey`|`Bearer` selecting the header, defaulting by dialect); the
 inbound `Authorization` / `x-api-key` is replaced by the provider's configured key. Unmatched models return 404
 unless a provider sets `"IsDefault": true` (passthrough).
 
 ## Prerequisites / knobs
 
-- **`Imposter__Providers__N__ApiKey`** — the upstream key for provider index `N` (0-based, in config order).
+- **`Imposter__Providers__N__Secret`** — the upstream key for provider index `N` (0-based, in config order). The
+  sibling **`Imposter__Providers__N__AuthScheme`** (`ApiKey`|`Bearer`, case-insensitive) selects the auth header and
+  defaults by dialect when omitted (openai → Bearer, anthropic → ApiKey).
   **`export` it in your shell before running** — do **not** paste a real key into the script block below, because
   this file is tracked in the repo and a committed key would leak. The Host starts without keys, but any routed
   request to that provider fails upstream. Keys are written only to `~/.config/smooth-llm-imposter/imposter.env`
@@ -70,7 +73,7 @@ LOG_FILE="$STATE_DIR/imposter.log"
 
 mkdir -p "$CONF_DIR" "$STATE_DIR"
 
-# Prefer `export Imposter__Providers__2__ApiKey=...` for opencode-go (etc.) in your shell before
+# Prefer `export Imposter__Providers__2__Secret=...` (+ `__AuthScheme`) for opencode-go (etc.) in your shell before
 # running. Do NOT commit real keys here — this file is tracked in the repo.
 : "${ASPNETCORE_URLS:=http://+:$PORT}"
 
@@ -145,7 +148,7 @@ curl -fsS localhost:5080/health        # {"status":"ok"}
 ```
 
 Send a routed OpenAI-dialect request — with the shipped config, `gpt-5.4` is rewritten to `kimi-k2.7` and
-forwarded to opencode-go (requires `Imposter__Providers__2__ApiKey` to be set, or the upstream returns an auth
+forwarded to opencode-go (requires `Imposter__Providers__2__Secret` to be set, or the upstream returns an auth
 error):
 
 ```bash

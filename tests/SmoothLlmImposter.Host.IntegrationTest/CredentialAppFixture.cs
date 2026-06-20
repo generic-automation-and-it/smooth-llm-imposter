@@ -25,13 +25,13 @@ public sealed class CredentialAppFixture : WebApplicationFactory<HostApp::Progra
         ["Imposter:Providers:0:Name"] = "openai-official",
         ["Imposter:Providers:0:Dialect"] = "openai",
         ["Imposter:Providers:0:BaseUrl"] = "https://api.openai.test",
-        ["Imposter:Providers:0:ApiKey"] = "openai-config-key",
+        ["Imposter:Providers:0:Secret"] = "openai-config-key",
         ["Imposter:Providers:0:IsDefault"] = "true",
 
         ["Imposter:Providers:1:Name"] = "opencode-go",
         ["Imposter:Providers:1:Dialect"] = "openai",
         ["Imposter:Providers:1:BaseUrl"] = "https://opencode.test",
-        ["Imposter:Providers:1:ApiKey"] = "opencode-key",
+        ["Imposter:Providers:1:Secret"] = "opencode-key",
         ["Imposter:Providers:1:Models:0:From"] = "gpt5.4",
         ["Imposter:Providers:1:Models:0:To"] = "grok-code"
     };

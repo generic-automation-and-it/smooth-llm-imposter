@@ -9,7 +9,7 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 
 ## Non-Negotiables
 
-- **Never persist, log, or echo `ApiKey` values.** They live only in `ImposterOptions` (config/env). Logs
+- **Never persist, log, or echo provider `Secret` values.** They live only in `ImposterOptions` (config/env). Logs
   carry provider name + model names only.
 - **Transparent proxy — do not strip or rewrite the request.** The forwarder relays the caller's inbound
   headers and body to the upstream **unchanged**, with exactly two exceptions: (1) the **auth** header is
@@ -19,9 +19,14 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   `Transfer-Encoding`, `Accept-Encoding`, …) is withheld. The caller's own `anthropic-version` passes through;
   the default `2023-06-01` is supplied **only** when the caller omitted it.
 - **Auth header is the one managed header, route-dependent:** a matched imposter route sends the provider's
-  configured key (never the caller's). On **passthrough**: the HLD-003 override ON ⇒ active stored Bearer; else
-  a configured provider key / stored credential if present; else the caller's own `Authorization`/`x-api-key`
+  configured `Secret` (never the caller's). On **passthrough**: the HLD-003 override ON ⇒ active stored Bearer; else
+  a configured provider `Secret` / stored credential if present; else the caller's own `Authorization`/`x-api-key`
   is forwarded verbatim, so a key-less router authenticates with the caller's credential.
+- **Auth *scheme* is decoupled from `Dialect`.** Provider config carries `Secret` + optional `AuthScheme`
+  (`Bearer` → `Authorization: Bearer`, `ApiKey` → `x-api-key`). The forwarder resolves the scheme as
+  `credentialOverride.AuthScheme ?? provider.AuthScheme ?? dialect default` (openai → Bearer, anthropic → ApiKey).
+  So an `openai`-dialect upstream (e.g. opencode) can authenticate with `x-api-key` via `AuthScheme: ApiKey`
+  without changing its wire dialect. There is no `ApiKey` config alias — `Secret`/`AuthScheme` is a breaking rename.
 - **Same-dialect only.** Do not add OpenAI⇄Anthropic body translation here. An `openai` provider serves
   openai requests; an `anthropic` provider serves anthropic requests.
 - **OpenAI Responses→Chat compatibility is explicit per provider.** `OpenAiUpstreamApi` defaults to
@@ -128,3 +133,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-17 | Persistence is opt-in: `AddInfrastructure` registers a `NullCredentialStore` when `ConnectionStrings:ImposterDb` is unset, so the stateless default boots without PostgreSQL. Fixed EF discriminator NRE (shadow column `ProviderDialect` → `Dialect`) that crashed model build on the passthrough path. | HLD 002 |
 | 2026-06-19 | Added dialect-prefixed routing (`/openai/{**path}`, `/anthropic/{**path}`, any method): prefix selects dialect, tail forwarded verbatim — disambiguates shared paths like `/v1/models`. Body-less requests (`GET /v1/models`) passthrough to the dialect default via `PlanPassthroughAsync`/`ResolveDefault` (no model to match). Forwarder now forwards the inbound `HttpMethod` with a nullable body. Legacy unprefixed `POST /v1/*` retained; unprefixed `/v1/models` left unmapped (ambiguous). | — |
 | 2026-06-20 | Added `OpenAiUpstreamApi: chat_completions` for OpenAI-compatible upstreams without `/responses`; matched OpenAI imposter routes can downgrade `/responses` requests to `/v1/chat/completions` and convert common Responses payload fields to chat `messages`. | — |
+| 2026-06-20 | Renamed provider config `ApiKey` → `Secret` and added `AuthScheme` (`Bearer`/`ApiKey`), decoupling auth scheme from `Dialect`. Forwarder resolves `override.AuthScheme ?? provider.AuthScheme ?? dialect default` (openai → Bearer, anthropic → ApiKey) via a single unified path; this fixes openai-dialect upstreams (opencode) that require `x-api-key`. Breaking config change — no `ApiKey` alias. | — |

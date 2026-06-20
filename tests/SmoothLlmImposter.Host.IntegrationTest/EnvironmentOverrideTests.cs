@@ -11,8 +11,8 @@ namespace SmoothLlmImposter.Host.IntegrationTest;
 
 /// <summary>
 /// Proves environment variables override lower-precedence configuration. The provider's empty
-/// <c>ApiKey</c> — supplied by an in-memory layer that stands in for appsettings.json — is replaced by an
-/// env-supplied key, which the forwarder then sends upstream. Sources are layered in-memory (low) then
+/// <c>Secret</c> — supplied by an in-memory layer that stands in for appsettings.json — is replaced by an
+/// env-supplied secret, which the forwarder then sends upstream. Sources are layered in-memory (low) then
 /// environment variables (high) so env wins. The fixture starts with no imposters beyond the single
 /// matched provider declared here, so it does not depend on the shipped appsettings.json.
 /// </summary>
@@ -23,7 +23,7 @@ public sealed class EnvironmentOverrideTests
         ["Imposter:Providers:0:Name"] = "opencode-go",
         ["Imposter:Providers:0:Dialect"] = "openai",
         ["Imposter:Providers:0:BaseUrl"] = "https://opencode.test",
-        ["Imposter:Providers:0:ApiKey"] = "",
+        ["Imposter:Providers:0:Secret"] = "",
         ["Imposter:Providers:0:Models:0:From"] = "gpt5.4",
         ["Imposter:Providers:0:Models:0:To"] = "grok-code"
     };
@@ -49,9 +49,9 @@ public sealed class EnvironmentOverrideTests
     }
 
     [Fact]
-    public async Task Environment_variable_overrides_configured_api_key()
+    public async Task Environment_variable_overrides_configured_secret()
     {
-        const string envKey = "Imposter__Providers__0__ApiKey";
+        const string envKey = "Imposter__Providers__0__Secret";
         string? original = Environment.GetEnvironmentVariable(envKey);
         Environment.SetEnvironmentVariable(envKey, "env-openai-key");
 

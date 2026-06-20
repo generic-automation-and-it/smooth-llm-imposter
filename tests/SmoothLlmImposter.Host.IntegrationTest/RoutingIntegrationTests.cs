@@ -23,7 +23,9 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://opencode.test/v1/chat/completions");
-        fixture.Upstream.LastAuthorization.ShouldBe("Bearer opencode-key");
+        // opencode-go authenticates with x-api-key (AuthScheme: ApiKey), not Bearer, despite the openai dialect.
+        fixture.Upstream.LastApiKey.ShouldBe("opencode-key");
+        fixture.Upstream.LastAuthorization.ShouldBeNull();
 
         JsonNode forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!;
         forwarded["model"]!.GetValue<string>().ShouldBe("grok-code");
