@@ -48,14 +48,15 @@ internal sealed class ImposterRouter : IImposterRouter
             : await ResolvePassthroughCredentialAsync(dialect, cancellationToken);
 
         _logger.LogInformation(
-            "Routed {Dialect} model '{InboundModel}' -> provider '{Provider}' as '{TargetModel}' (imposter={IsImposter}, caching={Caching}, storedCredential={StoredCredential})",
+            "Routed {Dialect} model '{InboundModel}' -> provider '{Provider}' as '{TargetModel}' (imposter={IsImposter}, caching={Caching}, storedCredential={StoredCredential}, auth={Auth})",
             dialect,
             model,
             decision.Provider.Name,
             decision.TargetModel,
             decision.IsImposter,
             decision.CachingEnabled,
-            credentialOverride is not null);
+            credentialOverride is not null,
+            DescribeAuth(decision, dialect, credentialOverride));
 
         return new RoutePlan(decision, model, transformedBody, credentialOverride);
     }
@@ -68,10 +69,11 @@ internal sealed class ImposterRouter : IImposterRouter
         RouteCredentialOverride? credentialOverride = await ResolvePassthroughCredentialAsync(dialect, cancellationToken);
 
         _logger.LogInformation(
-            "Routed {Dialect} body-less request -> provider '{Provider}' (passthrough, no model, storedCredential={StoredCredential})",
+            "Routed {Dialect} body-less request -> provider '{Provider}' (passthrough, no model, storedCredential={StoredCredential}, auth={Auth})",
             dialect,
             decision.Provider.Name,
-            credentialOverride is not null);
+            credentialOverride is not null,
+            DescribeAuth(decision, dialect, credentialOverride));
 
         return new RoutePlan(decision, InboundModel: string.Empty, TransformedBody: string.Empty, credentialOverride);
     }
@@ -106,6 +108,25 @@ internal sealed class ImposterRouter : IImposterRouter
             baseUrlOverride,
             credential is AnthropicCredential anthropic ? anthropic.AnthropicVersion : null,
             ForceBearer: forceBearer);
+    }
+
+    // Mirrors UpstreamForwarder.ApplyAuthentication via the shared resolver so the log reports the auth the
+    // forwarder will actually apply: a resolved Bearer/ApiKey scheme when a secret is present, "none" for a
+    // matched imposter route with no configured secret (no header is sent at all), or "caller-passthrough"
+    // when the caller's own credential is relayed. Never logs the secret value itself.
+    private static string DescribeAuth(RouteDecision decision, ApiDialect dialect, RouteCredentialOverride? credentialOverride)
+    {
+        string? secret = credentialOverride?.Secret ?? decision.Provider.Secret;
+        if (!string.IsNullOrEmpty(secret))
+        {
+            return UpstreamAuthResolver.ResolveScheme(
+                dialect,
+                decision.Provider.AuthScheme,
+                credentialOverride?.AuthScheme,
+                credentialOverride?.ForceBearer ?? false).ToString();
+        }
+
+        return decision.IsImposter ? "none" : "caller-passthrough";
     }
 
     private static string ExtractModel(string requestBody)

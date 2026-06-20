@@ -93,20 +93,16 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
 
         if (!string.IsNullOrEmpty(secret))
         {
-            if (credentialOverride is { ForceBearer: true })
-            {
-                // HLD 003: override ON ⇒ force Bearer from the active credential regardless of its stored scheme.
-                // Headers are only ever added, so x-api-key is inherently never sent for this request.
-                request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {secret}");
-            }
-            else
-            {
-                // Scheme is decoupled from dialect: a stored credential's scheme, else the provider's
-                // configured scheme, else the dialect default (openai → Bearer, anthropic → ApiKey).
-                CredentialAuthScheme scheme =
-                    credentialOverride?.AuthScheme ?? decision.Provider.AuthScheme ?? DefaultSchemeFor(dialect);
-                ApplyScheme(request, scheme, secret);
-            }
+            // Scheme is decoupled from dialect and resolved by the shared Domain resolver (also used by the
+            // router's log so the two cannot drift): a stored credential's scheme, else the provider's
+            // configured scheme, else the dialect default; the HLD 003 override forces Bearer regardless.
+            // Headers are only ever added, so x-api-key is inherently never sent when Bearer is forced.
+            CredentialAuthScheme scheme = UpstreamAuthResolver.ResolveScheme(
+                dialect,
+                decision.Provider.AuthScheme,
+                credentialOverride?.AuthScheme,
+                credentialOverride?.ForceBearer ?? false);
+            ApplyScheme(request, scheme, secret);
 
             return;
         }
@@ -145,13 +141,6 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
             "anthropic-version",
             credentialOverride?.AnthropicVersion ?? decision.Provider.AnthropicVersion ?? DefaultAnthropicVersion);
     }
-
-    // Dialect default when no scheme is configured: OpenAI authenticates with Bearer, Anthropic with x-api-key.
-    private static CredentialAuthScheme DefaultSchemeFor(ApiDialect dialect) => dialect switch
-    {
-        ApiDialect.Anthropic => CredentialAuthScheme.ApiKey,
-        _ => CredentialAuthScheme.Bearer,
-    };
 
     private static void ApplyScheme(HttpRequestMessage request, CredentialAuthScheme scheme, string secret)
     {
