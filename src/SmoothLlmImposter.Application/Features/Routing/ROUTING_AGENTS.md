@@ -17,16 +17,29 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   bespoke filter that drops a caller header (e.g. `anthropic-beta`) breaks beta body fields like
   `context_management` — only the fixed hop-by-hop/content set (`Host`, `Content-*`, `Connection`,
   `Transfer-Encoding`, `Accept-Encoding`, …) is withheld. The caller's own `anthropic-version` passes through;
-  the default `2023-06-01` is supplied **only** when the caller omitted it.
+  the default `2023-06-01` is supplied **only** when the caller omitted it. The **one** caller header dropped
+  beyond that fixed set is `chatgpt-account-id`, and only when auth is **managed** (a provider/override secret is
+  applied): it asserts a ChatGPT *identity* that an OpenAI-compatible gateway (opencode) honours over the managed
+  Bearer key and 401s on, so it belongs to the managed-auth concern. It is **kept on key-less passthrough**, where
+  the caller's own credential + identity are a matched pair (`ManagedAuthIdentityHeaders` in the forwarder).
 - **Auth header is the one managed header, route-dependent:** a matched imposter route sends the provider's
   configured `Secret` (never the caller's). On **passthrough**: the HLD-003 override ON ⇒ active stored Bearer; else
   a configured provider `Secret` / stored credential if present; else the caller's own `Authorization`/`x-api-key`
   is forwarded verbatim, so a key-less router authenticates with the caller's credential.
 - **Auth *scheme* is decoupled from `Dialect`.** Provider config carries `Secret` + optional `AuthScheme`
-  (`Bearer` → `Authorization: Bearer`, `ApiKey` → `x-api-key`). The forwarder resolves the scheme as
-  `credentialOverride.AuthScheme ?? provider.AuthScheme ?? dialect default` (openai → Bearer, anthropic → ApiKey).
-  So an `openai`-dialect upstream (e.g. opencode) can authenticate with `x-api-key` via `AuthScheme: ApiKey`
-  without changing its wire dialect. There is no `ApiKey` config alias — `Secret`/`AuthScheme` is a breaking rename.
+  (`Bearer` → `Authorization: Bearer`, `ApiKey` → `x-api-key`). The scheme precedence
+  (`credentialOverride.AuthScheme ?? provider.AuthScheme ?? dialect default`, openai → Bearer, anthropic → ApiKey;
+  the HLD-003 override forces Bearer) lives in **one place**: `Domain.Routing.UpstreamAuthResolver`. Both the
+  forwarder (which writes the header) and `ImposterRouter` (which logs `auth=`) call it — keep them on the shared
+  resolver so the log can't drift from the wire behavior. So an `openai`-dialect upstream (e.g. opencode) can
+  authenticate with `x-api-key` via `AuthScheme: ApiKey` without changing its wire dialect. There is no `ApiKey`
+  config alias — `Secret`/`AuthScheme` is a breaking rename.
+- **`AuthScheme` is inert without a `Secret`, and imposter routes never borrow the caller's credential.** A
+  matched imposter route authenticates **only** with the provider's configured `Secret`; if that is empty, the
+  forwarder sends **no** auth header at all (the caller's `Authorization`/`x-api-key` is forwarded only on
+  passthrough), so the upstream 401s. `AuthScheme` merely picks the header for a *non-empty* secret. The routing
+  log surfaces this as `auth=none` (imposter, no secret), `auth=Bearer`/`auth=ApiKey` (secret present), or
+  `auth=caller-passthrough` (caller's own credential relayed) — `auth=none` on a 401 means a missing `Secret`.
 - **Same-dialect only.** Do not add OpenAI⇄Anthropic body translation here. An `openai` provider serves
   openai requests; an `anthropic` provider serves anthropic requests.
 - **OpenAI Responses→Chat compatibility is explicit per provider.** `OpenAiUpstreamApi` defaults to
@@ -82,6 +95,12 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   through the same credential seam (stored credential / HLD-003 force-Bearer / fail-closed 403).
 - **Forwarder method/body**: `UpstreamForwarder.SendAsync` takes the inbound `HttpMethod` and a nullable body;
   `Content` is attached only when the body is non-empty. GET probes therefore reach the upstream as real GETs.
+- **Mid-stream caller disconnect is swallowed, not retried.** `RoutingEndpoints.HandleAsync` wraps the streaming
+  copy so that when the caller aborts mid-stream (`context.RequestAborted` fires — common with SSE clients), the
+  resulting `OperationCanceledException`/`IOException` is caught and the handler returns quietly. The catch is
+  gated on `cancellationToken.IsCancellationRequested`, so a genuine streaming failure while the caller is still
+  connected still propagates and is logged. The status line + partial SSE are already on the wire, so there is
+  nothing to write and (per LADR-003) nothing to retry. This mirrors the existing forward-path guard.
 
 ## Credential Overrides
 
@@ -116,7 +135,10 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 
 - **L0** `Domain.UnitTest/Routing` — matcher, dialect parser.
 - **L0** `Application.UnitTest/Routing` — resolver, transformers (cache injection), router, error factory, options validator.
-- **L2** `Host.IntegrationTest` — full pipeline incl. SSE passthrough and env-over-appsettings override (in-process stub upstream).
+- **L2** `Host.IntegrationTest` — full pipeline incl. SSE passthrough, mid-stream caller-disconnect handling
+  (`StreamingDisconnectTests`), and env-over-appsettings override (in-process stub upstream). The disconnect test
+  asserts on the process-global Serilog `Log.Logger` (where request-logging surfaces the escaping exception), so
+  the integration suite runs serially (`DisableTestParallelization` in `GlobalUsings.cs`).
 
 ## Changelog
 
@@ -134,3 +156,6 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-19 | Added dialect-prefixed routing (`/openai/{**path}`, `/anthropic/{**path}`, any method): prefix selects dialect, tail forwarded verbatim — disambiguates shared paths like `/v1/models`. Body-less requests (`GET /v1/models`) passthrough to the dialect default via `PlanPassthroughAsync`/`ResolveDefault` (no model to match). Forwarder now forwards the inbound `HttpMethod` with a nullable body. Legacy unprefixed `POST /v1/*` retained; unprefixed `/v1/models` left unmapped (ambiguous). | — |
 | 2026-06-20 | Added `OpenAiUpstreamApi: chat_completions` for OpenAI-compatible upstreams without `/responses`; matched OpenAI imposter routes can downgrade `/responses` requests to `/v1/chat/completions` and convert common Responses payload fields to chat `messages`. | — |
 | 2026-06-20 | Renamed provider config `ApiKey` → `Secret` and added `AuthScheme` (`Bearer`/`ApiKey`), decoupling auth scheme from `Dialect`. Forwarder resolves `override.AuthScheme ?? provider.AuthScheme ?? dialect default` (openai → Bearer, anthropic → ApiKey) via a single unified path; this fixes openai-dialect upstreams (opencode) that require `x-api-key`. Breaking config change — no `ApiKey` alias. | — |
+| 2026-06-20 | Mid-stream caller disconnect on the streaming path is now caught in `RoutingEndpoints.HandleAsync` (`OperationCanceledException`/`IOException` gated on `RequestAborted`) and returns quietly, instead of bubbling an unhandled exception logged at Error by Serilog request logging. Genuine non-abort streaming failures still propagate. Added `StreamingDisconnectTests`. | #17 |
+| 2026-06-20 | Extracted auth-scheme precedence into `Domain.Routing.UpstreamAuthResolver` (single source of truth shared by `UpstreamForwarder` + `ImposterRouter`). Routing log now reports `auth=` (`Bearer`/`ApiKey`/`none`/`caller-passthrough`); `auth=none` flags an imposter route with an empty `Secret` (sends no auth header → upstream 401). | — |
+| 2026-06-20 | When auth is managed (provider/override secret applied), the forwarder now strips the caller's `chatgpt-account-id` (`ManagedAuthIdentityHeaders`). Codex (`codex_sdk_ts`/`codex_cli_rs`) relays it alongside its own Bearer; an OpenAI-compatible imposter upstream (opencode) honoured it over the managed key and 401'd. Kept on key-less passthrough. Added a Debug-only masked outbound request dump to `UpstreamForwarder` for diagnosing forwarded-header issues. | — |

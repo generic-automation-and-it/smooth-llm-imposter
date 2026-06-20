@@ -15,10 +15,11 @@ tech stack and the project layout — the [root README](../..) links here for th
 | Logging | Serilog |
 | Testing | xunit.v3 · Shouldly · Bogus |
 
-This repo also ships an **AI-agent scaffold** under [`.agents/`](../../agents/) — one source of truth
-for Claude Code, GitHub Copilot, Cursor, and OpenAI Codex (skills, rules, hooks). After cloning, run
-`bash .agents/setup/scripts/agents-setup.sh` once so the agents can discover it. See
-[`AGENTS.md`](../../AGENTS.md).
+This repo also ships an **AI-agent scaffold** under [`.agents/`](../../.agents/) — one source of truth for Claude
+Code, GitHub Copilot, Cursor, and OpenAI Codex (skills, rules, hooks). After cloning, run
+`bash .agents/setup/scripts/agents-setup.sh` once so the agents can discover it. See [`AGENTS.md`](../../AGENTS.md).
+
+---
 
 ## Project Structure
 

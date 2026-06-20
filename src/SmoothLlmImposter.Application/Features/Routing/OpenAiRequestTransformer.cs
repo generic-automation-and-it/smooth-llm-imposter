@@ -39,8 +39,20 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
         AddIfPresent(root, chat, "stream");
         AddIfPresent(root, chat, "temperature");
         AddIfPresent(root, chat, "top_p");
-        AddIfPresent(root, chat, "tools");
-        AddIfPresent(root, chat, "tool_choice");
+
+        // Responses and Chat Completions use different tool/tool_choice schemas: Responses puts the function
+        // fields flat on the tool object ({type,name,parameters,...}) while Chat nests them under "function".
+        // Copy verbatim would make an OpenAI-compatible upstream (opencode) 400 on the flat shape, so convert.
+        if (ConvertTools(root["tools"]) is { } tools)
+        {
+            chat["tools"] = tools;
+        }
+
+        if (ConvertToolChoice(root["tool_choice"]) is { } toolChoice)
+        {
+            chat["tool_choice"] = toolChoice;
+        }
+
         AddIfPresent(root, chat, "parallel_tool_calls");
         AddIfPresent(root, chat, "response_format");
         AddIfPresent(root, chat, "frequency_penalty");
@@ -59,6 +71,59 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
 
         chat["messages"] = BuildMessages(root);
         return chat;
+    }
+
+    // Responses function tools carry {type:"function", name, description, parameters, strict} flat on the
+    // object; Chat Completions nests those under a "function" property. Convert flat tools, pass through any
+    // that are already nested (or non-function tool types) unchanged.
+    private static JsonNode? ConvertTools(JsonNode? tools)
+    {
+        if (tools is not JsonArray toolArray)
+        {
+            return tools?.DeepClone();
+        }
+
+        var converted = new JsonArray();
+        foreach (JsonNode? tool in toolArray)
+        {
+            if (tool is JsonObject toolObject &&
+                string.Equals(toolObject["type"]?.GetValue<string>(), "function", StringComparison.OrdinalIgnoreCase) &&
+                toolObject["function"] is null &&
+                toolObject["name"] is not null)
+            {
+                var function = new JsonObject { ["name"] = toolObject["name"]!.DeepClone() };
+                AddIfPresent(toolObject, function, "description");
+                AddIfPresent(toolObject, function, "parameters");
+                AddIfPresent(toolObject, function, "strict");
+
+                converted.Add(new JsonObject { ["type"] = "function", ["function"] = function });
+            }
+            else
+            {
+                converted.Add(tool?.DeepClone());
+            }
+        }
+
+        return converted;
+    }
+
+    // String forms ("auto"/"none"/"required") pass through; an object form {type:"function", name} is nested
+    // under "function" to match Chat Completions.
+    private static JsonNode? ConvertToolChoice(JsonNode? toolChoice)
+    {
+        if (toolChoice is JsonObject choiceObject &&
+            string.Equals(choiceObject["type"]?.GetValue<string>(), "function", StringComparison.OrdinalIgnoreCase) &&
+            choiceObject["function"] is null &&
+            choiceObject["name"] is not null)
+        {
+            return new JsonObject
+            {
+                ["type"] = "function",
+                ["function"] = new JsonObject { ["name"] = choiceObject["name"]!.DeepClone() }
+            };
+        }
+
+        return toolChoice?.DeepClone();
     }
 
     private static void AddIfPresent(JsonObject source, JsonObject target, string name)

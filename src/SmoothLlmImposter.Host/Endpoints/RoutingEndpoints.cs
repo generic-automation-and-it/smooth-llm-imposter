@@ -115,7 +115,21 @@ internal static class RoutingEndpoints
 
         using (upstream)
         {
-            await StreamResponseAsync(context, upstream, cancellationToken);
+            try
+            {
+                await StreamResponseAsync(context, upstream, cancellationToken);
+            }
+            catch (Exception ex) when (cancellationToken.IsCancellationRequested && ex is OperationCanceledException or IOException)
+            {
+                // Caller disconnected mid-stream. The status line and partial SSE are already on the wire, so
+                // there is nothing left to write and nothing to retry — this mirrors the forward-path guard above.
+                // A mid-stream abort surfaces as either a cooperative cancel (OperationCanceledException, which
+                // TaskCanceledException derives from) or a socket reset on flush (IOException, e.g. Kestrel's
+                // ConnectionResetException); both are benign once the caller is gone, so return quietly instead of
+                // logging an unhandled error + stack trace. The filter is gated on RequestAborted, so a genuine
+                // streaming failure while the caller is still connected still propagates and is logged.
+                return;
+            }
         }
     }
 

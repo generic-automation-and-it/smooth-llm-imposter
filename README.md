@@ -112,28 +112,21 @@ HLDs under `.docs/hld/`:
 
 ## Quick start
 
-Pull the published image and pass your provider keys through from the shell (the `-e NAME` form
-inherits the value from your environment, so keys never land in command history):
+New to the project? Building from source, running it, and testing are covered in
+**[Developers — Getting Started](.docs/wiki/developers-gettingstarted.md)**.
 
-```bash
-docker run -d --name smooth-llm-imposter --restart unless-stopped -p 5080:5080 \
-  -e Imposter__Providers__2__Secret \
-  -e Imposter__Providers__3__Secret \
-  -e Imposter__Providers__4__Secret \
-  ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
+Pick the guide that matches how you want to run or work on the router:
 
-export Imposter__Providers__2__Secret="sk-your-opencode-key"     # provider 2 — opencode-go (ApiKey)
-export Imposter__Providers__3__Secret="sk-your-openrouter-key"   # provider 3 — openrouter (Bearer)
-export Imposter__Providers__4__Secret="sk-your-anthropic-key"    # provider 4 — opencode-anthropic (ApiKey)
-
-curl -fsS http://localhost:5080/health
-docker logs -f smooth-llm-imposter
-```
-
-For local build, every run mode, the `Imposter` config section, client base URLs, the
-credential-admin API, and tests, see [`.docs/wiki/setup.md`](.docs/wiki/setup.md) (and the per-mode
-guides under [`.docs/wiki/setups/`](.docs/wiki/setups/)) and
-[`.docs/wiki/testing.md`](.docs/wiki/testing.md).
+| Name | Description | Link | Type |
+|---|---|---|---|
+| Setup (all modes) | Master setup & run guide — config model, dialect prefixes, and every run mode | [`.docs/wiki/setup.md`](.docs/wiki/setup.md) | Runtime |
+| Docker / Podman | Run the router in a container you build locally | [`docker.run-smooth-llm-imposter.md`](.docs/wiki/setups/docker.run-smooth-llm-imposter.md) | Runtime |
+| GHCR image | Run the published SmoothLlmImposter container from GHCR | [`ghcr.run-smooth-llm-imposter.md`](.docs/wiki/setups/ghcr.run-smooth-llm-imposter.md) | Runtime |
+| Compose | Run with `docker compose` / `podman-compose` | [`compose.run-smooth-llm-imposter.md`](.docs/wiki/setups/compose.run-smooth-llm-imposter.md) | Runtime |
+| Developers — Getting Started | Build, run, and test from source (prerequisites, build, test) | [`developers-gettingstarted.md`](.docs/wiki/developers-gettingstarted.md) | Developer |
+| Local debug | Run from source with a debugger attached | [`local-debug.run-smooth-llm-imposter.md`](.docs/wiki/setups/local-debug.run-smooth-llm-imposter.md) | Developer |
+| Conductor | Fresh-sandbox build & routing setup for Conductor workspaces | [`conductor.build-smooth-llm-imposter.md`](.docs/wiki/setups/conductor.build-smooth-llm-imposter.md) | Developer |
+| Logging debug | Dump the full inbound request for message-level debugging | [`logging.debug-smooth-llm-imposter.md`](.docs/wiki/setups/logging.debug-smooth-llm-imposter.md) | Developer |
 
 ---
 
@@ -141,8 +134,8 @@ guides under [`.docs/wiki/setups/`](.docs/wiki/setups/)) and
 
 | Topic | Location |
 |---|---|
+| Architecture (tech stack, project structure) | [`.docs/wiki/architecture.md`](.docs/wiki/architecture.md) |
 | Setup & run (all modes) | [`.docs/wiki/setup.md`](.docs/wiki/setup.md) · [`.docs/wiki/setups/`](.docs/wiki/setups/) |
-| Tech stack & project structure | [`.docs/wiki/architecture.md`](.docs/wiki/architecture.md) |
 | Design (HLD, NFRs, LADRs) | [`.docs/hld/001-llm-imposter-routing/`](.docs/hld/001-llm-imposter-routing/README.md) — index table under [How it works](#how-it-works) |
 | AI agent context & coding rules | [`AGENTS.md`](AGENTS.md) · [`.agents/`](.agents/) |
 | AI tooling setup | [`.docs/wiki/ai-tooling.md`](.docs/wiki/ai-tooling.md) |
