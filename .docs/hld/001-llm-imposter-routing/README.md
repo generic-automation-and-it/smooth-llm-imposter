@@ -73,6 +73,8 @@ pure string-in/string-out in Application; all HTTP I/O is in Host; Infrastructur
 - [LADR-003 — Infinite client timeout, no resilience handler](ladrs/LADR-003-infinite-timeout-no-resilience-handler.md)
 - [LADR-004 — Integration tests stub the outbound transport in-process](ladrs/LADR-004-in-process-transport-stub.md)
 - [LADR-005 — Type-only impostering, no default passthrough configured](ladrs/LADR-005-no-default-passthrough-type-only.md)
+- [LADR-006 — No in-proxy tool-name sanitization; preserve the transparent proxy](ladrs/LADR-006-no-in-proxy-tool-name-sanitization.md)
+- [LADR-007 — In-proxy tool-name sanitization with response remap (DRAFT)](ladrs/LADR-007-in-proxy-tool-name-sanitization.md)
 
 ## Out of scope (for now)
 
