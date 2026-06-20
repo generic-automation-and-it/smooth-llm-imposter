@@ -1,6 +1,6 @@
 # LADR-02: Conventional `<NAME>_<FIELD>` env override surface
 
-**Status:** Draft
+**Status:** Prototype
 
 <!-- Status lifecycle: Draft → Prototype → Accepted. Also: "Superseded by LADR-MM", "Deprecated". -->
 
@@ -62,8 +62,10 @@ conventional and structured paths are tactical concerns specified in
 ## Open
 
 - **Field-name drift** — adding a `ProviderOptions` scalar without updating the suffix map leaves
-  it convention-less. Resolved by a test that asserts every bindable scalar has a mapped suffix
-  (owner: implementer; trigger: implementation).
+  it convention-less. **Resolved (Prototype):** `ImposterOptionsPostConfigureTests`'
+  `Every_bindable_scalar_field_has_a_mapped_suffix` reflects over `ProviderOptions`' string/bool
+  properties (excluding the identity field `Name`) and asserts each has a mapped suffix, so a new
+  scalar fails the test until it is mapped.
 
 ## Related
 

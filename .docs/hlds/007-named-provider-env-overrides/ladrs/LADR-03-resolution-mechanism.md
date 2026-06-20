@@ -1,6 +1,6 @@
 # LADR-03: Resolution mechanism, key normalization, and precedence
 
-**Status:** Draft
+**Status:** Prototype
 
 <!-- Status lifecycle: Draft → Prototype → Accepted. Also: "Superseded by LADR-MM", "Deprecated". -->
 
@@ -59,7 +59,11 @@ so an un-migrated `Providers: [ ... ]` would bind silently with numeric keys. Th
 ## Open
 
 - **Double-set warning** — whether to log a `Warning` when a field is set by both paths, or stay
-  silent and rely on documented precedence (owner: implementer; trigger: review).
+  silent and rely on documented precedence. **Resolved (Prototype): no warning.** The resolver
+  cannot see which layer supplied the already-bound value without diffing config layers (the very
+  thing post-configure avoids), and setting both the conventional and structured var for one field
+  is a common belt-and-suspenders pattern — warning on it every startup is noise. Precedence is
+  documented (conventional wins); applying a conventional value logs the variable name at `Debug`.
 
 ## Related
 
