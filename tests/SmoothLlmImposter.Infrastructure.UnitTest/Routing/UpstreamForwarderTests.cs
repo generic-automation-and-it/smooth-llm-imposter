@@ -153,6 +153,72 @@ public class UpstreamForwarderTests
     }
 
     [Fact]
+    public async Task Imposter_route_with_bearer_scheme_sends_provider_secret_as_authorization_bearer()
+    {
+        // Exactly the opencode-go scenario: a matched imposter route (IsImposter: true), Bearer scheme, with a
+        // configured sk-prefixed Secret. The IsImposter flag is irrelevant once a secret is present — the secret
+        // is applied before the caller-passthrough branch — so the wire header is "Bearer <secret>" verbatim.
+        var capture = new CapturingHandler();
+        UpstreamForwarder forwarder = Build(capture);
+        CallerHeaders caller = Headers(("Authorization", "Bearer codex-caller-key"), ("openai-beta", "responses=v1"));
+
+        await Send(
+            forwarder,
+            Decision(ApiDialect.OpenAi, secret: "sk-CMDWVUa", isImposter: true, authScheme: CredentialAuthScheme.Bearer),
+            credentialOverride: null,
+            ApiDialect.OpenAi,
+            caller);
+
+        capture.Authorization.ShouldBe("Bearer sk-CMDWVUa");
+        capture.ApiKey.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Managed_secret_strips_caller_chatgpt_account_id()
+    {
+        // Codex relays chatgpt-account-id alongside its own Bearer; opencode honours that identity header over
+        // the managed key and 401s. With a provider secret applied, the conflicting header must not reach upstream.
+        var capture = new CapturingHandler();
+        UpstreamForwarder forwarder = Build(capture);
+        CallerHeaders caller = Headers(
+            ("chatgpt-account-id", "22ecf56c-9a75-4e81-bd81-a85661953773"),
+            ("originator", "codex_sdk_ts"));
+
+        await Send(
+            forwarder,
+            Decision(ApiDialect.OpenAi, secret: "sk-CMDWVUa", isImposter: true, authScheme: CredentialAuthScheme.Bearer),
+            credentialOverride: null,
+            ApiDialect.OpenAi,
+            caller);
+
+        capture.Authorization.ShouldBe("Bearer sk-CMDWVUa");
+        capture.Header("chatgpt-account-id").ShouldBeNull();
+        capture.Header("originator").ShouldBe("codex_sdk_ts"); // non-identity telemetry still proxied verbatim
+    }
+
+    [Fact]
+    public async Task Passthrough_keeps_caller_chatgpt_account_id()
+    {
+        // Key-less passthrough to the real backend: the caller's own credential + identity are a matched pair,
+        // so chatgpt-account-id is relayed unchanged (no managed secret replaces the identity here).
+        var capture = new CapturingHandler();
+        UpstreamForwarder forwarder = Build(capture);
+        CallerHeaders caller = Headers(
+            ("Authorization", "Bearer caller-key"),
+            ("chatgpt-account-id", "22ecf56c-9a75-4e81-bd81-a85661953773"));
+
+        await Send(
+            forwarder,
+            Decision(ApiDialect.OpenAi, secret: null, isImposter: false),
+            credentialOverride: null,
+            ApiDialect.OpenAi,
+            caller);
+
+        capture.Authorization.ShouldBe("Bearer caller-key");
+        capture.Header("chatgpt-account-id").ShouldBe("22ecf56c-9a75-4e81-bd81-a85661953773");
+    }
+
+    [Fact]
     public async Task Anthropic_provider_without_scheme_defaults_to_x_api_key()
     {
         var capture = new CapturingHandler();

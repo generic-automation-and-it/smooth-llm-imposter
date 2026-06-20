@@ -53,6 +53,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         EnsureAnthropicVersion(request, decision, credentialOverride, dialect);
 
         logger.LogDebug("Forwarding to {Provider} at {Target}", decision.Provider.Name, target);
+        LogOutboundRequest(request, target);
 
         HttpClient client = httpClientFactory.CreateClient(HttpClientName);
         return await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
@@ -68,6 +69,12 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         "Content-Length", "Content-Type", "Content-Encoding", "Content-Language",
         "Content-Location", "Content-MD5", "Content-Range",
     };
+
+    // Caller identity headers that contradict a managed credential and are stripped only when the forwarder
+    // applies a provider/override secret. They assert a specific upstream account (Codex sends chatgpt-account-id
+    // alongside its own Bearer); relayed to an imposter upstream authenticated with a different key, the upstream
+    // honours the header over the key and 401s. Withheld on managed auth, kept on key-less passthrough.
+    private static readonly string[] ManagedAuthIdentityHeaders = ["chatgpt-account-id"];
 
     private static void ForwardCallerHeaders(HttpRequestMessage request, CallerHeaders callerHeaders)
     {
@@ -93,6 +100,16 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
 
         if (!string.IsNullOrEmpty(secret))
         {
+            // The provider/override credential is now the upstream identity, so drop any caller header that
+            // asserts a *different* identity — e.g. Codex's chatgpt-account-id, which an OpenAI-compatible
+            // gateway (opencode) honours over the Bearer key and 401s on when it doesn't match its account.
+            // These were relayed verbatim by ForwardCallerHeaders; remove them here so managed auth isn't
+            // contradicted. Passthrough keeps them: the caller's own credential + identity are a matched pair.
+            foreach (string conflicting in ManagedAuthIdentityHeaders)
+            {
+                request.Headers.Remove(conflicting);
+            }
+
             // Scheme is decoupled from dialect and resolved by the shared Domain resolver (also used by the
             // router's log so the two cannot drift): a stored credential's scheme, else the provider's
             // configured scheme, else the dialect default; the HLD 003 override forces Bearer regardless.
@@ -140,6 +157,60 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         request.Headers.TryAddWithoutValidation(
             "anthropic-version",
             credentialOverride?.AnthropicVersion ?? decision.Provider.AnthropicVersion ?? DefaultAnthropicVersion);
+    }
+
+    // Auth headers whose secret value is masked in the Debug request dump so real keys never reach the log sink.
+    private static readonly HashSet<string> SensitiveHeaders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Authorization", "x-api-key",
+    };
+
+    // Debug-only dump of the exact request leaving the forwarder (method, target, every header that opencode/the
+    // upstream will actually receive). Mirrors the Host's inbound dump so you can diff what the caller sent vs what
+    // is forwarded — the suspect is a relayed caller header the upstream rejects. Off by default (Information); the
+    // IsEnabled guard keeps it free when disabled. Auth secrets are masked (scheme + last 4 chars only).
+    private void LogOutboundRequest(HttpRequestMessage request, string target)
+    {
+        if (!logger.IsEnabled(LogLevel.Debug))
+        {
+            return;
+        }
+
+        var headers = new StringBuilder();
+        foreach (KeyValuePair<string, IEnumerable<string>> header in request.Headers)
+        {
+            string value = SensitiveHeaders.Contains(header.Key)
+                ? MaskSecretHeader(string.Join(", ", header.Value))
+                : string.Join(", ", header.Value);
+            headers.Append("\n  ").Append(header.Key).Append(": ").Append(value);
+        }
+
+        if (request.Content is not null)
+        {
+            foreach (KeyValuePair<string, IEnumerable<string>> header in request.Content.Headers)
+            {
+                headers.Append("\n  ").Append(header.Key).Append(": ").Append(string.Join(", ", header.Value));
+            }
+        }
+
+        logger.LogDebug("Outbound {Method} {Target}\nHeaders:{Headers}", request.Method, target, headers.ToString());
+    }
+
+    // Preserve the auth scheme prefix (e.g. "Bearer ") and the secret's last 4 chars; mask the rest. Short
+    // secrets (≤4 chars) are fully masked so nothing recoverable is logged.
+    private static string MaskSecretHeader(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return value;
+        }
+
+        int spaceIndex = value.IndexOf(' ');
+        string scheme = spaceIndex > 0 ? value[..(spaceIndex + 1)] : string.Empty;
+        string secret = spaceIndex > 0 ? value[(spaceIndex + 1)..] : value;
+        string tail = secret.Length > 4 ? secret[^4..] : string.Empty;
+
+        return $"{scheme}***{tail}";
     }
 
     private static void ApplyScheme(HttpRequestMessage request, CredentialAuthScheme scheme, string secret)
