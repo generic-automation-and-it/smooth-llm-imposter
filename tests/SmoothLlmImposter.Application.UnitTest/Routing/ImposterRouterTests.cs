@@ -17,14 +17,14 @@ public class ImposterRouterTests
         var options = Options.Create(new ImposterOptions
         {
             Providers =
-            [
-                new ProviderOptions
+            {
+                ["opencode"] = new ProviderOptions
                 {
-                    Name = "opencode", Dialect = "openai", BaseUrl = "https://opencode.example",
+                    Dialect = "openai", BaseUrl = "https://opencode.example",
                     Models = [new ModelMappingOptions { From = "gpt5.4", To = "grok-code", Caching = true }]
                 },
-                new ProviderOptions { Name = "openai-official", Dialect = "openai", BaseUrl = "https://api.openai.com", IsDefault = true }
-            ]
+                ["openai-official"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://api.openai.com", IsDefault = true }
+            }
         });
 
         var resolver = new RouteResolver(new ProviderCatalog(options));

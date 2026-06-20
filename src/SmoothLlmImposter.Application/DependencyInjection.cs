@@ -30,6 +30,9 @@ public static class DependencyInjection
         services.AddSingleton<IErrorResponseFactory, ErrorResponseFactory>();
         services.AddSingleton<IAuthorizationOverrideSwitch, AuthorizationOverrideSwitch>();
 
+        // Conventional <NAME>_<FIELD> env surface (HLD 007) runs as a post-configure, so it applies
+        // before the validator at ValidateOnStart. Business logic stays in Application; the Host only binds.
+        services.AddSingleton<IPostConfigureOptions<ImposterOptions>, ImposterOptionsPostConfigure>();
         services.AddSingleton<IValidateOptions<ImposterOptions>, ImposterOptionsValidator>();
 
         services.AddMediator(options =>

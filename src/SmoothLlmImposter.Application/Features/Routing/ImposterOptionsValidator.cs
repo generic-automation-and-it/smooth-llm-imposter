@@ -6,8 +6,9 @@ namespace SmoothLlmImposter.Application.Features.Routing;
 
 /// <summary>
 /// Fail-fast validation of <see cref="ImposterOptions"/> at startup (wired via <c>ValidateOnStart</c>):
-/// every provider needs a unique name, a known dialect, an absolute base URL, and well-formed mappings;
-/// each dialect may declare at most one default provider.
+/// providers are keyed by name, so the dictionary key is the identity; each provider needs a known
+/// dialect, an absolute base URL, and well-formed mappings, each dialect may declare at most one default
+/// provider, and a legacy array shape (which binds as numeric keys) is rejected with migration guidance.
 /// </summary>
 internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOptions>
 {
@@ -20,21 +21,39 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
             failures.Add("Imposter:Providers must contain at least one provider.");
         }
 
+        // Legacy-array guard (HLD 007 / NFR-02): a JSON array binds into a Dictionary<string,T> as keys
+        // "0","1",… . Purely numeric keys therefore mean an un-migrated array config — fail fast with the
+        // new shape, and short-circuit so the per-provider checks don't spew noise about index keys.
+        if (options.Providers.Keys.Any(static key => key.Length > 0 && key.All(char.IsAsciiDigit)))
+        {
+            failures.Add(
+                "Imposter:Providers must be a name-keyed object, not an array. Numeric keys indicate a " +
+                "legacy array config; use Providers: { \"<name>\": { ... } } " +
+                "(e.g. \"opencode-go\": { \"Dialect\": \"openai\", \"BaseUrl\": \"https://...\" }).");
+            return ValidateOptionsResult.Fail(failures);
+        }
+
+        // Effective name = explicit Name override, else the key. Uniqueness is case-insensitive, which
+        // also catches case-only-duplicate keys (opencode-go vs OpenCode-Go) that the ordinal-keyed
+        // dictionary keeps distinct (NFR-02).
         var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var defaultsByDialect = new Dictionary<ApiDialect, int>();
 
-        for (int i = 0; i < options.Providers.Count; i++)
+        foreach ((string key, ProviderOptions provider) in options.Providers)
         {
-            ProviderOptions provider = options.Providers[i];
-            string prefix = $"Imposter:Providers[{i}]";
+            string prefix = $"Imposter:Providers:{key}";
 
-            if (string.IsNullOrWhiteSpace(provider.Name))
+            // Name is an optional override of the key. null = omitted (use the key); a present-but-blank
+            // value is an error — omit it rather than blanking it.
+            if (provider.Name is not null && string.IsNullOrWhiteSpace(provider.Name))
             {
-                failures.Add($"{prefix}:Name is required.");
+                failures.Add($"{prefix}:Name override is blank; omit Name to use the key '{key}' as the provider name, or set a non-blank value.");
             }
-            else if (!seenNames.Add(provider.Name))
+
+            string effectiveName = string.IsNullOrWhiteSpace(provider.Name) ? key : provider.Name;
+            if (!seenNames.Add(effectiveName))
             {
-                failures.Add($"{prefix}:Name '{provider.Name}' is duplicated.");
+                failures.Add($"{prefix}: provider name '{effectiveName}' is duplicated (provider keys and names must be unique, case-insensitively).");
             }
 
             if (!ApiDialectParser.TryParse(provider.Dialect, out ApiDialect dialect))

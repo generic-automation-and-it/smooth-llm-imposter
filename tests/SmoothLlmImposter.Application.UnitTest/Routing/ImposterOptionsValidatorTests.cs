@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Features.Routing;
 
 namespace SmoothLlmImposter.Application.UnitTest.Routing;
@@ -7,11 +6,11 @@ public class ImposterOptionsValidatorTests
 {
     private readonly ImposterOptionsValidator _validator = new();
 
-    private static ImposterOptions Options(params ProviderOptions[] providers) =>
-        new() { Providers = [.. providers] };
+    private static ImposterOptions Options(params (string Key, ProviderOptions Provider)[] entries) =>
+        new() { Providers = entries.ToDictionary(static e => e.Key, static e => e.Provider, StringComparer.Ordinal) };
 
-    private static ProviderOptions Valid(string name, string dialect = "openai", bool isDefault = false) =>
-        new() { Name = name, Dialect = dialect, BaseUrl = "https://" + name + ".example", IsDefault = isDefault };
+    private static (string, ProviderOptions) Valid(string key, string dialect = "openai", bool isDefault = false) =>
+        (key, new ProviderOptions { Dialect = dialect, BaseUrl = "https://" + key + ".example", IsDefault = isDefault });
 
     [Fact]
     public void Valid_configuration_succeeds() =>
@@ -22,8 +21,61 @@ public class ImposterOptionsValidatorTests
         _validator.Validate(null, Options()).Failed.ShouldBeTrue();
 
     [Fact]
-    public void Duplicate_names_fail() =>
-        _validator.Validate(null, Options(Valid("dup"), Valid("dup"))).Failed.ShouldBeTrue();
+    public void Numeric_keys_fail_with_migration_message()
+    {
+        // A legacy JSON array binds into the dictionary as keys "0","1",… — the un-migrated array shape.
+        var result = _validator.Validate(null, Options(Valid("0"), Valid("1")));
+
+        result.Failed.ShouldBeTrue();
+        result.Failures.ShouldContain(f => f.Contains("name-keyed object") && f.Contains("\"<name>\""));
+    }
+
+    [Fact]
+    public void Case_only_duplicate_keys_fail()
+    {
+        // Ordinal dict keeps these distinct; the validator must reject them as a duplicate (NFR-02).
+        var result = _validator.Validate(null, Options(Valid("opencode-go"), Valid("OpenCode-Go")));
+
+        result.Failed.ShouldBeTrue();
+        result.Failures.ShouldContain(f => f.Contains("duplicated"));
+    }
+
+    [Fact]
+    public void Duplicate_explicit_names_across_keys_fail()
+    {
+        var a = (Key: "a", Provider: new ProviderOptions { Name = "shared", Dialect = "openai", BaseUrl = "https://a.example" });
+        var b = (Key: "b", Provider: new ProviderOptions { Name = "shared", Dialect = "openai", BaseUrl = "https://b.example" });
+
+        _validator.Validate(null, Options(a, b)).Failed.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Blank_name_override_fails(string blank)
+    {
+        var provider = new ProviderOptions { Name = blank, Dialect = "openai", BaseUrl = "https://a.example" };
+
+        var result = _validator.Validate(null, Options(("a", provider)));
+
+        result.Failed.ShouldBeTrue();
+        result.Failures.ShouldContain(f => f.Contains("Name override is blank"));
+    }
+
+    [Fact]
+    public void Omitted_name_uses_key_and_succeeds()
+    {
+        // Name null = "use the key"; this is the common case and must pass.
+        var provider = new ProviderOptions { Dialect = "openai", BaseUrl = "https://a.example" };
+        _validator.Validate(null, Options(("a", provider))).Succeeded.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Set_name_override_succeeds()
+    {
+        var provider = new ProviderOptions { Name = "display", Dialect = "openai", BaseUrl = "https://a.example" };
+        _validator.Validate(null, Options(("a", provider))).Succeeded.ShouldBeTrue();
+    }
 
     [Fact]
     public void Unknown_dialect_fails() =>
@@ -32,8 +84,8 @@ public class ImposterOptionsValidatorTests
     [Fact]
     public void Non_absolute_base_url_fails()
     {
-        var bad = new ProviderOptions { Name = "a", Dialect = "openai", BaseUrl = "not-a-url" };
-        _validator.Validate(null, Options(bad)).Failed.ShouldBeTrue();
+        var bad = new ProviderOptions { Dialect = "openai", BaseUrl = "not-a-url" };
+        _validator.Validate(null, Options(("a", bad))).Failed.ShouldBeTrue();
     }
 
     [Fact]
@@ -46,20 +98,17 @@ public class ImposterOptionsValidatorTests
     {
         var provider = new ProviderOptions
         {
-            Name = "a", Dialect = "openai", BaseUrl = "https://a.example",
+            Dialect = "openai", BaseUrl = "https://a.example",
             Models = [new ModelMappingOptions { From = "x", To = "" }]
         };
-        _validator.Validate(null, Options(provider)).Failed.ShouldBeTrue();
+        _validator.Validate(null, Options(("a", provider))).Failed.ShouldBeTrue();
     }
 
     [Fact]
     public void Invalid_auth_scheme_fails()
     {
-        var provider = new ProviderOptions
-        {
-            Name = "a", Dialect = "openai", BaseUrl = "https://a.example", AuthScheme = "Token"
-        };
-        _validator.Validate(null, Options(provider)).Failed.ShouldBeTrue();
+        var provider = new ProviderOptions { Dialect = "openai", BaseUrl = "https://a.example", AuthScheme = "Token" };
+        _validator.Validate(null, Options(("a", provider))).Failed.ShouldBeTrue();
     }
 
     [Theory]
@@ -69,21 +118,15 @@ public class ImposterOptionsValidatorTests
     [InlineData("bearer")]
     public void Known_or_omitted_auth_scheme_succeeds(string? authScheme)
     {
-        var provider = new ProviderOptions
-        {
-            Name = "a", Dialect = "openai", BaseUrl = "https://a.example", AuthScheme = authScheme
-        };
-        _validator.Validate(null, Options(provider)).Succeeded.ShouldBeTrue();
+        var provider = new ProviderOptions { Dialect = "openai", BaseUrl = "https://a.example", AuthScheme = authScheme };
+        _validator.Validate(null, Options(("a", provider))).Succeeded.ShouldBeTrue();
     }
 
     [Fact]
     public void Invalid_request_normalization_fails()
     {
-        var provider = new ProviderOptions
-        {
-            Name = "a", Dialect = "openai", BaseUrl = "https://a.example", RequestNormalization = "rename"
-        };
-        _validator.Validate(null, Options(provider)).Failed.ShouldBeTrue();
+        var provider = new ProviderOptions { Dialect = "openai", BaseUrl = "https://a.example", RequestNormalization = "rename" };
+        _validator.Validate(null, Options(("a", provider))).Failed.ShouldBeTrue();
     }
 
     [Theory]
@@ -92,11 +135,8 @@ public class ImposterOptionsValidatorTests
     [InlineData("none")]
     public void Known_or_omitted_request_normalization_succeeds(string? normalization)
     {
-        var provider = new ProviderOptions
-        {
-            Name = "a", Dialect = "openai", BaseUrl = "https://a.example", RequestNormalization = normalization
-        };
-        _validator.Validate(null, Options(provider)).Succeeded.ShouldBeTrue();
+        var provider = new ProviderOptions { Dialect = "openai", BaseUrl = "https://a.example", RequestNormalization = normalization };
+        _validator.Validate(null, Options(("a", provider))).Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -104,10 +144,10 @@ public class ImposterOptionsValidatorTests
     {
         var provider = new ProviderOptions
         {
-            Name = "a", Dialect = "openai", BaseUrl = "https://a.example",
+            Dialect = "openai", BaseUrl = "https://a.example",
             OpenAiUpstreamApi = "chat_completions", RequestNormalization = "codex_to_openai_sdk"
         };
-        _validator.Validate(null, Options(provider)).Succeeded.ShouldBeTrue();
+        _validator.Validate(null, Options(("a", provider))).Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -116,10 +156,9 @@ public class ImposterOptionsValidatorTests
         // responses default: codex_to_openai_sdk would strip valid Responses tool types.
         var provider = new ProviderOptions
         {
-            Name = "a", Dialect = "openai", BaseUrl = "https://a.example",
-            RequestNormalization = "codex_to_openai_sdk"
+            Dialect = "openai", BaseUrl = "https://a.example", RequestNormalization = "codex_to_openai_sdk"
         };
-        _validator.Validate(null, Options(provider)).Failed.ShouldBeTrue();
+        _validator.Validate(null, Options(("a", provider))).Failed.ShouldBeTrue();
     }
 
     [Fact]
@@ -127,9 +166,9 @@ public class ImposterOptionsValidatorTests
     {
         var provider = new ProviderOptions
         {
-            Name = "a", Dialect = "anthropic", BaseUrl = "https://a.example",
+            Dialect = "anthropic", BaseUrl = "https://a.example",
             OpenAiUpstreamApi = "chat_completions", RequestNormalization = "codex_to_openai_sdk"
         };
-        _validator.Validate(null, Options(provider)).Failed.ShouldBeTrue();
+        _validator.Validate(null, Options(("a", provider))).Failed.ShouldBeTrue();
     }
 }

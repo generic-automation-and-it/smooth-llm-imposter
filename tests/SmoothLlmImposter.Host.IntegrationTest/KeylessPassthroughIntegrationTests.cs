@@ -105,17 +105,15 @@ public sealed class KeylessPassthroughIntegrationTests(KeylessPassthroughIntegra
         // Provider 0 is a key-less anthropic default (catch-all passthrough); provider 1 is a keyed imposter.
         private static readonly Dictionary<string, string?> Config = new()
         {
-            ["Imposter:Providers:0:Name"] = "anthropic-default",
-            ["Imposter:Providers:0:Dialect"] = "anthropic",
-            ["Imposter:Providers:0:BaseUrl"] = "https://api.anthropic.test",
-            ["Imposter:Providers:0:IsDefault"] = "true",
+            ["Imposter:Providers:anthropic-default:Dialect"] = "anthropic",
+            ["Imposter:Providers:anthropic-default:BaseUrl"] = "https://api.anthropic.test",
+            ["Imposter:Providers:anthropic-default:IsDefault"] = "true",
 
-            ["Imposter:Providers:1:Name"] = "opencode-anthropic",
-            ["Imposter:Providers:1:Dialect"] = "anthropic",
-            ["Imposter:Providers:1:BaseUrl"] = "https://opencode.test",
-            ["Imposter:Providers:1:Secret"] = "opencode-key",
-            ["Imposter:Providers:1:Models:0:From"] = "claude-haiku-*",
-            ["Imposter:Providers:1:Models:0:To"] = "minimax-m3"
+            ["Imposter:Providers:opencode-anthropic:Dialect"] = "anthropic",
+            ["Imposter:Providers:opencode-anthropic:BaseUrl"] = "https://opencode.test",
+            ["Imposter:Providers:opencode-anthropic:Secret"] = "opencode-key",
+            ["Imposter:Providers:opencode-anthropic:Models:0:From"] = "claude-haiku-*",
+            ["Imposter:Providers:opencode-anthropic:Models:0:To"] = "minimax-m3"
         };
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)

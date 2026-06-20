@@ -22,30 +22,27 @@ public sealed class ImposterAppFixture : WebApplicationFactory<HostApp::Program>
 
     private static readonly Dictionary<string, string?> Config = new()
     {
-        ["Imposter:Providers:0:Name"] = "openai-official",
-        ["Imposter:Providers:0:Dialect"] = "openai",
-        ["Imposter:Providers:0:BaseUrl"] = "https://api.openai.test",
-        ["Imposter:Providers:0:Secret"] = "openai-key",
-        ["Imposter:Providers:0:IsDefault"] = "true",
+        ["Imposter:Providers:openai-official:Dialect"] = "openai",
+        ["Imposter:Providers:openai-official:BaseUrl"] = "https://api.openai.test",
+        ["Imposter:Providers:openai-official:Secret"] = "openai-key",
+        ["Imposter:Providers:openai-official:IsDefault"] = "true",
 
-        ["Imposter:Providers:1:Name"] = "opencode-go",
-        ["Imposter:Providers:1:Dialect"] = "openai",
-        ["Imposter:Providers:1:BaseUrl"] = "https://opencode.test",
-        ["Imposter:Providers:1:Secret"] = "opencode-key",
-        ["Imposter:Providers:1:AuthScheme"] = "ApiKey",
-        ["Imposter:Providers:1:OpenAiUpstreamApi"] = "chat_completions",
-        ["Imposter:Providers:1:Models:0:From"] = "gpt5.4",
-        ["Imposter:Providers:1:Models:0:To"] = "grok-code",
-        ["Imposter:Providers:1:Models:0:Caching"] = "true",
+        ["Imposter:Providers:opencode-go:Dialect"] = "openai",
+        ["Imposter:Providers:opencode-go:BaseUrl"] = "https://opencode.test",
+        ["Imposter:Providers:opencode-go:Secret"] = "opencode-key",
+        ["Imposter:Providers:opencode-go:AuthScheme"] = "ApiKey",
+        ["Imposter:Providers:opencode-go:OpenAiUpstreamApi"] = "chat_completions",
+        ["Imposter:Providers:opencode-go:Models:0:From"] = "gpt5.4",
+        ["Imposter:Providers:opencode-go:Models:0:To"] = "grok-code",
+        ["Imposter:Providers:opencode-go:Models:0:Caching"] = "true",
 
-        ["Imposter:Providers:2:Name"] = "anthropic-official",
-        ["Imposter:Providers:2:Dialect"] = "anthropic",
-        ["Imposter:Providers:2:BaseUrl"] = "https://api.anthropic.test",
-        ["Imposter:Providers:2:Secret"] = "anthropic-key",
-        ["Imposter:Providers:2:IsDefault"] = "true",
-        ["Imposter:Providers:2:Models:0:From"] = "claude-haiku-*",
-        ["Imposter:Providers:2:Models:0:To"] = "claude-3-5-haiku-latest",
-        ["Imposter:Providers:2:Models:0:Caching"] = "true"
+        ["Imposter:Providers:anthropic-official:Dialect"] = "anthropic",
+        ["Imposter:Providers:anthropic-official:BaseUrl"] = "https://api.anthropic.test",
+        ["Imposter:Providers:anthropic-official:Secret"] = "anthropic-key",
+        ["Imposter:Providers:anthropic-official:IsDefault"] = "true",
+        ["Imposter:Providers:anthropic-official:Models:0:From"] = "claude-haiku-*",
+        ["Imposter:Providers:anthropic-official:Models:0:To"] = "claude-3-5-haiku-latest",
+        ["Imposter:Providers:anthropic-official:Models:0:Caching"] = "true"
     };
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

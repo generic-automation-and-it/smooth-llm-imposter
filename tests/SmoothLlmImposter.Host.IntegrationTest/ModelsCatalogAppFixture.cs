@@ -24,36 +24,32 @@ public sealed class ModelsCatalogAppFixture : WebApplicationFactory<HostApp::Pro
     private static readonly Dictionary<string, string?> Config = new()
     {
         // Default OpenAI provider with no Models[] — contributes nothing to discovery.
-        ["Imposter:Providers:0:Name"] = "openai-official",
-        ["Imposter:Providers:0:Dialect"] = "openai",
-        ["Imposter:Providers:0:BaseUrl"] = "https://api.openai.test",
-        ["Imposter:Providers:0:Secret"] = "openai-key",
-        ["Imposter:Providers:0:IsDefault"] = "true",
+        ["Imposter:Providers:openai-official:Dialect"] = "openai",
+        ["Imposter:Providers:openai-official:BaseUrl"] = "https://api.openai.test",
+        ["Imposter:Providers:openai-official:Secret"] = "openai-key",
+        ["Imposter:Providers:openai-official:IsDefault"] = "true",
 
-        ["Imposter:Providers:1:Name"] = "opencode-go",
-        ["Imposter:Providers:1:Dialect"] = "openai",
-        ["Imposter:Providers:1:BaseUrl"] = "https://opencode.test",
-        ["Imposter:Providers:1:Secret"] = "opencode-key",
-        ["Imposter:Providers:1:Models:0:From"] = "gpt5.4",
-        ["Imposter:Providers:1:Models:0:To"] = "grok-code",
-        ["Imposter:Providers:1:Models:1:From"] = "gpt-shared",
-        ["Imposter:Providers:1:Models:1:To"] = "shared-model",
+        ["Imposter:Providers:opencode-go:Dialect"] = "openai",
+        ["Imposter:Providers:opencode-go:BaseUrl"] = "https://opencode.test",
+        ["Imposter:Providers:opencode-go:Secret"] = "opencode-key",
+        ["Imposter:Providers:opencode-go:Models:0:From"] = "gpt5.4",
+        ["Imposter:Providers:opencode-go:Models:0:To"] = "grok-code",
+        ["Imposter:Providers:opencode-go:Models:1:From"] = "gpt-shared",
+        ["Imposter:Providers:opencode-go:Models:1:To"] = "shared-model",
 
-        ["Imposter:Providers:2:Name"] = "openrouter",
-        ["Imposter:Providers:2:Dialect"] = "openai",
-        ["Imposter:Providers:2:BaseUrl"] = "https://openrouter.test",
-        ["Imposter:Providers:2:Secret"] = "openrouter-key",
+        ["Imposter:Providers:openrouter:Dialect"] = "openai",
+        ["Imposter:Providers:openrouter:BaseUrl"] = "https://openrouter.test",
+        ["Imposter:Providers:openrouter:Secret"] = "openrouter-key",
         // Duplicate `to` ("shared-model") — must collapse to one entry owned by the first declarer (opencode-go).
-        ["Imposter:Providers:2:Models:0:From"] = "gpt-shared-2",
-        ["Imposter:Providers:2:Models:0:To"] = "shared-model",
-        ["Imposter:Providers:2:Models:1:From"] = "gpt-z",
-        ["Imposter:Providers:2:Models:1:To"] = "another-model",
+        ["Imposter:Providers:openrouter:Models:0:From"] = "gpt-shared-2",
+        ["Imposter:Providers:openrouter:Models:0:To"] = "shared-model",
+        ["Imposter:Providers:openrouter:Models:1:From"] = "gpt-z",
+        ["Imposter:Providers:openrouter:Models:1:To"] = "another-model",
 
-        ["Imposter:Providers:3:Name"] = "anthropic-official",
-        ["Imposter:Providers:3:Dialect"] = "anthropic",
-        ["Imposter:Providers:3:BaseUrl"] = "https://api.anthropic.test",
-        ["Imposter:Providers:3:Secret"] = "anthropic-key",
-        ["Imposter:Providers:3:IsDefault"] = "true",
+        ["Imposter:Providers:anthropic-official:Dialect"] = "anthropic",
+        ["Imposter:Providers:anthropic-official:BaseUrl"] = "https://api.anthropic.test",
+        ["Imposter:Providers:anthropic-official:Secret"] = "anthropic-key",
+        ["Imposter:Providers:anthropic-official:IsDefault"] = "true",
     };
 
     /// <summary>The distinct OpenAI <c>to</c> set in catalogue order — the expected discovery ids.</summary>

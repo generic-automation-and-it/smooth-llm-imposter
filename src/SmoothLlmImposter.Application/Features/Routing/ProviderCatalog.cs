@@ -15,14 +15,17 @@ internal sealed class ProviderCatalog : IProviderCatalog
 
     public ProviderCatalog(IOptions<ImposterOptions> options)
     {
-        foreach (ProviderOptions provider in options.Value.Providers)
+        foreach ((string key, ProviderOptions provider) in options.Value.Providers)
         {
             ApiDialect dialect = ApiDialectParser.Parse(provider.Dialect);
             CredentialAuthSchemeParser.TryParse(provider.AuthScheme, out CredentialAuthScheme? authScheme);
             OpenAiUpstreamApi upstreamApi = OpenAiUpstreamApiParser.Parse(provider.OpenAiUpstreamApi);
 
+            // Provider identity is the dictionary key; Name is an optional display override (HLD 007).
+            string routeName = string.IsNullOrWhiteSpace(provider.Name) ? key : provider.Name;
+
             var route = new ProviderRoute(
-                provider.Name,
+                routeName,
                 dialect,
                 new Uri(provider.BaseUrl, UriKind.Absolute),
                 provider.Secret,
