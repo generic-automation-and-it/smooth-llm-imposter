@@ -25,6 +25,20 @@ removed according to LADR-02. Responses-only Items such as `reasoning` or hosted
 converted into user messages; they are removed when loss is acceptable, or rejected when the request
 depends on them for correctness.
 
+Two classifications are pinned explicitly so they cannot regress by incidental fallthrough:
+
+- **Hosted-tool Items are removed only when their type carries the `_call`/`_call_output` suffix**
+  (e.g. `web_search_call`, `code_interpreter_call`, `mcp_call`). Hosted Items **without** that suffix —
+  `mcp_list_tools`, `mcp_approval_request`, and similar — are **rejected** like unknown Item types, not
+  silently dropped. A non-suffixed hosted Item can carry correctness-relevant intent (an approval the
+  model issued, a tool listing it relied on), so fail-fast is the safe default until a live eval shows a
+  specific type is safe to drop. Broadening removal to a named hosted-Item set is the documented escape
+  hatch if that evidence appears.
+- **A `function_call_output.output` sent as a structured content array** (rather than a plain string) is
+  **JSON-stringified** into the Chat `tool` message `content`, because Chat Completions tool content must
+  be a string. The structure is preserved as JSON text rather than reduced to its text part(s), so no
+  tool-result content is lost on the wire.
+
 State pointers such as `previous_response_id` are rejected on the downgrade path. Clients that need
 Chat-compatible routing must omit the state pointer and replay the needed Items in `input`. The proxy
 is stateless and must not pretend it can retrieve Responses state from an upstream Chat provider.
