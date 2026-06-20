@@ -5,15 +5,21 @@ All notable changes to SmoothLlmImposter are documented here.
 ## [Unreleased]
 
 ### Added
-- **Codex → OpenAI-SDK request normalization (HLD 004).** New opt-in, per-provider
-  `RequestNormalization` config (`none` default / `codex_to_openai_sdk`) adds a proxy-side,
-  **request-only** normalization seam on matched OpenAI imposter routes so vanilla Codex clients work
-  against strict OpenAI-compatible upstreams (e.g. `opencode-go`/kimi). v1 keeps only upstream-valid
-  `function` tools: it drops unsupported tool `type`s (`custom`, `web_search`, `image_generation`,
-  `tool_search`, …), **flattens** `namespace` wrappers into their nested function tools (preserving the
-  Codex GitHub connector's tools), drops function names that fail `^[A-Za-z_][A-Za-z0-9_-]*$`, and
-  cleans any `tool_choice` that referenced a removed tool. Off-by-default providers and passthrough
-  routes stay byte-transparent; the response stream is never touched. Enabled on `opencode-go`.
+- **Codex → OpenAI-SDK request normalization (HLD 004).** New per-provider `RequestNormalization` config
+  (`codex_to_openai_sdk` / `none`) adds a proxy-side, **request-only** normalization seam on matched OpenAI
+  imposter routes so vanilla Codex clients work against strict OpenAI-compatible upstreams (e.g.
+  `opencode-go`/kimi). v1 keeps only upstream-valid `function` tools: it drops unsupported tool `type`s
+  (`custom`, `web_search`, `image_generation`, `tool_search`, …), **flattens** `namespace` wrappers into
+  their nested function tools (preserving the Codex GitHub connector's tools), drops function names that
+  fail `^[A-Za-z_][A-Za-z0-9_-]*$`, and cleans any `tool_choice` that referenced a removed tool. The
+  response stream is never touched.
+  - **ON by default for `OpenAiUpstreamApi: chat_completions`** (set `RequestNormalization: none` to opt
+    out); a `responses` upstream keeps it off and the startup validator rejects an explicit
+    `codex_to_openai_sdk` outside `chat_completions`/`openai`. Rationale: the reject rules are the *generic*
+    OpenAI Chat Completions tool contract (openrouter, Bedrock, … 400 on the same Responses-dialect catalog),
+    and normalization is a no-op for clean clients — so it is the correct default for chat upstreams. This
+    **amends HLD 004 LADR-03** (originally per-provider opt-in, off by default). `responses` upstreams and the
+    `anthropic` dialect stay byte-transparent.
 - **L3 live-upstream eval tier (HLD 004 LADR-04 / NFR-04).** New
   `tests/SmoothLlmImposter.Upstream.EvalTest` project (excluded from `SmoothLlmImposter.slnx`) replays
   the tool-validation matrix against the real `opencode-go` upstream: it proves a raw Codex catalog run

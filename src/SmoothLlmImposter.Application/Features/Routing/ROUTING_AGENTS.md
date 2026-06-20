@@ -50,15 +50,22 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   `/responses` (e.g. OpenRouter/opencode). On matched imposter routes only, `/responses` is forwarded to
   `/v1/chat/completions` and common Responses `input`/`instructions` payloads are converted to Chat
   Completions `messages`. Passthrough/default routes stay transparent.
-- **Request normalization is opt-in, OpenAI-imposter-only, and request-only (HLD 004).** A provider's
-  `RequestNormalization` (`None` default / `CodexToOpenAiSdk`) selects a normalizer that mutates the parsed
-  request body in `OpenAiRequestTransformer` **before** the Responses→Chat conversion. It runs **only** when
-  `decision.IsImposter` **and** a normalizer matches the provider's profile — so passthrough/default routes and
-  un-opted-in providers (`None`) are byte-transparent. Normalizers are **request-only** (never read/rewrite the
-  response) and must be **idempotent**; they prefer **removing** an offending element over remapping it, so the
-  transform stays one-directional (HLD 004 LADR-02). Do **not** encode normalization for the Anthropic dialect
-  or on passthrough here. This supersedes the HLD 001 LADR-006 "no in-proxy tool-name sanitization" stance for
-  opted-in OpenAI imposter routes (HLD 004 LADR-01).
+- **Request normalization is OpenAI-imposter-only, request-only, and ON by default for `chat_completions`
+  (HLD 004).** A provider's `RequestNormalization` (`CodexToOpenAiSdk` / `None`) selects a normalizer that
+  mutates the parsed request body in `OpenAiRequestTransformer` **before** the Responses→Chat conversion. The
+  effective profile is resolved in `ProviderCatalog`: `OpenAiUpstreamApi: chat_completions` **defaults it on**
+  (`CodexToOpenAiSdk`) unless config sets it explicitly (including to `none` to opt out); a `responses` upstream
+  defaults it **off** and must never enable it (the validator rejects an explicit `codex_to_openai_sdk` outside
+  `chat_completions`/`openai`, because those tool types/names are valid on `/responses`). It runs **only** when
+  `decision.IsImposter` **and** a normalizer matches the resolved profile — so passthrough/default routes and
+  `None` providers are byte-transparent. Normalizers are **request-only** (never read/rewrite the response) and
+  must be **idempotent**; they prefer **removing** an offending element over remapping it, so the transform stays
+  one-directional (HLD 004 LADR-02). The default-on policy **amends HLD 004 LADR-03** (originally per-provider
+  opt-in, off by default): normalization targets the *generic* OpenAI Chat Completions tool contract — any
+  `chat_completions` upstream (opencode, openrouter, Bedrock, …) rejects the same Responses-dialect catalog — and
+  it is a no-op for clean clients, so default-on is the correct safe default for `chat_completions`. This also
+  supersedes the HLD 001 LADR-006 "no in-proxy tool-name sanitization" stance for OpenAI imposter routes (HLD 004
+  LADR-01).
 - **`BaseUrl` is the server root WITHOUT a version path** (`https://api.openai.com`, not `.../v1`). The
   upstream request path is appended verbatim; adding `/v1` to config double-prefixes the path. The `/v1`
   belongs in exactly one place — the caller's path or the provider `BaseUrl`, never both. (E.g. OpenRouter
@@ -187,4 +194,5 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-20 | Mid-stream caller disconnect on the streaming path is now caught in `RoutingEndpoints.HandleAsync` (`OperationCanceledException`/`IOException` gated on `RequestAborted`) and returns quietly, instead of bubbling an unhandled exception logged at Error by Serilog request logging. Genuine non-abort streaming failures still propagate. Added `StreamingDisconnectTests`. | #17 |
 | 2026-06-20 | Extracted auth-scheme precedence into `Domain.Routing.UpstreamAuthResolver` (single source of truth shared by `UpstreamForwarder` + `ImposterRouter`). Routing log now reports `auth=` (`Bearer`/`ApiKey`/`none`/`caller-passthrough`); `auth=none` flags an imposter route with an empty `Secret` (sends no auth header → upstream 401). | — |
 | 2026-06-20 | When auth is managed (provider/override secret applied), the forwarder now strips the caller's `chatgpt-account-id` (`ManagedAuthIdentityHeaders`). Codex (`codex_sdk_ts`/`codex_cli_rs`) relays it alongside its own Bearer; an OpenAI-compatible imposter upstream (opencode) honoured it over the managed key and 401'd. Kept on key-less passthrough. Added a Debug-only masked outbound request dump to `UpstreamForwarder` for diagnosing forwarded-header issues. | — |
-| 2026-06-20 | Added opt-in, request-only request normalization (HLD 004): per-provider `RequestNormalization` (`None`/`CodexToOpenAiSdk`) + `Normalization/` seam. v1 keeps only upstream-valid `function` tools (drop unsupported types, flatten `namespace`, drop names failing `^[A-Za-z_][A-Za-z0-9_-]*$`, clean dependent `tool_choice`); runs before Responses→Chat, imposter+opt-in only, idempotent. Establishes a third sanctioned request-rewrite class; supersedes HLD 001 LADR-006 for opted-in OpenAI imposter routes. Enabled on `opencode-go`. Added L3 live-eval tier + `pr-evals-gate` workflow. | #19 |
+| 2026-06-20 | Added request-only request normalization (HLD 004): `RequestNormalization` (`CodexToOpenAiSdk`/`None`) + `Normalization/` seam. v1 keeps only upstream-valid `function` tools (drop unsupported types, flatten `namespace`, drop names failing `^[A-Za-z_][A-Za-z0-9_-]*$`, clean dependent `tool_choice`); runs before Responses→Chat, imposter-only, idempotent. Third sanctioned request-rewrite class; supersedes HLD 001 LADR-006 for OpenAI imposter routes. Added L3 live-eval tier + `pr-evals-gate` workflow. | #19 |
+| 2026-06-20 | **Amends HLD 004 LADR-03**: normalization is now **ON by default for `chat_completions`** (resolved in `ProviderCatalog`), `none` to opt out; `responses`/anthropic reject an explicit `codex_to_openai_sdk` (validator). Rationale: the reject rules are the generic OpenAI Chat Completions tool contract (openrouter/Bedrock 400 the same), and normalization is a no-op for clean clients — so opt-in per provider was the wrong default. `opencode-go` no longer needs the explicit flag. | #19 |
