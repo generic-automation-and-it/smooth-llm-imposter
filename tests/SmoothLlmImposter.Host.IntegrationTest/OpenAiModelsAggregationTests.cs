@@ -70,7 +70,7 @@ public sealed class OpenAiModelsAggregationTests(ModelsCatalogAppFixture fixture
     }
 
     [Fact]
-    public async Task Get_anthropic_models_still_passes_through_to_upstream()
+    public async Task Get_anthropic_models_is_also_answered_locally_without_upstream_call()
     {
         fixture.Upstream.ResponseFactory = () => new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -83,10 +83,16 @@ public sealed class OpenAiModelsAggregationTests(ModelsCatalogAppFixture fixture
         using HttpResponseMessage response = await client.GetAsync("/anthropic/v1/models", Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        // OpenAI-only scope: Anthropic discovery reaches the upstream as a real GET passthrough (LADR-03).
-        fixture.Upstream.RequestCount.ShouldBe(upstreamBefore + 1);
-        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://api.anthropic.test/v1/models");
-        fixture.Upstream.LastRequestMethod.ShouldBe(HttpMethod.Get);
+        response.Content.Headers.ContentType!.MediaType.ShouldBe("application/json");
+
+        // HLD 005 now also synthesizes the Anthropic discovery locally (#28). This fixture's Anthropic provider
+        // declares no Models[], so the distinct union is empty — a valid empty Anthropic List Models envelope —
+        // and, like the OpenAI path, the upstream is never touched (NFR-03).
+        JsonObject root = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!.AsObject();
+        root["data"]!.AsArray().Count.ShouldBe(0);
+        root.ContainsKey("first_id").ShouldBeTrue();   // Anthropic envelope shape, not OpenAI {object:"list"}
+        root.ContainsKey("object").ShouldBeFalse();
+        fixture.Upstream.RequestCount.ShouldBe(upstreamBefore);
     }
 
     [Fact]

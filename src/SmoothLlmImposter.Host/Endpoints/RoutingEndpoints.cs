@@ -42,6 +42,17 @@ internal static class RoutingEndpoints
         app.Map("/openai/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
             HandleAsync(ctx, ApiDialect.OpenAi, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, loggerFactory));
 
+        // Anthropic model discovery is answered LOCALLY from the route catalogue (distinct union of configured
+        // `to` targets), not forwarded upstream (HLD 005, Anthropic scope). This specific GET route takes
+        // precedence over the /anthropic catch-all for GET; non-GET methods on the same path do not match here
+        // and fall through to the catch-all transparent passthrough, which is exactly the intended scope (LADR-03).
+        app.MapGet("/anthropic/v1/models", (IAnthropicModelCatalogResponder responder, ILoggerFactory loggerFactory) =>
+        {
+            loggerFactory.CreateLogger(LoggerCategory)
+                .LogDebug("Answered GET /anthropic/v1/models locally from the Anthropic route catalogue");
+            return Results.Text(responder.BuildModelsResponse(), "application/json");
+        });
+
         app.Map("/anthropic/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
             HandleAsync(ctx, ApiDialect.Anthropic, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, loggerFactory));
 

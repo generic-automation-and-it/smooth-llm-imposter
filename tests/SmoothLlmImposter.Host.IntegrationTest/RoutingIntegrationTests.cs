@@ -239,7 +239,7 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
     }
 
     [Fact]
-    public async Task Get_anthropic_models_under_prefix_passes_through_to_default_without_body()
+    public async Task Get_anthropic_models_under_prefix_is_answered_locally_ignoring_query_string()
     {
         // reset to default JSON response (a previous test may have set a streaming factory)
         fixture.Upstream.ResponseFactory = () => new HttpResponseMessage(HttpStatusCode.OK)
@@ -248,16 +248,41 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
         };
 
         HttpClient client = fixture.CreateClient();
+        int upstreamBefore = fixture.Upstream.RequestCount;
 
-        // Aggregation is scoped to OpenAI only (HLD 005, LADR-03); Anthropic discovery stays transparent
-        // passthrough — no model to match → routed to the Anthropic default, path + query forwarded verbatim.
+        // HLD 005 (Anthropic scope): GET /anthropic/v1/models is synthesized locally from the route catalogue,
+        // NOT forwarded — even with a discovery query string. The probe's `?client_version=...` is irrelevant to
+        // local aggregation and must not produce an upstream call (NFR-03).
         using HttpResponseMessage response = await client.GetAsync("/anthropic/v1/models?client_version=0.138.0", Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://api.anthropic.test/v1/models?client_version=0.138.0");
-        fixture.Upstream.LastRequestMethod.ShouldBe(HttpMethod.Get);
-        fixture.Upstream.LastRequestBody.ShouldBeNull();
-        fixture.Upstream.LastApiKey.ShouldBe("anthropic-key");
+        response.Content.Headers.ContentType!.MediaType.ShouldBe("application/json");
+
+        // The Anthropic catalogue's single `to` target is advertised; the upstream is never touched (shared
+        // fixture — assert on the request-count delta, not the cross-test LastRequestUri).
+        JsonNode root = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!;
+        root["data"]!.AsArray().Select(m => m!["id"]!.GetValue<string>())
+            .ShouldBe(["claude-3-5-haiku-latest"]);
+        fixture.Upstream.RequestCount.ShouldBe(upstreamBefore);
+    }
+
+    [Fact]
+    public async Task Post_to_anthropic_models_still_passes_through_to_default()
+    {
+        // GET /anthropic/v1/models is answered locally (HLD 005), but a NON-GET on the same path stays
+        // transparent passthrough (LADR-03): it must reach the upstream like any other proxied request.
+        fixture.Upstream.ResponseFactory = () => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("""{"ok":true}""", Encoding.UTF8, "application/json")
+        };
+
+        HttpClient client = fixture.CreateClient();
+
+        using HttpResponseMessage response = await client.PostAsync("/anthropic/v1/models", content: null, Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://api.anthropic.test/v1/models");
+        fixture.Upstream.LastRequestMethod.ShouldBe(HttpMethod.Post);
     }
 
     [Fact]
