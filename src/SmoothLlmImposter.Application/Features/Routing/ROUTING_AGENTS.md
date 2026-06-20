@@ -93,6 +93,15 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   method and **no content**. No default for the dialect ⇒ 404. An imposter route is never selected for a body-less
   request — imposter matching keys off the body's `model`, which a discovery probe doesn't carry. This passes
   through the same credential seam (stored credential / HLD-003 force-Bearer / fail-closed 403).
+- **`GET /openai/v1/models` is answered locally, not passthrough (HLD 005).** The Host registers a specific
+  `MapGet("/openai/v1/models", …)` that outranks the `/openai/{**upstreamPath}` catch-all for GET, so it
+  short-circuits the discovery probe to a synthesized OpenAI `ListModelsResponse` built from the route
+  catalogue alone — the **distinct union of every `to`** across the OpenAI-dialect providers, with the
+  first declaring provider supplying `owned_by` on a duplicate. `IModelCatalogResponder` lives in Application
+  and is string-out (no `HttpContext`, no upstream, no credential seam — NFR-03/04). Default/passthrough
+  providers carry no `Models[]` and contribute nothing. Scope is narrow: non-GET on the same path and
+  `GET /anthropic/v1/models` still passthrough (LADR-03). `created` is a fixed constant (`0`), so two calls
+  under one config are byte-identical (NFR-01).
 - **Forwarder method/body**: `UpstreamForwarder.SendAsync` takes the inbound `HttpMethod` and a nullable body;
   `Content` is attached only when the body is non-empty. GET probes therefore reach the upstream as real GETs.
 - **Mid-stream caller disconnect is swallowed, not retried.** `RoutingEndpoints.HandleAsync` wraps the streaming
@@ -142,8 +151,8 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 ## Test References
 
 - **L0** `Domain.UnitTest/Routing` — matcher, dialect parser.
-- **L0** `Application.UnitTest/Routing` — resolver, transformers (cache injection), router, error factory, options validator.
-- **L2** `Host.IntegrationTest` — full pipeline incl. SSE passthrough, mid-stream caller-disconnect handling
+- **L0** `Application.UnitTest/Routing` — resolver, transformers (cache injection), router, error factory, options validator, model-catalog responder.
+- **L2** `Host.IntegrationTest` — full pipeline incl. SSE passthrough, mid-stream caller-disconnect handling,
   (`StreamingDisconnectTests`), and env-over-appsettings override (in-process stub upstream). The disconnect test
   asserts on the process-global Serilog `Log.Logger` (where request-logging surfaces the escaping exception), so
   the integration suite runs serially (`DisableTestParallelization` in `GlobalUsings.cs`).
@@ -168,3 +177,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-20 | Extracted auth-scheme precedence into `Domain.Routing.UpstreamAuthResolver` (single source of truth shared by `UpstreamForwarder` + `ImposterRouter`). Routing log now reports `auth=` (`Bearer`/`ApiKey`/`none`/`caller-passthrough`); `auth=none` flags an imposter route with an empty `Secret` (sends no auth header → upstream 401). | — |
 | 2026-06-20 | When auth is managed (provider/override secret applied), the forwarder now strips the caller's `chatgpt-account-id` (`ManagedAuthIdentityHeaders`). Codex (`codex_sdk_ts`/`codex_cli_rs`) relays it alongside its own Bearer; an OpenAI-compatible imposter upstream (opencode) honoured it over the managed key and 401'd. Kept on key-less passthrough. Added a Debug-only masked outbound request dump to `UpstreamForwarder` for diagnosing forwarded-header issues. | — |
 | 2026-06-20 | Decided: proxy does **not** sanitize tool function names (strict upstreams like Moonshot 400 on Codex's `_*`/`multi_tool_use.parallel` names). Fix is client-side; in-proxy rewrite is rejected because it would require breaking the no-response-rewrite non-negotiable (Codex dispatches by `function.name`). Docs only — no code change. | #19 (LADR-006 Accepted, LADR-007 Draft) |
+| 2026-06-20 | HLD 005 implemented: `GET /openai/v1/models` is answered locally from the route catalogue (distinct union of OpenAI `to` targets, first-declaring-provider `owned_by`, fixed `created=0`). Host registers a specific `MapGet` that outranks the catch-all; `IModelCatalogResponder` lives in Application (string-out, no `HttpContext`/upstream/credential seam). Anthropic discovery and non-GET on the OpenAI path still passthrough. | #20 |

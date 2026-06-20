@@ -168,7 +168,7 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
     }
 
     [Fact]
-    public async Task Get_models_under_dialect_prefix_passes_through_to_default_without_body()
+    public async Task Get_anthropic_models_under_prefix_passes_through_to_default_without_body()
     {
         // reset to default JSON response (a previous test may have set a streaming factory)
         fixture.Upstream.ResponseFactory = () => new HttpResponseMessage(HttpStatusCode.OK)
@@ -178,14 +178,15 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
 
         HttpClient client = fixture.CreateClient();
 
-        using HttpResponseMessage response = await client.GetAsync("/openai/v1/models?client_version=0.138.0", Ct);
+        // Aggregation is scoped to OpenAI only (HLD 005, LADR-03); Anthropic discovery stays transparent
+        // passthrough — no model to match → routed to the Anthropic default, path + query forwarded verbatim.
+        using HttpResponseMessage response = await client.GetAsync("/anthropic/v1/models?client_version=0.138.0", Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        // No model to match → passthrough to the OpenAI default, path + query forwarded verbatim, GET with no body.
-        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://api.openai.test/v1/models?client_version=0.138.0");
+        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://api.anthropic.test/v1/models?client_version=0.138.0");
         fixture.Upstream.LastRequestMethod.ShouldBe(HttpMethod.Get);
         fixture.Upstream.LastRequestBody.ShouldBeNull();
-        fixture.Upstream.LastAuthorization.ShouldBe("Bearer openai-key");
+        fixture.Upstream.LastApiKey.ShouldBe("anthropic-key");
     }
 
     [Fact]
