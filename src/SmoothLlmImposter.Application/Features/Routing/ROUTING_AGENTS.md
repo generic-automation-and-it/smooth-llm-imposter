@@ -119,6 +119,13 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   state (current message/content part, accumulated text, per-index function-call arguments, ids, usage) and is
   gated by the exact `/responses`→`/v1/chat/completions` downgrade predicate. Non-streaming Chat Completion
   objects are mapped to a Responses object on the same path. Off-path responses use the byte-copy loop.
+- **Responses input-history downgrade — HLD 006.** On the matched OpenAI imposter `/responses`→Chat path,
+  `OpenAiRequestTransformer` now classifies Responses input Items before creating Chat `messages`: paired
+  `function_call`/`function_call_output` Items are emitted as adjacent assistant/tool messages, incomplete tool
+  history is removed, `reasoning` and hosted-tool Items are explicitly removed, unknown Item types fail fast, and
+  `previous_response_id` is rejected because the router cannot resolve Responses-managed state for a stateless
+  Chat upstream. Compatible Responses `text.format` Structured Outputs are converted to Chat `response_format`;
+  unsupported formats fail before the upstream is called.
 - **Errors are dialect-shaped**: OpenAI `{error:{message,type}}`, Anthropic `{type:"error",error:{type,message}}`.
   Routing failures → 400/404; upstream transport failures → 502.
 - **`anthropic-version`**: the caller's value is forwarded as-is; `2023-06-01` (or a configured
@@ -240,4 +247,5 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-20 | Fixed Codex `/responses`→Chat 400 on `opencode-go`: the conversion now folds `role:"developer"` → `role:"system"` (Moonshot rejects `developer` with "tokenization failed"). Independent of tool normalization; covered by an L3 case that reproduces the full #19 failure (bad tools + developer role). | #19 |
 | 2026-06-20 | **Amends HLD 004 LADR-03**: normalization is now **ON by default for `chat_completions`** (resolved in `ProviderCatalog`), `none` to opt out; `responses`/anthropic reject an explicit `codex_to_openai_sdk` (validator). Rationale: the reject rules are the generic OpenAI Chat Completions tool contract (openrouter/Bedrock 400 the same), and normalization is a no-op for clean clients — so opt-in per provider was the wrong default. `opencode-go` no longer needs the explicit flag. | #19 |
 | 2026-06-20 | Implemented the HLD 004 LADR-05 bidirectional bridge: matched OpenAI imposter `/responses` requests downgraded to Chat now translate Chat Completions responses back to Responses SSE incrementally via `ChatToResponsesStreamTransformer`; all off-path responses remain byte-relayed. | #19 |
+| 2026-06-20 | Implemented HLD 006 request-history normalization for `/responses`→Chat downgrades: paired tool Items become Chat-adjacent assistant/tool messages, orphaned tool history is removed, Responses state pointers/unknown Items fail fast, hosted/reasoning Items are removed by policy, and compatible `text.format` maps to Chat `response_format`. | #19 |
 | 2026-06-20 | HLD 005 implemented: `GET /openai/v1/models` is answered locally from the route catalogue (distinct union of OpenAI `to` targets, first-declaring-provider `owned_by`, fixed `created=0`). Host registers a specific `MapGet` that outranks the catch-all; `IModelCatalogResponder` lives in Application (string-out, no `HttpContext`/upstream/credential seam). Anthropic discovery and non-GET on the OpenAI path still passthrough. | #20 |

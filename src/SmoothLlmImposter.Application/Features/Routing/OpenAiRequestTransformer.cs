@@ -52,6 +52,8 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
 
     private static JsonObject ToChatCompletions(JsonObject root)
     {
+        RejectResponsesStatePointers(root);
+
         var chat = new JsonObject();
 
         AddIfPresent(root, chat, "stream");
@@ -72,7 +74,12 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
         }
 
         AddIfPresent(root, chat, "parallel_tool_calls");
-        AddIfPresent(root, chat, "response_format");
+        if (ConvertResponseFormat(root) is { } responseFormat)
+        {
+            chat["response_format"] = responseFormat;
+        }
+
+        AddIfPresent(root, chat, "store");
         AddIfPresent(root, chat, "frequency_penalty");
         AddIfPresent(root, chat, "presence_penalty");
         AddIfPresent(root, chat, "seed");
@@ -89,6 +96,63 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
 
         chat["messages"] = BuildMessages(root);
         return chat;
+    }
+
+    private static void RejectResponsesStatePointers(JsonObject root)
+    {
+        if (root.ContainsKey("previous_response_id") && root["previous_response_id"] is not null)
+        {
+            throw new RoutingException(
+                "previous_response_id cannot be resolved by a stateless Chat Completions upstream; replay the required Items in input.");
+        }
+    }
+
+    private static JsonNode? ConvertResponseFormat(JsonObject root)
+    {
+        if (root["text"] is JsonObject text &&
+            text["format"] is { } textFormat)
+        {
+            return ConvertTextFormat(textFormat);
+        }
+
+        return root["response_format"]?.DeepClone();
+    }
+
+    private static JsonNode ConvertTextFormat(JsonNode textFormat)
+    {
+        if (textFormat is not JsonObject formatObject)
+        {
+            throw new RoutingException("Responses text.format must be an object to downgrade to Chat Completions.");
+        }
+
+        string? type = StringValue(formatObject["type"]);
+        if (string.Equals(type, "json_schema", StringComparison.OrdinalIgnoreCase))
+        {
+            if (formatObject["name"] is null || formatObject["schema"] is null)
+            {
+                throw new RoutingException("Responses text.format json_schema requires name and schema to downgrade to Chat Completions.");
+            }
+
+            var jsonSchema = new JsonObject();
+            AddIfPresent(formatObject, jsonSchema, "name");
+            AddIfPresent(formatObject, jsonSchema, "description");
+            AddIfPresent(formatObject, jsonSchema, "strict");
+            AddIfPresent(formatObject, jsonSchema, "schema");
+
+            return new JsonObject
+            {
+                ["type"] = "json_schema",
+                ["json_schema"] = jsonSchema
+            };
+        }
+
+        if (string.Equals(type, "json_object", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(type, "text", StringComparison.OrdinalIgnoreCase))
+        {
+            return new JsonObject { ["type"] = type };
+        }
+
+        throw new RoutingException($"Responses text.format type '{type ?? "<missing>"}' cannot be downgraded to Chat Completions.");
     }
 
     // Responses function tools carry {type:"function", name, description, parameters, strict} flat on the
@@ -201,55 +265,164 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
             return messages;
         }
 
-        foreach (JsonNode? item in inputItems)
-        {
-            if (item is JsonObject itemObject)
-            {
-                AddInputItem(messages, itemObject);
-            }
-        }
+        AddInputItems(messages, inputItems);
 
         return messages;
     }
 
-    private static void AddInputItem(JsonArray messages, JsonObject item)
+    private static void AddInputItems(JsonArray messages, JsonArray inputItems)
     {
-        string? type = item["type"]?.GetValue<string>();
+        var consumedToolOutputs = new HashSet<int>();
 
-        if (string.Equals(type, "function_call", StringComparison.OrdinalIgnoreCase))
+        for (int i = 0; i < inputItems.Count; i++)
         {
+            if (inputItems[i] is not JsonObject itemObject)
+            {
+                continue;
+            }
+
+            string? type = ItemType(itemObject);
+            if (string.Equals(type, "function_call", StringComparison.OrdinalIgnoreCase))
+            {
+                i = AddToolCallRun(messages, inputItems, i, consumedToolOutputs);
+                continue;
+            }
+
+            if (string.Equals(type, "function_call_output", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            AddNonToolInputItem(messages, itemObject);
+        }
+    }
+
+    private static int AddToolCallRun(
+        JsonArray messages,
+        JsonArray inputItems,
+        int startIndex,
+        HashSet<int> consumedToolOutputs)
+    {
+        var calls = new List<JsonObject>();
+        int endIndex = startIndex;
+        while (endIndex < inputItems.Count &&
+            inputItems[endIndex] is JsonObject callObject &&
+            string.Equals(ItemType(callObject), "function_call", StringComparison.OrdinalIgnoreCase))
+        {
+            calls.Add(callObject);
+            endIndex++;
+        }
+
+        var paired = new List<(JsonObject Call, JsonObject Output, int OutputIndex)>();
+        foreach (JsonObject call in calls)
+        {
+            string? callId = StringValue(call["call_id"]);
+            if (string.IsNullOrWhiteSpace(callId))
+            {
+                continue;
+            }
+
+            int outputIndex = FindMatchingToolOutput(inputItems, endIndex, callId, consumedToolOutputs);
+            if (outputIndex >= 0 && inputItems[outputIndex] is JsonObject output)
+            {
+                paired.Add((call, output, outputIndex));
+            }
+        }
+
+        if (paired.Count > 0)
+        {
+            var toolCalls = new JsonArray();
+            foreach ((JsonObject call, _, _) in paired)
+            {
+                toolCalls.Add(new JsonObject
+                {
+                    ["id"] = call["call_id"]!.DeepClone(),
+                    ["type"] = "function",
+                    ["function"] = new JsonObject
+                    {
+                        ["name"] = call["name"]?.DeepClone() ?? JsonValue.Create(string.Empty),
+                        ["arguments"] = call["arguments"]?.DeepClone() ?? JsonValue.Create("{}")
+                    }
+                });
+            }
+
             messages.Add(new JsonObject
             {
                 ["role"] = "assistant",
-                ["tool_calls"] = new JsonArray
-                {
-                    new JsonObject
-                    {
-                        ["id"] = item["call_id"]?.DeepClone() ?? JsonValue.Create(string.Empty),
-                        ["type"] = "function",
-                        ["function"] = new JsonObject
-                        {
-                            ["name"] = item["name"]?.DeepClone() ?? JsonValue.Create(string.Empty),
-                            ["arguments"] = item["arguments"]?.DeepClone() ?? JsonValue.Create("{}")
-                        }
-                    }
-                }
+                ["tool_calls"] = toolCalls
             });
-            return;
-        }
 
-        if (string.Equals(type, "function_call_output", StringComparison.OrdinalIgnoreCase))
-        {
-            messages.Add(new JsonObject
+            foreach ((_, JsonObject output, int outputIndex) in paired)
             {
-                ["role"] = "tool",
-                ["tool_call_id"] = item["call_id"]?.DeepClone() ?? JsonValue.Create(string.Empty),
-                ["content"] = ScalarToString(item["output"])
-            });
+                consumedToolOutputs.Add(outputIndex);
+                messages.Add(new JsonObject
+                {
+                    ["role"] = "tool",
+                    ["tool_call_id"] = output["call_id"]!.DeepClone(),
+                    ["content"] = ScalarToString(output["output"])
+                });
+            }
+        }
+
+        return endIndex - 1;
+    }
+
+    private static int FindMatchingToolOutput(
+        JsonArray inputItems,
+        int startIndex,
+        string callId,
+        HashSet<int> consumedToolOutputs)
+    {
+        // Only function_call / function_call_output / message Items gate pairing. reasoning and
+        // hosted-tool Items are intentionally skipped here (they are removed from the downgraded
+        // request, so they cannot sit between a call and its output in the emitted Chat transcript) —
+        // a tool output may still be paired with its call across them. Messages and a following
+        // function_call do close the pairing window (they start a new turn / run).
+        for (int i = startIndex; i < inputItems.Count; i++)
+        {
+            if (inputItems[i] is not JsonObject item)
+            {
+                continue;
+            }
+
+            string? type = ItemType(item);
+            if (string.Equals(type, "function_call_output", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!consumedToolOutputs.Contains(i) &&
+                    string.Equals(StringValue(item["call_id"]), callId, StringComparison.Ordinal))
+                {
+                    return i;
+                }
+
+                continue;
+            }
+
+            if (string.Equals(type, "function_call", StringComparison.OrdinalIgnoreCase) ||
+                IsMessageItem(item))
+            {
+                return -1;
+            }
+        }
+
+        return -1;
+    }
+
+    private static void AddNonToolInputItem(JsonArray messages, JsonObject item)
+    {
+        string? type = ItemType(item);
+
+        if (string.Equals(type, "reasoning", StringComparison.OrdinalIgnoreCase) ||
+            IsHostedToolItem(type))
+        {
             return;
         }
 
-        string role = ToChatRole(item["role"]?.GetValue<string>());
+        if (!IsMessageItem(item))
+        {
+            throw new RoutingException($"Responses input item type '{type ?? "<missing>"}' cannot be downgraded to Chat Completions.");
+        }
+
+        string role = ToChatRole(StringValue(item["role"]));
         JsonNode? content = item["content"];
         messages.Add(new JsonObject
         {
@@ -257,6 +430,27 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
             ["content"] = ConvertMessageContent(content)
         });
     }
+
+    private static bool IsMessageItem(JsonObject item)
+    {
+        string? type = ItemType(item);
+        return type is null ||
+            string.Equals(type, "message", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsHostedToolItem(string? type) =>
+        type is not null &&
+        (type.EndsWith("_call", StringComparison.OrdinalIgnoreCase) ||
+            type.EndsWith("_call_output", StringComparison.OrdinalIgnoreCase)) &&
+        !string.Equals(type, "function_call", StringComparison.OrdinalIgnoreCase) &&
+        !string.Equals(type, "function_call_output", StringComparison.OrdinalIgnoreCase);
+
+    private static string? ItemType(JsonObject item) => StringValue(item["type"]);
+
+    private static string? StringValue(JsonNode? value) =>
+        value is JsonValue jsonValue && jsonValue.GetValueKind() == JsonValueKind.String
+            ? jsonValue.GetValue<string>()
+            : null;
 
     // Moonshot/kimi and some OpenAI-compatible Chat upstreams reject the OpenAI "developer" role with
     // "tokenization failed" — their chat template only knows system/user/assistant/tool. "developer" is

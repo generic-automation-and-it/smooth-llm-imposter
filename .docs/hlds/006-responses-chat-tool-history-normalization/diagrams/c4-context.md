@@ -36,7 +36,14 @@ flowchart TD
     A[Inbound OpenAI request] --> B{Matched imposter /responses to Chat downgrade?}
     B -->|no| C[Relay existing request transform path unchanged]
     B -->|yes| D[Read Responses input history in order]
-    D --> E{Item is function_call?}
+    D --> P{Responses state pointer present?}
+    P -->|yes| Q[Reject before upstream]
+    P -->|no| R[Classify each Item and field]
+    R --> S{Structured Outputs text.format?}
+    S -->|compatible| T[Convert to Chat response_format]
+    S -->|unsupported| Q
+    S -->|absent| E{Item is function_call?}
+    T --> E
     E -->|yes| F{Matching function_call_output exists for call_id?}
     F -->|yes| G[Emit Chat assistant tool_calls message and adjacent tool response]
     F -->|no| H[Remove incomplete function_call history]

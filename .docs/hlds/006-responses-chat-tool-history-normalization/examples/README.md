@@ -74,6 +74,74 @@ Responses input shape:
 ]
 ```
 
+## Structured output shape is converted
+
+Responses request shape:
+
+```json
+{
+  "text": {
+    "format": {
+      "type": "json_schema",
+      "name": "review_findings",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "findings": { "type": "array" }
+        },
+        "required": ["findings"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
+```
+
+Chat request shape after downgrade:
+
+```json
+{
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "name": "review_findings",
+      "strict": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "findings": { "type": "array" }
+        },
+        "required": ["findings"],
+        "additionalProperties": false
+      }
+    }
+  }
+}
+```
+
+## Responses-only state is rejected
+
+Responses request shape:
+
+```json
+{
+  "previous_response_id": "resp_123",
+  "input": "continue"
+}
+```
+
+Downgrade policy:
+
+```json
+{
+  "error": {
+    "message": "previous_response_id cannot be resolved by a stateless Chat Completions upstream; replay the required Items in input.",
+    "type": "invalid_request_error"
+  }
+}
+```
+
 Chat history shape after downgrade:
 
 ```json
