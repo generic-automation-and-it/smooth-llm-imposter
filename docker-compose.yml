@@ -14,6 +14,9 @@ services:
       - "5066:5066"
     environment:
       ASPNETCORE_URLS: http://+:5066
+      # Load appsettings.Development.json (the debug request dumps live behind its
+      # Serilog `SmoothLlmImposter` Debug override). Drop this line to run Production-quiet.
+      ASPNETCORE_ENVIRONMENT: Development
       # Upstream provider secrets — index = provider order in appsettings.json
       # (0 anthropic-default, 1 openai-default, 2 opencode-go, 3 openrouter,
       # 4 opencode-anthropic). The two *-default real providers are catch-all
@@ -22,7 +25,7 @@ services:
       # imposter secrets via shell export or a gitignored .env file; :- keeps
       # compose quiet when a secret is unset.
       Imposter__Providers__2__Secret: ${OPENCODE_GO_API_KEY:-}
-      Imposter__Providers__2__AuthScheme: ApiKey
+      Imposter__Providers__2__AuthScheme: Bearer
       Imposter__Providers__3__Secret: ${OPENROUTER_API_KEY:-}
       Imposter__Providers__3__AuthScheme: Bearer
       Imposter__Providers__4__Secret: ${OPENCODE_GO_API_KEY:-}
