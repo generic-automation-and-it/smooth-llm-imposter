@@ -136,18 +136,35 @@ Routing rules to keep in mind:
 
 ### Supplying keys via environment (preferred)
 
-Never commit real keys. Environment variables override `appsettings.json` (env wins), using the standard
-double-underscore path syntax for the array index:
+Never commit real keys. Environment variables override `appsettings.json` (env wins). Providers are keyed by
+**name** (never by array index), so an override is addressed by the provider's name and survives any
+reordering. There are two equivalent paths:
+
+**Conventional `<NAME>_<FIELD>` surface (the friendly path).** Each provider exposes an env prefix derived
+from its key — uppercase, every run of non-alphanumeric characters collapsed to one `_` (`opencode-go` →
+`OPENCODE_GO_`). `_API_KEY` sets the secret; the rest of the scalar fields follow (`_BASE_URL`,
+`_AUTH_SCHEME`, `_DIALECT`, `_IS_DEFAULT`, `_OPENAI_UPSTREAM_API`, `_REQUEST_NORMALIZATION`,
+`_ANTHROPIC_VERSION`). Matching is case-insensitive.
 
 ```bash
-export Imposter__Providers__2__Secret="sk-your-opencode-key"          # opencode-go
-export Imposter__Providers__2__AuthScheme="ApiKey"                    # send as x-api-key
-export Imposter__Providers__3__Secret="sk-your-openrouter-key"        # openrouter
-export Imposter__Providers__3__AuthScheme="Bearer"                    # send as Authorization: Bearer
-export Imposter__Providers__4__Secret="sk-your-anthropic-route-key"   # opencode-anthropic
-export Imposter__Providers__4__AuthScheme="ApiKey"
+export OPENCODE_GO_API_KEY="sk-your-opencode-key"            # opencode-go secret
+export OPENCODE_GO_AUTH_SCHEME="ApiKey"                      # send as x-api-key
+export OPENROUTER_API_KEY="sk-your-openrouter-key"           # openrouter secret
+export OPENROUTER_AUTH_SCHEME="Bearer"                       # send as Authorization: Bearer
+export OPENCODE_ANTHROPIC_API_KEY="sk-your-anthropic-route-key"
+export OPENCODE_ANTHROPIC_AUTH_SCHEME="ApiKey"
 dotnet run --project src/SmoothLlmImposter.Host
 ```
+
+**Structured `Imposter__Providers__<name>__<Field>` surface (the equivalent .NET path).** Same effect, using
+the double-underscore section path keyed by provider name:
+
+```bash
+export Imposter__Providers__opencode-go__Secret="sk-your-opencode-key"
+export Imposter__Providers__opencode-go__AuthScheme="ApiKey"
+```
+
+When the same field is set both ways, the **conventional** value wins.
 
 ### Local debugging — .NET user secrets
 
@@ -157,12 +174,13 @@ For day-to-day debugging you can keep keys out of your shell entirely using **.N
 
 ```bash
 cd src/SmoothLlmImposter.Host
-dotnet user-secrets set "Imposter:Providers:2:Secret" "sk-your-opencode-key"   # note the ':' path separator
-dotnet user-secrets set "Imposter:Providers:2:AuthScheme" "ApiKey"
+dotnet user-secrets set "Imposter:Providers:opencode-go:Secret" "sk-your-opencode-key"   # note the ':' path separator
+dotnet user-secrets set "Imposter:Providers:opencode-go:AuthScheme" "ApiKey"
 ```
 
-Precedence is `appsettings.json < user secrets (Dev) < environment variables` — so an exported
-`Imposter__Providers__2__Secret` **overrides** the stored secret for a one-off run.
+Precedence is `appsettings.json < user secrets (Dev) < structured env < conventional env` — so an exported
+`OPENCODE_GO_API_KEY` (or the structured `Imposter__Providers__opencode-go__Secret`) **overrides** the stored
+secret for a one-off run.
 
 ## Point your client at the router
 
@@ -210,9 +228,9 @@ imposter provider `Secret` override:
 ```bash
 claude setup-token
 
-# Example: provider 4 is the shipped Anthropic-dialect imposter path.
-export Imposter__Providers__4__Secret="paste-the-claude-token-here"
-export Imposter__Providers__4__AuthScheme="Bearer"
+# Example: opencode-anthropic is the shipped Anthropic-dialect imposter path.
+export OPENCODE_ANTHROPIC_API_KEY="paste-the-claude-token-here"
+export OPENCODE_ANTHROPIC_AUTH_SCHEME="Bearer"
 ```
 
 Use `AuthScheme="Bearer"` when the upstream expects `Authorization: Bearer <token>`. Use `AuthScheme="ApiKey"`

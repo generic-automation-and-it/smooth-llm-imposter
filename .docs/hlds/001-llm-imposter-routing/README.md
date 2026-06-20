@@ -30,12 +30,16 @@ only** — there is no OpenAI⇄Anthropic body translation.
 
 ## Configuration
 
-- Bound from the `Imposter` section; **environment variables override `appsettings.json`** (env wins),
-  e.g. `Imposter__Providers__4__Secret=sk-...`. The sibling `AuthScheme` (`ApiKey`|`Bearer`, case-insensitive)
-  selects the auth header and defaults by dialect when omitted (openai → Bearer, anthropic → ApiKey).
-- A **provider** = `Name` + `Dialect` + `BaseUrl` (server root, no `/v1`; the inbound request path is
-  appended verbatim) + `Secret` + optional `AuthScheme` + optional `IsDefault`, plus `OpenAiUpstreamApi` (`responses` default or
-  `chat_completions` for OpenAI-compatible upstreams without `/responses`), holding nested `Models[]` of `{ From, To, Caching }`.
+- Bound from the `Imposter` section; **environment variables override `appsettings.json`** (env wins).
+  Providers are keyed by **name** (HLD 007), so overrides are name-addressed:
+  `Imposter__Providers__opencode-anthropic__Secret=sk-...`, or the conventional
+  `OPENCODE_ANTHROPIC_API_KEY=sk-...` (which wins over the structured path). The sibling `AuthScheme`
+  (`ApiKey`|`Bearer`, case-insensitive) selects the auth header and defaults by dialect when omitted
+  (openai → Bearer, anthropic → ApiKey).
+- A **provider** = its dictionary key (the name) + `Dialect` + `BaseUrl` (server root, no `/v1`; the inbound
+  request path is appended verbatim) + `Secret` + optional `AuthScheme` + optional `IsDefault` + optional
+  `Name` (a display override of the key), plus `OpenAiUpstreamApi` (`responses` default or `chat_completions`
+  for OpenAI-compatible upstreams without `/responses`), holding nested `Models[]` of `{ From, To, Caching }`.
   `From` supports exact + trailing-`*` wildcard. A provider with no `Models` is inert until one is added.
 - Keys are configuration-only and never persisted. Startup validation (`ValidateOnStart`) rejects unknown
   dialects, non-absolute base URLs, duplicate names, malformed mappings, and >1 default per dialect.
