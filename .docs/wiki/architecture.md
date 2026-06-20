@@ -1,5 +1,9 @@
 # Architecture
 
+The router is a stateless ASP.NET Core minimal-API service that sits between an OpenAI- or
+Anthropic-dialect client and the real LLM providers. This page is the canonical home for the
+tech stack and the project layout — the [root README](../..) links here for those details.
+
 ## Tech Stack
 
 | Component | Technology |
@@ -31,3 +35,13 @@ tests/
   SmoothLlmImposter.Host.IntegrationTest/                                 # L2 — real Host, stubbed upstream
   SmoothLlmImposter.TestFramework/                                        # Shared fixtures
 ```
+
+For the authoritative per-layer context, see the `*_AGENTS.md` next to each project:
+
+| Layer | Context file |
+|---|---|
+| Domain | [`src/SmoothLlmImposter.Domain/DOMAIN_AGENTS.md`](../../src/SmoothLlmImposter.Domain/DOMAIN_AGENTS.md) |
+| Application | [`src/SmoothLlmImposter.Application/APPLICATION_AGENTS.md`](../../src/SmoothLlmImposter.Application/APPLICATION_AGENTS.md) |
+| Infrastructure | [`src/SmoothLlmImposter.Infrastructure/INFRASTRUCTURE_AGENTS.md`](../../src/SmoothLlmImposter.Infrastructure/INFRASTRUCTURE_AGENTS.md) |
+| Host | [`src/SmoothLlmImposter.Host/HOST_AGENTS.md`](../../src/SmoothLlmImposter.Host/HOST_AGENTS.md) |
+| Test framework | [`tests/SmoothLlmImposter.TestFramework/TEST_FRAMEWORK_AGENTS.md`](../../tests/SmoothLlmImposter.TestFramework/TEST_FRAMEWORK_AGENTS.md) |

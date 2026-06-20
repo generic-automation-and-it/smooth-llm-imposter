@@ -56,6 +56,38 @@ The same mechanism also enables:
   you can roll back instantly.
 - **Pin a stable model alias.** Let clients call one stable model name while you change the concrete model
   behind it over time.
+- **Dump the full inbound request for debugging.** Default log level is `Information` (operation
+  lines only). Set `Serilog:MinimumLevel:Override:SmoothLlmImposter.Routing` to `Debug` to log
+  every routed call's HTTP method, upstream path, query string, **all headers**, and the **raw
+  body** (auth secrets masked) — no rebuild, no client change. See the
+  [debug logging guide](.docs/wiki/setups/logging.debug-smooth-llm-imposter.md).
+
+### Why this exists — and how to combine it
+
+Generic LLM gateways ([LiteLLM](https://github.com/BerriAI/litellm), [AWS Bedrock](https://aws.amazon.com/bedrock/),
+[Azure AI Foundry](https://ai.azure.com/), [Vertex AI](https://cloud.google.com/vertex-ai),
+[OpenRouter](https://openrouter.ai/), [Portkey](https://github.com/Portkey-AI/gateway), [Bifrost](https://github.com/maximhq/bifrost),
+…) are **API-key gateways**: they front metered, pay-as-you-go upstreams and assume every
+provider authenticates with a paid key. They have no first-class support for subscription tiers
+(Claude Pro/Max, ChatGPT Plus, GitHub Copilot, `claude setup-token`). This router fills that gap:
+
+- **Subscription-aware.** Forwards the caller's own subscription credential (Claude `setup-token`,
+  ChatGPT session, etc.) or applies a configured subscription bearer per provider.
+- **Model aliasing with cache injection in one step.** A mapping's `Caching` flag rewrites the
+  body to add `cache_control` / `prompt_cache_key` markers the upstream wouldn't add — no
+  callback code.
+- **Stateless, key-less, single binary.** No DB, vault, admin UI, or Redis — just
+  `appsettings.json` + env var.
+- **Dual-dialect, same-dialect only.** OpenAI + Anthropic at the edge, no cross-dialect
+  translation (subscription endpoints are dialect-locked).
+
+Point any mapping's `BaseUrl` at another gateway (LiteLLM, Bedrock, Azure AI Foundry, Vertex AI,
+OpenRouter, …) to layer subscription routing on top of whatever that gateway provides — cost
+tracking, virtual keys, load balancing, regional failover. Or run the other gateway at the edge
+and have one of its entries point back at SmoothLlmImposter for subscription-backed models.
+
+**TL;DR — most gateways route API keys. This one routes subscriptions.** Pick the one that fits,
+or stack them.
 
 ---
 
@@ -67,12 +99,18 @@ configured `Secret`/`AuthScheme`, and streams the upstream response back unbuffe
 either passes through to the dialect's default provider (forwarding the caller's own credentials) or, when
 no default is configured, returns a dialect-shaped 404.
 
-Design detail — actors, request flow, routing decision, NFRs, and decision records — lives in
-**[HLD 001 — LLM Imposter Routing](.docs/hld/001-llm-imposter-routing/README.md)**.
+Design detail — actors, request flow, routing decision, NFRs, and decision records — lives in the
+HLDs under `.docs/hld/`:
+
+| HLD | Status | Covers |
+|---|---|---|
+| [001 — LLM Imposter Routing](.docs/hld/001-llm-imposter-routing/README.md) | Accepted | Core routing — read `model`, match provider, rewrite, forward, optional cache injection |
+| [002 — Credential Persistence & Overrides](.docs/hld/002-credential-persistence-overrides/README.md) | Accepted | Opt-in PostgreSQL persistence for passthrough-credential overrides; amends HLD 001 |
+| [003 — Passthrough Authorization Override](.docs/hld/003-passthrough-authorization-override/README.md) | In Discovery | Force the active stored Bearer over the caller's credential on passthrough routes |
 
 ---
 
-## Getting Started
+## Quick start
 
 New to the project? Building from source, running it, and testing are covered in
 **[Developers — Getting Started](.docs/wiki/developers-gettingstarted.md)**.
@@ -98,7 +136,7 @@ Pick the guide that matches how you want to run or work on the router:
 |---|---|
 | Architecture (tech stack, project structure) | [`.docs/wiki/architecture.md`](.docs/wiki/architecture.md) |
 | Setup & run (all modes) | [`.docs/wiki/setup.md`](.docs/wiki/setup.md) · [`.docs/wiki/setups/`](.docs/wiki/setups/) |
-| Design (HLD, NFRs, LADRs) | [`.docs/hld/001-llm-imposter-routing/`](.docs/hld/001-llm-imposter-routing/README.md) |
+| Design (HLD, NFRs, LADRs) | [`.docs/hld/001-llm-imposter-routing/`](.docs/hld/001-llm-imposter-routing/README.md) — index table under [How it works](#how-it-works) |
 | AI agent context & coding rules | [`AGENTS.md`](AGENTS.md) · [`.agents/`](.agents/) |
 | AI tooling setup | [`.docs/wiki/ai-tooling.md`](.docs/wiki/ai-tooling.md) |
 | Testing strategy | [`.docs/wiki/testing.md`](.docs/wiki/testing.md) |
