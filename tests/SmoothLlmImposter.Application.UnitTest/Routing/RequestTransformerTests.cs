@@ -365,6 +365,45 @@ public class RequestTransformerTests
     }
 
     [Fact]
+    public void OpenAi_chat_upstream_stringifies_structured_function_call_output_array()
+    {
+        var transformer = OpenAi();
+        // Newer Responses payloads can send function_call_output.output as a content-part array rather than a
+        // plain string. Chat Completions tool content must be a string, so the array is JSON-stringified
+        // (structure preserved as JSON text, not reduced to a text part) — LADR-03 pinned policy.
+        string body = """
+        {"model":"gpt5.4","input":[
+          {"type":"function_call","call_id":"call_1","name":"lookup","arguments":"{}"},
+          {"type":"function_call_output","call_id":"call_1","output":[{"type":"output_text","text":"Paris"}]}
+        ]}
+        """;
+
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+
+        messages.Count.ShouldBe(2);
+        messages[0]!["role"]!.GetValue<string>().ShouldBe("assistant");
+        messages[1]!["role"]!.GetValue<string>().ShouldBe("tool");
+        messages[1]!["tool_call_id"]!.GetValue<string>().ShouldBe("call_1");
+        JsonNode toolContent = messages[1]!["content"]!;
+        toolContent.GetValueKind().ShouldBe(JsonValueKind.String);
+        toolContent.GetValue<string>().ShouldBe("""[{"type":"output_text","text":"Paris"}]""");
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_rejects_hosted_tool_item_without_call_suffix()
+    {
+        var transformer = OpenAi();
+        // mcp_list_tools / mcp_approval_request are hosted-tool Items whose type does not end in
+        // _call/_call_output, so they fall outside IsHostedToolItem's remove set and reject by policy
+        // (LADR-03 fail-fast) rather than being silently dropped or converted to an empty user message.
+        string body = """{"model":"gpt5.4","input":[{"type":"mcp_list_tools","id":"mcp_1"}]}""";
+
+        RoutingException ex = Should.Throw<RoutingException>(() => transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"));
+
+        ex.Message.ShouldContain("mcp_list_tools");
+    }
+
+    [Fact]
     public void OpenAi_chat_upstream_rejects_unknown_responses_input_item_type()
     {
         var transformer = OpenAi();
