@@ -33,6 +33,12 @@ public sealed class ProviderOptions
     /// <summary>Optional override for the <c>anthropic-version</c> header (anthropic dialect only).</summary>
     public string? AnthropicVersion { get; init; }
 
+    /// <summary>
+    /// OpenAI-dialect upstream API surface. Defaults to <c>responses</c>; set to
+    /// <c>chat_completions</c> for OpenAI-compatible providers that do not expose <c>/responses</c>.
+    /// </summary>
+    public string? OpenAiUpstreamApi { get; init; }
+
     /// <summary>From→to model mappings owned by this provider.</summary>
     public List<ModelMappingOptions> Models { get; init; } = [];
 }

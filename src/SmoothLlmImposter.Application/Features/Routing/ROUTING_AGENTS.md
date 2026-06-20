@@ -24,6 +24,11 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   is forwarded verbatim, so a key-less router authenticates with the caller's credential.
 - **Same-dialect only.** Do not add OpenAI⇄Anthropic body translation here. An `openai` provider serves
   openai requests; an `anthropic` provider serves anthropic requests.
+- **OpenAI Responses→Chat compatibility is explicit per provider.** `OpenAiUpstreamApi` defaults to
+  `responses`. Set `OpenAiUpstreamApi: chat_completions` only for OpenAI-compatible upstreams that lack
+  `/responses` (e.g. OpenRouter/opencode). On matched imposter routes only, `/responses` is forwarded to
+  `/v1/chat/completions` and common Responses `input`/`instructions` payloads are converted to Chat
+  Completions `messages`. Passthrough/default routes stay transparent.
 - **`BaseUrl` is the server root WITHOUT a version path** (`https://api.openai.com`, not `.../v1`). The
   upstream request path is appended verbatim; adding `/v1` to config double-prefixes the path. The `/v1`
   belongs in exactly one place — the caller's path or the provider `BaseUrl`, never both. (E.g. OpenRouter
@@ -122,3 +127,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-17 | Forwarder is now a transparent proxy: relays the caller's full inbound header set (`CallerHeaders`) verbatim minus a fixed hop-by-hop/content/auth set — so `anthropic-beta` (and the matching `context_management` body field), vendor `x-*`, and the caller's `anthropic-version` reach the upstream. Only the auth header is managed: key-less passthrough forwards the caller's own `Authorization`/`x-api-key`; imposter routes use the provider key; HLD-003 override forces the active stored Bearer. | — |
 | 2026-06-17 | Persistence is opt-in: `AddInfrastructure` registers a `NullCredentialStore` when `ConnectionStrings:ImposterDb` is unset, so the stateless default boots without PostgreSQL. Fixed EF discriminator NRE (shadow column `ProviderDialect` → `Dialect`) that crashed model build on the passthrough path. | HLD 002 |
 | 2026-06-19 | Added dialect-prefixed routing (`/openai/{**path}`, `/anthropic/{**path}`, any method): prefix selects dialect, tail forwarded verbatim — disambiguates shared paths like `/v1/models`. Body-less requests (`GET /v1/models`) passthrough to the dialect default via `PlanPassthroughAsync`/`ResolveDefault` (no model to match). Forwarder now forwards the inbound `HttpMethod` with a nullable body. Legacy unprefixed `POST /v1/*` retained; unprefixed `/v1/models` left unmapped (ambiguous). | — |
+| 2026-06-20 | Added `OpenAiUpstreamApi: chat_completions` for OpenAI-compatible upstreams without `/responses`; matched OpenAI imposter routes can downgrade `/responses` requests to `/v1/chat/completions` and convert common Responses payload fields to chat `messages`. | — |

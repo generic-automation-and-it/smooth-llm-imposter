@@ -18,8 +18,10 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   strips it and forwards `{path}` verbatim with the inbound method, so model-discovery (`GET /v1/models`),
   `/v1/responses`, and `count_tokens` all proxy without per-endpoint mappings. Legacy unprefixed
   `POST /v1/chat/completions|/v1/responses|/v1/messages` stay mapped for back-compat; unprefixed `/v1/models` is
-  deliberately unmapped because it's dialect-ambiguous. Routing/transform semantics live in Application — see
-  `Features/Routing/ROUTING_AGENTS.md`.
+  deliberately unmapped because it's dialect-ambiguous. For matched OpenAI imposter routes whose provider sets
+  `OpenAiUpstreamApi: chat_completions`, the Host overrides an inbound `/responses` upstream path to
+  `/v1/chat/completions`; the body conversion lives in Application. Routing/transform semantics live in
+  Application — see `Features/Routing/ROUTING_AGENTS.md`.
 - An un-routed request returns `404` (and a body-less request with no dialect prefix has no model to route).
 - Compose/runbook env vars must mirror the concrete `Imposter:Providers` indexes in `appsettings.json`.
   ASP.NET Core config binding treats a sparse env var such as `Imposter__Providers__5__ApiKey` as a sixth
@@ -33,3 +35,4 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 | 2026-05-30 | Created — minimal runnable Host (`Program.cs`, `appsettings(.Development).json`, `Properties/launchSettings.json`) with empty `Configuration/`, `Endpoints/`, `HealthChecks/`, `Workers/`. | — |
 | 2026-06-19 | Documented the dialect-prefixed routing endpoints (`/openai/**`, `/anthropic/**`, any method) + retained legacy `POST /v1/*`; corrected stale "bare bootstrap" note. | — |
 | 2026-06-20 | Documented that compose/runbook `Imposter__Providers__N__*` env vars must not reference sparse provider indexes because they create empty providers during binding. | — |
+| 2026-06-20 | Documented `OpenAiUpstreamApi: chat_completions` path override for matched OpenAI imposter routes. | — |

@@ -12,4 +12,5 @@ public sealed record ProviderRoute(
     string? ApiKey,
     bool IsDefault,
     string? AnthropicVersion,
-    IReadOnlyList<ModelMapping> Models);
+    IReadOnlyList<ModelMapping> Models,
+    OpenAiUpstreamApi OpenAiUpstreamApi = OpenAiUpstreamApi.Responses);

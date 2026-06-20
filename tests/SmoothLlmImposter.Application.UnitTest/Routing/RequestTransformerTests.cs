@@ -14,6 +14,13 @@ public class RequestTransformerTests
             caching,
             IsImposter: true);
 
+    private static RouteDecision ChatDecision(string targetModel, bool caching) =>
+        new(
+            new ProviderRoute("p", ApiDialect.OpenAi, new Uri("https://p.example"), null, false, null, [], OpenAiUpstreamApi.ChatCompletions),
+            targetModel,
+            caching,
+            IsImposter: true);
+
     [Fact]
     public void OpenAi_rewrites_model_and_sets_cache_key_when_caching_enabled()
     {
@@ -36,6 +43,33 @@ public class RequestTransformerTests
 
         result["model"]!.GetValue<string>().ShouldBe("gpt5.5");
         result.AsObject().ContainsKey("prompt_cache_key").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_converts_responses_input_to_messages()
+    {
+        var transformer = new OpenAiRequestTransformer();
+        string body = """
+        {
+          "model":"gpt5.4",
+          "instructions":"be direct",
+          "input":[{"role":"user","content":[{"type":"input_text","text":"hi"}]}],
+          "max_output_tokens":321
+        }
+        """;
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi-k2.7", caching: true), "gpt5.4"))!.AsObject();
+
+        result["model"]!.GetValue<string>().ShouldBe("kimi-k2.7");
+        result["max_tokens"]!.GetValue<int>().ShouldBe(321);
+        result.ContainsKey("input").ShouldBeFalse();
+        result.ContainsKey("prompt_cache_key").ShouldBeFalse();
+
+        JsonArray messages = result["messages"]!.AsArray();
+        messages[0]!["role"]!.GetValue<string>().ShouldBe("system");
+        messages[0]!["content"]!.GetValue<string>().ShouldBe("be direct");
+        messages[1]!["role"]!.GetValue<string>().ShouldBe("user");
+        messages[1]!["content"]!.GetValue<string>().ShouldBe("hi");
     }
 
     [Fact]

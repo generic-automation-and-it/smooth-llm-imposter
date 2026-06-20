@@ -87,7 +87,7 @@ internal static class RoutingEndpoints
                 dialect,
                 HttpMethod.Parse(context.Request.Method),
                 string.IsNullOrEmpty(plan.TransformedBody) ? null : plan.TransformedBody,
-                upstreamPath,
+                ResolveUpstreamPath(dialect, upstreamPath, plan),
                 context.Request.QueryString.Value,
                 CaptureCallerHeaders(context),
                 cancellationToken);
@@ -127,6 +127,19 @@ internal static class RoutingEndpoints
         }
 
         return new CallerHeaders(items);
+    }
+
+    private static string ResolveUpstreamPath(ApiDialect dialect, string upstreamPath, RoutePlan plan)
+    {
+        if (dialect == ApiDialect.OpenAi &&
+            plan.Decision.IsImposter &&
+            plan.Decision.Provider.OpenAiUpstreamApi == OpenAiUpstreamApi.ChatCompletions &&
+            upstreamPath.EndsWith("/responses", StringComparison.OrdinalIgnoreCase))
+        {
+            return "/v1/chat/completions";
+        }
+
+        return upstreamPath;
     }
 
     private static async Task<string> ReadBodyAsync(HttpContext context, CancellationToken cancellationToken)

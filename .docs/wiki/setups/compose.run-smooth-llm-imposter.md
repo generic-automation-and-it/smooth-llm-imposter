@@ -166,8 +166,30 @@ Point Codex and Anthropic-dialect clients at the Compose port **plus the dialect
 requests through the router. The router selects the dialect from the `/openai` or `/anthropic` prefix and
 forwards the rest of the path verbatim:
 
+For the OpenAI default passthrough provider in `appsettings.json`, set `BaseUrl` based on the auth path:
+
+- API-key/OpenAI Platform passthrough: `"BaseUrl": "https://api.openai.com"`
+- Codex CLI ChatGPT/subscription passthrough: `"BaseUrl": "https://chatgpt.com/backend-api/codex"`
+
 ```toml
-# ~/.codex/config.toml  — OpenAI SDK appends bare /responses, so /v1 belongs in the base
+# ~/.codex/config.toml — Codex CLI with ChatGPT/subscription auth
+model_provider = "smooth-llm-proxy"
+
+[model_providers.smooth-llm-proxy]
+name = "Smooth LLM Imposter"
+base_url = "http://127.0.0.1:5066/openai"
+wire_api = "responses"
+requires_openai_auth = true
+```
+
+That provider selection applies to every local Codex model request for the selected config/profile, including
+models selected later with `/model`. It does not proxy Codex login, model-catalog refresh, web search, MCP
+servers, connectors, or cloud tasks.
+
+For generic OpenAI-compatible SDK/API-key clients, keep `/v1` in the base URL because those clients append bare
+paths like `/responses`, `/chat/completions`, and `/models`:
+
+```toml
 openai_base_url = "http://localhost:5066/openai/v1"
 ```
 

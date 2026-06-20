@@ -27,7 +27,7 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
 
         JsonNode forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!;
         forwarded["model"]!.GetValue<string>().ShouldBe("grok-code");
-        forwarded["prompt_cache_key"]!.GetValue<string>().ShouldBe("gpt5.4");
+        forwarded.AsObject().ContainsKey("prompt_cache_key").ShouldBeFalse();
     }
 
     [Fact]
@@ -113,6 +113,41 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
 
         JsonNode forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!;
         forwarded["model"]!.GetValue<string>().ShouldBe("grok-code");
+    }
+
+    [Fact]
+    public async Task Openai_responses_request_to_chat_upstream_rewrites_path_and_body()
+    {
+        HttpClient client = fixture.CreateClient();
+
+        using HttpResponseMessage response = await client.PostAsync(
+            "/openai/responses",
+            Json("""
+            {
+              "model":"gpt5.4",
+              "instructions":"be direct",
+              "input":[{"role":"user","content":[{"type":"input_text","text":"hi"}]}],
+              "stream":true,
+              "max_output_tokens":123
+            }
+            """),
+            Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://opencode.test/v1/chat/completions");
+
+        JsonObject forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!.AsObject();
+        forwarded["model"]!.GetValue<string>().ShouldBe("grok-code");
+        forwarded["stream"]!.GetValue<bool>().ShouldBeTrue();
+        forwarded["max_tokens"]!.GetValue<int>().ShouldBe(123);
+        forwarded.ContainsKey("input").ShouldBeFalse();
+        forwarded.ContainsKey("prompt_cache_key").ShouldBeFalse();
+
+        JsonArray messages = forwarded["messages"]!.AsArray();
+        messages[0]!["role"]!.GetValue<string>().ShouldBe("system");
+        messages[0]!["content"]!.GetValue<string>().ShouldBe("be direct");
+        messages[1]!["role"]!.GetValue<string>().ShouldBe("user");
+        messages[1]!["content"]!.GetValue<string>().ShouldBe("hi");
     }
 
     [Fact]

@@ -32,6 +32,7 @@ public sealed class ImposterAppFixture : WebApplicationFactory<HostApp::Program>
         ["Imposter:Providers:1:Dialect"] = "openai",
         ["Imposter:Providers:1:BaseUrl"] = "https://opencode.test",
         ["Imposter:Providers:1:ApiKey"] = "opencode-key",
+        ["Imposter:Providers:1:OpenAiUpstreamApi"] = "chat_completions",
         ["Imposter:Providers:1:Models:0:From"] = "gpt5.4",
         ["Imposter:Providers:1:Models:0:To"] = "grok-code",
         ["Imposter:Providers:1:Models:0:Caching"] = "true",

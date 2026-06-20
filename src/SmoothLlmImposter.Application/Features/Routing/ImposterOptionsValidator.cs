@@ -51,6 +51,11 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
                 failures.Add($"{prefix}:BaseUrl '{provider.BaseUrl}' is not an absolute URL.");
             }
 
+            if (!OpenAiUpstreamApiParser.TryParse(provider.OpenAiUpstreamApi, out _))
+            {
+                failures.Add($"{prefix}:OpenAiUpstreamApi '{provider.OpenAiUpstreamApi}' is invalid (expected 'responses' or 'chat_completions').");
+            }
+
             for (int j = 0; j < provider.Models.Count; j++)
             {
                 ModelMappingOptions mapping = provider.Models[j];
