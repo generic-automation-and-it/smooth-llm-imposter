@@ -163,6 +163,164 @@ public class RequestTransformerTests
     }
 
     [Fact]
+    public void OpenAi_chat_upstream_preserves_paired_responses_tool_history()
+    {
+        var transformer = OpenAi();
+        string body = """
+        {"model":"gpt5.4","input":[
+          {"type":"function_call","call_id":"call_1","name":"lookup","arguments":"{\"city\":\"Paris\"}"},
+          {"type":"function_call","call_id":"call_2","name":"calc","arguments":"{}"},
+          {"type":"function_call_output","call_id":"call_2","output":"2"},
+          {"type":"function_call_output","call_id":"call_1","output":"Paris"},
+          {"role":"user","content":[{"type":"input_text","text":"continue"}]}
+        ]}
+        """;
+
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+
+        messages.Count.ShouldBe(4);
+        messages[0]!["role"]!.GetValue<string>().ShouldBe("assistant");
+        JsonArray toolCalls = messages[0]!["tool_calls"]!.AsArray();
+        toolCalls.Select(t => t!["id"]!.GetValue<string>()).ShouldBe(["call_1", "call_2"]);
+        toolCalls[0]!["function"]!["name"]!.GetValue<string>().ShouldBe("lookup");
+        toolCalls[0]!["function"]!["arguments"]!.GetValue<string>().ShouldBe("""{"city":"Paris"}""");
+        messages[1]!["role"]!.GetValue<string>().ShouldBe("tool");
+        messages[1]!["tool_call_id"]!.GetValue<string>().ShouldBe("call_1");
+        messages[1]!["content"]!.GetValue<string>().ShouldBe("Paris");
+        messages[2]!["role"]!.GetValue<string>().ShouldBe("tool");
+        messages[2]!["tool_call_id"]!.GetValue<string>().ShouldBe("call_2");
+        messages[2]!["content"]!.GetValue<string>().ShouldBe("2");
+        messages[3]!["role"]!.GetValue<string>().ShouldBe("user");
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_removes_orphaned_responses_tool_history()
+    {
+        var transformer = OpenAi();
+        string body = """
+        {"model":"gpt5.4","input":[
+          {"type":"function_call","call_id":"call_missing","name":"lookup","arguments":"{}"},
+          {"type":"function_call_output","call_id":"call_orphan","output":"orphan"},
+          {"role":"user","content":[{"type":"input_text","text":"hi"}]}
+        ]}
+        """;
+
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+
+        messages.Count.ShouldBe(1);
+        messages[0]!["role"]!.GetValue<string>().ShouldBe("user");
+        messages[0]!["content"]!.GetValue<string>().ShouldBe("hi");
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_does_not_pair_tool_output_across_message_boundary()
+    {
+        var transformer = OpenAi();
+        string body = """
+        {"model":"gpt5.4","input":[
+          {"type":"function_call","call_id":"call_1","name":"lookup","arguments":"{}"},
+          {"role":"user","content":[{"type":"input_text","text":"new turn"}]},
+          {"type":"function_call_output","call_id":"call_1","output":"late"}
+        ]}
+        """;
+
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+
+        messages.Count.ShouldBe(1);
+        messages[0]!["role"]!.GetValue<string>().ShouldBe("user");
+        messages[0]!["content"]!.GetValue<string>().ShouldBe("new turn");
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_rejects_previous_response_id()
+    {
+        var transformer = OpenAi();
+        string body = """{"model":"gpt5.4","previous_response_id":"resp_123","input":"continue"}""";
+
+        RoutingException ex = Should.Throw<RoutingException>(() => transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"));
+
+        ex.StatusCode.ShouldBe(400);
+        ex.Message.ShouldContain("previous_response_id");
+    }
+
+    [Fact]
+    public void OpenAi_responses_upstream_keeps_previous_response_id()
+    {
+        var transformer = OpenAi();
+        string body = """{"model":"gpt5.4","previous_response_id":"resp_123","input":"continue"}""";
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, Decision("gpt5.5", caching: false), "gpt5.4"))!.AsObject();
+
+        result["previous_response_id"]!.GetValue<string>().ShouldBe("resp_123");
+        result["input"]!.GetValue<string>().ShouldBe("continue");
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_converts_responses_text_format_to_response_format()
+    {
+        var transformer = OpenAi();
+        string body = """
+        {"model":"gpt5.4","input":"Jane, 54","text":{"format":{
+          "type":"json_schema",
+          "name":"person",
+          "strict":true,
+          "schema":{"type":"object","properties":{"name":{"type":"string"}},"required":["name"],"additionalProperties":false}
+        }}}
+        """;
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!.AsObject();
+
+        result.ContainsKey("text").ShouldBeFalse();
+        JsonObject responseFormat = result["response_format"]!.AsObject();
+        responseFormat["type"]!.GetValue<string>().ShouldBe("json_schema");
+        JsonObject jsonSchema = responseFormat["json_schema"]!.AsObject();
+        jsonSchema["name"]!.GetValue<string>().ShouldBe("person");
+        jsonSchema["strict"]!.GetValue<bool>().ShouldBeTrue();
+        jsonSchema["schema"]!["required"]!.AsArray()[0]!.GetValue<string>().ShouldBe("name");
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_rejects_unsupported_responses_text_format()
+    {
+        var transformer = OpenAi();
+        string body = """{"model":"gpt5.4","input":"hi","text":{"format":{"type":"grammar"}}}""";
+
+        RoutingException ex = Should.Throw<RoutingException>(() => transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"));
+
+        ex.Message.ShouldContain("text.format type 'grammar'");
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_removes_responses_only_reasoning_and_hosted_tool_items()
+    {
+        var transformer = OpenAi();
+        string body = """
+        {"model":"gpt5.4","input":[
+          {"type":"reasoning","summary":[{"type":"summary_text","text":"thinking"}]},
+          {"type":"web_search_call","id":"ws_1","status":"completed"},
+          {"role":"user","content":[{"type":"input_text","text":"hi"}]}
+        ]}
+        """;
+
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+
+        messages.Count.ShouldBe(1);
+        messages[0]!["role"]!.GetValue<string>().ShouldBe("user");
+        messages[0]!["content"]!.GetValue<string>().ShouldBe("hi");
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_rejects_unknown_responses_input_item_type()
+    {
+        var transformer = OpenAi();
+        string body = """{"model":"gpt5.4","input":[{"type":"mystery_item","role":"user","content":"x"}]}""";
+
+        RoutingException ex = Should.Throw<RoutingException>(() => transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"));
+
+        ex.Message.ShouldContain("mystery_item");
+    }
+
+    [Fact]
     public void Anthropic_string_system_becomes_block_with_ephemeral_cache_control()
     {
         var transformer = new AnthropicRequestTransformer();
