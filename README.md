@@ -112,6 +112,7 @@ HLDs under `.docs/hlds/`:
 | [003 — Passthrough Authorization Override](.docs/hlds/003-passthrough-authorization-override/README.md) | In Discovery | Force the active stored Bearer over the caller's credential on passthrough routes |
 | [004 — Codex-to-OpenAI-SDK Transformer](.docs/hlds/004-codex-to-openai-sdk-transformer/README.md) | In Discovery | Transform Codex `/responses` payloads to the OpenAI Chat Completions SDK shape for compatible upstreams |
 | [005 — OpenAI /models Endpoint Aggregation](.docs/hlds/005-models-endpoint-aggregation/README.md) | Accepted | `GET /openai/v1/models` returns the distinct union of configured `to` models, synthesized locally |
+| [006 — Responses Chat Tool History Normalization](.docs/hlds/006-responses-chat-tool-history-normalization/README.md) | In Discovery | Normalize prior-turn Responses tool-call history so downgraded Chat requests satisfy strict upstream adjacency rules |
 
 ---
 
