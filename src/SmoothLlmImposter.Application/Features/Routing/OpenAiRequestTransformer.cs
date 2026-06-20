@@ -169,7 +169,13 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
         {
             foreach (JsonNode? message in existingMessages)
             {
-                messages.Add(message?.DeepClone());
+                JsonNode? clone = message?.DeepClone();
+                if (clone is JsonObject messageObject)
+                {
+                    RemapDeveloperRole(messageObject);
+                }
+
+                messages.Add(clone);
             }
 
             return messages;
@@ -243,13 +249,30 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
             return;
         }
 
-        string role = item["role"]?.GetValue<string>() ?? "user";
+        string role = ToChatRole(item["role"]?.GetValue<string>());
         JsonNode? content = item["content"];
         messages.Add(new JsonObject
         {
             ["role"] = role,
             ["content"] = ConvertMessageContent(content)
         });
+    }
+
+    // Moonshot/kimi and some OpenAI-compatible Chat upstreams reject the OpenAI "developer" role with
+    // "tokenization failed" — their chat template only knows system/user/assistant/tool. "developer" is
+    // OpenAI's successor to "system", so fold it back to "system" on the Chat Completions wire. This only
+    // runs inside ToChatCompletions (chat_completions providers); a real /responses upstream keeps "developer".
+    private static string ToChatRole(string? role) =>
+        string.Equals(role, "developer", StringComparison.OrdinalIgnoreCase) ? "system" : role ?? "user";
+
+    private static void RemapDeveloperRole(JsonObject message)
+    {
+        if (message["role"] is JsonValue role &&
+            role.GetValueKind() == JsonValueKind.String &&
+            string.Equals(role.GetValue<string>(), "developer", StringComparison.OrdinalIgnoreCase))
+        {
+            message["role"] = "system";
+        }
     }
 
     private static JsonNode? ConvertMessageContent(JsonNode? content)

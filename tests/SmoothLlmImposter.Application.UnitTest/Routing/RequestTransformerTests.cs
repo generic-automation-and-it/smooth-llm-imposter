@@ -104,6 +104,38 @@ public class RequestTransformerTests
     }
 
     [Fact]
+    public void OpenAi_chat_upstream_folds_developer_role_into_system()
+    {
+        var transformer = OpenAi();
+        // Codex /responses sends a developer-role input item; Moonshot/kimi's chat template rejects
+        // "developer" ("tokenization failed"), so the chat conversion must fold it to "system".
+        string body = """
+        {"model":"gpt5.4","input":[
+          {"role":"developer","content":[{"type":"input_text","text":"be brief"}]},
+          {"role":"user","content":[{"type":"input_text","text":"hi"}]}
+        ]}
+        """;
+
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+
+        messages[0]!["role"]!.GetValue<string>().ShouldBe("system");
+        messages[0]!["content"]!.GetValue<string>().ShouldBe("be brief");
+        messages[1]!["role"]!.GetValue<string>().ShouldBe("user");
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_folds_developer_role_in_existing_messages()
+    {
+        var transformer = OpenAi();
+        string body = """{"model":"gpt5.4","messages":[{"role":"developer","content":"sys"},{"role":"user","content":"hi"}]}""";
+
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+
+        messages[0]!["role"]!.GetValue<string>().ShouldBe("system");
+        messages[0]!["content"]!.GetValue<string>().ShouldBe("sys");
+    }
+
+    [Fact]
     public void OpenAi_chat_upstream_converts_responses_input_to_messages()
     {
         var transformer = OpenAi();

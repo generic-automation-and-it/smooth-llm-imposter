@@ -27,6 +27,14 @@ All notable changes to SmoothLlmImposter are documented here.
   Run only by the new secret-gated `.github/workflows/pr-evals-gate.yml` (org `OPENCODE_API_KEY`),
   **neutral (skipped) when the secret is absent** and **non-blocking** initially. `.docs/wiki/testing.md`
   now defines the L3 tier.
+
+### Fixed
+- **Codex `/responses` → Chat Completions 400 ("tokenization failed") on `opencode-go`.** The
+  Responses→Chat conversion now folds `role:"developer"` → `role:"system"`: Moonshot/kimi (and some
+  OpenAI-compatible Chat upstreams) reject the OpenAI `developer` role, which Codex sends in its `input`.
+  This is separate from tool normalization — together they were the two causes of the #19 400. Real
+  `/responses` upstreams keep `developer` (the conversion runs only for `chat_completions`). The L3 eval
+  case now reproduces the full failure (unsupported tool types + dotted name + developer role) live.
 - **README — "Why this exists" comparison section.** New sub-section under
   [README → Use cases](README.md#use-cases) explains how SmoothLlmImposter differs from generic
   LLM gateways (LiteLLM, AWS Bedrock, Azure AI Foundry, Vertex AI, OpenRouter, Portkey, Bifrost),

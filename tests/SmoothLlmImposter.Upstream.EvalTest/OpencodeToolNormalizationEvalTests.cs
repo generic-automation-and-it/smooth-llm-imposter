@@ -26,8 +26,14 @@ public sealed class OpencodeToolNormalizationEvalTests
 
     // A Codex-shaped catalog: a namespace wrapper (GitHub connector), an unsupported tool type, a dotted
     // name, and a valid function — i.e. the exact shapes that 400 the strict upstream before normalization.
+    // It also carries a developer-role message: Moonshot rejects "developer" ("tokenization failed"), so the
+    // Responses→Chat conversion must fold it to "system". Together these reproduce the full #19 failure.
     private const string RawCodexBody = """
-    {"model":"gpt-5.4","messages":[{"role":"user","content":"Reply with the single word: ok"}],
+    {"model":"gpt-5.4",
+     "messages":[
+       {"role":"developer","content":"Be concise."},
+       {"role":"user","content":"Reply with the single word: ok"}
+     ],
      "max_tokens":16,
      "tools":[
        {"type":"namespace","name":"mcp__codex_apps__github","tools":[

@@ -49,7 +49,10 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   `responses`. Set `OpenAiUpstreamApi: chat_completions` only for OpenAI-compatible upstreams that lack
   `/responses` (e.g. OpenRouter/opencode). On matched imposter routes only, `/responses` is forwarded to
   `/v1/chat/completions` and common Responses `input`/`instructions` payloads are converted to Chat
-  Completions `messages`. Passthrough/default routes stay transparent.
+  Completions `messages`. The conversion also **folds `role:"developer"` → `role:"system"`**: Moonshot/kimi
+  (and some OpenAI-compatible Chat upstreams) reject the OpenAI `developer` role with "tokenization failed",
+  and `developer` is OpenAI's successor to `system`. Real `/responses` upstreams keep `developer` (the
+  conversion only runs for `chat_completions`). Passthrough/default routes stay transparent.
 - **Request normalization is OpenAI-imposter-only, request-only, and ON by default for `chat_completions`
   (HLD 004).** A provider's `RequestNormalization` (`CodexToOpenAiSdk` / `None`) selects a normalizer that
   mutates the parsed request body in `OpenAiRequestTransformer` **before** the Responses→Chat conversion. The
@@ -204,4 +207,5 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-20 | When auth is managed (provider/override secret applied), the forwarder now strips the caller's `chatgpt-account-id` (`ManagedAuthIdentityHeaders`). Codex (`codex_sdk_ts`/`codex_cli_rs`) relays it alongside its own Bearer; an OpenAI-compatible imposter upstream (opencode) honoured it over the managed key and 401'd. Kept on key-less passthrough. Added a Debug-only masked outbound request dump to `UpstreamForwarder` for diagnosing forwarded-header issues. | — |
 | 2026-06-20 | Decided: proxy does **not** sanitize tool function names (strict upstreams like Moonshot 400 on Codex's `_*`/`multi_tool_use.parallel` names). Fix is client-side; in-proxy rewrite is rejected because it would require breaking the no-response-rewrite non-negotiable (Codex dispatches by `function.name`). Docs only — no code change. | #19 (LADR-006 Accepted, LADR-007 Draft) |
 | 2026-06-20 | Added request-only request normalization (HLD 004): `RequestNormalization` (`CodexToOpenAiSdk`/`None`) + `Normalization/` seam. v1 keeps only upstream-valid `function` tools (drop unsupported types, flatten `namespace`, drop names failing `^[A-Za-z_][A-Za-z0-9_-]*$`, clean dependent `tool_choice`); runs before Responses→Chat, imposter-only, idempotent. Third sanctioned request-rewrite class; supersedes HLD 001 LADR-006 for OpenAI imposter routes. Added L3 live-eval tier + `pr-evals-gate` workflow. | #19 |
+| 2026-06-20 | Fixed Codex `/responses`→Chat 400 on `opencode-go`: the conversion now folds `role:"developer"` → `role:"system"` (Moonshot rejects `developer` with "tokenization failed"). Independent of tool normalization; covered by an L3 case that reproduces the full #19 failure (bad tools + developer role). | #19 |
 | 2026-06-20 | **Amends HLD 004 LADR-03**: normalization is now **ON by default for `chat_completions`** (resolved in `ProviderCatalog`), `none` to opt out; `responses`/anthropic reject an explicit `codex_to_openai_sdk` (validator). Rationale: the reject rules are the generic OpenAI Chat Completions tool contract (openrouter/Bedrock 400 the same), and normalization is a no-op for clean clients — so opt-in per provider was the wrong default. `opencode-go` no longer needs the explicit flag. | #19 |
