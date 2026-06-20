@@ -26,7 +26,7 @@ decisions in [`./ladrs/`](./ladrs/), quality spec in [`./nfrs/`](./nfrs/).
 - **`created` is a fixed constant, never wall-clock.** Time-derived fields break determinism (NFR-01).
 - **Aggregation is string-out in Application; recognition is in Host.** No `HttpContext` in
   Application; no body-building in the Host endpoint (LADR-04).
-- LADRs are Draft status — flag deviations rather than silently overriding.
+- LADRs are Accepted — do not deviate.
 
 ## Architecture Decisions
 

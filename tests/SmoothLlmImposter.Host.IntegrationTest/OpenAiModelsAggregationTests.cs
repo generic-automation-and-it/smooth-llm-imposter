@@ -11,8 +11,6 @@ namespace SmoothLlmImposter.Host.IntegrationTest;
 /// </summary>
 public sealed class OpenAiModelsAggregationTests(ModelsCatalogAppFixture fixture) : IClassFixture<ModelsCatalogAppFixture>
 {
-    private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
-
     private CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
