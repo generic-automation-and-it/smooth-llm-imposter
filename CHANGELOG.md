@@ -5,6 +5,22 @@ All notable changes to SmoothLlmImposter are documented here.
 ## [Unreleased]
 
 ### Added
+- **Codex → OpenAI-SDK request normalization (HLD 004).** New opt-in, per-provider
+  `RequestNormalization` config (`none` default / `codex_to_openai_sdk`) adds a proxy-side,
+  **request-only** normalization seam on matched OpenAI imposter routes so vanilla Codex clients work
+  against strict OpenAI-compatible upstreams (e.g. `opencode-go`/kimi). v1 keeps only upstream-valid
+  `function` tools: it drops unsupported tool `type`s (`custom`, `web_search`, `image_generation`,
+  `tool_search`, …), **flattens** `namespace` wrappers into their nested function tools (preserving the
+  Codex GitHub connector's tools), drops function names that fail `^[A-Za-z_][A-Za-z0-9_-]*$`, and
+  cleans any `tool_choice` that referenced a removed tool. Off-by-default providers and passthrough
+  routes stay byte-transparent; the response stream is never touched. Enabled on `opencode-go`.
+- **L3 live-upstream eval tier (HLD 004 LADR-04 / NFR-04).** New
+  `tests/SmoothLlmImposter.Upstream.EvalTest` project (excluded from `SmoothLlmImposter.slnx`) replays
+  the tool-validation matrix against the real `opencode-go` upstream: it proves a raw Codex catalog run
+  through the normalizer is accepted (200) and that an un-normalized catalog is still rejected (400).
+  Run only by the new secret-gated `.github/workflows/pr-evals-gate.yml` (org `OPENCODE_API_KEY`),
+  **neutral (skipped) when the secret is absent** and **non-blocking** initially. `.docs/wiki/testing.md`
+  now defines the L3 tier.
 - **README — "Why this exists" comparison section.** New sub-section under
   [README → Use cases](README.md#use-cases) explains how SmoothLlmImposter differs from generic
   LLM gateways (LiteLLM, AWS Bedrock, Azure AI Foundry, Vertex AI, OpenRouter, Portkey, Bifrost),

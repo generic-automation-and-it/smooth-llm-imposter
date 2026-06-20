@@ -12,8 +12,11 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 - **Never persist, log, or echo provider `Secret` values.** They live only in `ImposterOptions` (config/env). Logs
   carry provider name + model names only.
 - **Transparent proxy — do not strip or rewrite the request.** The forwarder relays the caller's inbound
-  headers and body to the upstream **unchanged**, with exactly two exceptions: (1) the **auth** header is
-  managed (see below), and (2) **caching injection** rewrites the body on a matched imposter route. Adding a
+  headers and body to the upstream **unchanged**, with exactly three sanctioned request-rewrite classes: (1) the
+  **auth** header is managed (see below), (2) **caching injection** rewrites the body on a matched imposter
+  route, and (3) **opt-in request normalization** reshapes the body on a matched OpenAI imposter route that
+  opted in (HLD 004 — see "Request normalization" below). All three are **request-only**; the response stream is
+  never read or rewritten (HLD 001 LADR-003). Adding a
   bespoke filter that drops a caller header (e.g. `anthropic-beta`) breaks beta body fields like
   `context_management` — only the fixed hop-by-hop/content set (`Host`, `Content-*`, `Connection`,
   `Transfer-Encoding`, `Accept-Encoding`, …) is withheld. The caller's own `anthropic-version` passes through;
@@ -47,6 +50,15 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   `/responses` (e.g. OpenRouter/opencode). On matched imposter routes only, `/responses` is forwarded to
   `/v1/chat/completions` and common Responses `input`/`instructions` payloads are converted to Chat
   Completions `messages`. Passthrough/default routes stay transparent.
+- **Request normalization is opt-in, OpenAI-imposter-only, and request-only (HLD 004).** A provider's
+  `RequestNormalization` (`None` default / `CodexToOpenAiSdk`) selects a normalizer that mutates the parsed
+  request body in `OpenAiRequestTransformer` **before** the Responses→Chat conversion. It runs **only** when
+  `decision.IsImposter` **and** a normalizer matches the provider's profile — so passthrough/default routes and
+  un-opted-in providers (`None`) are byte-transparent. Normalizers are **request-only** (never read/rewrite the
+  response) and must be **idempotent**; they prefer **removing** an offending element over remapping it, so the
+  transform stays one-directional (HLD 004 LADR-02). Do **not** encode normalization for the Anthropic dialect
+  or on passthrough here. This supersedes the HLD 001 LADR-006 "no in-proxy tool-name sanitization" stance for
+  opted-in OpenAI imposter routes (HLD 004 LADR-01).
 - **`BaseUrl` is the server root WITHOUT a version path** (`https://api.openai.com`, not `.../v1`). The
   upstream request path is appended verbatim; adding `/v1` to config double-prefixes the path. The `/v1`
   belongs in exactly one place — the caller's path or the provider `BaseUrl`, never both. (E.g. OpenRouter
@@ -73,6 +85,18 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 - **Caching is per-dialect** (only when `Caching: true`): Anthropic injects ephemeral `cache_control` on the
   `system` block (a string `system` is converted to a one-element block array) and on the last content block
   of the last message; OpenAI sets `prompt_cache_key` to the **inbound** model name.
+- **Request normalization — `CodexToOpenAiSdk` v1** (`Features/Routing/Normalization/`). The seam is a
+  `IReadOnlyDictionary<RequestNormalization, IRequestNormalizer>` in `OpenAiRequestTransformer`; adding a profile
+  is a new `IRequestNormalizer` + enum value, not a router/forwarder branch. v1 keeps only upstream-valid
+  `function` tools: drops tools whose `type` ∉ {`function`,`plugin`} (`custom`/`web_search`/`image_generation`/
+  `tool_search`/…), **flattens** `type:"namespace"` wrappers into their nested `function` tools (so the Codex
+  GitHub connector's `_`-prefixed tools survive), drops `function` names that fail `^[A-Za-z_][A-Za-z0-9_-]*$`
+  (empty/dotted/leading-digit), and cleans any `tool_choice` referencing a removed tool. Handles **both** tool
+  shapes (flat Responses `{type,name}` and nested Chat `{type:"function",function:{name}}`) because it runs
+  before `ToChatCompletions`/`ConvertTools` — flattened flat-function tools are then nested by `ConvertTools` for
+  chat upstreams and stay flat for responses upstreams. If no tool survives, `tools`+`tool_choice` are removed
+  (absent tools are accepted; an empty array is not guaranteed to be). Prior-turn `function_call`/
+  `function_call_output` history for a dropped tool is **left untouched** — v1 only filters `tools[]`.
 - **Errors are dialect-shaped**: OpenAI `{error:{message,type}}`, Anthropic `{type:"error",error:{type,message}}`.
   Routing failures → 400/404; upstream transport failures → 502.
 - **`anthropic-version`**: the caller's value is forwarded as-is; `2023-06-01` (or a configured
@@ -134,7 +158,11 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 ## Test References
 
 - **L0** `Domain.UnitTest/Routing` — matcher, dialect parser.
-- **L0** `Application.UnitTest/Routing` — resolver, transformers (cache injection), router, error factory, options validator.
+- **L0** `Application.UnitTest/Routing` — resolver, transformers (cache injection), router, error factory, options
+  validator, `CodexToOpenAiSdkNormalizerTests` (normalization drop/flatten/name-rules/tool_choice/idempotency, flat+nested shapes).
+- **L3** `Upstream.EvalTest` — **live** opencode-go conformance eval (HLD 004): a raw Codex catalog run through the
+  real transformer+normalizer is accepted (200), un-normalized is rejected (400). Excluded from `SmoothLlmImposter.slnx`;
+  secret-gated on `OPENCODE_API_KEY`, neutral (skipped) when absent; runs only in `pr-evals-gate.yml`.
 - **L2** `Host.IntegrationTest` — full pipeline incl. SSE passthrough, mid-stream caller-disconnect handling
   (`StreamingDisconnectTests`), and env-over-appsettings override (in-process stub upstream). The disconnect test
   asserts on the process-global Serilog `Log.Logger` (where request-logging surfaces the escaping exception), so
@@ -159,3 +187,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-20 | Mid-stream caller disconnect on the streaming path is now caught in `RoutingEndpoints.HandleAsync` (`OperationCanceledException`/`IOException` gated on `RequestAborted`) and returns quietly, instead of bubbling an unhandled exception logged at Error by Serilog request logging. Genuine non-abort streaming failures still propagate. Added `StreamingDisconnectTests`. | #17 |
 | 2026-06-20 | Extracted auth-scheme precedence into `Domain.Routing.UpstreamAuthResolver` (single source of truth shared by `UpstreamForwarder` + `ImposterRouter`). Routing log now reports `auth=` (`Bearer`/`ApiKey`/`none`/`caller-passthrough`); `auth=none` flags an imposter route with an empty `Secret` (sends no auth header → upstream 401). | — |
 | 2026-06-20 | When auth is managed (provider/override secret applied), the forwarder now strips the caller's `chatgpt-account-id` (`ManagedAuthIdentityHeaders`). Codex (`codex_sdk_ts`/`codex_cli_rs`) relays it alongside its own Bearer; an OpenAI-compatible imposter upstream (opencode) honoured it over the managed key and 401'd. Kept on key-less passthrough. Added a Debug-only masked outbound request dump to `UpstreamForwarder` for diagnosing forwarded-header issues. | — |
+| 2026-06-20 | Added opt-in, request-only request normalization (HLD 004): per-provider `RequestNormalization` (`None`/`CodexToOpenAiSdk`) + `Normalization/` seam. v1 keeps only upstream-valid `function` tools (drop unsupported types, flatten `namespace`, drop names failing `^[A-Za-z_][A-Za-z0-9_-]*$`, clean dependent `tool_choice`); runs before Responses→Chat, imposter+opt-in only, idempotent. Establishes a third sanctioned request-rewrite class; supersedes HLD 001 LADR-006 for opted-in OpenAI imposter routes. Enabled on `opencode-go`. Added L3 live-eval tier + `pr-evals-gate` workflow. | #19 |
