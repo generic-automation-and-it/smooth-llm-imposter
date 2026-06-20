@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | In Discovery |
+| **Status** | Accepted |
 | **Owner** | @generic-automation-and-it/project |
 | **Tracker** | [feat: /models endpoint returns distinct union of all configured imposter models (#20)](https://github.com/generic-automation-and-it/smooth-llm-imposter/issues/20) |
 | **Last updated** | 2026-06-20 |
@@ -97,10 +97,10 @@ decision — a horizontal concern spanning this HLD. See [`./ladrs/`](./ladrs/).
 
 | LADR | Decision | Status |
 |------|----------|--------|
-| [LADR-01](./ladrs/LADR-01-advertise-to-names.md) | Advertise `to` (upstream target) names, not inbound `From` | Draft |
-| [LADR-02](./ladrs/LADR-02-synthesize-locally.md) | Synthesize the list from the catalogue; replace passthrough, no live upstream call | Draft |
-| [LADR-03](./ladrs/LADR-03-openai-get-only.md) | Scope to OpenAI dialect + `GET /openai/v1/models` only | Draft |
-| [LADR-04](./ladrs/LADR-04-synthetic-model-fields.md) | Synthetic `Model` field values; recognition in Host, aggregation string-out in Application | Draft |
+| [LADR-01](./ladrs/LADR-01-advertise-to-names.md) | Advertise `to` (upstream target) names, not inbound `From` | Accepted |
+| [LADR-02](./ladrs/LADR-02-synthesize-locally.md) | Synthesize the list from the catalogue; replace passthrough, no live upstream call | Accepted |
+| [LADR-03](./ladrs/LADR-03-openai-get-only.md) | Scope to OpenAI dialect + `GET /openai/v1/models` only | Accepted |
+| [LADR-04](./ladrs/LADR-04-synthetic-model-fields.md) | Synthetic `Model` field values; recognition in Host, aggregation string-out in Application | Accepted |
 
 ## Non-Functional Requirements
 
@@ -109,7 +109,7 @@ verification mechanism, and acceptance criteria. See [`./nfrs/`](./nfrs/).
 
 | NFR | Attribute | Target (summary) | Status |
 |-----|-----------|------------------|--------|
-| [NFR-01](./nfrs/NFR-01-determinism.md) | Determinism | Identical config ⇒ byte-identical response; no time-derived fields | Draft |
-| [NFR-02](./nfrs/NFR-02-schema-conformance.md) | Compatibility | Valid OpenAI `ListModelsResponse`; `data` ids = distinct OpenAI `to` set | Draft |
-| [NFR-03](./nfrs/NFR-03-statelessness.md) | Statelessness | Zero upstream requests and zero DB connections to serve the endpoint | Draft |
-| [NFR-04](./nfrs/NFR-04-secret-confidentiality.md) | Security | Response carries only model ids + provider names; never a `Secret` | Draft |
+| [NFR-01](./nfrs/NFR-01-determinism.md) | Determinism | Identical config ⇒ byte-identical response; no time-derived fields | Accepted |
+| [NFR-02](./nfrs/NFR-02-schema-conformance.md) | Compatibility | Valid OpenAI `ListModelsResponse`; `data` ids = distinct OpenAI `to` set | Accepted |
+| [NFR-03](./nfrs/NFR-03-statelessness.md) | Statelessness | Zero upstream requests and zero DB connections to serve the endpoint | Accepted |
+| [NFR-04](./nfrs/NFR-04-secret-confidentiality.md) | Security | Response carries only model ids + provider names; never a `Secret` | Accepted |

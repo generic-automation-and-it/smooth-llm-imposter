@@ -1,6 +1,6 @@
 # LADR-03: Scope to OpenAI dialect + `GET /openai/v1/models` only
 
-**Status:** Draft
+**Status:** Accepted
 
 <!-- Status lifecycle: Draft → Prototype → Accepted. Also: "Superseded by LADR-MM", "Deprecated". -->
 

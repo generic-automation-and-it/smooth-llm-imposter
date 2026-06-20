@@ -24,6 +24,17 @@ internal static class RoutingEndpoints
     {
         app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
+        // Local model discovery for the OpenAI dialect (HLD 005). This specific GET route outranks the
+        // /openai/{**upstreamPath} catch-all for GET, while every other method on the same path still falls
+        // through to the catch-all passthrough — exactly realizing LADR-03 (OpenAI + GET + /v1/models only).
+        // The response is synthesized from configuration: no body read, no forwarder call, no credential seam.
+        app.MapGet("/openai/v1/models", (IModelCatalogResponder responder, ILoggerFactory loggerFactory) =>
+        {
+            loggerFactory.CreateLogger(LoggerCategory)
+                .LogDebug("Answered GET /openai/v1/models locally from the OpenAI route catalogue");
+            return Results.Text(responder.BuildOpenAiModelsResponse(), "application/json");
+        });
+
         // Dialect-prefixed transparent proxy (any HTTP method). The prefix selects the dialect — which
         // disambiguates shared paths like /v1/models that are identical across OpenAI and Anthropic — and the
         // captured tail is forwarded verbatim, so /v1/models, /v1/responses, /v1/messages/count_tokens, etc.
