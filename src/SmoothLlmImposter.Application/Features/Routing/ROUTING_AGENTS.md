@@ -17,16 +17,29 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   bespoke filter that drops a caller header (e.g. `anthropic-beta`) breaks beta body fields like
   `context_management` — only the fixed hop-by-hop/content set (`Host`, `Content-*`, `Connection`,
   `Transfer-Encoding`, `Accept-Encoding`, …) is withheld. The caller's own `anthropic-version` passes through;
-  the default `2023-06-01` is supplied **only** when the caller omitted it.
+  the default `2023-06-01` is supplied **only** when the caller omitted it. The **one** caller header dropped
+  beyond that fixed set is `chatgpt-account-id`, and only when auth is **managed** (a provider/override secret is
+  applied): it asserts a ChatGPT *identity* that an OpenAI-compatible gateway (opencode) honours over the managed
+  Bearer key and 401s on, so it belongs to the managed-auth concern. It is **kept on key-less passthrough**, where
+  the caller's own credential + identity are a matched pair (`ManagedAuthIdentityHeaders` in the forwarder).
 - **Auth header is the one managed header, route-dependent:** a matched imposter route sends the provider's
   configured `Secret` (never the caller's). On **passthrough**: the HLD-003 override ON ⇒ active stored Bearer; else
   a configured provider `Secret` / stored credential if present; else the caller's own `Authorization`/`x-api-key`
   is forwarded verbatim, so a key-less router authenticates with the caller's credential.
 - **Auth *scheme* is decoupled from `Dialect`.** Provider config carries `Secret` + optional `AuthScheme`
-  (`Bearer` → `Authorization: Bearer`, `ApiKey` → `x-api-key`). The forwarder resolves the scheme as
-  `credentialOverride.AuthScheme ?? provider.AuthScheme ?? dialect default` (openai → Bearer, anthropic → ApiKey).
-  So an `openai`-dialect upstream (e.g. opencode) can authenticate with `x-api-key` via `AuthScheme: ApiKey`
-  without changing its wire dialect. There is no `ApiKey` config alias — `Secret`/`AuthScheme` is a breaking rename.
+  (`Bearer` → `Authorization: Bearer`, `ApiKey` → `x-api-key`). The scheme precedence
+  (`credentialOverride.AuthScheme ?? provider.AuthScheme ?? dialect default`, openai → Bearer, anthropic → ApiKey;
+  the HLD-003 override forces Bearer) lives in **one place**: `Domain.Routing.UpstreamAuthResolver`. Both the
+  forwarder (which writes the header) and `ImposterRouter` (which logs `auth=`) call it — keep them on the shared
+  resolver so the log can't drift from the wire behavior. So an `openai`-dialect upstream (e.g. opencode) can
+  authenticate with `x-api-key` via `AuthScheme: ApiKey` without changing its wire dialect. There is no `ApiKey`
+  config alias — `Secret`/`AuthScheme` is a breaking rename.
+- **`AuthScheme` is inert without a `Secret`, and imposter routes never borrow the caller's credential.** A
+  matched imposter route authenticates **only** with the provider's configured `Secret`; if that is empty, the
+  forwarder sends **no** auth header at all (the caller's `Authorization`/`x-api-key` is forwarded only on
+  passthrough), so the upstream 401s. `AuthScheme` merely picks the header for a *non-empty* secret. The routing
+  log surfaces this as `auth=none` (imposter, no secret), `auth=Bearer`/`auth=ApiKey` (secret present), or
+  `auth=caller-passthrough` (caller's own credential relayed) — `auth=none` on a 401 means a missing `Secret`.
 - **Same-dialect only.** Do not add OpenAI⇄Anthropic body translation here. An `openai` provider serves
   openai requests; an `anthropic` provider serves anthropic requests.
 - **OpenAI Responses→Chat compatibility is explicit per provider.** `OpenAiUpstreamApi` defaults to
@@ -144,3 +157,5 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-20 | Added `OpenAiUpstreamApi: chat_completions` for OpenAI-compatible upstreams without `/responses`; matched OpenAI imposter routes can downgrade `/responses` requests to `/v1/chat/completions` and convert common Responses payload fields to chat `messages`. | — |
 | 2026-06-20 | Renamed provider config `ApiKey` → `Secret` and added `AuthScheme` (`Bearer`/`ApiKey`), decoupling auth scheme from `Dialect`. Forwarder resolves `override.AuthScheme ?? provider.AuthScheme ?? dialect default` (openai → Bearer, anthropic → ApiKey) via a single unified path; this fixes openai-dialect upstreams (opencode) that require `x-api-key`. Breaking config change — no `ApiKey` alias. | — |
 | 2026-06-20 | Mid-stream caller disconnect on the streaming path is now caught in `RoutingEndpoints.HandleAsync` (`OperationCanceledException`/`IOException` gated on `RequestAborted`) and returns quietly, instead of bubbling an unhandled exception logged at Error by Serilog request logging. Genuine non-abort streaming failures still propagate. Added `StreamingDisconnectTests`. | #17 |
+| 2026-06-20 | Extracted auth-scheme precedence into `Domain.Routing.UpstreamAuthResolver` (single source of truth shared by `UpstreamForwarder` + `ImposterRouter`). Routing log now reports `auth=` (`Bearer`/`ApiKey`/`none`/`caller-passthrough`); `auth=none` flags an imposter route with an empty `Secret` (sends no auth header → upstream 401). | — |
+| 2026-06-20 | When auth is managed (provider/override secret applied), the forwarder now strips the caller's `chatgpt-account-id` (`ManagedAuthIdentityHeaders`). Codex (`codex_sdk_ts`/`codex_cli_rs`) relays it alongside its own Bearer; an OpenAI-compatible imposter upstream (opencode) honoured it over the managed key and 401'd. Kept on key-less passthrough. Added a Debug-only masked outbound request dump to `UpstreamForwarder` for diagnosing forwarded-header issues. | — |

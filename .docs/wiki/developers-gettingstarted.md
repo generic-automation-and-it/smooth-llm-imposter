@@ -19,9 +19,23 @@ dotnet run --project src/SmoothLlmImposter.Host        # -> http://localhost:508
 curl http://localhost:5080/health                      # {"status":"ok"}
 ```
 
-Then configure the `Imposter` section and point your client's base URL at the router. Every run mode —
-local, debug + `dotnet user-secrets`, Docker, GHCR image, Compose, and the Conductor fresh-sandbox — is
-covered in [`.docs/wiki/setup.md`](setup.md) and the guides under [`.docs/wiki/setups/`](setups/).
+Then configure the `Imposter` section and point your client's base URL at the router.
+
+## Run modes & deeper guides
+
+The guides below carry the developer-facing detail (debugger, dev secrets, building a local image, iterating
+on source). They live under [`setups/`](setups/) so the run-mode index in [`setup.md`](setup.md) stays the
+single source of truth — this page just links the ones a developer reaches for.
+
+| Task | Guide |
+|---|---|
+| Run from source with a debugger + dev secrets | [`setups/local-debug.run-…`](setups/local-debug.run-smooth-llm-imposter.md) |
+| Build & run a local image (Docker / Podman) | [`setups/docker.run-…`](setups/docker.run-smooth-llm-imposter.md) |
+| One-command up/down + rebuild (Compose) | [`setups/compose.run-…`](setups/compose.run-smooth-llm-imposter.md) |
+| Dump the full inbound request (Debug logging) | [`setups/logging.debug-…`](setups/logging.debug-smooth-llm-imposter.md) |
+
+All run modes — including the GHCR published image and the Conductor fresh-sandbox — are indexed in
+[`setup.md`](setup.md).
 
 ## Test
 
