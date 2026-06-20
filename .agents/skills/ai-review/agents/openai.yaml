@@ -1,0 +1,5 @@
+interface:
+  display_name: "AI Review Workflow"
+  short_description: "Analyze and execute AI PR review actions"
+  default_prompt: "Analyze AI PR reviews and apply fix/skip decisions."
+  model: gpt-5.4

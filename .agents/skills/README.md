@@ -11,6 +11,7 @@ Skills live **flat**, one directory per skill directly under `.agents/skills/`. 
 | **agile-github-task-from-diff** | Create a GitHub Task (sub-issue) from the current git diff vs main | `/agile-github-task-from-diff` |
 | **ai-brain-dump** | Listen-first capture session; synthesize on request | `/ai-brain-dump [--oktoask] [--thinking] [--oktoreaddocs] [--oktowebsearch]` |
 | **ai-mansplain** | Reformat this turn's reply into terse, high-density output with a TL;DR | `/ai-mansplain` |
+| **ai-review** | Analyse an AI PR review and apply per-issue fix/skip decisions | `/ai-review <pr> [N=fix\|N=skip …]` |
 | **ai-template-sync** | UPSERT smooth-devex-template scaffold into an existing repo | `/ai-template-sync` |
 | **context-load-agents-context** | Load ancestor AGENTS.md context for a file | `/context-load-agents-context` |
 | **context-load-context** | Load domain context before implementation | `/context-load-context auth` |
@@ -70,6 +71,7 @@ Skills are classified by complexity tier. Each SKILL.md carries a `models` front
 | **agile-github-task-from-diff** | medium | Diff classification + issue authoring |
 | **manage-rule-system** | medium | Cross-tool frontmatter authoring |
 | **ai-mansplain** | low | Single-turn reply reformatting; no tools or deep reasoning |
+| **ai-review** | medium | Review parsing + fix/skip code edits across multiple files |
 | **ai-brain-dump** | high | Multi-turn synthesis + deep requirement reasoning |
 | **ai-template-sync** | high | Interactive multi-turn Q&A + conditional file sync across tools |
 
@@ -87,7 +89,7 @@ Skills are flat under `.agents/skills/`; the category lives in the folder-name p
 | Prefix | Skills |
 |--------|--------|
 | `agile-` | `agile-github-task-from-diff` |
-| `ai-` | `ai-brain-dump`, `ai-mansplain`, `ai-template-sync` |
+| `ai-` | `ai-brain-dump`, `ai-mansplain`, `ai-review`, `ai-template-sync` |
 | `context-` | `context-load-agents-context`, `context-load-context` |
 | `git-` | `git-commit`, `git-commit-push`, `git-commit-push-pr`, `git-sync` |
 | _(none)_ | `manage-rule-system` |
