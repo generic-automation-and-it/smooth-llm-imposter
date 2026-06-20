@@ -74,68 +74,21 @@ Design detail — actors, request flow, routing decision, NFRs, and decision rec
 
 ## Getting Started
 
-### Prerequisites
+New to the project? Building from source, running it, and testing are covered in
+**[Developers — Getting Started](.docs/wiki/developers-gettingstarted.md)**.
 
-- **.NET 10 SDK**
-- *(Optional)* A container runtime — Docker or Podman — for the image / Compose run modes.
-- *(Optional)* **PostgreSQL** — only for the optional `/admin/credentials` passthrough-credential API. Core
-  imposter routing needs no database.
+Pick the guide that matches how you want to run or work on the router:
 
-### Build & run
-
-```bash
-dotnet build SmoothLlmImposter.slnx
-dotnet run --project src/SmoothLlmImposter.Host        # -> http://localhost:5080
-curl http://localhost:5080/health                      # {"status":"ok"}
-```
-
-Then configure the `Imposter` section and point your client's base URL at the router. Every run mode —
-local, debug + `dotnet user-secrets`, Docker, GHCR image, Compose, and the Conductor fresh-sandbox — is
-covered in **[`.docs/wiki/setup.md`](.docs/wiki/setup.md)** and the guides under
-[`.docs/wiki/setups/`](.docs/wiki/setups/).
-
-### Test
-
-```bash
-dotnet test SmoothLlmImposter.slnx
-```
-
-Tests are infra-free (no DB, no containers); integration tests stub the upstream transport in-process. See
-[`.docs/wiki/testing.md`](.docs/wiki/testing.md).
-
----
-
-## Tech Stack
-
-| Component | Technology |
-|---|---|
-| Framework | ASP.NET Core minimal APIs (.NET 10) |
-| Architecture | Clean Architecture — `Domain` / `Application` / `Infrastructure` / `Host` |
-| Forwarder | `IHttpClientFactory` streaming proxy — no DB, no Mediator / FluentValidation pipeline (see [LADR-001](.docs/hld/001-llm-imposter-routing/ladrs/LADR-001-no-mediator-no-fluentvalidation.md), [LADR-002](.docs/hld/001-llm-imposter-routing/ladrs/LADR-002-stateless-no-ef-postgresql.md)) |
-| Persistence | None for routing; PostgreSQL only for the optional credential-admin API |
-| Logging | Serilog |
-| Testing | xunit.v3 · Shouldly · Bogus |
-
-This repo also ships an **AI-agent scaffold** under [`.agents/`](.agents/) — one source of truth for Claude
-Code, GitHub Copilot, Cursor, and OpenAI Codex (skills, rules, hooks). After cloning, run
-`bash .agents/setup/scripts/agents-setup.sh` once so the agents can discover it. See [`AGENTS.md`](AGENTS.md).
-
----
-
-## Project Structure
-
-```
-src/
-  SmoothLlmImposter.Domain/          # Routing value objects + matcher (ApiDialect, ProviderRoute, ModelMatcher)
-  SmoothLlmImposter.Application/      # Features/Routing — options, catalog, resolver, transformers, router
-  SmoothLlmImposter.Infrastructure/  # UpstreamForwarder over IHttpClientFactory (no DB)
-  SmoothLlmImposter.Host/            # Minimal-API dialect endpoints, options binding + ValidateOnStart, Serilog
-
-tests/
-  SmoothLlmImposter.{Domain,Application,Infrastructure,Host}.UnitTest/   # L0 — no I/O, in-process
-  SmoothLlmImposter.Host.IntegrationTest/                                 # L2 — real Host, stubbed upstream
-  SmoothLlmImposter.TestFramework/                                        # Shared fixtures
-```
+| Name | Description | Link | Type |
+|---|---|---|---|
+| Setup (all modes) | Master setup & run guide — config model, dialect prefixes, and every run mode | [`.docs/wiki/setup.md`](.docs/wiki/setup.md) | Runtime |
+| Docker / Podman | Run the router in a container you build locally | [`docker.run-smooth-llm-imposter.md`](.docs/wiki/setups/docker.run-smooth-llm-imposter.md) | Runtime |
+| GHCR image | Run the published SmoothLlmImposter container from GHCR | [`ghcr.run-smooth-llm-imposter.md`](.docs/wiki/setups/ghcr.run-smooth-llm-imposter.md) | Runtime |
+| Compose | Run with `docker compose` / `podman-compose` | [`compose.run-smooth-llm-imposter.md`](.docs/wiki/setups/compose.run-smooth-llm-imposter.md) | Runtime |
+| Developers — Getting Started | Build, run, and test from source (prerequisites, build, test) | [`developers-gettingstarted.md`](.docs/wiki/developers-gettingstarted.md) | Developer |
+| Local debug | Run from source with a debugger attached | [`local-debug.run-smooth-llm-imposter.md`](.docs/wiki/setups/local-debug.run-smooth-llm-imposter.md) | Developer |
+| Conductor | Fresh-sandbox build & routing setup for Conductor workspaces | [`conductor.build-smooth-llm-imposter.md`](.docs/wiki/setups/conductor.build-smooth-llm-imposter.md) | Developer |
+| Logging debug | Dump the full inbound request for message-level debugging | [`logging.debug-smooth-llm-imposter.md`](.docs/wiki/setups/logging.debug-smooth-llm-imposter.md) | Developer |
 
 ---
 
@@ -143,6 +96,7 @@ tests/
 
 | Topic | Location |
 |---|---|
+| Architecture (tech stack, project structure) | [`.docs/wiki/architecture.md`](.docs/wiki/architecture.md) |
 | Setup & run (all modes) | [`.docs/wiki/setup.md`](.docs/wiki/setup.md) · [`.docs/wiki/setups/`](.docs/wiki/setups/) |
 | Design (HLD, NFRs, LADRs) | [`.docs/hld/001-llm-imposter-routing/`](.docs/hld/001-llm-imposter-routing/README.md) |
 | AI agent context & coding rules | [`AGENTS.md`](AGENTS.md) · [`.agents/`](.agents/) |
