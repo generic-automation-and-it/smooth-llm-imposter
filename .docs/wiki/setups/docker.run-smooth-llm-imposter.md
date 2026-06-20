@@ -43,11 +43,7 @@ docker rm -f smooth-llm-imposter 2>/dev/null || true
 docker run -d --name smooth-llm-imposter \
   -p 5080:5080 \
   -e OPENCODE_GO_API_KEY \
-  -e OPENCODE_GO_AUTH_SCHEME="ApiKey" \
   -e OPENROUTER_API_KEY \
-  -e OPENROUTER_AUTH_SCHEME="Bearer" \
-  -e OPENCODE_ANTHROPIC_API_KEY="$OPENCODE_GO_API_KEY" \
-  -e OPENCODE_ANTHROPIC_AUTH_SCHEME="ApiKey" \
   smooth-llm-imposter:local
 ```
 
@@ -65,7 +61,7 @@ Podman is identical (`podman run -d --name … -p 5080:5080 -e … smooth-llm-im
 - **`-e ASPNETCORE_URLS`** — override the bind address (default in the image: `http://+:5080`). If you change it,
   adjust the `-p` mapping to match.
 - **`-e Imposter__Providers__<name>__BaseUrl` / `__To` / `__Caching`** — override the shipped `appsettings.json`
-  routing table per provider, keyed by provider name (e.g. `opencode-go`, `openrouter`). `BaseUrl` is the server
+  routing table per provider, keyed by provider name (e.g. `opencode-go-openai`, `openrouter-openai`). `BaseUrl` is the server
   root **without** a `/v1` path.
 - **`-e Admin__ApiKey` / `-e Admin__OperatorApiKey` / `-e ConnectionStrings__ImposterDb`** — only needed for the
   optional `/admin/credentials` API (requires PostgreSQL; reach it from the container, e.g.
@@ -85,7 +81,7 @@ curl -fsS http://localhost:5080/health        # {"status":"ok"}
 ```
 
 Send a routed request — with the shipped config, OpenAI `gpt-5.4` is rewritten to `kimi-k2.7` and forwarded to
-opencode-go (requires `OPENCODE_GO_API_KEY`, or the structured `Imposter__Providers__opencode-go__Secret`):
+opencode-go-openai (requires `OPENCODE_GO_API_KEY`, or the structured `Imposter__Providers__opencode-go-openai__Secret`):
 
 ```bash
 curl -fsS http://localhost:5080/v1/chat/completions \
@@ -109,11 +105,7 @@ docker build -t smooth-llm-imposter:local .
 docker run -d --name smooth-llm-imposter \
   -p 5080:5080 \
   -e OPENCODE_GO_API_KEY \
-  -e OPENCODE_GO_AUTH_SCHEME="ApiKey" \
   -e OPENROUTER_API_KEY \
-  -e OPENROUTER_AUTH_SCHEME="Bearer" \
-  -e OPENCODE_ANTHROPIC_API_KEY="$OPENCODE_GO_API_KEY" \
-  -e OPENCODE_ANTHROPIC_AUTH_SCHEME="ApiKey" \
   smooth-llm-imposter:local
 ```
 

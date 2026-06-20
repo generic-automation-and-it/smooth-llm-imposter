@@ -91,7 +91,36 @@ requires_openai_auth = true
         "IsDefault": true
       },
       {
-        "Name": "opencode-go",
+        "Name": "openrouter-anthropic",
+        "Dialect": "anthropic",
+        "BaseUrl": "https://openrouter.ai/api",
+        "Secret": "",
+        "AuthScheme": "Bearer",
+        "Models": [
+          { "From": "claude-opus-4-7*", "To": "z-ai/glm-5.2", "Caching": true }
+        ]
+      },
+      {
+        "Name": "openrouter-openai",
+        "Dialect": "openai",
+        "BaseUrl": "https://openrouter.ai/api",
+        "Secret": "",
+        "AuthScheme": "Bearer",
+        "OpenAiUpstreamApi": "chat_completions",
+        "Models": []
+      },
+      {
+        "Name": "opencode-go-anthropic",
+        "Dialect": "anthropic",
+        "BaseUrl": "https://opencode.ai/zen/go",
+        "Secret": "",
+        "AuthScheme": "ApiKey",
+        "Models": [
+          { "From": "claude-haiku-*", "To": "minimax-m3", "Caching": true }
+        ]
+      },
+      {
+        "Name": "opencode-go-openai",
         "Dialect": "openai",
         "BaseUrl": "https://opencode.ai/zen/go",
         "Secret": "",
@@ -99,16 +128,6 @@ requires_openai_auth = true
         "OpenAiUpstreamApi": "chat_completions",
         "Models": [
           { "From": "gpt-5.4", "To": "kimi-k2.7", "Caching": true }
-        ]
-      },
-      {
-        "Name": "opencode-anthropic",
-        "Dialect": "anthropic",
-        "BaseUrl": "https://opencode.ai/zen/go",
-        "Secret": "",
-        "AuthScheme": "ApiKey",
-        "Models": [
-          { "From": "claude-haiku-*", "To": "minimax-m3", "Caching": true }
         ]
       }
     ]
@@ -141,18 +160,15 @@ Never commit real keys. Environment variables override `appsettings.json` (env w
 reordering. There are two equivalent paths:
 
 **Conventional `<NAME>_<FIELD>` surface (the friendly path).** Each provider exposes an env prefix derived
-from its key — uppercase, every run of non-alphanumeric characters collapsed to one `_` (`opencode-go` →
-`OPENCODE_GO_`). `_API_KEY` sets the secret; the rest of the scalar fields follow (`_BASE_URL`,
-`_AUTH_SCHEME`, `_DIALECT`, `_IS_DEFAULT`, `_OPENAI_UPSTREAM_API`, `_REQUEST_NORMALIZATION`,
+from its key — uppercase, every run of non-alphanumeric characters collapsed to one `_`. For dialect-suffixed
+siblings, `_API_KEY` can use the shared base prefix (`opencode-go-openai` / `opencode-go-anthropic` →
+`OPENCODE_GO_API_KEY`). Other scalar overrides remain provider-specific or structured
+(`_BASE_URL`, `_AUTH_SCHEME`, `_DIALECT`, `_IS_DEFAULT`, `_OPENAI_UPSTREAM_API`, `_REQUEST_NORMALIZATION`,
 `_ANTHROPIC_VERSION`). Matching is case-insensitive.
 
 ```bash
-export OPENCODE_GO_API_KEY="sk-your-opencode-key"            # opencode-go secret
-export OPENCODE_GO_AUTH_SCHEME="ApiKey"                      # send as x-api-key
-export OPENROUTER_API_KEY="sk-your-openrouter-key"           # openrouter secret
-export OPENROUTER_AUTH_SCHEME="Bearer"                       # send as Authorization: Bearer
-export OPENCODE_ANTHROPIC_API_KEY="sk-your-anthropic-route-key"
-export OPENCODE_ANTHROPIC_AUTH_SCHEME="ApiKey"
+export OPENCODE_GO_API_KEY="sk-your-opencode-key"            # opencode-go-openai + opencode-go-anthropic secret
+export OPENROUTER_API_KEY="sk-your-openrouter-key"           # openrouter-openai + openrouter-anthropic secret
 dotnet run --project src/SmoothLlmImposter.Host
 ```
 
@@ -160,8 +176,8 @@ dotnet run --project src/SmoothLlmImposter.Host
 the double-underscore section path keyed by provider name:
 
 ```bash
-export Imposter__Providers__opencode-go__Secret="sk-your-opencode-key"
-export Imposter__Providers__opencode-go__AuthScheme="ApiKey"
+export Imposter__Providers__opencode-go-openai__Secret="sk-your-opencode-key"
+export Imposter__Providers__opencode-go-openai__AuthScheme="ApiKey"
 ```
 
 When the same field is set both ways, the **conventional** value wins.
@@ -174,12 +190,12 @@ For day-to-day debugging you can keep keys out of your shell entirely using **.N
 
 ```bash
 cd src/SmoothLlmImposter.Host
-dotnet user-secrets set "Imposter:Providers:opencode-go:Secret" "sk-your-opencode-key"   # note the ':' path separator
-dotnet user-secrets set "Imposter:Providers:opencode-go:AuthScheme" "ApiKey"
+dotnet user-secrets set "Imposter:Providers:opencode-go-openai:Secret" "sk-your-opencode-key"   # note the ':' path separator
+dotnet user-secrets set "Imposter:Providers:opencode-go-openai:AuthScheme" "ApiKey"
 ```
 
 Precedence is `appsettings.json < user secrets (Dev) < structured env < conventional env` — so an exported
-`OPENCODE_GO_API_KEY` (or the structured `Imposter__Providers__opencode-go__Secret`) **overrides** the stored
+`OPENCODE_GO_API_KEY` (or the structured `Imposter__Providers__opencode-go-openai__Secret`) **overrides** the stored
 secret for a one-off run.
 
 ## Point your client at the router
@@ -206,7 +222,7 @@ model selected later with `/model`; Codex login, model-catalog refresh, web sear
 cloud tasks are separate network paths.
 
 Keep `wire_api = "responses"` for Codex even when a matched imposter provider uses
-`OpenAiUpstreamApi = "chat_completions"` (for example `opencode-go`). Smooth downgrades the outbound
+`OpenAiUpstreamApi = "chat_completions"` (for example `opencode-go-openai`). Smooth downgrades the outbound
 `/responses` request to Chat Completions for that upstream and translates the Chat response stream back into
 Responses events for Codex.
 
@@ -228,9 +244,8 @@ imposter provider `Secret` override:
 ```bash
 claude setup-token
 
-# Example: opencode-anthropic is the shipped Anthropic-dialect imposter path.
-export OPENCODE_ANTHROPIC_API_KEY="paste-the-claude-token-here"
-export OPENCODE_ANTHROPIC_AUTH_SCHEME="Bearer"
+# Example: openrouter-anthropic is the shipped Anthropic-dialect imposter path.
+export OPENROUTER_API_KEY="paste-the-openrouter-key-here"
 ```
 
 Use `AuthScheme="Bearer"` when the upstream expects `Authorization: Bearer <token>`. Use `AuthScheme="ApiKey"`
@@ -258,7 +273,7 @@ incrementally back into Responses events; other streaming routes are relayed byt
 ### Strict upstream tool-name validation (Codex → opencode/Moonshot)
 
 Some upstreams validate tool **function names** more strictly than OpenAI does. Moonshot/kimi (reached via
-`opencode-go`) requires names matching `^[a-zA-Z][a-zA-Z0-9_-]*$` — start with a letter; letters, numbers,
+`opencode-go-openai`) requires names matching `^[a-zA-Z][a-zA-Z0-9_-]*$` — start with a letter; letters, numbers,
 underscores, dashes only. A tool-using turn whose tools break that rule returns **HTTP 400** from the
 upstream:
 

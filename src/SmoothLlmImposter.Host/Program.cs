@@ -10,7 +10,7 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 // Environment variables override appsettings.json (env wins). The default host already adds them last;
 // re-adding here makes the precedence explicit. Providers are keyed by name, so structured overrides are
-// name-addressed (Imposter__Providers__opencode-go__Secret=sk-...); the conventional per-provider surface
+// name-addressed (Imposter__Providers__opencode-go-openai__Secret=sk-...); the conventional per-provider surface
 // (OPENCODE_GO_API_KEY=sk-...) is layered on top by ImposterOptionsPostConfigure and wins (HLD 007).
 builder.Configuration.AddEnvironmentVariables();
 

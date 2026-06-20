@@ -82,6 +82,41 @@ public class ImposterOptionsPostConfigureTests
     }
 
     [Fact]
+    public void Dialect_suffixed_provider_can_share_base_provider_api_key()
+    {
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["OPENCODE_GO_API_KEY"] = "sk-opencode",
+                ["OPENROUTER_API_KEY"] = "sk-openrouter",
+                ["OPENROUTER_AUTH_SCHEME"] = "Bearer"
+            })
+            .Build();
+        var logger = new CapturingLogger();
+        var sut = new ImposterOptionsPostConfigure(configuration, logger);
+
+        var options = new ImposterOptions
+        {
+            Providers =
+            {
+                ["opencode-go-openai"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://opencode.example", AuthScheme = "Bearer" },
+                ["opencode-go-anthropic"] = new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://opencode.example", AuthScheme = "ApiKey" },
+                ["openrouter-openai"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://openrouter.example", AuthScheme = "Bearer" },
+                ["openrouter-anthropic"] = new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://openrouter.example", AuthScheme = "Bearer" }
+            }
+        };
+
+        sut.PostConfigure(name: null, options);
+
+        options.Providers["opencode-go-openai"].Secret.ShouldBe("sk-opencode");
+        options.Providers["opencode-go-anthropic"].Secret.ShouldBe("sk-opencode");
+        options.Providers["openrouter-openai"].Secret.ShouldBe("sk-openrouter");
+        options.Providers["openrouter-openai"].AuthScheme.ShouldBe("Bearer");
+        options.Providers["openrouter-anthropic"].Secret.ShouldBe("sk-openrouter");
+        options.Providers["openrouter-anthropic"].AuthScheme.ShouldBe("Bearer");
+    }
+
+    [Fact]
     public void Absent_conventional_var_leaves_bound_value()
     {
         var (options, _) = Resolve(

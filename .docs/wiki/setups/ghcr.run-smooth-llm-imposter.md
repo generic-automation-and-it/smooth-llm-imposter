@@ -33,7 +33,6 @@ docker run -d --name smooth-llm-imposter --restart unless-stopped \
   -p 5080:5080 \
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \
-  -e OPENCODE_ANTHROPIC_API_KEY \
   ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
 ```
 
@@ -43,11 +42,7 @@ defaults by dialect (openai → Bearer, anthropic → ApiKey); the shipped provi
 
 ```bash
 export OPENCODE_GO_API_KEY="sk-your-opencode-key"
-export OPENCODE_GO_AUTH_SCHEME="ApiKey"
 export OPENROUTER_API_KEY="sk-your-openrouter-key"
-export OPENROUTER_AUTH_SCHEME="Bearer"
-export OPENCODE_ANTHROPIC_API_KEY="sk-your-anthropic-route-key"
-export OPENCODE_ANTHROPIC_AUTH_SCHEME="ApiKey"
 ```
 
 After the container has been created once, start it again with:
@@ -66,7 +61,6 @@ podman run -d --name smooth-llm-imposter --restart unless-stopped \
   -p 5080:5080 \
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \
-  -e OPENCODE_ANTHROPIC_API_KEY \
   ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
 ```
 
@@ -85,7 +79,7 @@ docker run -d --name smooth-llm-imposter --restart unless-stopped -p 5080:5080 \
 
 - **`-e ASPNETCORE_URLS`** — override the bind address (image default `http://+:5080`); adjust `-p` to match.
 - **`-e Imposter__Providers__<name>__To` / `__BaseUrl` / `__Caching`** — override the shipped `appsettings.json`
-  routing table per provider/mapping at run time, keyed by provider name (e.g. `opencode-go`, `openrouter`); model
+  routing table per provider/mapping at run time, keyed by provider name (e.g. `opencode-go-openai`, `openrouter-openai`); model
   mappings are config, not flat env — there is no single `default_model` switch.
 - **`-e Admin__ApiKey` / `-e ConnectionStrings__ImposterDb`** — only for the optional `/admin/credentials` API
   (needs PostgreSQL, e.g. `Host=host.docker.internal;Port=5432;…`). If you use it, persist Data Protection keys

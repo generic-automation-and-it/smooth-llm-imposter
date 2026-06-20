@@ -19,8 +19,8 @@ variables. Create `.env` next to `docker-compose.yml`:
 
 ```dotenv
 # .env  (never committed — *.env is gitignored)
-OPENCODE_GO_API_KEY=sk-your-opencode-key      # feeds the opencode-go and opencode-anthropic providers
-OPENROUTER_API_KEY=sk-your-openrouter-key  # feeds the openrouter provider
+OPENCODE_GO_API_KEY=sk-your-opencode-key              # feeds opencode-go-openai and opencode-go-anthropic
+OPENROUTER_API_KEY=sk-your-openrouter-key             # feeds openrouter-openai and openrouter-anthropic
 ```
 
 `docker-compose.yml` maps these named variables onto the name-keyed
@@ -206,16 +206,16 @@ imposter provider `Secret` override:
 ```bash
 claude setup-token
 
-# Example: opencode-anthropic is the shipped Anthropic-dialect imposter path.
-export OPENCODE_ANTHROPIC_API_KEY="paste-the-claude-token-here"
-export OPENCODE_ANTHROPIC_AUTH_SCHEME="Bearer"
+# Example: openrouter-anthropic is the shipped Anthropic-dialect imposter path.
+# It shares the same OpenRouter key as the OpenAI-dialect openrouter-openai provider.
+export OPENROUTER_API_KEY="paste-the-openrouter-key-here"
 ```
 
 Use `AuthScheme="Bearer"` when the upstream expects `Authorization: Bearer <token>`. Use `AuthScheme="ApiKey"`
 when the upstream expects `x-api-key: <token>`.
 
 Send a routed request — with the shipped config, OpenAI `gpt-5.4` is rewritten to `kimi-k2.7` and forwarded
-to opencode-go (requires the provider's `Secret`):
+to opencode-go-openai (requires the provider's `Secret`):
 
 ```bash
 curl -fsS http://localhost:5066/openai/v1/chat/completions \

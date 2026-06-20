@@ -56,8 +56,10 @@ cd src/SmoothLlmImposter.Host
 
 # Upstream provider keys (keyed by provider name, order-independent)
 # AuthScheme (ApiKey|Bearer) selects the header; defaults by dialect (openai -> Bearer, anthropic -> ApiKey).
-dotnet user-secrets set "Imposter:Providers:opencode-go:Secret" "sk-your-opencode-key"
-dotnet user-secrets set "Imposter:Providers:opencode-anthropic:Secret" "sk-your-anthropic-route-key"
+dotnet user-secrets set "Imposter:Providers:opencode-go-openai:Secret" "sk-your-opencode-key"
+dotnet user-secrets set "Imposter:Providers:opencode-go-anthropic:Secret" "sk-your-anthropic-route-key"
+dotnet user-secrets set "Imposter:Providers:openrouter-anthropic:Secret" "sk-your-openrouter-key"
+dotnet user-secrets set "Imposter:Providers:openrouter-anthropic:AuthScheme" "Bearer"
 
 # Optional: credential-admin API (also needs a PostgreSQL connection string)
 dotnet user-secrets set "Admin:ApiKey" "choose-a-strong-admin-key"
@@ -77,8 +79,8 @@ appsettings.json  <  appsettings.Development.json  <  user secrets (Dev only)  <
 ```
 
 So an **environment variable overrides a user secret** of the same key. Use user secrets as your stable local
-default and an `export OPENCODE_GO_API_KEY=…` (conventional) or `export Imposter__Providers__opencode-go__Secret=…`
-(structured) to override opencode-go ad hoc for a single run. (User secrets are
+default and an `export OPENCODE_GO_API_KEY=…` (conventional) or `export Imposter__Providers__opencode-go-openai__Secret=…`
+(structured) to override opencode-go-openai ad hoc for a single run. (User secrets are
 **not** loaded outside `Development` — production/staging must use environment variables or another secure
 provider.)
 

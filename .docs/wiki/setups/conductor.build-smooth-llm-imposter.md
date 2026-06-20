@@ -10,8 +10,9 @@ the shipped `appsettings.json`:
 
 | Inbound dialect / model | Rewritten to | Upstream provider |
 |:------------------------|:-------------|:------------------|
-| OpenAI `gpt-5.4`        | `kimi-k2.7`  | opencode-go (`https://opencode.ai/zen/go`) |
-| Anthropic `claude-haiku-*` | `minimax-m3` | opencode-anthropic (`https://opencode.ai/zen/go`) |
+| OpenAI `gpt-5.4`        | `kimi-k2.7`  | opencode-go-openai (`https://opencode.ai/zen/go`) |
+| Anthropic `claude-opus-4-7*` | `z-ai/glm-5.2` | openrouter-anthropic (`https://openrouter.ai/api`) |
+| Anthropic `claude-haiku-*` | `minimax-m3` | opencode-go-anthropic (`https://opencode.ai/zen/go`) |
 
 The router is **stateless and key-less**: it does not capture or persist the caller's auth, and it does not run
 as a container. Each provider's upstream key comes from the environment (`<NAME>_API_KEY` conventional, or the
@@ -23,8 +24,9 @@ unless a provider sets `"IsDefault": true` (passthrough).
 ## Prerequisites / knobs
 
 - **`<NAME>_API_KEY`** (conventional) or **`Imposter__Providers__<name>__Secret`** (structured) — the upstream key
-  for the named provider, where `<NAME>` is the uppercased provider key (e.g. `opencode-go` → `OPENCODE_GO_API_KEY`).
-  Identity is the name, so it is order-independent. The sibling **`<NAME>_AUTH_SCHEME`** /
+  for the named provider, where `<NAME>` can be the shared base prefix for dialect-suffixed siblings
+  (e.g. `opencode-go-openai` / `opencode-go-anthropic` → `OPENCODE_GO_API_KEY`). Identity is the name, so it is
+  order-independent. The sibling provider-specific **`<NAME>_AUTH_SCHEME`** /
   **`Imposter__Providers__<name>__AuthScheme`** (`ApiKey`|`Bearer`, case-insensitive) selects the auth header and
   defaults by dialect when omitted (openai → Bearer, anthropic → ApiKey).
   **`export` it in your shell before running** — do **not** paste a real key into the script block below, because
@@ -77,7 +79,7 @@ LOG_FILE="$STATE_DIR/imposter.log"
 
 mkdir -p "$CONF_DIR" "$STATE_DIR"
 
-# Prefer `export OPENCODE_GO_API_KEY=...` (+ `OPENCODE_GO_AUTH_SCHEME`) for opencode-go (etc.) in your shell before
+# Prefer `export OPENCODE_GO_API_KEY=...` for opencode-go-* (etc.) in your shell before
 # running. Do NOT commit real keys here — this file is tracked in the repo.
 : "${ASPNETCORE_URLS:=http://+:$PORT}"
 
@@ -196,7 +198,7 @@ curl -fsS localhost:5080/health        # {"status":"ok"}
 ```
 
 Send a routed OpenAI-dialect request — with the shipped config, `gpt-5.4` is rewritten to `kimi-k2.7` and
-forwarded to opencode-go (requires `OPENCODE_GO_API_KEY`, or the structured `Imposter__Providers__opencode-go__Secret`,
+forwarded to opencode-go-openai (requires `OPENCODE_GO_API_KEY`, or the structured `Imposter__Providers__opencode-go-openai__Secret`,
 to be set, or the upstream returns an auth error):
 
 ```bash

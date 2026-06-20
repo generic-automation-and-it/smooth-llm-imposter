@@ -8,7 +8,10 @@ namespace SmoothLlmImposter.Application.Features.Routing;
 /// Layers the conventional per-provider environment surface (HLD 007, LADR-02/03) onto the bound
 /// <see cref="ImposterOptions"/>. For a provider keyed <c>opencode-go</c> the env prefix is
 /// <c>OPENCODE_GO_</c>, and conventional suffixes map onto the provider's scalar fields
-/// (<c>OPENCODE_GO_API_KEY</c> → <see cref="ProviderOptions.Secret"/>, etc.).
+/// (<c>OPENCODE_GO_API_KEY</c> → <see cref="ProviderOptions.Secret"/>, etc.). Dialect-suffixed sibling
+/// providers can share the base provider's secret convention when both are configured
+/// (<c>openrouter-openai</c> and <c>openrouter-anthropic</c> may use <c>OPENROUTER_API_KEY</c>, while
+/// retaining their own bound <c>AuthScheme</c>).
 /// <para>
 /// Runs as an <see cref="IPostConfigureOptions{TOptions}"/>, so it executes after the binder and
 /// <b>before</b> <c>IValidateOptions</c> at <c>Get</c>/<c>ValidateOnStart</c> — a conventionally-supplied
@@ -66,11 +69,7 @@ internal sealed class ImposterOptionsPostConfigure(
 
             foreach (ConventionalField field in Fields)
             {
-                string variable = prefix + field.Suffix;
-
-                // IConfiguration already includes environment variables and matches keys
-                // case-insensitively, so OPENCODE_GO_API_KEY (any casing) resolves here.
-                string? value = configuration[variable];
+                (string variable, string? value) = ResolveConventionalValue(key, options, field, prefix);
                 if (value is null)
                 {
                     continue;
@@ -84,6 +83,54 @@ internal sealed class ImposterOptionsPostConfigure(
                     variable, key, field.PropertyName);
             }
         }
+    }
+
+    private (string Variable, string? Value) ResolveConventionalValue(
+        string key,
+        ImposterOptions options,
+        ConventionalField field,
+        string prefix)
+    {
+        string variable = prefix + field.Suffix;
+
+        // IConfiguration already includes environment variables and matches keys
+        // case-insensitively, so OPENCODE_GO_API_KEY (any casing) resolves here.
+        string? value = configuration[variable];
+        if (value is not null || field.PropertyName != nameof(ProviderOptions.Secret))
+        {
+            return (variable, value);
+        }
+
+        string? sharedPrefix = TrySharedProviderSecretPrefix(key, options);
+        if (sharedPrefix is null)
+        {
+            return (variable, null);
+        }
+
+        string sharedVariable = sharedPrefix + field.Suffix;
+        return (sharedVariable, configuration[sharedVariable]);
+    }
+
+    private static string? TrySharedProviderSecretPrefix(string key, ImposterOptions options)
+    {
+        foreach (string suffix in new[] { "-anthropic", "-openai" })
+        {
+            if (!key.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string baseKey = key[..^suffix.Length];
+            if (options.Providers.ContainsKey(baseKey) ||
+                options.Providers.Keys.Any(providerKey =>
+                    !string.Equals(providerKey, key, StringComparison.OrdinalIgnoreCase) &&
+                    providerKey.StartsWith(baseKey + "-", StringComparison.OrdinalIgnoreCase)))
+            {
+                return ToEnvPrefix(baseKey);
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
