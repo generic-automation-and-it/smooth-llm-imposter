@@ -256,6 +256,103 @@ public class RequestTransformerTests
     }
 
     [Fact]
+    public void OpenAi_chat_upstream_rejects_conversation()
+    {
+        var transformer = OpenAi();
+        // conversation is the Conversations API state pointer; a stateless Chat upstream cannot resolve it,
+        // so the downgrade rejects it like previous_response_id rather than silently dropping it (LADR-03).
+        string body = """{"model":"gpt5.4","conversation":"conv_123","input":"continue"}""";
+
+        RoutingException ex = Should.Throw<RoutingException>(() => transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"));
+
+        ex.StatusCode.ShouldBe(400);
+        ex.Message.ShouldContain("conversation");
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_allows_explicit_null_conversation()
+    {
+        var transformer = OpenAi();
+        // An explicit "conversation": null is not a state pointer — the present-and-non-null guard must
+        // not falsely reject it.
+        string body = """{"model":"gpt5.4","conversation":null,"input":"hi"}""";
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!.AsObject();
+
+        result["model"]!.GetValue<string>().ShouldBe("kimi");
+        result.ContainsKey("conversation").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void OpenAi_responses_upstream_keeps_conversation_and_reasoning()
+    {
+        var transformer = OpenAi();
+        // The real /responses (no-downgrade) path stays byte-transparent for both new fields.
+        string body = """{"model":"gpt5.4","conversation":"conv_123","reasoning":{"effort":"high"},"input":"continue"}""";
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, Decision("gpt5.5", caching: false), "gpt5.4"))!.AsObject();
+
+        result["conversation"]!.GetValue<string>().ShouldBe("conv_123");
+        result["reasoning"]!["effort"]!.GetValue<string>().ShouldBe("high");
+        result.ContainsKey("reasoning_effort").ShouldBeFalse();
+        result["input"]!.GetValue<string>().ShouldBe("continue");
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_converts_reasoning_effort_to_chat_reasoning_effort()
+    {
+        var transformer = OpenAi();
+        // Responses reasoning.effort maps to Chat top-level reasoning_effort; the Responses reasoning
+        // object (summary/etc.) never leaks into the Chat body (LADR-03 convert).
+        string body = """{"model":"gpt5.4","input":"hi","reasoning":{"effort":"high","summary":"auto"}}""";
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!.AsObject();
+
+        result["reasoning_effort"]!.GetValue<string>().ShouldBe("high");
+        result.ContainsKey("reasoning").ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData("none")]
+    [InlineData("ultra")]
+    public void OpenAi_chat_upstream_drops_incompatible_reasoning_effort(string effort)
+    {
+        var transformer = OpenAi();
+        // "none" disables tool calling on GPT-5.4+ Chat Completions and this path is tool-heavy (#19);
+        // unknown values are not valid Chat reasoning_effort. Both are dropped, never forwarded (LADR-03).
+        string body = """{"model":"gpt5.4","input":"hi","reasoning":{"effort":"EFFORT"}}""".Replace("EFFORT", effort);
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!.AsObject();
+
+        result.ContainsKey("reasoning_effort").ShouldBeFalse();
+        result.ContainsKey("reasoning").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_passes_through_chat_compatible_generation_knobs()
+    {
+        var transformer = OpenAi();
+        // stop/metadata/logit_bias/logprobs/top_logprobs are valid Chat Completions knobs that share their
+        // shape with Responses; they survive the downgrade rather than being silently dropped (LADR-03).
+        string body = """
+        {"model":"gpt5.4","input":"hi",
+         "stop":["STOP"],
+         "metadata":{"k":"v"},
+         "logit_bias":{"50256":-100},
+         "logprobs":true,
+         "top_logprobs":3}
+        """;
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!.AsObject();
+
+        result["stop"]!.AsArray()[0]!.GetValue<string>().ShouldBe("STOP");
+        result["metadata"]!["k"]!.GetValue<string>().ShouldBe("v");
+        result["logit_bias"]!["50256"]!.GetValue<int>().ShouldBe(-100);
+        result["logprobs"]!.GetValue<bool>().ShouldBeTrue();
+        result["top_logprobs"]!.GetValue<int>().ShouldBe(3);
+    }
+
+    [Fact]
     public void OpenAi_chat_upstream_converts_responses_text_format_to_response_format()
     {
         var transformer = OpenAi();
@@ -362,6 +459,112 @@ public class RequestTransformerTests
         messages.Count.ShouldBe(1);
         messages[0]!["role"]!.GetValue<string>().ShouldBe("user");
         messages[0]!["content"]!.GetValue<string>().ShouldBe("hi");
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_drops_assistant_message_with_empty_content()
+    {
+        var transformer = OpenAi();
+        // Codex /responses transcripts can carry an assistant turn whose text is empty (the real content
+        // was the function_call beside it). Converting it verbatim emits {"role":"assistant","content":""},
+        // which strict Chat upstreams (Moonshot) reject as an empty message. The empty turn is dropped.
+        string body = """
+        {"model":"gpt5.4","input":[
+          {"role":"user","content":[{"type":"input_text","text":"hi"}]},
+          {"type":"message","role":"assistant","content":[{"type":"output_text","text":""}]},
+          {"role":"user","content":[{"type":"input_text","text":"again"}]}
+        ]}
+        """;
+
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+
+        messages.Count.ShouldBe(2);
+        messages.Select(m => m!["role"]!.GetValue<string>()).ShouldBe(["user", "user"]);
+        messages[0]!["content"]!.GetValue<string>().ShouldBe("hi");
+        messages[1]!["content"]!.GetValue<string>().ShouldBe("again");
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_drops_message_with_null_content()
+    {
+        var transformer = OpenAi();
+        // A message Item with no content field at all converts to "" and must not reach the wire empty.
+        string body = """
+        {"model":"gpt5.4","input":[
+          {"type":"message","role":"assistant"},
+          {"role":"user","content":[{"type":"input_text","text":"hi"}]}
+        ]}
+        """;
+
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+
+        messages.Count.ShouldBe(1);
+        messages[0]!["role"]!.GetValue<string>().ShouldBe("user");
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_drops_message_whose_content_parts_are_all_unsupported()
+    {
+        var transformer = OpenAi();
+        // An assistant turn built only from parts we do not carry over (a refusal) collapses to an empty
+        // content array; it must be dropped, not emitted as {"role":"assistant","content":[]}.
+        string body = """
+        {"model":"gpt5.4","input":[
+          {"type":"message","role":"assistant","content":[{"type":"refusal","refusal":"I can't help with that."}]},
+          {"role":"user","content":[{"type":"input_text","text":"hi"}]}
+        ]}
+        """;
+
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+
+        messages.Count.ShouldBe(1);
+        messages[0]!["role"]!.GetValue<string>().ShouldBe("user");
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_keeps_assistant_message_with_text_beside_empty_turn()
+    {
+        var transformer = OpenAi();
+        // Guard against over-dropping: a non-empty assistant message must still survive next to an empty one.
+        string body = """
+        {"model":"gpt5.4","input":[
+          {"type":"message","role":"assistant","content":[{"type":"output_text","text":"here is the answer"}]},
+          {"type":"message","role":"assistant","content":[{"type":"output_text","text":"   "}]},
+          {"role":"user","content":[{"type":"input_text","text":"thanks"}]}
+        ]}
+        """;
+
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+
+        messages.Count.ShouldBe(2);
+        messages[0]!["role"]!.GetValue<string>().ShouldBe("assistant");
+        messages[0]!["content"]!.GetValue<string>().ShouldBe("here is the answer");
+        messages[1]!["role"]!.GetValue<string>().ShouldBe("user");
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_drops_empty_assistant_turn_but_keeps_its_paired_tool_history()
+    {
+        var transformer = OpenAi();
+        // The reported failure shape: an empty assistant message sits beside the function_call/output it
+        // accompanied. The empty message is dropped; the paired tool exchange still downgrades to a valid
+        // assistant tool_calls + tool transcript.
+        string body = """
+        {"model":"gpt5.4","input":[
+          {"role":"user","content":[{"type":"input_text","text":"weather?"}]},
+          {"type":"message","role":"assistant","content":[{"type":"output_text","text":""}]},
+          {"type":"function_call","call_id":"call_1","name":"lookup","arguments":"{}"},
+          {"type":"function_call_output","call_id":"call_1","output":"sunny"},
+          {"role":"user","content":[{"type":"input_text","text":"thanks"}]}
+        ]}
+        """;
+
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+
+        messages.Select(m => m!["role"]!.GetValue<string>()).ShouldBe(["user", "assistant", "tool", "user"]);
+        messages[1]!["tool_calls"]!.AsArray()[0]!["id"]!.GetValue<string>().ShouldBe("call_1");
+        messages[1]!.AsObject().ContainsKey("content").ShouldBeFalse();
+        messages[2]!["content"]!.GetValue<string>().ShouldBe("sunny");
     }
 
     [Fact]
