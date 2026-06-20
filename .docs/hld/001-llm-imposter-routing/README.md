@@ -31,7 +31,7 @@ only** — there is no OpenAI⇄Anthropic body translation.
 ## Configuration
 
 - Bound from the `Imposter` section; **environment variables override `appsettings.json`** (env wins),
-  e.g. `Imposter__Providers__1__ApiKey=sk-...`.
+  e.g. `Imposter__Providers__4__ApiKey=sk-...`.
 - A **provider** = `Name` + `Dialect` + `BaseUrl` (server root, no `/v1`; the inbound request path is
   appended verbatim) + `ApiKey` + optional `IsDefault`, plus `OpenAiUpstreamApi` (`responses` default or
   `chat_completions` for OpenAI-compatible upstreams without `/responses`), holding nested `Models[]` of `{ From, To, Caching }`.

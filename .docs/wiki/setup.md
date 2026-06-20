@@ -136,8 +136,9 @@ Never commit real keys. Environment variables override `appsettings.json` (env w
 double-underscore path syntax for the array index:
 
 ```bash
-export Imposter__Providers__0__ApiKey="sk-your-opencode-key"
-export Imposter__Providers__1__ApiKey="sk-your-anthropic-route-key"
+export Imposter__Providers__2__ApiKey="sk-your-opencode-key"          # opencode-go
+export Imposter__Providers__3__ApiKey="sk-your-openrouter-key"        # openrouter
+export Imposter__Providers__4__ApiKey="sk-your-anthropic-route-key"   # opencode-anthropic
 dotnet run --project src/SmoothLlmImposter.Host
 ```
 
@@ -149,11 +150,11 @@ For day-to-day debugging you can keep keys out of your shell entirely using **.N
 
 ```bash
 cd src/SmoothLlmImposter.Host
-dotnet user-secrets set "Imposter:Providers:0:ApiKey" "sk-your-opencode-key"   # note the ':' path separator
+dotnet user-secrets set "Imposter:Providers:2:ApiKey" "sk-your-opencode-key"   # note the ':' path separator
 ```
 
 Precedence is `appsettings.json < user secrets (Dev) < environment variables` — so an exported
-`Imposter__Providers__0__ApiKey` **overrides** the stored secret for a one-off run.
+`Imposter__Providers__2__ApiKey` **overrides** the stored secret for a one-off run.
 
 ## Point your client at the router
 
@@ -194,7 +195,7 @@ export ANTHROPIC_BASE_URL="http://localhost:5080/anthropic"
 # OpenAI dialect — prefix /openai, client appends /v1/chat/completions (also /v1/responses, GET /v1/models)
 curl http://localhost:5080/openai/v1/chat/completions \
   -H "content-type: application/json" \
-  -d '{ "model": "gpt5.4", "messages": [ { "role": "user", "content": "Say hello in one sentence." } ] }'
+  -d '{ "model": "gpt-5.4", "messages": [ { "role": "user", "content": "Say hello in one sentence." } ] }'
 
 # Anthropic dialect — prefix /anthropic, client appends /v1/messages
 curl http://localhost:5080/anthropic/v1/messages \

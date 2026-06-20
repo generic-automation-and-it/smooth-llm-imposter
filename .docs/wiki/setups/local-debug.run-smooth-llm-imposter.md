@@ -55,8 +55,8 @@ variables:
 cd src/SmoothLlmImposter.Host
 
 # Upstream provider keys (index = provider order in appsettings.json)
-dotnet user-secrets set "Imposter:Providers:0:ApiKey" "sk-your-opencode-key"
-dotnet user-secrets set "Imposter:Providers:1:ApiKey" "sk-your-anthropic-route-key"
+dotnet user-secrets set "Imposter:Providers:2:ApiKey" "sk-your-opencode-key"
+dotnet user-secrets set "Imposter:Providers:4:ApiKey" "sk-your-anthropic-route-key"
 
 # Optional: credential-admin API (also needs a PostgreSQL connection string)
 dotnet user-secrets set "Admin:ApiKey" "choose-a-strong-admin-key"
@@ -76,7 +76,7 @@ appsettings.json  <  appsettings.Development.json  <  user secrets (Dev only)  <
 ```
 
 So an **environment variable overrides a user secret** of the same key. Use user secrets as your stable local
-default and an `export Imposter__Providers__0__ApiKey=…` to override it ad hoc for a single run. (User secrets are
+default and an `export Imposter__Providers__2__ApiKey=…` to override opencode-go ad hoc for a single run. (User secrets are
 **not** loaded outside `Development` — production/staging must use environment variables or another secure
 provider.)
 
@@ -87,7 +87,7 @@ curl -fsS http://localhost:5080/health        # {"status":"ok"}
 
 curl -fsS http://localhost:5080/v1/chat/completions \
   -H "content-type: application/json" \
-  -d '{ "model": "gpt5.4", "messages": [ { "role": "user", "content": "Say hello in one sentence." } ] }'
+  -d '{ "model": "gpt-5.4", "messages": [ { "role": "user", "content": "Say hello in one sentence." } ] }'
 ```
 
 Set a breakpoint in `ImposterRouter` (model resolution) or `UpstreamForwarder` (outbound request) to watch the

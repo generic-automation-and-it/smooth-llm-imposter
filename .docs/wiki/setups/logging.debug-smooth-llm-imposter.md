@@ -23,7 +23,7 @@ Headers:
   content-type: application/json
   authorization: Bearer ***k2.7
   x-some-client-header: value
-Body: { "model": "gpt5.4", "messages": [ { "role": "user", "content": "Say hello in one sentence." } ] }
+Body: { "model": "gpt-5.4", "messages": [ { "role": "user", "content": "Say hello in one sentence." } ] }
 ```
 
 - **Body-less requests** (e.g. `GET /v1/models`) log `Body: (empty)`.
@@ -91,7 +91,7 @@ Enable `Debug` (any method above), start the router, then send a routed request 
 # Compose port is 5066; local/docker default is 5080 — adjust to your run mode.
 curl -fsS http://localhost:5066/openai/v1/chat/completions \
   -H "content-type: application/json" \
-  -d '{ "model": "gpt5.4", "messages": [ { "role": "user", "content": "Say hello in one sentence." } ] }'
+  -d '{ "model": "gpt-5.4", "messages": [ { "role": "user", "content": "Say hello in one sentence." } ] }'
 
 docker compose logs -f          # podman-compose logs -f / docker logs / console
 ```
