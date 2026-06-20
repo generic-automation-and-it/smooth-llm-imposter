@@ -22,8 +22,15 @@ message that violates Chat Completions ordering rules.
 
 This HLD specifies the missing request-history normalization for the same OpenAI imposter
 `/responses`→Chat downgrade path. The target outcome is that strict Chat upstreams receive only valid
-tool-call history: every assistant tool call is immediately followed by the corresponding tool result,
-or the incomplete history is removed from the downgraded request.
+Chat-compatible history: paired tool calls survive, incomplete history is removed, Responses-only
+state is not silently lost, and request fields whose shapes differ between Responses and Chat are
+explicitly converted or rejected.
+
+Source baseline: OpenAI's migration guide frames the API difference as endpoint, output-shape, and
+state-management changes, with Responses using typed Items (`message`, `reasoning`, `function_call`,
+`function_call_output`) rather than only Chat messages. It also calls out function-call shape
+differences, `text.format` for Structured Outputs, typed streaming events, and `call_id` correctness as
+common migration concerns. See [Migrate to the Responses API](https://developers.openai.com/api/docs/guides/migrate-to-responses?update-generation-endpoints=chat-completions).
 
 ## Key Goals
 
@@ -72,6 +79,22 @@ a successful upstream response begins.
 - HLD 004 context remains accurate: request compatibility is achieved by removal or structural
   conversion, not by tool-name remapping or response-side repair.
 
+### 4. Classify every Responses-to-Chat downgrade gap
+
+The downgrade must not rely on incidental behavior for Responses fields that Chat does not understand.
+Every request field or input Item should have an explicit policy: preserve, convert, remove, or reject.
+This is especially important for `previous_response_id`, `store`, `reasoning` Items, built-in hosted
+tool Items, multimodal content, and Structured Outputs.
+
+**Acceptance criteria / DoD**
+
+- The design records a downgrade policy for each documented Chat/Responses difference that can appear
+  in request history.
+- Fields that cannot be represented statelessly on the Chat wire are not silently dropped.
+- Structured Outputs are converted from Responses shape to Chat shape when possible.
+- Typed Items with no faithful Chat representation are removed or rejected by policy, not accidentally
+  converted into empty user messages.
+
 ## Core Separation of Concerns
 
 > The proxy may make prior-turn history Chat-valid, but it must not create conversation facts.
@@ -88,6 +111,7 @@ tool did.
 
 - The downgrade preserves paired history where it can be represented faithfully on the Chat wire.
 - The downgrade deliberately removes incomplete tool history rather than fabricating missing messages.
+- The downgrade records explicit preserve/convert/remove/reject policies for Responses-only constructs.
 - The response bridge stays independent; it translates upstream output shape, not request-history gaps.
 
 ---
@@ -100,6 +124,25 @@ tool did.
 
 - [Payload shape examples](./examples/README.md)
 
+## OpenAI Migration Gap Analysis
+
+The OpenAI migration guide is written for Chat→Responses migration. This router performs the inverse
+on a scoped path: a Responses-mode client is routed to a Chat-only upstream. The same differences still
+apply, but their handling is inverted.
+
+| Difference from OpenAI guide | Current coverage | Additional transformation needed |
+|---|---|---|
+| Endpoint change: Chat uses `/v1/chat/completions`; Responses uses `/v1/responses`. | Covered by HLD 004 path override on matched OpenAI imposter `/responses` requests. | No additional transformation for HLD 006. |
+| Simple messages are broadly compatible: Chat `messages[]` can become Responses `input`; inverse can become Chat `messages[]`. | Partially covered by existing `input`/`instructions` to `messages` conversion. | Keep, but validate typed `message` Items so unsupported content parts do not become empty Chat messages. |
+| Responses separates system/developer guidance into top-level `instructions` or compatible Items. | Covered by converting `instructions` to a Chat `system` message and folding `developer` to `system` for strict Chat upstreams. | No additional transformation unless future upstreams support `developer`. |
+| Responses uses typed Items; `message`, `reasoning`, `function_call`, and `function_call_output` are distinct. | Partially covered for `message`, `function_call`, and `function_call_output`; not covered for `reasoning` or other non-message output Items. | Add explicit Item policy. Preserve message Items, pair function Items, remove/reject unsupported Items such as reasoning and hosted-tool outputs. |
+| Function definitions have different shapes: Chat nests under `function`; Responses keeps fields flat. | Covered by HLD 004 active tool conversion and normalization. | No extra HLD 006 work for active `tools[]`; prior-turn tool history still needs adjacency cleanup. |
+| Function call outputs are correlated by `call_id`; sending a result without the matching id is a common migration error. | HLD 006 covers this for orphaned calls/outputs. | Implement pair validation and removal/rejection for incomplete history. |
+| Structured Outputs moved from Chat `response_format` to Responses `text.format`. | Not covered in the inverse direction; current downgrade copies `response_format` but does not map `text.format`. | Convert compatible `text.format` JSON schema requests to Chat `response_format`; remove or reject unsupported text formats. |
+| Conversation state differs: Chat callers replay `messages`; Responses can replay `output`, use `previous_response_id`, or use stored conversations. | Manual replay via `input` is partially covered. `previous_response_id` cannot be resolved by a stateless proxy. | Reject `previous_response_id` on the downgrade path; clients must replay the needed Items in `input` for Chat-compatible routing. Preserve `store` only if the Chat upstream supports it. |
+| Responses includes native hosted tools that Chat Completions cannot use natively. | HLD 004 drops unsupported active tool definitions for strict Chat upstreams. | Extend the same explicit-removal policy to prior output Items from hosted tools; do not convert them into user messages. |
+| Streaming output differs: Chat chunks vs typed Responses events. | Covered by HLD 004 LADR-05 response bridge. | No HLD 006 change; keep response translator independent from request-history cleanup. |
+
 ## Architecture Decisions (LADRs)
 
 LADRs 01–N are strategic (*what* and *why*); later LADRs are tactical (*how*). Each is a
@@ -109,6 +152,8 @@ single decision — a horizontal concern spanning this HLD. See [`./ladrs/`](./l
 |------|----------|--------|
 | [LADR-01](./ladrs/LADR-01-normalize-tool-history-to-chat-adjacency.md) | Normalize Responses prior-turn tool history into Chat's required assistant/tool adjacency model on the downgrade path. | Draft |
 | [LADR-02](./ladrs/LADR-02-remove-incomplete-history-no-synthetic-tool-results.md) | Remove incomplete tool history; never synthesize tool results or remap tool identities. | Draft |
+| [LADR-03](./ladrs/LADR-03-explicit-item-field-downgrade-policy.md) | Classify Responses-only Items and fields as preserve, convert, remove, or reject before downgrade. | Draft |
+| [LADR-04](./ladrs/LADR-04-convert-compatible-structured-output-shape.md) | Convert compatible Responses `text.format` Structured Outputs to Chat `response_format`; reject unsupported formats. | Draft |
 
 ## Non-Functional Requirements
 
@@ -119,3 +164,4 @@ target, a verification mechanism, and acceptance criteria. See [`./nfrs/`](./nfr
 |-----|-----------|------------------|--------|
 | [NFR-01](./nfrs/NFR-01-chat-tool-history-conformance.md) | Upstream conformance | 100% of downgraded Chat requests satisfy tool-call adjacency invariants for emitted tool history. | Draft |
 | [NFR-02](./nfrs/NFR-02-off-path-transparency.md) | Transparency | Zero request-history mutation outside matched OpenAI imposter `/responses`→Chat downgrade routes. | Draft |
+| [NFR-03](./nfrs/NFR-03-no-silent-state-loss.md) | State correctness | Downgraded requests containing Responses state pointers are rejected or explicitly classified; none are silently dropped. | Draft |
