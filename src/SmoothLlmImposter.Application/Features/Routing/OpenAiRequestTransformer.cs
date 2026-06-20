@@ -373,6 +373,11 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
         string callId,
         HashSet<int> consumedToolOutputs)
     {
+        // Only function_call / function_call_output / message Items gate pairing. reasoning and
+        // hosted-tool Items are intentionally skipped here (they are removed from the downgraded
+        // request, so they cannot sit between a call and its output in the emitted Chat transcript) —
+        // a tool output may still be paired with its call across them. Messages and a following
+        // function_call do close the pairing window (they start a new turn / run).
         for (int i = startIndex; i < inputItems.Count; i++)
         {
             if (inputItems[i] is not JsonObject item)

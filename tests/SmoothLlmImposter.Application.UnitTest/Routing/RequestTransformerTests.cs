@@ -291,6 +291,61 @@ public class RequestTransformerTests
     }
 
     [Fact]
+    public void OpenAi_chat_upstream_rejects_json_schema_text_format_missing_name_and_schema()
+    {
+        var transformer = OpenAi();
+        string body = """{"model":"gpt5.4","input":"hi","text":{"format":{"type":"json_schema","strict":true}}}""";
+
+        RoutingException ex = Should.Throw<RoutingException>(() => transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"));
+
+        ex.Message.ShouldContain("json_schema requires name and schema");
+    }
+
+    [Theory]
+    [InlineData("json_object")]
+    [InlineData("text")]
+    public void OpenAi_chat_upstream_passes_through_simple_responses_text_format(string formatType)
+    {
+        var transformer = OpenAi();
+        string body = """{"model":"gpt5.4","input":"hi","text":{"format":{"type":"FORMAT"}}}""".Replace("FORMAT", formatType);
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!.AsObject();
+
+        result.ContainsKey("text").ShouldBeFalse();
+        JsonObject responseFormat = result["response_format"]!.AsObject();
+        responseFormat["type"]!.GetValue<string>().ShouldBe(formatType);
+        responseFormat.ContainsKey("json_schema").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void OpenAi_chat_upstream_pairs_independent_tool_runs_separated_by_message()
+    {
+        var transformer = OpenAi();
+        string body = """
+        {"model":"gpt5.4","input":[
+          {"type":"function_call","call_id":"call_1","name":"lookup","arguments":"{}"},
+          {"type":"function_call_output","call_id":"call_1","output":"first"},
+          {"role":"user","content":[{"type":"input_text","text":"again"}]},
+          {"type":"function_call","call_id":"call_2","name":"lookup","arguments":"{}"},
+          {"type":"function_call_output","call_id":"call_2","output":"second"}
+        ]}
+        """;
+
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+
+        messages.Count.ShouldBe(5);
+        messages[0]!["role"]!.GetValue<string>().ShouldBe("assistant");
+        messages[0]!["tool_calls"]!.AsArray()[0]!["id"]!.GetValue<string>().ShouldBe("call_1");
+        messages[1]!["role"]!.GetValue<string>().ShouldBe("tool");
+        messages[1]!["content"]!.GetValue<string>().ShouldBe("first");
+        messages[2]!["role"]!.GetValue<string>().ShouldBe("user");
+        messages[3]!["role"]!.GetValue<string>().ShouldBe("assistant");
+        messages[3]!["tool_calls"]!.AsArray()[0]!["id"]!.GetValue<string>().ShouldBe("call_2");
+        messages[4]!["role"]!.GetValue<string>().ShouldBe("tool");
+        messages[4]!["content"]!.GetValue<string>().ShouldBe("second");
+    }
+
+    [Fact]
     public void OpenAi_chat_upstream_removes_responses_only_reasoning_and_hosted_tool_items()
     {
         var transformer = OpenAi();
