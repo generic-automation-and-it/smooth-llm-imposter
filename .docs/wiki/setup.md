@@ -231,6 +231,33 @@ back-compat, but unprefixed `/v1/models` is dialect-ambiguous and is not served 
 
 SSE streams are forwarded unbuffered, so `"stream": true` works end-to-end.
 
+### Strict upstream tool-name validation (Codex → opencode/Moonshot)
+
+Some upstreams validate tool **function names** more strictly than OpenAI does. Moonshot/kimi (reached via
+`opencode-go`) requires names matching `^[a-zA-Z][a-zA-Z0-9_-]*$` — start with a letter; letters, numbers,
+underscores, dashes only. A tool-using turn whose tools break that rule returns **HTTP 400** from the
+upstream:
+
+```
+Error from provider (Moonshot AI): Invalid request: function name is invalid, must start with a
+letter and can contain letters, numbers, underscores, and dashes
+```
+
+The router is a transparent proxy — it forwards your tool definitions **unchanged** and does not rename
+them (see [LADR-006](../hld/001-llm-imposter-routing/ladrs/LADR-006-no-in-proxy-tool-name-sanitization.md)).
+OpenAI accepts these names, so Codex emits them by default; against a strict upstream you must keep the
+client's exposed tools upstream-valid:
+
+- **Disable leading-underscore connector/plugin tools** for the profile that targets this imposter — e.g.
+  the GitHub connector's `_search_issues`, `_create_pull_request`, `_update_file`, `_fetch_pr`. Turn the
+  connector off, or don't expose those MCP tools, for that Codex config/profile.
+- **`multi_tool_use.parallel`** (a dotted Codex/OpenAI parallel-tool-calling built-in) may not be fully
+  suppressible. Where it can't be disabled, parallel tool calling against strict upstreams remains an
+  **accepted limitation** — prefer a non-strict upstream/model (e.g. the real OpenAI provider, reached by
+  pointing the client directly at it) for sessions that need the full connector/parallel toolset.
+
+Upstreams with lenient tool-name validation (OpenAI itself) need none of this — their tools forward verbatim.
+
 ## Endpoints
 
 | Method | Path | Description |

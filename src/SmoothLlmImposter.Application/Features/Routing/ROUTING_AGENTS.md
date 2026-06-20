@@ -101,6 +101,14 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   gated on `cancellationToken.IsCancellationRequested`, so a genuine streaming failure while the caller is still
   connected still propagates and is logged. The status line + partial SSE are already on the wire, so there is
   nothing to write and (per LADR-003) nothing to retry. This mirrors the existing forward-path guard.
+- **Tool function names are forwarded unchanged — the proxy never sanitizes them.** Strict upstreams
+  (Moonshot/kimi via `opencode-go`) reject names that OpenAI accepts (`^[a-zA-Z][a-zA-Z0-9_-]*$`: no leading
+  underscore, no dots), so Codex's `_*` connector tools and the dotted `multi_tool_use.parallel` 400 upstream.
+  This is a client-tool-naming ⇄ strict-upstream conflict, **not** a proxy bug; the fix is client-side (disable
+  the offending tools — see `setup.md`). Do **not** add in-proxy name rewriting: it would also require rewriting
+  the streamed SSE response (Codex dispatches tools by `function.name`, which the upstream echoes), breaking the
+  transparent-proxy non-negotiable. Recorded in HLD 001 LADR-006 (Accepted); the rewrite design is parked as
+  LADR-007 (Draft) pending its own HLD.
 
 ## Credential Overrides
 
@@ -159,3 +167,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-20 | Mid-stream caller disconnect on the streaming path is now caught in `RoutingEndpoints.HandleAsync` (`OperationCanceledException`/`IOException` gated on `RequestAborted`) and returns quietly, instead of bubbling an unhandled exception logged at Error by Serilog request logging. Genuine non-abort streaming failures still propagate. Added `StreamingDisconnectTests`. | #17 |
 | 2026-06-20 | Extracted auth-scheme precedence into `Domain.Routing.UpstreamAuthResolver` (single source of truth shared by `UpstreamForwarder` + `ImposterRouter`). Routing log now reports `auth=` (`Bearer`/`ApiKey`/`none`/`caller-passthrough`); `auth=none` flags an imposter route with an empty `Secret` (sends no auth header → upstream 401). | — |
 | 2026-06-20 | When auth is managed (provider/override secret applied), the forwarder now strips the caller's `chatgpt-account-id` (`ManagedAuthIdentityHeaders`). Codex (`codex_sdk_ts`/`codex_cli_rs`) relays it alongside its own Bearer; an OpenAI-compatible imposter upstream (opencode) honoured it over the managed key and 401'd. Kept on key-less passthrough. Added a Debug-only masked outbound request dump to `UpstreamForwarder` for diagnosing forwarded-header issues. | — |
+| 2026-06-20 | Decided: proxy does **not** sanitize tool function names (strict upstreams like Moonshot 400 on Codex's `_*`/`multi_tool_use.parallel` names). Fix is client-side; in-proxy rewrite is rejected because it would require breaking the no-response-rewrite non-negotiable (Codex dispatches by `function.name`). Docs only — no code change. | #19 (LADR-006 Accepted, LADR-007 Draft) |
