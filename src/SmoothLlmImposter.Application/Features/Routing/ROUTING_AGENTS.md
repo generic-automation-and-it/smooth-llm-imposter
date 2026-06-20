@@ -82,6 +82,12 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   through the same credential seam (stored credential / HLD-003 force-Bearer / fail-closed 403).
 - **Forwarder method/body**: `UpstreamForwarder.SendAsync` takes the inbound `HttpMethod` and a nullable body;
   `Content` is attached only when the body is non-empty. GET probes therefore reach the upstream as real GETs.
+- **Mid-stream caller disconnect is swallowed, not retried.** `RoutingEndpoints.HandleAsync` wraps the streaming
+  copy so that when the caller aborts mid-stream (`context.RequestAborted` fires — common with SSE clients), the
+  resulting `OperationCanceledException`/`IOException` is caught and the handler returns quietly. The catch is
+  gated on `cancellationToken.IsCancellationRequested`, so a genuine streaming failure while the caller is still
+  connected still propagates and is logged. The status line + partial SSE are already on the wire, so there is
+  nothing to write and (per LADR-003) nothing to retry. This mirrors the existing forward-path guard.
 
 ## Credential Overrides
 
@@ -116,7 +122,10 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 
 - **L0** `Domain.UnitTest/Routing` — matcher, dialect parser.
 - **L0** `Application.UnitTest/Routing` — resolver, transformers (cache injection), router, error factory, options validator.
-- **L2** `Host.IntegrationTest` — full pipeline incl. SSE passthrough and env-over-appsettings override (in-process stub upstream).
+- **L2** `Host.IntegrationTest` — full pipeline incl. SSE passthrough, mid-stream caller-disconnect handling
+  (`StreamingDisconnectTests`), and env-over-appsettings override (in-process stub upstream). The disconnect test
+  asserts on the process-global Serilog `Log.Logger` (where request-logging surfaces the escaping exception), so
+  the integration suite runs serially (`DisableTestParallelization` in `GlobalUsings.cs`).
 
 ## Changelog
 
@@ -134,3 +143,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-19 | Added dialect-prefixed routing (`/openai/{**path}`, `/anthropic/{**path}`, any method): prefix selects dialect, tail forwarded verbatim — disambiguates shared paths like `/v1/models`. Body-less requests (`GET /v1/models`) passthrough to the dialect default via `PlanPassthroughAsync`/`ResolveDefault` (no model to match). Forwarder now forwards the inbound `HttpMethod` with a nullable body. Legacy unprefixed `POST /v1/*` retained; unprefixed `/v1/models` left unmapped (ambiguous). | — |
 | 2026-06-20 | Added `OpenAiUpstreamApi: chat_completions` for OpenAI-compatible upstreams without `/responses`; matched OpenAI imposter routes can downgrade `/responses` requests to `/v1/chat/completions` and convert common Responses payload fields to chat `messages`. | — |
 | 2026-06-20 | Renamed provider config `ApiKey` → `Secret` and added `AuthScheme` (`Bearer`/`ApiKey`), decoupling auth scheme from `Dialect`. Forwarder resolves `override.AuthScheme ?? provider.AuthScheme ?? dialect default` (openai → Bearer, anthropic → ApiKey) via a single unified path; this fixes openai-dialect upstreams (opencode) that require `x-api-key`. Breaking config change — no `ApiKey` alias. | — |
+| 2026-06-20 | Mid-stream caller disconnect on the streaming path is now caught in `RoutingEndpoints.HandleAsync` (`OperationCanceledException`/`IOException` gated on `RequestAborted`) and returns quietly, instead of bubbling an unhandled exception logged at Error by Serilog request logging. Genuine non-abort streaming failures still propagate. Added `StreamingDisconnectTests`. | #17 |
