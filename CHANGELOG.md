@@ -5,6 +5,36 @@ All notable changes to SmoothLlmImposter are documented here.
 ## [Unreleased]
 
 ### Added
+- **Codex → OpenAI-SDK request normalization (HLD 004).** New per-provider `RequestNormalization` config
+  (`codex_to_openai_sdk` / `none`) adds a proxy-side, **request-only** normalization seam on matched OpenAI
+  imposter routes so vanilla Codex clients work against strict OpenAI-compatible upstreams (e.g.
+  `opencode-go`/kimi). v1 keeps only upstream-valid `function` tools: it drops unsupported tool `type`s
+  (`custom`, `web_search`, `image_generation`, `tool_search`, …), **flattens** `namespace` wrappers into
+  their nested function tools (preserving the Codex GitHub connector's tools), drops function names that
+  fail `^[A-Za-z_][A-Za-z0-9_-]*$`, and cleans any `tool_choice` that referenced a removed tool. The
+  response stream is never touched.
+  - **ON by default for `OpenAiUpstreamApi: chat_completions`** (set `RequestNormalization: none` to opt
+    out); a `responses` upstream keeps it off and the startup validator rejects an explicit
+    `codex_to_openai_sdk` outside `chat_completions`/`openai`. Rationale: the reject rules are the *generic*
+    OpenAI Chat Completions tool contract (openrouter, Bedrock, … 400 on the same Responses-dialect catalog),
+    and normalization is a no-op for clean clients — so it is the correct default for chat upstreams. This
+    **amends HLD 004 LADR-03** (originally per-provider opt-in, off by default). `responses` upstreams and the
+    `anthropic` dialect stay byte-transparent.
+- **L3 live-upstream eval tier (HLD 004 LADR-04 / NFR-04).** New
+  `tests/SmoothLlmImposter.Upstream.EvalTest` project (excluded from `SmoothLlmImposter.slnx`) replays
+  the tool-validation matrix against the real `opencode-go` upstream: it proves a raw Codex catalog run
+  through the normalizer is accepted (200) and that an un-normalized catalog is still rejected (400).
+  Run only by the new secret-gated `.github/workflows/pr-evals-gate.yml` (org `OPENCODE_API_KEY`),
+  **neutral (skipped) when the secret is absent** and **non-blocking** initially. `.docs/wiki/testing.md`
+  now defines the L3 tier.
+
+### Fixed
+- **Codex `/responses` → Chat Completions 400 ("tokenization failed") on `opencode-go`.** The
+  Responses→Chat conversion now folds `role:"developer"` → `role:"system"`: Moonshot/kimi (and some
+  OpenAI-compatible Chat upstreams) reject the OpenAI `developer` role, which Codex sends in its `input`.
+  This is separate from tool normalization — together they were the two causes of the #19 400. Real
+  `/responses` upstreams keep `developer` (the conversion runs only for `chat_completions`). The L3 eval
+  case now reproduces the full failure (unsupported tool types + dotted name + developer role) live.
 - **README — "Why this exists" comparison section.** New sub-section under
   [README → Use cases](README.md#use-cases) explains how SmoothLlmImposter differs from generic
   LLM gateways (LiteLLM, AWS Bedrock, Azure AI Foundry, Vertex AI, OpenRouter, Portkey, Bifrost),

@@ -1,8 +1,13 @@
 # LADR-02: Request-only normalization; prefer removal over remap
 
-**Status:** Prototype
+**Status:** Prototype — **amended by LADR-05**
 
 <!-- Status lifecycle: Draft → Prototype → Accepted. Also: "Superseded by LADR-MM", "Deprecated". -->
+
+> **Amended by LADR-05.** "Request-only" holds for **tool normalization** (this decision's subject) and
+> for every transparent/passthrough route. It does **not** hold for the `/responses`→Chat *downgrade*
+> path, where LADR-05 requires translating the response stream back to Responses events — a wire-shape
+> remap that cannot be expressed as a removal. Removal-over-remap still governs request-side tools.
 
 ## Context
 

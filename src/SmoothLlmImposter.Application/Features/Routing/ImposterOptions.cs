@@ -46,6 +46,14 @@ public sealed class ProviderOptions
     /// </summary>
     public string? OpenAiUpstreamApi { get; init; }
 
+    /// <summary>
+    /// Proxy-side request-normalization profile (HLD 004), off by default. Set to
+    /// <c>codex_to_openai_sdk</c> for strict OpenAI-compatible upstreams that reject Codex's full tool
+    /// catalog. Applies only on matched OpenAI imposter routes; passthrough/default routes stay
+    /// byte-transparent regardless of this value.
+    /// </summary>
+    public string? RequestNormalization { get; init; }
+
     /// <summary>From→to model mappings owned by this provider.</summary>
     public List<ModelMappingOptions> Models { get; init; } = [];
 }

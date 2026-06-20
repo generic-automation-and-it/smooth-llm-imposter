@@ -30,14 +30,17 @@ C4Context
 
 ## Request flow — normalize in, relay out
 
-Shows where normalization sits and the one-directional boundary: the request is reshaped before
-forwarding; the response is relayed with no normalization step on the return path.
+Shows where normalization sits and the boundary: tool normalization reshapes the request before
+forwarding. The response is relayed **unchanged on every route except the LADR-05 downgrade bridge**,
+where a `/responses` request was downgraded to Chat and the Chat response stream is translated back to
+Responses events (incrementally, never buffered).
 
 ```mermaid
 sequenceDiagram
     participant C as Vanilla client
     participant R as Router (Application)
     participant N as Normalization seam
+    participant T as Chat→Responses translator (LADR-05)
     participant U as Strict upstream
 
     C->>R: OpenAI-dialect request
@@ -50,5 +53,10 @@ sequenceDiagram
     end
     R->>U: Forward request
     U-->>R: Response stream (SSE)
-    R-->>C: Relay response unchanged (no normalization on return path)
+    alt Downgraded /responses→Chat (LADR-05)
+        R->>T: Chat Completions SSE (line by line)
+        T-->>C: Responses events (incremental, never buffered)
+    else All other routes
+        R-->>C: Relay response unchanged
+    end
 ```

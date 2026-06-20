@@ -6,6 +6,7 @@ using SmoothLlmImposter.Application.Common.Pipelines;
 using SmoothLlmImposter.Application.Features.AuthorizationOverride;
 using SmoothLlmImposter.Application.Features.Credentials;
 using SmoothLlmImposter.Application.Features.Routing;
+using SmoothLlmImposter.Application.Features.Routing.Normalization;
 
 namespace SmoothLlmImposter.Application;
 
@@ -19,6 +20,8 @@ public static class DependencyInjection
     {
         services.AddSingleton<IProviderCatalog, ProviderCatalog>();
         services.AddSingleton<IRouteResolver, RouteResolver>();
+        services.AddSingleton<IRequestNormalizer, CodexToOpenAiSdkNormalizer>();
+        services.AddSingleton<IChatToResponsesTransformer, ChatToResponsesStreamTransformer>();
         services.AddSingleton<IRequestTransformer, OpenAiRequestTransformer>();
         services.AddSingleton<IRequestTransformer, AnthropicRequestTransformer>();
         services.AddScoped<IImposterRouter, ImposterRouter>();

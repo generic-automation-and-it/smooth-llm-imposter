@@ -34,6 +34,14 @@ The `build-and-test` job declares a single GitHub Actions service container — 
 6. **Publish coverage summary** (`if: always()`) — appends `artifacts/coverage/SummaryGithub.md` to the GitHub step summary.
 7. **Upload coverage artifacts** (`if: always()`) — `actions/upload-artifact@v7`, uploads `artifacts/coverage/` as `coverage-report`.
 
+## PR Evals Gate (L3)
+
+- **Workflow:** `.github/workflows/pr-evals-gate.yml`
+- **Triggers:** `pull_request` → `main` (paths `src/**`, `tests/SmoothLlmImposter.Upstream.EvalTest/**`, the workflow file) and manual `workflow_dispatch`.
+- **Purpose:** runs the **L3** live-upstream conformance evals (HLD 004 LADR-04 / NFR-04) — the only tier that calls a real OpenAI-compatible upstream (`opencode-go`/kimi). It is **deliberately separate** from the hermetic `pr-gate` above: the eval project is excluded from `SmoothLlmImposter.slnx`, and this workflow targets `tests/SmoothLlmImposter.Upstream.EvalTest` directly.
+- **Secret:** `OPENCODE_API_KEY` (org secret), passed via job `env` from `secrets.OPENCODE_API_KEY`. Fork PRs receive no secrets, so the value is empty there and every eval **skips** — the job stays green (**neutral**). The key is never echoed; the only step that references it tests presence with `-n` and prints a yes/no summary line.
+- **Status:** **non-blocking initially** — do **not** register `upstream-evals` as a required status check on `main` yet. Promote it to required only once the eval matrix is trusted.
+
 ## Publish image
 
 - **Workflow:** `.github/workflows/publish-image.yml`
