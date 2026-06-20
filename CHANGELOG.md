@@ -5,6 +5,46 @@ All notable changes to SmoothLlmImposter are documented here.
 ## [Unreleased]
 
 ### Added
+- **README — "Why this exists" comparison section.** New sub-section under
+  [README → Use cases](README.md#use-cases) explains how SmoothLlmImposter differs from generic
+  LLM gateways (LiteLLM, AWS Bedrock, Azure AI Foundry, Vertex AI, OpenRouter, Portkey, Bifrost),
+  why they can't replace it (API-key gateways, no subscription-tier support, no built-in
+  prompt-cache injection per mapping), and how to compose it with any of them by pointing a
+  mapping's `BaseUrl` at the other gateway. Closing line: *most gateways route API keys. This
+  one routes subscriptions.*
+- **README — debug-logging use case.** New bullet under
+  [README → Use cases](README.md#use-cases) notes that flipping the
+  `SmoothLlmImposter.Routing` Serilog category to `Debug` (default `Information`) dumps the full
+  inbound request (method, path, query, headers, raw body — auth masked) for every routed call,
+  with a link to the
+  [debug logging setup guide](.docs/wiki/setups/logging.debug-smooth-llm-imposter.md).
+- **README — HLD table under How it works.** Replaced the single-link line with a 3-row table
+  indexing the HLDs in `.docs/hld/` (001 Accepted, 002 Accepted, 003 In Discovery) with a
+  one-line scope for each, so the README is the human-facing index for the HLD folder.
+- **AGENTS.md — HLD table maintenance note.** New paragraph under
+  [AGENTS.md → Architecture Decisions (NFRs)](AGENTS.md#architecture-decisions-nfrs) declares the
+  README HLD table the canonical human-facing index and obliges AI agents / contributors to
+  update it in the same PR when an HLD is created, removed, or changes status.
+- **README — collapse Tech Stack & Project Structure into a Documentation pointer.** Removed
+  the standalone **Tech Stack** and **Project Structure** sections from the root README (the
+  content was a near-duplicate of AGENTS.md / `project-overview.instructions.md`); the existing
+  **Documentation** table now points readers to the canonical home at
+  [`.docs/wiki/architecture.md`](.docs/wiki/architecture.md) for tech stack and project
+  structure.
+- **`.docs/wiki/architecture.md` — populated.** The previously empty placeholder now hosts the
+  Tech Stack table, the Project Structure tree, and a per-layer pointer table to each project's
+  `*_AGENTS.md` context file (this is the new canonical home for that content).
+- **README — collapse Getting Started into a Quick start pointer.** Removed the `### Prerequisites`,
+  `### Build & run`, and `### Test` subsections — all three duplicate content already in
+  [`.docs/wiki/setup.md`](.docs/wiki/setup.md) and
+  [`.docs/wiki/testing.md`](.docs/wiki/testing.md). Replaced with a single-command `## Quick start`
+  plus a one-paragraph pointer to the wiki for the full setup, all run modes, and tests.
+- **README — Quick start now runs the published GHCR image.** Replaced the
+  `dotnet run` one-liner with the three-block GHCR flow (run published image with
+  pass-through `-e NAME` env vars → `export` the three provider secrets → `curl` health + tail
+  logs), matching the pattern in
+  [`.docs/wiki/setups/ghcr.run-smooth-llm-imposter.md`](.docs/wiki/setups/ghcr.run-smooth-llm-imposter.md).
+  Local `dotnet run` and all other run modes remain one click away in the wiki pointer below.
 - **LLM imposter routing service.** Stateless, key-less router exposing OpenAI (`/v1/chat/completions`,
   `/v1/responses`) and Anthropic (`/v1/messages`) dialect endpoints.
   - Config-driven, provider-centric routing: an array of providers, each with a base URL, key,

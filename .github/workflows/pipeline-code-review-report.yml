@@ -1,0 +1,91 @@
+# Thin caller for the smooth-ai-report-review reusable workflow (minimal install).
+#
+# Only this file lives here — the review job, its scripts, and its config are
+# fetched from generic-automation-and-it/smooth-ai-report-review at the ref pinned
+# in `uses:` below. The local repo copies only the `/ai-review` consumer skill
+# (.agents/skills/ai-review/); the report *generator* stays remote.
+#
+# Pinned at @main: the upstream repo publishes no tags yet (no @v1), so this
+# tracks the upstream default branch. Swap to an exact tag/SHA for stricter
+# supply-chain control once upstream cuts a release.
+#
+# Required configuration in THIS repo/org (provider = OpenAI):
+#   Secret   — OPENCODE_OPENAI_API_KEY                      (your OpenAI API key; passed via secrets: inherit)
+#   Variables — OPENCODE_REVIEW_REPORT_PROVIDER             = OPENAI
+#               OPENCODE_REVIEW_REPORT_OPENAI_URL           = https://api.openai.com/v1   (must be non-empty)
+#               OPENCODE_REVIEW_REPORT_MODEL_PRIMARY        = gpt-5.5
+#               OPENCODE_REVIEW_REPORT_MODEL_SECONDARY      = gpt-5.4
+#               OPENCODE_REVIEW_REPORT_MODEL_ORCHESTRATOR   = gpt-5.4-mini
+#   These resolve against the CALLER repo/org automatically.
+
+name: PR Code Review Report
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to review'
+        required: true
+        type: string
+      model:
+        description: 'Primary review model ID (optional). Ignored when "model_preset" is set. Must be a model of the selected OPENCODE_REVIEW_REPORT_PROVIDER.'
+        required: false
+        type: string
+        default: ''
+      model_preset:
+        # COUPLED to the reusable workflow's preset→provider/model env mapping —
+        # this dropdown only names the presets; the mapping lives in the callee.
+        # When the callee adds a preset option, extend this list to expose it.
+        description: 'Model preset (optional). Selecting one overrides the provider AND all three model tiers — takes precedence over "model" and the repo OPENCODE_REVIEW_REPORT_* Variables.'
+        required: false
+        type: choice
+        default: '(repository default)'
+        options:
+          - '(repository default)'
+          - 'OpenAI GPT-5.5'
+          - 'OpenCode DeepSeek V4 Pro'
+          - 'OpenCode GLM-5.1'
+          - 'OpenCode MiniMax m3'
+          - 'OpenCode Qwen3.7 Plus'
+          - 'OpenRouter DeepSeek V4 Pro'
+          - 'OpenRouter Qwen3.7 Plus'
+          - 'OpenRouter GLM-5.1'
+          - 'OpenRouter MiniMax M3'
+
+# The caller's permissions bound the GITHUB_TOKEN the called workflow receives.
+permissions:
+  pull-requests: write
+  contents: read
+  issues: write
+
+# NOTE: no top-level `concurrency:` here. The reusable workflow defines its own
+# `ai-review-<pr>` concurrency group; duplicating the same group in this caller
+# makes GitHub detect a caller/callee deadlock and fail the run. Let the callee
+# own concurrency.
+
+jobs:
+  review:
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '/ai-review')) ||
+      (github.event_name == 'workflow_dispatch')
+    uses: generic-automation-and-it/smooth-ai-report-review/.github/workflows/pipeline-code-review-report.yml@main
+    with:
+      pr_number: ${{ inputs.pr_number || '' }}
+      model: ${{ inputs.model || '' }}
+      model_preset: ${{ inputs.model_preset || '(repository default)' }}
+      # tools_ref MUST be set when calling cross-repo: the callee's default resolves
+      # `github.workflow_sha`, which on a pull_request call is THIS repo's commit SHA
+      # (`not our ref` in the upstream tooling repo) — so the review-script checkout
+      # fails. Pin it to a ref that exists upstream; `main` matches the @main call above.
+      tools_ref: main
+      # runner: self-hosted          # uncomment for private-network gateways
+      # mandatory_context_files: >-  # override the context files resolved in YOUR repo
+      #   AGENTS.md
+      #   .docs/wiki/ci.md
+      # agents_md_exempt_paths: '.docs/release-notes'
+    secrets: inherit
