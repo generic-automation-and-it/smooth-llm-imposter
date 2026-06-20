@@ -30,6 +30,7 @@ This is a unified AI development experience folder that centralizes skills, prom
 | `.agents/skills/agile-github-task-from-diff/` | Create a GitHub Task (sub-issue) from the current git diff vs main |
 | `.agents/skills/ai-brain-dump/` | Listen-first capture session; synthesize on request |
 | `.agents/skills/ai-mansplain/` | Reformat this turn's reply into terse, high-density output with a TL;DR |
+| `.agents/skills/ai-review/` | Vendored `/ai-review` consumer skill (parse AI PR review → apply fix/skip); generator stays remote via `.github/workflows/pipeline-code-review-report.yml` |
 | `.agents/skills/ai-template-sync/` | UPSERT the smooth-devex-template agentic scaffold into an existing repo |
 | `.agents/skills/context-load-context/` | Load or create functional `*_AGENTS.md` context files |
 | `.agents/skills/context-load-agents-context/` | Load ancestor AGENTS.md context for a target file |
@@ -136,3 +137,4 @@ ls -la | grep -E '(\.claude|\.codex|\.cursor)'
 | :---- | :---- | :---- |
 | 2026-05-30 | Initial version. | |
 | 2026-06-10 | Registered orphaned `UserPromptSubmit` hooks (`worktask-create.sh`, `agentmd-create-update.sh`, `knowledge-rule-enforce.sh`) in `settings.json` — they existed on disk but never fired. | #32 |
+| 2026-06-20 | Vendored `/ai-review` consumer skill (minimal install); added thin caller `.github/workflows/pipeline-code-review-report.yml` (uses upstream `@main`, provider OpenAI); permitted skill + script in `settings.json`. | |
