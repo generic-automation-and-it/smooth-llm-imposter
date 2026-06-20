@@ -19,7 +19,13 @@ removing the context the client expected the model to use.
 **Classify** every Responses request construct that can reach the `/responses`→Chat downgrade as one
 of four policies: preserve, convert, remove, or reject.
 
-Message Items and simple string input are converted to Chat messages. Paired `function_call` and
+Message Items and simple string input are converted to Chat messages. A message Item whose content
+does **not survive** the downgrade — null, empty, or assembled only from content parts that have no
+Chat representation (e.g. a refusal-only or empty `output_text` assistant turn that accompanied a
+`function_call`) — is **dropped**, not emitted as a Chat message with neither content nor `tool_calls`.
+Strict Chat upstreams reject such empty messages (`message at position N with role 'assistant' must
+not be empty`), and coercing placeholder content would fabricate a turn the client never sent
+(LADR-02). The drop applies to every role for consistency. Paired `function_call` and
 `function_call_output` Items are converted according to LADR-01. Incomplete function history is
 removed according to LADR-02. Responses-only Items such as `reasoning` or hosted-tool outputs are not
 converted into user messages; they are removed when loss is acceptable, or rejected when the request
@@ -39,9 +45,25 @@ Two classifications are pinned explicitly so they cannot regress by incidental f
   be a string. The structure is preserved as JSON text rather than reduced to its text part(s), so no
   tool-result content is lost on the wire.
 
-State pointers such as `previous_response_id` are rejected on the downgrade path. Clients that need
+State pointers are rejected on the downgrade path. Both `previous_response_id` **and** `conversation`
+(the Conversations API pointer) reference server-managed Responses state a stateless Chat upstream
+cannot resolve, so both are rejected with a dialect-shaped 400 naming the field. Clients that need
 Chat-compatible routing must omit the state pointer and replay the needed Items in `input`. The proxy
-is stateless and must not pretend it can retrieve Responses state from an upstream Chat provider.
+is stateless and must not pretend it can retrieve Responses state from an upstream Chat provider. Both
+rejections are guarded on present-and-non-null, so an explicit `null` value is not falsely rejected.
+
+The request-field policy matrix on the downgrade path:
+
+| Field | Policy | Notes |
+|---|---|---|
+| `previous_response_id` | reject | Responses-managed state; 400, replay in `input`. |
+| `conversation` | reject | Conversations API pointer; same treatment as `previous_response_id`. |
+| `reasoning` (`{ effort }`) | convert | `effort` ∈ {`minimal`,`low`,`medium`,`high`} → Chat top-level `reasoning_effort`. `effort: "none"` and any unknown value are **dropped** (not forwarded): GPT-5.4+ disables tool calling in Chat Completions with `reasoning: none` and this downgrade path is tool-heavy. The rest of the `reasoning` object (`summary`/`generate_summary`) is Responses-only and not copied. |
+| `stop`, `metadata`, `logit_bias`, `logprobs`, `top_logprobs` | preserve | Chat-valid generation knobs that share their shape with Responses; passed through (named allowlist additions). `stop` changes generation, so silently dropping it would alter output. |
+| `n` | n/a | Responses has no `n`; nothing to convert. |
+
+The passthrough allowlist is widened per named field, never switched to a blanket copy — a blanket copy
+would forward Responses-only fields that 400 a Chat upstream.
 
 ## Alternatives Considered
 

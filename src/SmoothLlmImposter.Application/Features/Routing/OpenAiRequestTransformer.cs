@@ -85,6 +85,21 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
         AddIfPresent(root, chat, "seed");
         AddIfPresent(root, chat, "user");
 
+        // Chat-compatible generation knobs that share their shape with Responses. They are passed through
+        // deliberately (not silently dropped by allowlist fallthrough) — stop in particular changes
+        // generation (LADR-03 fidelity). This stays a named per-field widen, not a blanket copy, so
+        // Responses-only fields still cannot leak through and 400 a Chat upstream.
+        AddIfPresent(root, chat, "stop");
+        AddIfPresent(root, chat, "metadata");
+        AddIfPresent(root, chat, "logit_bias");
+        AddIfPresent(root, chat, "logprobs");
+        AddIfPresent(root, chat, "top_logprobs");
+
+        if (ConvertReasoningEffort(root) is { } reasoningEffort)
+        {
+            chat["reasoning_effort"] = reasoningEffort;
+        }
+
         if (root["max_output_tokens"] is { } maxOutputTokens)
         {
             chat["max_tokens"] = maxOutputTokens.DeepClone();
@@ -105,6 +120,36 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
             throw new RoutingException(
                 "previous_response_id cannot be resolved by a stateless Chat Completions upstream; replay the required Items in input.");
         }
+
+        // conversation is the Conversations API pointer — server-managed Responses state a stateless Chat
+        // upstream cannot resolve (LADR-03 reject). Guarded on present-and-non-null so an explicit
+        // "conversation": null does not falsely trip.
+        if (root.ContainsKey("conversation") && root["conversation"] is not null)
+        {
+            throw new RoutingException(
+                "conversation references Conversations API state a stateless Chat Completions upstream cannot resolve; replay the required Items in input.");
+        }
+    }
+
+    // Responses carries reasoning depth as reasoning.effort; Chat Completions uses a top-level
+    // reasoning_effort (LADR-03 convert). Only the Chat-valid effort values are forwarded; "none" and
+    // unknown values are dropped (not forwarded) — "none" is dropped specifically because GPT-5.4+
+    // disables tool calling in Chat Completions with reasoning: none and this downgrade path is
+    // tool-heavy (#19). The rest of the Responses reasoning object (summary/generate_summary) is
+    // Responses-only and never copied to the Chat body.
+    private static JsonNode? ConvertReasoningEffort(JsonObject root)
+    {
+        if (root["reasoning"] is not JsonObject reasoning)
+        {
+            return null;
+        }
+
+        string? effort = StringValue(reasoning["effort"]);
+        return effort switch
+        {
+            "minimal" or "low" or "medium" or "high" => JsonValue.Create(effort),
+            _ => null
+        };
     }
 
     private static JsonNode? ConvertResponseFormat(JsonObject root)
@@ -422,14 +467,34 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
             throw new RoutingException($"Responses input item type '{type ?? "<missing>"}' cannot be downgraded to Chat Completions.");
         }
 
-        string role = ToChatRole(StringValue(item["role"]));
-        JsonNode? content = item["content"];
+        JsonNode? content = ConvertMessageContent(item["content"]);
+
+        // A message Item whose content does not survive downgrade — null, empty, or built only from
+        // content parts we do not carry over (e.g. a refusal-only or empty output_text assistant turn
+        // that accompanied a function_call) — would reach the wire as a Chat message with neither
+        // content nor tool_calls. Strict Chat upstreams (Moonshot) 400 such "empty" messages, so the
+        // message is dropped rather than coerced to placeholder content (LADR-02: drop gaps, never
+        // fabricate conversation facts). Applies to every role for consistency.
+        if (IsEmptyContent(content))
+        {
+            return;
+        }
+
         messages.Add(new JsonObject
         {
-            ["role"] = role,
-            ["content"] = ConvertMessageContent(content)
+            ["role"] = ToChatRole(StringValue(item["role"])),
+            ["content"] = content
         });
     }
+
+    private static bool IsEmptyContent(JsonNode? content) => content switch
+    {
+        null => true,
+        JsonValue value => value.GetValueKind() != JsonValueKind.String ||
+            string.IsNullOrWhiteSpace(value.GetValue<string>()),
+        JsonArray array => array.Count == 0,
+        _ => false
+    };
 
     private static bool IsMessageItem(JsonObject item)
     {
