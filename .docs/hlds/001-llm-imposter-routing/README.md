@@ -45,8 +45,7 @@ only** — there is no OpenAI⇄Anthropic body translation.
   { "Name": "opencode-go", "Dialect": "openai", "BaseUrl": "https://opencode.ai/zen/go", "Secret": "", "AuthScheme": "ApiKey",
     "OpenAiUpstreamApi": "chat_completions",
     "Models": [ { "From": "gpt-5.4", "To": "kimi-k2.7", "Caching": true } ] },
-  { "Name": "openrouter", "Dialect": "openai", "BaseUrl": "https://openrouter.ai/api", "Secret": "", "AuthScheme": "Bearer",
-    "OpenAiUpstreamApi": "chat_completions" },
+  { "Name": "openrouter", "Dialect": "openai", "BaseUrl": "https://openrouter.ai/api", "Secret": "", "AuthScheme": "Bearer" },
   { "Name": "opencode-anthropic", "Dialect": "anthropic", "BaseUrl": "https://opencode.ai/zen/go", "Secret": "", "AuthScheme": "ApiKey",
     "Models": [ { "From": "claude-haiku-*", "To": "minimax-m3", "Caching": true } ] }
 ] }
