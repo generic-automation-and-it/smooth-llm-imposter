@@ -54,7 +54,7 @@ public sealed class NamedProviderConfigIntegrationTests
 
         try
         {
-            using var factory = new ConfigFixture(namedConfig);
+            using var factory = new ConfigFixture(namedConfig, includeEnvironmentVariables: true);
 
             // Build/start the host (resolves + validates options, runs the post-configure resolver).
             HttpClient client = factory.CreateClient();
@@ -78,7 +78,9 @@ public sealed class NamedProviderConfigIntegrationTests
         }
     }
 
-    private sealed class ConfigFixture(Dictionary<string, string?> config) : WebApplicationFactory<HostApp::Program>
+    private sealed class ConfigFixture(
+        Dictionary<string, string?> config,
+        bool includeEnvironmentVariables = false) : WebApplicationFactory<HostApp::Program>
     {
         public StubUpstreamHandler Upstream { get; } = new();
 
@@ -86,10 +88,13 @@ public sealed class NamedProviderConfigIntegrationTests
         {
             builder.ConfigureAppConfiguration((_, configuration) =>
             {
-                // Clean slate (no appsettings.json), then env vars last so the conventional surface resolves.
+                // Clean slate (no appsettings.json). Env vars are opt-in for tests that exercise that surface.
                 configuration.Sources.Clear();
                 configuration.AddInMemoryCollection(config);
-                configuration.AddEnvironmentVariables();
+                if (includeEnvironmentVariables)
+                {
+                    configuration.AddEnvironmentVariables();
+                }
             });
 
             builder.ConfigureServices(services =>

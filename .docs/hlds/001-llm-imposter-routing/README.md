@@ -42,20 +42,21 @@ only** — there is no OpenAI⇄Anthropic body translation.
   for OpenAI-compatible upstreams without `/responses`), holding nested `Models[]` of `{ From, To, Caching }`.
   `From` supports exact + trailing-`*` wildcard. A provider with no `Models` is inert until one is added.
 - Keys are configuration-only and never persisted. Startup validation (`ValidateOnStart`) rejects unknown
-  dialects, non-absolute base URLs, duplicate names, malformed mappings, and >1 default per dialect.
+  dialects, non-absolute base URLs, duplicate provider names/keys (case-insensitive), a legacy
+  array/numeric-key shape, malformed mappings, and >1 default per dialect.
 
 ```jsonc
-"Imposter": { "Providers": [
-  { "Name": "openrouter-anthropic", "Dialect": "anthropic", "BaseUrl": "https://openrouter.ai/api", "Secret": "", "AuthScheme": "Bearer",
+"Imposter": { "Providers": {
+  "openrouter-anthropic": { "Dialect": "anthropic", "BaseUrl": "https://openrouter.ai/api", "Secret": "", "AuthScheme": "Bearer",
     "Models": [ { "From": "claude-opus-4-7*", "To": "z-ai/glm-5.2", "Caching": true } ] },
-  { "Name": "openrouter-openai", "Dialect": "openai", "BaseUrl": "https://openrouter.ai/api", "Secret": "", "AuthScheme": "Bearer",
+  "openrouter-openai": { "Dialect": "openai", "BaseUrl": "https://openrouter.ai/api", "Secret": "", "AuthScheme": "Bearer",
     "OpenAiUpstreamApi": "chat_completions", "Models": [] },
-  { "Name": "opencode-go-anthropic", "Dialect": "anthropic", "BaseUrl": "https://opencode.ai/zen/go", "Secret": "", "AuthScheme": "ApiKey",
+  "opencode-go-anthropic": { "Dialect": "anthropic", "BaseUrl": "https://opencode.ai/zen/go", "Secret": "", "AuthScheme": "ApiKey",
     "Models": [ { "From": "claude-haiku-*", "To": "minimax-m3", "Caching": true } ] },
-  { "Name": "opencode-go-openai", "Dialect": "openai", "BaseUrl": "https://opencode.ai/zen/go", "Secret": "", "AuthScheme": "ApiKey",
+  "opencode-go-openai": { "Dialect": "openai", "BaseUrl": "https://opencode.ai/zen/go", "Secret": "", "AuthScheme": "Bearer",
     "OpenAiUpstreamApi": "chat_completions",
-    "Models": [ { "From": "gpt-5.4", "To": "kimi-k2.7", "Caching": true } ] }
-] }
+    "Models": [ { "From": "gpt-5.4", "To": "kimi-k2.7-code", "Caching": true } ] }
+} }
 ```
 
 ## Architecture

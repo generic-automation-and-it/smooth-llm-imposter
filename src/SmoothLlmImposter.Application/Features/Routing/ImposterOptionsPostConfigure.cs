@@ -31,6 +31,8 @@ internal sealed class ImposterOptionsPostConfigure(
     IConfiguration configuration,
     ILogger<ImposterOptionsPostConfigure> logger) : IPostConfigureOptions<ImposterOptions>
 {
+    private static readonly string[] SharedProviderSecretSuffixes = ["-anthropic", "-openai"];
+
     /// <summary>
     /// The conventional suffix → field surface. <see cref="ConventionalField.PropertyName"/> names the
     /// <see cref="ProviderOptions"/> property each suffix targets; a guard test asserts this set covers
@@ -43,10 +45,7 @@ internal sealed class ImposterOptionsPostConfigure(
         new("_BASE_URL", nameof(ProviderOptions.BaseUrl), static (p, v) => p.BaseUrl = v),
         new("_AUTH_SCHEME", nameof(ProviderOptions.AuthScheme), static (p, v) => p.AuthScheme = v),
         new("_DIALECT", nameof(ProviderOptions.Dialect), static (p, v) => p.Dialect = v),
-        new("_IS_DEFAULT", nameof(ProviderOptions.IsDefault), static (p, v) =>
-        {
-            p.IsDefault = bool.Parse(v);
-        }),
+        new("_IS_DEFAULT", nameof(ProviderOptions.IsDefault), static (_, _) => { }),
         new("_OPENAI_UPSTREAM_API", nameof(ProviderOptions.OpenAiUpstreamApi), static (p, v) => p.OpenAiUpstreamApi = v),
         new("_REQUEST_NORMALIZATION", nameof(ProviderOptions.RequestNormalization), static (p, v) => p.RequestNormalization = v),
         new("_ANTHROPIC_VERSION", nameof(ProviderOptions.AnthropicVersion), static (p, v) => p.AnthropicVersion = v),
@@ -70,27 +69,37 @@ internal sealed class ImposterOptionsPostConfigure(
                     continue;
                 }
 
-                if (field.PropertyName == nameof(ProviderOptions.IsDefault) &&
-                    !bool.TryParse(value, out _))
+                if (field.PropertyName == nameof(ProviderOptions.IsDefault))
                 {
-                    if (!string.IsNullOrWhiteSpace(value))
+                    if (!bool.TryParse(value, out bool isDefault))
                     {
-                        logger.LogWarning(
-                            "Ignoring conventional override {EnvVar} for provider {Provider} field {Field}: value '{Value}' is not a recognized boolean.",
-                            variable, key, field.PropertyName, value);
+                        if (!string.IsNullOrWhiteSpace(value))
+                        {
+                            logger.LogWarning(
+                                "Ignoring conventional override {EnvVar} for provider {Provider} field {Field}: value '{Value}' is not a recognized boolean.",
+                                variable, key, field.PropertyName, value);
+                        }
+
+                        continue;
                     }
 
+                    provider.IsDefault = isDefault;
+                    LogApplied(variable, key, field.PropertyName);
                     continue;
                 }
 
                 field.Apply(provider, value);
-
-                // NFR-03: log the variable name + provider + field, never the resolved value.
-                logger.LogDebug(
-                    "Applied conventional override {EnvVar} to provider {Provider} field {Field}.",
-                    variable, key, field.PropertyName);
+                LogApplied(variable, key, field.PropertyName);
             }
         }
+    }
+
+    private void LogApplied(string variable, string key, string propertyName)
+    {
+        // NFR-03: log the variable name + provider + field, never the resolved value.
+        logger.LogDebug(
+            "Applied conventional override {EnvVar} to provider {Provider} field {Field}.",
+            variable, key, propertyName);
     }
 
     private (string Variable, string? Value) ResolveConventionalValue(
@@ -121,7 +130,7 @@ internal sealed class ImposterOptionsPostConfigure(
 
     private static string? TrySharedProviderSecretPrefix(string key, ImposterOptions options)
     {
-        foreach (string suffix in new[] { "-anthropic", "-openai" })
+        foreach (string suffix in SharedProviderSecretSuffixes)
         {
             if (!key.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
             {

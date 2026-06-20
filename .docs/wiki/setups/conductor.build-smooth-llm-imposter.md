@@ -88,7 +88,7 @@ mkdir -p "$CONF_DIR" "$STATE_DIR"
 umask 077
 {
   echo "ASPNETCORE_URLS=$ASPNETCORE_URLS"
-  for var in $(compgen -e | grep -E '^(Imposter__|Admin__|ConnectionStrings__|[A-Z0-9_]+_(API_KEY|AUTH_SCHEME|BASE_URL|DIALECT|IS_DEFAULT|OPENAI_UPSTREAM_API|REQUEST_NORMALIZATION|ANTHROPIC_VERSION))$)'); do
+  for var in $(compgen -e | grep -E '^(Imposter__|Admin__|ConnectionStrings__)|^[A-Z0-9_]+_(API_KEY|AUTH_SCHEME|BASE_URL|DIALECT|IS_DEFAULT|OPENAI_UPSTREAM_API|REQUEST_NORMALIZATION|ANTHROPIC_VERSION)$'); do
     printf '%s=%s\n' "$var" "${!var}"
   done
 } > "$ENV_FILE"

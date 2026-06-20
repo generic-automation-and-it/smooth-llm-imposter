@@ -102,7 +102,7 @@ public sealed class KeylessPassthroughIntegrationTests(KeylessPassthroughIntegra
         public StubUpstreamHandler Upstream { get; } = new();
 
         // No connection string ⇒ the real NullCredentialStore is registered (no store swap here on purpose).
-        // Provider 0 is a key-less anthropic default (catch-all passthrough); provider 1 is a keyed imposter.
+        // anthropic-default is key-less catch-all passthrough; opencode-anthropic is a keyed imposter.
         private static readonly Dictionary<string, string?> Config = new()
         {
             ["Imposter:Providers:anthropic-default:Dialect"] = "anthropic",
