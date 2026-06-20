@@ -9,9 +9,35 @@ only external thing worth faking is the upstream LLM provider's HTTP call.
 |---|---|---|---|---|
 | L0 | Unit | `SmoothLlmImposter.{Domain,Application,Infrastructure,Host}.UnitTest` | None | Isolated logic, no I/O — pure in-process |
 | L2 | Integration | `SmoothLlmImposter.Host.IntegrationTest` | None by default; optional WireMock | Boots the real Host via `WebApplicationFactory` and stubs the upstream transport |
+| L3 | Live upstream eval | `SmoothLlmImposter.Upstream.EvalTest` | None — calls the **real** upstream over the internet | Conformance evals against a live OpenAI-compatible upstream (e.g. `opencode-go`/kimi). Secret-gated and **neutral (skipped)** when the secret is absent |
 
 There is no L1 "component" tier and no PostgreSQL/Redis — those were removed along with the persistence the
 template assumed.
+
+### L3 — live upstream evals (HLD 004 LADR-04 / NFR-04)
+
+L0 and L2 are **hermetic**: no external network, no secrets. L3 is the deliberate exception — it verifies
+that what the proxy sends is actually accepted by a strict, real upstream (the thing only a live call can
+prove). It is kept strictly separate from the hermetic tiers:
+
+- **Excluded from `SmoothLlmImposter.slnx`.** `dotnet test SmoothLlmImposter.slnx` (the pr-gate command)
+  never runs it. It is built/run only by targeting its project directly.
+- **Secret-gated and neutral by default.** Every test reads `OPENCODE_API_KEY` from the environment and
+  calls `Assert.Skip(...)` when it is absent — so the tier is a green no-op on fork PRs and on any machine
+  without the key. The key is never logged.
+- **Driven through the real transform.** The eval runs a raw Codex tool catalog through the genuine
+  `OpenAiRequestTransformer` + `CodexToOpenAiSdkNormalizer`, sends the result to the live upstream, and
+  asserts `200`; a companion case asserts the un-normalized catalog still returns `400` (the upstream
+  contract is unchanged, so normalization is genuinely required).
+
+Run it locally with the key set:
+
+```bash
+OPENCODE_API_KEY=sk-... dotnet test tests/SmoothLlmImposter.Upstream.EvalTest
+```
+
+In CI it runs in its own workflow (`.github/workflows/pr-evals-gate.yml`), separate from the hermetic
+`pr-gate` and **non-blocking** initially. See [`ci.md`](ci.md#pr-evals-gate-l3).
 
 ## Test Infrastructure
 

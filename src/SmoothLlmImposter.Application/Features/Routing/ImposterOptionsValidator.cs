@@ -62,6 +62,28 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
                 failures.Add($"{prefix}:AuthScheme '{provider.AuthScheme}' is invalid (expected 'ApiKey' or 'Bearer').");
             }
 
+            if (!RequestNormalizationParser.TryParse(provider.RequestNormalization, out RequestNormalization normalization))
+            {
+                failures.Add($"{prefix}:RequestNormalization '{provider.RequestNormalization}' is invalid (expected 'none' or 'codex_to_openai_sdk').");
+            }
+            else if (normalization == RequestNormalization.CodexToOpenAiSdk)
+            {
+                // codex_to_openai_sdk targets the OpenAI Chat Completions tool contract; on a responses
+                // upstream it would strip valid Responses tool types, and it is meaningless on anthropic.
+                // (chat_completions enables it by default, so an explicit value is only needed to opt OUT.)
+                if (!OpenAiUpstreamApiParser.TryParse(provider.OpenAiUpstreamApi, out OpenAiUpstreamApi upstreamApi) ||
+                    upstreamApi != OpenAiUpstreamApi.ChatCompletions)
+                {
+                    failures.Add($"{prefix}:RequestNormalization 'codex_to_openai_sdk' requires OpenAiUpstreamApi 'chat_completions'.");
+                }
+
+                if (ApiDialectParser.TryParse(provider.Dialect, out ApiDialect normalizationDialect) &&
+                    normalizationDialect != ApiDialect.OpenAi)
+                {
+                    failures.Add($"{prefix}:RequestNormalization 'codex_to_openai_sdk' is only valid on the 'openai' dialect.");
+                }
+            }
+
             for (int j = 0; j < provider.Models.Count; j++)
             {
                 ModelMappingOptions mapping = provider.Models[j];

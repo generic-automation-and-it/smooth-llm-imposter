@@ -1,15 +1,20 @@
 # NFR-01: Streaming integrity (request-only normalization)
 
-**Status:** Draft
+**Status:** Draft — **scoped by LADR-05 / NFR-05**
 
 <!-- One file per quality attribute. Horizontal concern spanning the whole HLD.
 Status lifecycle: Draft → Prototype → Accepted. -->
 
+> **Scoped by LADR-05.** Byte-for-byte response relay is the rule for **tool normalization** and for
+> every transparent/passthrough route. The one exception is the `/responses`→Chat *downgrade* path,
+> where the response stream is translated to Responses events under NFR-05 (incremental, never
+> buffered). This NFR governs all other paths unchanged.
+
 ## Requirement
 
-Normalization touches the **request only**. The upstream response is relayed byte-for-byte: zero
-response-body reads, parses, buffers, or rewrites are introduced by normalization, and no
-per-request state created by normalization is consumed on the response path.
+Tool normalization touches the **request only**. On every path except the LADR-05 downgrade bridge,
+the upstream response is relayed byte-for-byte: zero response-body reads, parses, buffers, or rewrites
+are introduced, and no per-request state is consumed on the response path.
 
 ## Verification
 

@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.AspNetCore.Http.Features;
 using SmoothLlmImposter.Application.Features.Routing;
@@ -38,22 +39,22 @@ internal static class RoutingEndpoints
         // disambiguates shared paths like /v1/models that are identical across OpenAI and Anthropic — and the
         // captured tail is forwarded verbatim, so /v1/models, /v1/responses, /v1/messages/count_tokens, etc.
         // all proxy without a per-route mapping.
-        app.Map("/openai/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, NormalizeUpstreamPath(upstreamPath), router, forwarder, errors, loggerFactory));
+        app.Map("/openai/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, loggerFactory));
 
-        app.Map("/anthropic/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.Anthropic, NormalizeUpstreamPath(upstreamPath), router, forwarder, errors, loggerFactory));
+        app.Map("/anthropic/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.Anthropic, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, loggerFactory));
 
         // Legacy unprefixed completion routes (POST only). The inbound path is the upstream path. Unprefixed
         // /v1/models is intentionally NOT mapped here — it is dialect-ambiguous; use the /openai or /anthropic prefix.
-        app.MapPost("/v1/chat/completions", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/chat/completions", router, forwarder, errors, loggerFactory));
+        app.MapPost("/v1/chat/completions", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/chat/completions", router, forwarder, responseTransformer, errors, loggerFactory));
 
-        app.MapPost("/v1/responses", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/responses", router, forwarder, errors, loggerFactory));
+        app.MapPost("/v1/responses", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/responses", router, forwarder, responseTransformer, errors, loggerFactory));
 
-        app.MapPost("/v1/messages", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.Anthropic, "/v1/messages", router, forwarder, errors, loggerFactory));
+        app.MapPost("/v1/messages", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.Anthropic, "/v1/messages", router, forwarder, responseTransformer, errors, loggerFactory));
     }
 
     // The {**upstreamPath} catch-all captures the tail WITHOUT a leading slash and excludes the query string.
@@ -67,6 +68,7 @@ internal static class RoutingEndpoints
         string upstreamPath,
         IImposterRouter router,
         IUpstreamForwarder forwarder,
+        IChatToResponsesTransformer responseTransformer,
         IErrorResponseFactory errors,
         ILoggerFactory loggerFactory)
     {
@@ -92,6 +94,7 @@ internal static class RoutingEndpoints
             return;
         }
 
+        bool translateChatToResponses = ShouldTranslateChatToResponses(dialect, upstreamPath, plan);
         HttpResponseMessage upstream;
         try
         {
@@ -101,10 +104,11 @@ internal static class RoutingEndpoints
                 dialect,
                 HttpMethod.Parse(context.Request.Method),
                 string.IsNullOrEmpty(plan.TransformedBody) ? null : plan.TransformedBody,
-                ResolveUpstreamPath(dialect, upstreamPath, plan),
+                translateChatToResponses ? "/v1/chat/completions" : upstreamPath,
                 context.Request.QueryString.Value,
                 CaptureCallerHeaders(context),
                 cancellationToken);
+
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -128,7 +132,21 @@ internal static class RoutingEndpoints
         {
             try
             {
-                await StreamResponseAsync(context, upstream, cancellationToken);
+                if (translateChatToResponses && !upstream.IsSuccessStatusCode)
+                {
+                    string upstreamError = await upstream.Content.ReadAsStringAsync(cancellationToken);
+                    await WriteErrorAsync(
+                        context,
+                        dialect,
+                        errors,
+                        (int)upstream.StatusCode,
+                        string.IsNullOrWhiteSpace(upstreamError) ? $"Upstream request to '{plan.Decision.Provider.Name}' failed." : upstreamError,
+                        "upstream_error",
+                        cancellationToken);
+                    return;
+                }
+
+                await StreamResponseAsync(context, upstream, responseTransformer, translateChatToResponses, cancellationToken);
             }
             catch (Exception ex) when (cancellationToken.IsCancellationRequested && ex is OperationCanceledException or IOException)
             {
@@ -209,18 +227,11 @@ internal static class RoutingEndpoints
         return new CallerHeaders(items);
     }
 
-    private static string ResolveUpstreamPath(ApiDialect dialect, string upstreamPath, RoutePlan plan)
-    {
-        if (dialect == ApiDialect.OpenAi &&
-            plan.Decision.IsImposter &&
-            plan.Decision.Provider.OpenAiUpstreamApi == OpenAiUpstreamApi.ChatCompletions &&
-            upstreamPath.EndsWith("/responses", StringComparison.OrdinalIgnoreCase))
-        {
-            return "/v1/chat/completions";
-        }
-
-        return upstreamPath;
-    }
+    private static bool ShouldTranslateChatToResponses(ApiDialect dialect, string upstreamPath, RoutePlan plan) =>
+        dialect == ApiDialect.OpenAi &&
+        plan.Decision.IsImposter &&
+        plan.Decision.Provider.OpenAiUpstreamApi == OpenAiUpstreamApi.ChatCompletions &&
+        upstreamPath.EndsWith("/responses", StringComparison.OrdinalIgnoreCase);
 
     private static async Task<string> ReadBodyAsync(HttpContext context, CancellationToken cancellationToken)
     {
@@ -228,9 +239,20 @@ internal static class RoutingEndpoints
         return await reader.ReadToEndAsync(cancellationToken);
     }
 
-    private static async Task StreamResponseAsync(HttpContext context, HttpResponseMessage upstream, CancellationToken cancellationToken)
+    private static async Task StreamResponseAsync(
+        HttpContext context,
+        HttpResponseMessage upstream,
+        IChatToResponsesTransformer responseTransformer,
+        bool translateChatToResponses,
+        CancellationToken cancellationToken)
     {
         context.Response.StatusCode = (int)upstream.StatusCode;
+
+        if (translateChatToResponses)
+        {
+            await StreamTranslatedChatResponseAsync(context, upstream, responseTransformer, cancellationToken);
+            return;
+        }
 
         if (upstream.Content.Headers.ContentType is { } contentType)
         {
@@ -255,6 +277,47 @@ internal static class RoutingEndpoints
         finally
         {
             ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    private static async Task StreamTranslatedChatResponseAsync(
+        HttpContext context,
+        HttpResponseMessage upstream,
+        IChatToResponsesTransformer responseTransformer,
+        CancellationToken cancellationToken)
+    {
+        // Unbuffered so translated SSE frames reach the caller as their source Chat chunks arrive.
+        context.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
+
+        if (IsEventStream(upstream))
+        {
+            context.Response.ContentType = "text/event-stream";
+            await using Stream upstreamStream = await upstream.Content.ReadAsStreamAsync(cancellationToken);
+            await foreach (string frame in responseTransformer.TransformStreamingAsync(ReadLinesAsync(upstreamStream, cancellationToken), cancellationToken))
+            {
+                await context.Response.WriteAsync(frame, cancellationToken);
+                await context.Response.Body.FlushAsync(cancellationToken);
+            }
+
+            return;
+        }
+
+        context.Response.ContentType = "application/json";
+        string chatCompletionJson = await upstream.Content.ReadAsStringAsync(cancellationToken);
+        await context.Response.WriteAsync(responseTransformer.TransformNonStreaming(chatCompletionJson), cancellationToken);
+    }
+
+    private static bool IsEventStream(HttpResponseMessage upstream) =>
+        string.Equals(upstream.Content.Headers.ContentType?.MediaType, "text/event-stream", StringComparison.OrdinalIgnoreCase);
+
+    private static async IAsyncEnumerable<string> ReadLinesAsync(
+        Stream stream,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 8192, leaveOpen: true);
+        while (await reader.ReadLineAsync(cancellationToken) is { } line)
+        {
+            yield return line;
         }
     }
 

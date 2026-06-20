@@ -28,7 +28,7 @@ public class ImposterRouterTests
         });
 
         var resolver = new RouteResolver(new ProviderCatalog(options));
-        IRequestTransformer[] transformers = [new OpenAiRequestTransformer(), new AnthropicRequestTransformer()];
+        IRequestTransformer[] transformers = [new OpenAiRequestTransformer([]), new AnthropicRequestTransformer()];
         return new ImposterRouter(
             resolver,
             credentialStore ?? new StubCredentialStore(),

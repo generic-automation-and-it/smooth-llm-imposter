@@ -1,0 +1,56 @@
+name: PR Evals Gate
+
+# L3 — live upstream conformance evals (HLD 004 LADR-04 / NFR-04). Separate from the hermetic L0/L2
+# `pr-gate`: it hits the real opencode-go upstream using the org `OPENCODE_API_KEY` secret. It is
+# NON-BLOCKING initially — do not register `upstream-evals` as a required status check yet. The eval
+# tests are NEUTRAL (skipped) when the secret is absent (e.g. fork PRs, which receive no secrets), so
+# this workflow is always green for contributors who cannot access the key. The key is never logged.
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "tests/SmoothLlmImposter.Upstream.EvalTest/**"
+      - ".github/workflows/pr-evals-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upstream-evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      DOTNET_VERSION: 10.0.x
+      BUILD_CONFIGURATION: Release
+      # Empty on fork PRs (secrets are not exposed to forks) → the L3 tests skip and the job stays green.
+      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Report secret availability (never prints the key)
+        run: |
+          if [ -n "${OPENCODE_API_KEY}" ]; then
+            echo "OPENCODE_API_KEY present — running live upstream evals (L3)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "OPENCODE_API_KEY absent — L3 evals are neutral (skipped)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Restore
+        run: dotnet restore tests/SmoothLlmImposter.Upstream.EvalTest/SmoothLlmImposter.Upstream.EvalTest.csproj
+
+      - name: Test (L3 live upstream)
+        run: >-
+          dotnet test tests/SmoothLlmImposter.Upstream.EvalTest/SmoothLlmImposter.Upstream.EvalTest.csproj
+          --configuration "$BUILD_CONFIGURATION"

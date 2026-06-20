@@ -19,6 +19,7 @@ internal sealed class ProviderCatalog : IProviderCatalog
         {
             ApiDialect dialect = ApiDialectParser.Parse(provider.Dialect);
             CredentialAuthSchemeParser.TryParse(provider.AuthScheme, out CredentialAuthScheme? authScheme);
+            OpenAiUpstreamApi upstreamApi = OpenAiUpstreamApiParser.Parse(provider.OpenAiUpstreamApi);
 
             var route = new ProviderRoute(
                 provider.Name,
@@ -30,8 +31,9 @@ internal sealed class ProviderCatalog : IProviderCatalog
                 provider.Models
                     .Select(m => new ModelMapping(m.From, m.To, m.Caching))
                     .ToArray(),
-                OpenAiUpstreamApiParser.Parse(provider.OpenAiUpstreamApi),
-                authScheme);
+                upstreamApi,
+                authScheme,
+                ResolveNormalization(provider.RequestNormalization, upstreamApi));
 
             if (!_byDialect.TryGetValue(dialect, out List<ProviderRoute>? routes))
             {
@@ -42,6 +44,18 @@ internal sealed class ProviderCatalog : IProviderCatalog
             routes.Add(route);
         }
     }
+
+    // Normalization is the generic OpenAI Chat Completions tool contract, not an upstream-specific quirk:
+    // any chat_completions upstream rejects Codex's Responses-dialect tool catalog the same way. So it is
+    // ON by default for chat_completions (unless explicitly set, including to "none"), and never inferred
+    // for a responses upstream — there the Responses tool types are valid and must be preserved. An
+    // explicit value always wins; the validator forbids an explicit codex profile outside chat_completions.
+    private static RequestNormalization ResolveNormalization(string? configured, OpenAiUpstreamApi upstreamApi) =>
+        string.IsNullOrWhiteSpace(configured)
+            ? upstreamApi == OpenAiUpstreamApi.ChatCompletions
+                ? RequestNormalization.CodexToOpenAiSdk
+                : RequestNormalization.None
+            : RequestNormalizationParser.Parse(configured);
 
     public IReadOnlyList<ProviderRoute> ProvidersFor(ApiDialect dialect) =>
         _byDialect.TryGetValue(dialect, out List<ProviderRoute>? routes) ? routes : [];

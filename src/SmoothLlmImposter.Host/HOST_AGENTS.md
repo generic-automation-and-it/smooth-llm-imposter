@@ -20,8 +20,9 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   `POST /v1/chat/completions|/v1/responses|/v1/messages` stay mapped for back-compat; unprefixed `/v1/models` is
   deliberately unmapped because it's dialect-ambiguous. For matched OpenAI imposter routes whose provider sets
   `OpenAiUpstreamApi: chat_completions`, the Host overrides an inbound `/responses` upstream path to
-  `/v1/chat/completions`; the body conversion lives in Application. Routing/transform semantics live in
-  Application — see `Features/Routing/ROUTING_AGENTS.md`.
+  `/v1/chat/completions`; the body conversion lives in Application. That same downgraded path translates the
+  upstream Chat Completions response back to Responses shape before writing to the caller. Routing/transform
+  semantics live in Application — see `Features/Routing/ROUTING_AGENTS.md`.
 - An un-routed request returns `404` (and a body-less request with no dialect prefix has no model to route).
 - **Logging is config-driven.** `Program.cs` sets a baseline `MinimumLevel.Information()` then layers
   `ReadFrom.Configuration` last, so the `Serilog` section in `appsettings.json` / env vars overrides it (the old
@@ -44,3 +45,4 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 | 2026-06-20 | Documented that compose/runbook `Imposter__Providers__N__*` env vars must not reference sparse provider indexes because they create empty providers during binding. | — |
 | 2026-06-20 | Documented `OpenAiUpstreamApi: chat_completions` path override for matched OpenAI imposter routes. | — |
 | 2026-06-20 | Made Serilog level config-driven (`ReadFrom.Configuration`; replaced dead `Logging` section with `Serilog`) and added the `Debug` full-inbound-request dump (auth-masked) on the `SmoothLlmImposter.Routing` category. | — |
+| 2026-06-20 | Wired the scoped `/responses`→Chat response bridge: translated Chat SSE/non-streaming responses are written back as Responses events/objects, while all other responses keep the existing byte-copy path. | HLD 004 LADR-05 |

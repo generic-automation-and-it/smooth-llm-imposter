@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    L3 — live upstream eval tier (HLD 004 LADR-04 / NFR-04). Hits the real opencode-go upstream and is
+    therefore deliberately NOT part of SmoothLlmImposter.slnx, so the hermetic L0/L2 pr-gate never runs it.
+    It is executed only by the secret-gated pr-evals-gate workflow (or locally with OPENCODE_API_KEY set);
+    every test is neutral (skipped) when the key is absent.
+  -->
+  <PropertyGroup>
+    <RootNamespace>SmoothLlmImposter.Upstream.EvalTest</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SmoothLlmImposter.Application\SmoothLlmImposter.Application.csproj" />
+    <ProjectReference Include="..\..\src\SmoothLlmImposter.Domain\SmoothLlmImposter.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

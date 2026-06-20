@@ -33,6 +33,41 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
     }
 
     [Fact]
+    public async Task Matched_openai_imposter_normalizes_tools_for_strict_upstream()
+    {
+        HttpClient client = fixture.CreateClient();
+
+        // opencode-go opts into codex_to_openai_sdk normalization. A Codex-shaped catalog (namespace
+        // wrapper + unsupported type + dotted name) must be reduced to only valid function tools, and
+        // still reach the upstream as 200.
+        using HttpResponseMessage response = await client.PostAsync(
+            "/v1/chat/completions",
+            Json("""
+            {"model":"gpt5.4","messages":[{"role":"user","content":"hi"}],
+             "tools":[
+               {"type":"namespace","name":"mcp__codex_apps__github","tools":[
+                 {"type":"function","name":"_search_issues","parameters":{"type":"object"}}
+               ]},
+               {"type":"web_search","external_web_access":true},
+               {"type":"function","name":"multi_tool_use.parallel"},
+               {"type":"function","name":"exec_command","parameters":{"type":"object"}}
+             ],
+             "tool_choice":{"type":"function","name":"multi_tool_use.parallel"}}
+            """),
+            Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://opencode.test/v1/chat/completions");
+
+        JsonObject forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!.AsObject();
+        // Survivors only: flattened _search_issues + exec_command; web_search and the dotted name dropped.
+        string[] names = [.. forwarded["tools"]!.AsArray().Select(t => t!["function"]!["name"]!.GetValue<string>())];
+        names.ShouldBe(["_search_issues", "exec_command"]);
+        // tool_choice referenced a dropped tool → removed (request-only; upstream falls back to default).
+        forwarded.ContainsKey("tool_choice").ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task Unmatched_openai_model_passes_through_to_default_unchanged()
     {
         HttpClient client = fixture.CreateClient();
@@ -74,9 +109,10 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
     [Fact]
     public async Task Streaming_response_is_passed_through_as_event_stream()
     {
+        string upstreamBody = "data: {\"delta\":\"hi\"}\n\ndata: [DONE]\n\n";
         fixture.Upstream.ResponseFactory = () => new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent("data: {\"delta\":\"hi\"}\n\ndata: [DONE]\n\n", Encoding.UTF8, "text/event-stream")
+            Content = new StringContent(upstreamBody, Encoding.UTF8, "text/event-stream")
         };
 
         HttpClient client = fixture.CreateClient();
@@ -88,7 +124,42 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
 
         response.Content.Headers.ContentType!.MediaType.ShouldBe("text/event-stream");
         string body = await response.Content.ReadAsStringAsync(Ct);
-        body.ShouldContain("data: [DONE]");
+        body.ShouldBe(upstreamBody);
+    }
+
+    [Fact]
+    public async Task Openai_responses_request_to_chat_upstream_translates_chat_sse_to_responses_sse()
+    {
+        fixture.Upstream.ResponseFactory = () => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """
+                data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":10,"model":"kimi","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+                data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":10,"model":"kimi","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":1,"total_tokens":3}}
+
+                data: [DONE]
+
+                """,
+                Encoding.UTF8,
+                "text/event-stream")
+        };
+
+        HttpClient client = fixture.CreateClient();
+
+        using HttpResponseMessage response = await client.PostAsync(
+            "/openai/responses",
+            Json("""{"model":"gpt5.4","input":"Say hi","stream":true}"""),
+            Ct);
+
+        response.Content.Headers.ContentType!.MediaType.ShouldBe("text/event-stream");
+        string body = await response.Content.ReadAsStringAsync(Ct);
+
+        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://opencode.test/v1/chat/completions");
+        body.ShouldContain("event: response.output_text.delta");
+        body.ShouldContain("\"delta\":\"hi\"");
+        body.ShouldContain("event: response.completed");
+        body.ShouldNotContain("chat.completion.chunk");
     }
 
     [Fact]
