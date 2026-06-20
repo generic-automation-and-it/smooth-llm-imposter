@@ -31,6 +31,13 @@ internal static class RoutingEndpoints
         app.Map("/openai/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
             HandleAsync(ctx, ApiDialect.OpenAi, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, loggerFactory));
 
+        // Anthropic model discovery is answered LOCALLY from the route catalogue (distinct union of configured
+        // `to` targets), not forwarded upstream (HLD 005, Anthropic scope). This specific GET route takes
+        // precedence over the /anthropic catch-all for GET; non-GET methods on the same path do not match here
+        // and fall through to the catch-all transparent passthrough, which is exactly the intended scope (LADR-03).
+        app.MapGet("/anthropic/v1/models", (HttpContext ctx, IAnthropicModelCatalogResponder responder, ILoggerFactory loggerFactory) =>
+            WriteModelCatalogAsync(ctx, ApiDialect.Anthropic, responder.BuildModelsResponse(), loggerFactory));
+
         app.Map("/anthropic/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
             HandleAsync(ctx, ApiDialect.Anthropic, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, loggerFactory));
 
@@ -308,6 +315,19 @@ internal static class RoutingEndpoints
         {
             yield return line;
         }
+    }
+
+    // Writes a catalogue-synthesized discovery body (e.g. GET /anthropic/v1/models) the Application built from
+    // configuration. No upstream forward and no credential read happen on this path (HLD 005 NFR-03) — the Host
+    // only recognizes the case and serializes the already-built string (LADR-04).
+    private static async Task WriteModelCatalogAsync(HttpContext context, ApiDialect dialect, string body, ILoggerFactory loggerFactory)
+    {
+        loggerFactory.CreateLogger(LoggerCategory).LogInformation(
+            "Served {Dialect} /v1/models locally from the configured route catalogue", dialect);
+
+        context.Response.StatusCode = StatusCodes.Status200OK;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsync(body, context.RequestAborted);
     }
 
     private static async Task WriteErrorAsync(

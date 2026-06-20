@@ -260,6 +260,25 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
     }
 
     [Fact]
+    public async Task Post_to_anthropic_models_still_passes_through_to_default()
+    {
+        // GET /anthropic/v1/models is answered locally (HLD 005), but a NON-GET on the same path stays
+        // transparent passthrough (LADR-03): it must reach the upstream like any other proxied request.
+        fixture.Upstream.ResponseFactory = () => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("""{"ok":true}""", Encoding.UTF8, "application/json")
+        };
+
+        HttpClient client = fixture.CreateClient();
+
+        using HttpResponseMessage response = await client.PostAsync("/anthropic/v1/models", content: null, Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://api.anthropic.test/v1/models");
+        fixture.Upstream.LastRequestMethod.ShouldBe(HttpMethod.Post);
+    }
+
+    [Fact]
     public async Task Missing_model_returns_dialect_shaped_error()
     {
         // reset to default JSON response (previous test may have set a streaming factory)

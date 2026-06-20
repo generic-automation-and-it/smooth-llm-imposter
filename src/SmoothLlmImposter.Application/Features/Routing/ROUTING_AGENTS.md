@@ -139,6 +139,18 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   method and **no content**. No default for the dialect ⇒ 404. An imposter route is never selected for a body-less
   request — imposter matching keys off the body's `model`, which a discovery probe doesn't carry. This passes
   through the same credential seam (stored credential / HLD-003 force-Bearer / fail-closed 403).
+- **`GET /anthropic/v1/models` is answered LOCALLY, not forwarded (HLD 005, Anthropic scope).** The one
+  exception to body-less passthrough: a `GET` whose dialect is Anthropic and whose post-prefix path is
+  `/v1/models` is recognized in the Host (`MapGet("/anthropic/v1/models")`, which wins over the
+  `/anthropic/{**path}` catch-all for GET) and served from `IAnthropicModelCatalogResponder` — the **distinct**
+  (ordinal, catalogue-order) union of every Anthropic `to` target, as a valid Anthropic List Models body
+  (`{data, first_id, has_more, last_id}`; each `ModelInfo` is minimal — `id`, `type:"model"`,
+  `display_name` (= the `to` id verbatim), `created_at` fixed `1970-01-01T00:00:00Z`). No upstream call, no
+  credential read, no DB (NFR-03); never serializes a `Secret` (NFR-04); the constant `created_at` ⇒
+  byte-identical responses (NFR-01). Aggregation is string-out in Application; recognition is in Host (LADR-04).
+  Scope is exactly that one case: a **non-GET** on `/anthropic/v1/models`, and every other path/dialect, stay
+  transparent passthrough (LADR-03). The OpenAI `/v1/models` aggregation (#20) is **not yet** on this branch, so
+  `GET /openai/v1/models` still passes through.
 - **Forwarder method/body**: `UpstreamForwarder.SendAsync` takes the inbound `HttpMethod` and a nullable body;
   `Content` is attached only when the body is non-empty. GET probes therefore reach the upstream as real GETs.
 - **Mid-stream caller disconnect is swallowed, not retried.** `RoutingEndpoints.HandleAsync` wraps the streaming
@@ -214,6 +226,7 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-20 | Mid-stream caller disconnect on the streaming path is now caught in `RoutingEndpoints.HandleAsync` (`OperationCanceledException`/`IOException` gated on `RequestAborted`) and returns quietly, instead of bubbling an unhandled exception logged at Error by Serilog request logging. Genuine non-abort streaming failures still propagate. Added `StreamingDisconnectTests`. | #17 |
 | 2026-06-20 | Extracted auth-scheme precedence into `Domain.Routing.UpstreamAuthResolver` (single source of truth shared by `UpstreamForwarder` + `ImposterRouter`). Routing log now reports `auth=` (`Bearer`/`ApiKey`/`none`/`caller-passthrough`); `auth=none` flags an imposter route with an empty `Secret` (sends no auth header → upstream 401). | — |
 | 2026-06-20 | When auth is managed (provider/override secret applied), the forwarder now strips the caller's `chatgpt-account-id` (`ManagedAuthIdentityHeaders`). Codex (`codex_sdk_ts`/`codex_cli_rs`) relays it alongside its own Bearer; an OpenAI-compatible imposter upstream (opencode) honoured it over the managed key and 401'd. Kept on key-less passthrough. Added a Debug-only masked outbound request dump to `UpstreamForwarder` for diagnosing forwarded-header issues. | — |
+| 2026-06-20 | Added local synthesis for `GET /anthropic/v1/models` (HLD 005, Anthropic scope): distinct (ordinal, catalogue-order) union of Anthropic `to` targets emitted as a valid Anthropic List Models body, answered from config — no upstream call, no DB, no `Secret`, fixed `created_at` (byte-identical). Host `MapGet("/anthropic/v1/models")` recognizes the one case (wins over the catch-all for GET); `AnthropicModelCatalogResponder` aggregates string-out. Non-GET on the path and all other paths/dialects stay passthrough. OpenAI `/v1/models` (#20) not yet implemented on this branch. | #28 |
 | 2026-06-20 | Decided: proxy does **not** sanitize tool function names (strict upstreams like Moonshot 400 on Codex's `_*`/`multi_tool_use.parallel` names). Fix is client-side; in-proxy rewrite is rejected because it would require breaking the no-response-rewrite non-negotiable (Codex dispatches by `function.name`). Docs only — no code change. | #19 (LADR-006 Accepted, LADR-007 Draft) |
 | 2026-06-20 | Added request-only request normalization (HLD 004): `RequestNormalization` (`CodexToOpenAiSdk`/`None`) + `Normalization/` seam. v1 keeps only upstream-valid `function` tools (drop unsupported types, flatten `namespace`, drop names failing `^[A-Za-z_][A-Za-z0-9_-]*$`, clean dependent `tool_choice`); runs before Responses→Chat, imposter-only, idempotent. Third sanctioned request-rewrite class; supersedes HLD 001 LADR-006 for OpenAI imposter routes. Added L3 live-eval tier + `pr-evals-gate` workflow. | #19 |
 | 2026-06-20 | Fixed Codex `/responses`→Chat 400 on `opencode-go`: the conversion now folds `role:"developer"` → `role:"system"` (Moonshot rejects `developer` with "tokenization failed"). Independent of tool normalization; covered by an L3 case that reproduces the full #19 failure (bad tools + developer role). | #19 |
