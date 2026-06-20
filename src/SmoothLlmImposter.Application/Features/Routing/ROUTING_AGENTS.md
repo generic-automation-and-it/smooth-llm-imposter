@@ -50,9 +50,7 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   openai requests; an `anthropic` provider serves anthropic requests.
 - **OpenAI Responses→Chat compatibility is explicit per provider.** `OpenAiUpstreamApi` defaults to
   `responses`. Set `OpenAiUpstreamApi: chat_completions` only for OpenAI-compatible upstreams that lack
-  `/responses` (e.g. opencode-go's zen surface). OpenRouter now serves a native `/api/v1/responses`
-  (beta — drop-in for OpenAI's Responses API), so the shipped `openrouter` provider uses the `responses`
-  default and stays byte-transparent. On matched imposter routes only, `/responses` is forwarded to
+  `/responses` (e.g. OpenRouter/opencode). On matched imposter routes only, `/responses` is forwarded to
   `/v1/chat/completions` and common Responses `input`/`instructions` payloads are converted to Chat
   Completions `messages`. The conversion also **folds `role:"developer"` → `role:"system"`**: Moonshot/kimi
   (and some OpenAI-compatible Chat upstreams) reject the OpenAI `developer` role with "tokenization failed",
@@ -124,14 +122,24 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 - **Responses input-history downgrade — HLD 006.** On the matched OpenAI imposter `/responses`→Chat path,
   `OpenAiRequestTransformer` now classifies Responses input Items before creating Chat `messages`: paired
   `function_call`/`function_call_output` Items are emitted as adjacent assistant/tool messages, incomplete tool
-  history is removed, `reasoning` and hosted-tool **call** Items (type ending `_call`/`_call_output`, e.g.
+  history is removed, a message Item that converts to **empty** content (null, empty, or built only from content
+  parts with no Chat representation — e.g. an empty `output_text` or refusal-only assistant turn beside a
+  `function_call`) is **dropped** rather than emitted as a Chat message with neither content nor `tool_calls`
+  (strict upstreams 400: `message at position N with role 'assistant' must not be empty`), `reasoning` and
+  hosted-tool **call** Items (type ending `_call`/`_call_output`, e.g.
   `web_search_call`, `mcp_call`) are explicitly removed, while hosted Items **without** that suffix
   (`mcp_list_tools`, `mcp_approval_request`) and unknown Item types **fail fast** (LADR-03 reject — a non-suffixed
-  hosted Item may carry correctness-relevant intent), and `previous_response_id` is rejected because the router
-  cannot resolve Responses-managed state for a stateless Chat upstream. A structured `function_call_output.output`
+  hosted Item may carry correctness-relevant intent), and the state pointers `previous_response_id` **and**
+  `conversation` (the Conversations API pointer) are both rejected (400, present-and-non-null guarded) because the
+  router cannot resolve Responses-managed state for a stateless Chat upstream. A structured `function_call_output.output`
   array is JSON-stringified into the Chat `tool` message `content` (Chat tool content must be a string). Compatible
   Responses `text.format` Structured Outputs are converted to Chat `response_format`; unsupported formats fail
-  before the upstream is called.
+  before the upstream is called. Request-field fidelity (LADR-03): `reasoning.effort` is converted to Chat top-level
+  `reasoning_effort` for compatible values (`minimal`/`low`/`medium`/`high`) and **dropped** for `none`/unknown
+  (`none` disables GPT-5.4+ tool calling on Chat, and this path is tool-heavy); the Chat-shared generation knobs
+  `stop`/`metadata`/`logit_bias`/`logprobs`/`top_logprobs` pass through as **named** allowlist additions (never a
+  blanket copy — Responses-only fields would 400 a Chat upstream). The `ToChatCompletions` copy set is an allowlist:
+  anything not explicitly copied (or converted) is dropped, so each state/behavior field gets a deliberate policy.
 - **Errors are dialect-shaped**: OpenAI `{error:{message,type}}`, Anthropic `{type:"error",error:{type,message}}`.
   Routing failures → 400/404; upstream transport failures → 502.
 - **`anthropic-version`**: the caller's value is forwarded as-is; `2023-06-01` (or a configured
@@ -256,4 +264,5 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-20 | Implemented HLD 006 request-history normalization for `/responses`→Chat downgrades: paired tool Items become Chat-adjacent assistant/tool messages, orphaned tool history is removed, Responses state pointers/unknown Items fail fast, hosted/reasoning Items are removed by policy, and compatible `text.format` maps to Chat `response_format`. | #19 |
 | 2026-06-20 | HLD 005 implemented: `GET /openai/v1/models` is answered locally from the route catalogue (distinct union of OpenAI `to` targets, first-declaring-provider `owned_by`, fixed `created=0`). Host registers a specific `MapGet` that outranks the catch-all; `IModelCatalogResponder` lives in Application (string-out, no `HttpContext`/upstream/credential seam). Anthropic discovery and non-GET on the OpenAI path still passthrough. | #20 |
 | 2026-06-20 | Pinned two HLD 006 LADR-03 edge cases: hosted-tool removal is scoped to the `_call`/`_call_output` suffix — non-suffixed hosted Items (`mcp_list_tools`, `mcp_approval_request`) reject (fail-fast) rather than silently drop; a structured `function_call_output.output` array is JSON-stringified into the Chat `tool` content. Behavior pinned with L0 tests; no transformer logic change. | #33 |
-| 2026-06-20 | Default `openrouter` provider switched to the `responses` upstream default (dropped `OpenAiUpstreamApi: chat_completions`): OpenRouter now exposes a native OpenAI-compatible `/api/v1/responses` (beta), so the provider is byte-transparent rather than downgrading `/responses`→Chat. `opencode-go` remains `chat_completions` (no `/responses`). Config + docs only. | — |
+| 2026-06-20 | Closed three HLD 006 NFR-03 request-field gaps on the `/responses`→Chat downgrade: reject the Conversations API pointer `conversation` (correctness, mirrors `previous_response_id`); convert `reasoning.effort` → Chat `reasoning_effort` for `minimal`/`low`/`medium`/`high`, drop `none`/unknown (`none` disables GPT-5.4+ tool calling); pass `stop`/`metadata`/`logit_bias`/`logprobs`/`top_logprobs` through as named allowlist additions. Real `/responses` and Anthropic stay byte-transparent. LADR-03 policy matrix extended. | #19 |
+| 2026-06-20 | Fixed strict-upstream 400 (`message at position N with role 'assistant' must not be empty`, Moonshot): a Responses `message` Item that converts to empty content (null, empty, or only unsupported content parts — e.g. an empty `output_text`/refusal assistant turn beside a `function_call`) is now **dropped** on the `/responses`→Chat downgrade instead of emitted as an empty Chat message. Implements the previously-unbuilt gap-analysis row 2; drop applies to every role, never coerces placeholder content (LADR-02). | #19 |
