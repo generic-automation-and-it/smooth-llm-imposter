@@ -1,6 +1,6 @@
 # LADR-01: Advertise `to` (upstream target) names, not inbound `From`
 
-**Status:** Draft
+**Status:** Accepted
 
 <!-- Status lifecycle: Draft → Prototype → Accepted. Also: "Superseded by LADR-MM", "Deprecated". -->
 

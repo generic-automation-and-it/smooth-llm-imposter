@@ -9,6 +9,10 @@ namespace SmoothLlmImposter.Host.IntegrationTest;
 /// </summary>
 public sealed class StubUpstreamHandler : HttpMessageHandler
 {
+    /// <summary>Total upstream requests observed. Lets a test assert "zero upstream calls on this path"
+    /// (NFR-03) via a before/after delta, robust to test ordering within the shared (serial) fixture.</summary>
+    public int RequestCount { get; private set; }
+
     public Uri? LastRequestUri { get; private set; }
     public HttpMethod? LastRequestMethod { get; private set; }
     public string? LastRequestBody { get; private set; }
@@ -24,6 +28,7 @@ public sealed class StubUpstreamHandler : HttpMessageHandler
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
+        RequestCount++;
         LastRequestUri = request.RequestUri;
         LastRequestMethod = request.Method;
         LastRequestBody = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
