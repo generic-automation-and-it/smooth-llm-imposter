@@ -1,6 +1,12 @@
 # LADR-006 — No in-proxy tool-name sanitization; preserve the transparent proxy
 
-- **Date / Status:** 2026-06-20 · Accepted
+- **Date / Status:** 2026-06-20 · Accepted, then **superseded the same day** (see note)
+
+> **Superseded by [HLD 004 LADR-01](../../../hlds/004-codex-to-openai-sdk-transformer/ladrs/LADR-01-normalize-proxy-side-client-vanilla.md).**
+> The project chose to keep clients vanilla and normalize **on the proxy side** instead of disabling
+> client tools. HLD 004 is in discovery; until it is built, the behavior described below (no in-proxy
+> sanitization) is still what ships. Track via issue #19 /
+> `.context/work-tasks/codex-to-openai-sdk-transformer.md`.
 
 ## Context
 
