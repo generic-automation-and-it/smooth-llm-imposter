@@ -53,7 +53,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         EnsureAnthropicVersion(request, decision, credentialOverride, dialect);
 
         logger.LogDebug("Forwarding to {Provider} at {Target}", decision.Provider.Name, target);
-        LogOutboundRequest(request, target);
+        LogOutboundRequest(request, target, body);
 
         HttpClient client = httpClientFactory.CreateClient(HttpClientName);
         return await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
@@ -169,7 +169,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
     // upstream will actually receive). Mirrors the Host's inbound dump so you can diff what the caller sent vs what
     // is forwarded — the suspect is a relayed caller header the upstream rejects. Off by default (Information); the
     // IsEnabled guard keeps it free when disabled. Auth secrets are masked (scheme + last 4 chars only).
-    private void LogOutboundRequest(HttpRequestMessage request, string target)
+    private void LogOutboundRequest(HttpRequestMessage request, string target, string? body)
     {
         if (!logger.IsEnabled(LogLevel.Debug))
         {
@@ -193,7 +193,12 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
             }
         }
 
-        logger.LogDebug("Outbound {Method} {Target}\nHeaders:{Headers}", request.Method, target, headers.ToString());
+        // Body is the exact post-transform payload sent to the upstream (Responses→Chat conversion already
+        // applied). Logged in full at Debug to diagnose tool-shape/name rejections; no secrets live in the
+        // body (auth is header-only, masked above). Temporary diagnostic — remove or gate further if noisy.
+        logger.LogDebug(
+            "Outbound {Method} {Target}\nHeaders:{Headers}\nBody: {Body}",
+            request.Method, target, headers.ToString(), body ?? "(none)");
     }
 
     // Preserve the auth scheme prefix (e.g. "Bearer ") and the secret's last 4 chars; mask the rest. Short
