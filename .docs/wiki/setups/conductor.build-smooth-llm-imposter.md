@@ -127,6 +127,20 @@ chmod +x "$HELPER"
 # ── Start it now.
 "$HELPER"
 
+# ── Point the Codex CLI at the router (ChatGPT/subscription auth). A fresh
+#    cloud sandbox has no ~/.codex/config.toml, so recreate it here. The
+#    base_url carries the /openai dialect prefix; Codex appends /responses.
+mkdir -p "$HOME/.codex"
+cat > "$HOME/.codex/config.toml" <<CODEX_EOF
+model_provider = "smooth-llm-proxy"
+
+[model_providers.smooth-llm-proxy]
+name = "Smooth LLM Imposter"
+base_url = "http://127.0.0.1:$PORT/openai"
+wire_api = "responses"
+requires_openai_auth = true
+CODEX_EOF
+
 # ── Auto-start on new shells (idempotent; the helper no-ops if already up).
 HOOK_LINE=". \"$HELPER\" >/dev/null 2>&1 || true"
 grep -qF "$HELPER" "$HOME/.bashrc" 2>/dev/null || echo "$HOOK_LINE" >> "$HOME/.bashrc"
@@ -138,6 +152,36 @@ for _ in $(seq 1 30); do
 done
 curl -fsS "http://localhost:$PORT/health" && echo "  <- SmoothLlmImposter is up on :$PORT"
 ```
+
+## Point Codex CLI at the router
+
+The script above already writes `~/.codex/config.toml` with a `model_provider` override so the Codex CLI
+(ChatGPT/subscription auth) drives the router out of the box — a fresh Conductor cloud sandbox starts with no
+`~/.codex/config.toml` (new Linux home directory), so the script recreates it. The written file is:
+
+```toml
+# ~/.codex/config.toml
+model_provider = "smooth-llm-proxy"
+
+[model_providers.smooth-llm-proxy]
+name = "Smooth LLM Imposter"
+base_url = "http://127.0.0.1:5080/openai"
+wire_api = "responses"
+requires_openai_auth = true
+```
+
+The `base_url` is the router root **plus the `/openai` dialect prefix** — Codex's Responses-API client appends
+`/responses`, and the router selects the OpenAI dialect from the prefix and forwards the rest of the path
+verbatim. The script substitutes `$PORT` into the URL, so it stays aligned if you override the port.
+
+The provider selection applies to every local Codex model request for the selected config/profile, including
+models picked later with `/model`. It does not proxy Codex login, model-catalog refresh, web search, MCP servers,
+connectors, or cloud tasks. Keep `wire_api = "responses"` even when a matched imposter provider's upstream speaks
+`chat_completions` — Smooth converts and re-emits Responses events for Codex.
+
+> If your only customization is MCP servers (not the provider override), commit a project-level
+> `.codex/config.toml` to the repo root instead: cloud workspaces clone the repo on startup, so it's present
+> without any setup-script change.
 
 ## Verify routing end-to-end
 
