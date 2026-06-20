@@ -50,7 +50,9 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   openai requests; an `anthropic` provider serves anthropic requests.
 - **OpenAI Responses→Chat compatibility is explicit per provider.** `OpenAiUpstreamApi` defaults to
   `responses`. Set `OpenAiUpstreamApi: chat_completions` only for OpenAI-compatible upstreams that lack
-  `/responses` (e.g. OpenRouter/opencode). On matched imposter routes only, `/responses` is forwarded to
+  `/responses` (e.g. opencode-go's zen surface). OpenRouter now serves a native `/api/v1/responses`
+  (beta — drop-in for OpenAI's Responses API), so the shipped `openrouter` provider uses the `responses`
+  default and stays byte-transparent. On matched imposter routes only, `/responses` is forwarded to
   `/v1/chat/completions` and common Responses `input`/`instructions` payloads are converted to Chat
   Completions `messages`. The conversion also **folds `role:"developer"` → `role:"system"`**: Moonshot/kimi
   (and some OpenAI-compatible Chat upstreams) reject the OpenAI `developer` role with "tokenization failed",
@@ -249,3 +251,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-20 | Implemented the HLD 004 LADR-05 bidirectional bridge: matched OpenAI imposter `/responses` requests downgraded to Chat now translate Chat Completions responses back to Responses SSE incrementally via `ChatToResponsesStreamTransformer`; all off-path responses remain byte-relayed. | #19 |
 | 2026-06-20 | Implemented HLD 006 request-history normalization for `/responses`→Chat downgrades: paired tool Items become Chat-adjacent assistant/tool messages, orphaned tool history is removed, Responses state pointers/unknown Items fail fast, hosted/reasoning Items are removed by policy, and compatible `text.format` maps to Chat `response_format`. | #19 |
 | 2026-06-20 | HLD 005 implemented: `GET /openai/v1/models` is answered locally from the route catalogue (distinct union of OpenAI `to` targets, first-declaring-provider `owned_by`, fixed `created=0`). Host registers a specific `MapGet` that outranks the catch-all; `IModelCatalogResponder` lives in Application (string-out, no `HttpContext`/upstream/credential seam). Anthropic discovery and non-GET on the OpenAI path still passthrough. | #20 |
+| 2026-06-20 | Default `openrouter` provider switched to the `responses` upstream default (dropped `OpenAiUpstreamApi: chat_completions`): OpenRouter now exposes a native OpenAI-compatible `/api/v1/responses` (beta), so the provider is byte-transparent rather than downgrading `/responses`→Chat. `opencode-go` remains `chat_completions` (no `/responses`). Config + docs only. | — |

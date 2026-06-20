@@ -117,6 +117,11 @@ All notable changes to SmoothLlmImposter are documented here.
 - **Breaking config:** renamed the provider wire-dialect key `Api` → `Dialect` (e.g.
   `Imposter:Providers:0:Dialect`, env `Imposter__Providers__0__Dialect`) to match the `ApiDialect`
   domain vocabulary. Existing configs using `Api` must be updated — the old key is no longer bound.
+- Default `appsettings.json` `openrouter` provider now uses the `responses` upstream default (dropped
+  `OpenAiUpstreamApi: chat_completions`): OpenRouter ships a native, OpenAI-compatible
+  `/api/v1/responses` (beta), so the provider passes `/responses` through byte-transparently instead of
+  downgrading to `/v1/chat/completions`. `opencode-go` keeps `chat_completions` (its zen surface has no
+  `/responses`).
 
 ### Removed
 - EF Core / PostgreSQL and the Aspire/WireMock/Respawn test stack (the service is stateless). Integration
