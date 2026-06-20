@@ -43,7 +43,7 @@ public class UpstreamForwarderTests
         UpstreamForwarder forwarder = Build(capture);
         CallerHeaders caller = Headers(("Authorization", "Bearer caller-key"));
 
-        await Send(forwarder, Decision(ApiDialect.OpenAi, apiKey: null), credentialOverride: null, ApiDialect.OpenAi, caller);
+        await Send(forwarder, Decision(ApiDialect.OpenAi, secret: null), credentialOverride: null, ApiDialect.OpenAi, caller);
 
         capture.Authorization.ShouldBe("Bearer caller-key");
         capture.ApiKey.ShouldBeNull();
@@ -56,7 +56,7 @@ public class UpstreamForwarderTests
         UpstreamForwarder forwarder = Build(capture);
         CallerHeaders caller = Headers(("x-api-key", "caller-xkey"));
 
-        await Send(forwarder, Decision(ApiDialect.Anthropic, apiKey: null), credentialOverride: null, ApiDialect.Anthropic, caller);
+        await Send(forwarder, Decision(ApiDialect.Anthropic, secret: null), credentialOverride: null, ApiDialect.Anthropic, caller);
 
         capture.ApiKey.ShouldBe("caller-xkey");
         capture.Authorization.ShouldBeNull();
@@ -73,7 +73,7 @@ public class UpstreamForwarderTests
             ("anthropic-version", "2025-01-01"),
             ("x-stainless-lang", "js"));
 
-        await Send(forwarder, Decision(ApiDialect.Anthropic, apiKey: null), credentialOverride: null, ApiDialect.Anthropic, caller);
+        await Send(forwarder, Decision(ApiDialect.Anthropic, secret: null), credentialOverride: null, ApiDialect.Anthropic, caller);
 
         capture.Header("anthropic-beta").ShouldBe("context-management-2025-06-27");
         capture.Header("x-stainless-lang").ShouldBe("js");
@@ -88,7 +88,7 @@ public class UpstreamForwarderTests
         UpstreamForwarder forwarder = Build(capture);
         CallerHeaders caller = Headers(("x-api-key", "caller-xkey"));
 
-        await Send(forwarder, Decision(ApiDialect.Anthropic, apiKey: null), credentialOverride: null, ApiDialect.Anthropic, caller);
+        await Send(forwarder, Decision(ApiDialect.Anthropic, secret: null), credentialOverride: null, ApiDialect.Anthropic, caller);
 
         capture.AnthropicVersion.ShouldBe("2023-06-01");
     }
@@ -100,7 +100,7 @@ public class UpstreamForwarderTests
         UpstreamForwarder forwarder = Build(capture);
         CallerHeaders caller = Headers(("Authorization", "Bearer caller-key"), ("x-api-key", "caller-xkey"));
 
-        await Send(forwarder, Decision(ApiDialect.OpenAi, apiKey: null, isImposter: true), credentialOverride: null, ApiDialect.OpenAi, caller);
+        await Send(forwarder, Decision(ApiDialect.OpenAi, secret: null, isImposter: true), credentialOverride: null, ApiDialect.OpenAi, caller);
 
         capture.Authorization.ShouldBeNull();
         capture.ApiKey.ShouldBeNull();
@@ -113,9 +113,81 @@ public class UpstreamForwarderTests
         UpstreamForwarder forwarder = Build(capture);
         CallerHeaders caller = Headers(("Authorization", "Bearer caller-key"));
 
-        await Send(forwarder, Decision(ApiDialect.OpenAi, apiKey: "config-key"), credentialOverride: null, ApiDialect.OpenAi, caller);
+        await Send(forwarder, Decision(ApiDialect.OpenAi, secret: "config-key"), credentialOverride: null, ApiDialect.OpenAi, caller);
 
         capture.Authorization.ShouldBe("Bearer config-key");
+    }
+
+    [Fact]
+    public async Task Openai_provider_with_apikey_scheme_sends_only_x_api_key()
+    {
+        var capture = new CapturingHandler();
+        UpstreamForwarder forwarder = Build(capture);
+
+        await Send(
+            forwarder,
+            Decision(ApiDialect.OpenAi, secret: "opencode-key", authScheme: CredentialAuthScheme.ApiKey),
+            credentialOverride: null,
+            ApiDialect.OpenAi,
+            CallerHeaders.None);
+
+        capture.ApiKey.ShouldBe("opencode-key");
+        capture.Authorization.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Openai_provider_with_bearer_scheme_sends_only_authorization_bearer()
+    {
+        var capture = new CapturingHandler();
+        UpstreamForwarder forwarder = Build(capture);
+
+        await Send(
+            forwarder,
+            Decision(ApiDialect.OpenAi, secret: "router-key", authScheme: CredentialAuthScheme.Bearer),
+            credentialOverride: null,
+            ApiDialect.OpenAi,
+            CallerHeaders.None);
+
+        capture.Authorization.ShouldBe("Bearer router-key");
+        capture.ApiKey.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Anthropic_provider_without_scheme_defaults_to_x_api_key()
+    {
+        var capture = new CapturingHandler();
+        UpstreamForwarder forwarder = Build(capture);
+
+        await Send(
+            forwarder,
+            Decision(ApiDialect.Anthropic, secret: "anthropic-key", authScheme: null),
+            credentialOverride: null,
+            ApiDialect.Anthropic,
+            CallerHeaders.None);
+
+        capture.ApiKey.ShouldBe("anthropic-key");
+        capture.Authorization.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Body_less_get_forwards_the_get_method_with_no_content()
+    {
+        var capture = new CapturingHandler();
+        UpstreamForwarder forwarder = Build(capture);
+
+        await forwarder.SendAsync(
+            Decision(ApiDialect.OpenAi),
+            credentialOverride: null,
+            ApiDialect.OpenAi,
+            HttpMethod.Get,
+            body: null,
+            "/v1/models",
+            queryString: null,
+            CallerHeaders.None,
+            Ct);
+
+        capture.Method.ShouldBe(HttpMethod.Get);
+        capture.HadContent.ShouldBeFalse();
     }
 
     private static Task Send(
@@ -124,7 +196,7 @@ public class UpstreamForwarderTests
         RouteCredentialOverride? credentialOverride,
         ApiDialect dialect,
         CallerHeaders caller) =>
-        forwarder.SendAsync(decision, credentialOverride, dialect, "{}", dialect == ApiDialect.Anthropic ? "/v1/messages" : "/v1/chat/completions", queryString: null, caller, TestContext.Current.CancellationToken);
+        forwarder.SendAsync(decision, credentialOverride, dialect, HttpMethod.Post, "{}", dialect == ApiDialect.Anthropic ? "/v1/messages" : "/v1/chat/completions", queryString: null, caller, TestContext.Current.CancellationToken);
 
     private static CallerHeaders Headers(params (string Name, string Value)[] headers) =>
         new(headers.Select(h => new KeyValuePair<string, IReadOnlyList<string>>(h.Name, [h.Value])).ToArray());
@@ -132,8 +204,12 @@ public class UpstreamForwarderTests
     private static UpstreamForwarder Build(CapturingHandler handler) =>
         new(new StubHttpClientFactory(handler), NullLogger<UpstreamForwarder>.Instance);
 
-    private static RouteDecision Decision(ApiDialect dialect, string? apiKey = "config-key", bool isImposter = false) => new(
-        new ProviderRoute("provider", dialect, new Uri("https://upstream.test"), ApiKey: apiKey, IsDefault: !isImposter, AnthropicVersion: null, Models: []),
+    private static RouteDecision Decision(
+        ApiDialect dialect,
+        string? secret = "config-key",
+        bool isImposter = false,
+        CredentialAuthScheme? authScheme = null) => new(
+        new ProviderRoute("provider", dialect, new Uri("https://upstream.test"), Secret: secret, IsDefault: !isImposter, AnthropicVersion: null, Models: [], AuthScheme: authScheme),
         TargetModel: "model",
         CachingEnabled: false,
         IsImposter: isImposter);
@@ -145,6 +221,8 @@ public class UpstreamForwarderTests
         public string? Authorization => Header("Authorization");
         public string? ApiKey => Header("x-api-key");
         public string? AnthropicVersion => Header("anthropic-version");
+        public HttpMethod? Method { get; private set; }
+        public bool HadContent { get; private set; }
 
         public string? Header(string name) =>
             _request is not null && _request.Headers.TryGetValues(name, out IEnumerable<string>? values)
@@ -154,6 +232,8 @@ public class UpstreamForwarderTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             _request = request;
+            Method = request.Method;
+            HadContent = request.Content is not null;
             return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK));
         }
     }

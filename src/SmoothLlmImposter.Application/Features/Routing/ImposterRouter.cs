@@ -60,6 +60,22 @@ internal sealed class ImposterRouter : IImposterRouter
         return new RoutePlan(decision, model, transformedBody, credentialOverride);
     }
 
+    public async Task<RoutePlan> PlanPassthroughAsync(ApiDialect dialect, CancellationToken cancellationToken)
+    {
+        // No body, no model (e.g. GET /v1/models): passthrough to the dialect default with no transform.
+        // The body forwarded upstream is empty, so the forwarder issues the request with no content.
+        RouteDecision decision = _resolver.ResolveDefault(dialect);
+        RouteCredentialOverride? credentialOverride = await ResolvePassthroughCredentialAsync(dialect, cancellationToken);
+
+        _logger.LogInformation(
+            "Routed {Dialect} body-less request -> provider '{Provider}' (passthrough, no model, storedCredential={StoredCredential})",
+            dialect,
+            decision.Provider.Name,
+            credentialOverride is not null);
+
+        return new RoutePlan(decision, InboundModel: string.Empty, TransformedBody: string.Empty, credentialOverride);
+    }
+
     private async Task<RouteCredentialOverride?> ResolvePassthroughCredentialAsync(ApiDialect dialect, CancellationToken cancellationToken)
     {
         // The authorization override switch is consulted ONLY here, on the passthrough branch. A matched

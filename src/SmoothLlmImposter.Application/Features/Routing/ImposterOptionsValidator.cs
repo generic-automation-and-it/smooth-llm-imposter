@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using SmoothLlmImposter.Domain.Credentials;
 using SmoothLlmImposter.Domain.Routing;
 
 namespace SmoothLlmImposter.Application.Features.Routing;
@@ -49,6 +50,16 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
                 !Uri.TryCreate(provider.BaseUrl, UriKind.Absolute, out _))
             {
                 failures.Add($"{prefix}:BaseUrl '{provider.BaseUrl}' is not an absolute URL.");
+            }
+
+            if (!OpenAiUpstreamApiParser.TryParse(provider.OpenAiUpstreamApi, out _))
+            {
+                failures.Add($"{prefix}:OpenAiUpstreamApi '{provider.OpenAiUpstreamApi}' is invalid (expected 'responses' or 'chat_completions').");
+            }
+
+            if (!CredentialAuthSchemeParser.TryParse(provider.AuthScheme, out _))
+            {
+                failures.Add($"{prefix}:AuthScheme '{provider.AuthScheme}' is invalid (expected 'ApiKey' or 'Bearer').");
             }
 
             for (int j = 0; j < provider.Models.Count; j++)

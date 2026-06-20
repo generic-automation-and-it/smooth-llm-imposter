@@ -39,4 +39,18 @@ internal sealed class RouteResolver(IProviderCatalog catalog) : IRouteResolver
 
         return new RouteDecision(defaultProvider, model, CachingEnabled: false, IsImposter: false);
     }
+
+    public RouteDecision ResolveDefault(ApiDialect dialect)
+    {
+        ProviderRoute? defaultProvider = catalog.ProvidersFor(dialect).FirstOrDefault(p => p.IsDefault);
+        if (defaultProvider is null)
+        {
+            throw new RoutingException(
+                $"No default {dialect} provider is configured to serve a body-less request.",
+                statusCode: 404);
+        }
+
+        // No inbound model on a body-less request — passthrough to the default upstream unchanged.
+        return new RouteDecision(defaultProvider, TargetModel: string.Empty, CachingEnabled: false, IsImposter: false);
+    }
 }

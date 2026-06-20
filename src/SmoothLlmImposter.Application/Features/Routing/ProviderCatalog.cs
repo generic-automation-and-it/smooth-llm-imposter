@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using SmoothLlmImposter.Domain.Credentials;
 using SmoothLlmImposter.Domain.Routing;
 
 namespace SmoothLlmImposter.Application.Features.Routing;
@@ -17,17 +18,20 @@ internal sealed class ProviderCatalog : IProviderCatalog
         foreach (ProviderOptions provider in options.Value.Providers)
         {
             ApiDialect dialect = ApiDialectParser.Parse(provider.Dialect);
+            CredentialAuthSchemeParser.TryParse(provider.AuthScheme, out CredentialAuthScheme? authScheme);
 
             var route = new ProviderRoute(
                 provider.Name,
                 dialect,
                 new Uri(provider.BaseUrl, UriKind.Absolute),
-                provider.ApiKey,
+                provider.Secret,
                 provider.IsDefault,
                 provider.AnthropicVersion,
                 provider.Models
                     .Select(m => new ModelMapping(m.From, m.To, m.Caching))
-                    .ToArray());
+                    .ToArray(),
+                OpenAiUpstreamApiParser.Parse(provider.OpenAiUpstreamApi),
+                authScheme);
 
             if (!_byDialect.TryGetValue(dialect, out List<ProviderRoute>? routes))
             {

@@ -9,12 +9,16 @@ using SmoothLlmImposter.Infrastructure;
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 // Environment variables override appsettings.json (env wins). The default host already adds them last;
-// re-adding here makes the precedence explicit, e.g. Imposter__Providers__0__ApiKey=sk-...
+// re-adding here makes the precedence explicit, e.g. Imposter__Providers__0__Secret=sk-...
 builder.Configuration.AddEnvironmentVariables();
 
-builder.Host.UseSerilog((_, configuration) =>
+// Default minimum level is Information (set in code so it holds even with no Serilog config section).
+// ReadFrom.Configuration is layered last so the `Serilog` section in appsettings.json / env vars can override
+// it — e.g. Serilog__MinimumLevel__Override__SmoothLlmImposter.Routing=Debug to enable the full-request dump.
+builder.Host.UseSerilog((context, configuration) =>
     configuration
         .MinimumLevel.Information()
+        .ReadFrom.Configuration(context.Configuration)
         .Enrich.FromLogContext()
         .WriteTo.Console());
 

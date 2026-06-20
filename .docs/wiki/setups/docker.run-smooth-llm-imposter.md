@@ -33,15 +33,26 @@ podman build -t smooth-llm-imposter:local .
 ## Run it
 
 Pass configuration via environment variables using the standard double-underscore path syntax. Map the
-container's `5080` to a host port:
+container's `5080` to a host port. The example below assumes your shell already exports
+`$OPENCODE_GO_API_KEY` and `$OPENROUTER_API_KEY`:
 
 ```bash
+# Remove any existing container with the same name first.
+docker rm -f smooth-llm-imposter 2>/dev/null || true
+
 docker run -d --name smooth-llm-imposter \
   -p 5080:5080 \
-  -e Imposter__Providers__0__ApiKey="sk-your-opencode-key" \
-  -e Imposter__Providers__1__ApiKey="sk-your-anthropic-route-key" \
+  -e Imposter__Providers__2__Secret="$OPENCODE_GO_API_KEY" \
+  -e Imposter__Providers__2__AuthScheme="ApiKey" \
+  -e Imposter__Providers__3__Secret="$OPENROUTER_API_KEY" \
+  -e Imposter__Providers__3__AuthScheme="Bearer" \
+  -e Imposter__Providers__4__Secret="$OPENCODE_GO_API_KEY" \
+  -e Imposter__Providers__4__AuthScheme="ApiKey" \
   smooth-llm-imposter:local
 ```
+
+`AuthScheme` (`ApiKey`|`Bearer`) selects the auth header and defaults by dialect when omitted (openai → Bearer,
+anthropic → ApiKey); the shipped providers set it explicitly.
 
 Podman is identical (`podman run -d --name … -p 5080:5080 -e … smooth-llm-imposter:local`).
 
@@ -72,13 +83,13 @@ Podman is identical (`podman run -d --name … -p 5080:5080 -e … smooth-llm-im
 curl -fsS http://localhost:5080/health        # {"status":"ok"}
 ```
 
-Send a routed request — with the shipped config, OpenAI `gpt5.4` is rewritten to `kimi-k2.7` and forwarded to
-opencode-go (requires `Imposter__Providers__0__ApiKey`):
+Send a routed request — with the shipped config, OpenAI `gpt-5.4` is rewritten to `kimi-k2.7` and forwarded to
+opencode-go (requires `Imposter__Providers__2__Secret`):
 
 ```bash
 curl -fsS http://localhost:5080/v1/chat/completions \
   -H "content-type: application/json" \
-  -d '{ "model": "gpt5.4", "messages": [ { "role": "user", "content": "Say hello in one sentence." } ] }'
+  -d '{ "model": "gpt-5.4", "messages": [ { "role": "user", "content": "Say hello in one sentence." } ] }'
 ```
 
 Follow the container logs (Serilog writes to stdout):
@@ -94,7 +105,15 @@ The image is a point-in-time publish of `src/`. After changing code, rebuild and
 ```bash
 docker rm -f smooth-llm-imposter
 docker build -t smooth-llm-imposter:local .
-docker run -d --name smooth-llm-imposter -p 5080:5080 -e Imposter__Providers__0__ApiKey="$KEY" smooth-llm-imposter:local
+docker run -d --name smooth-llm-imposter \
+  -p 5080:5080 \
+  -e Imposter__Providers__2__Secret="$OPENCODE_GO_API_KEY" \
+  -e Imposter__Providers__2__AuthScheme="ApiKey" \
+  -e Imposter__Providers__3__Secret="$OPENROUTER_API_KEY" \
+  -e Imposter__Providers__3__AuthScheme="Bearer" \
+  -e Imposter__Providers__4__Secret="$OPENCODE_GO_API_KEY" \
+  -e Imposter__Providers__4__AuthScheme="ApiKey" \
+  smooth-llm-imposter:local
 ```
 
 Add `--no-cache` to `docker build` to force a clean rebuild if a cached layer is masking a change.

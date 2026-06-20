@@ -31,19 +31,23 @@ only** — there is no OpenAI⇄Anthropic body translation.
 ## Configuration
 
 - Bound from the `Imposter` section; **environment variables override `appsettings.json`** (env wins),
-  e.g. `Imposter__Providers__1__ApiKey=sk-...`.
-- A **provider** = `Name` + `Api` (dialect) + `BaseUrl` (server root, no `/v1`; the inbound request path is
-  appended verbatim) + `ApiKey` + optional `IsDefault`, holding nested `Models[]` of `{ From, To, Caching }`.
+  e.g. `Imposter__Providers__4__Secret=sk-...`. The sibling `AuthScheme` (`ApiKey`|`Bearer`, case-insensitive)
+  selects the auth header and defaults by dialect when omitted (openai → Bearer, anthropic → ApiKey).
+- A **provider** = `Name` + `Dialect` + `BaseUrl` (server root, no `/v1`; the inbound request path is
+  appended verbatim) + `Secret` + optional `AuthScheme` + optional `IsDefault`, plus `OpenAiUpstreamApi` (`responses` default or
+  `chat_completions` for OpenAI-compatible upstreams without `/responses`), holding nested `Models[]` of `{ From, To, Caching }`.
   `From` supports exact + trailing-`*` wildcard. A provider with no `Models` is inert until one is added.
 - Keys are configuration-only and never persisted. Startup validation (`ValidateOnStart`) rejects unknown
   dialects, non-absolute base URLs, duplicate names, malformed mappings, and >1 default per dialect.
 
 ```jsonc
 "Imposter": { "Providers": [
-  { "Name": "opencode-go", "Dialect": "openai", "BaseUrl": "https://opencode.ai/zen/go", "ApiKey": "",
-    "Models": [ { "From": "gpt5.4", "To": "kimi-k2.7", "Caching": true } ] },
-  { "Name": "openrouter", "Dialect": "openai", "BaseUrl": "https://openrouter.ai", "ApiKey": "" },
-  { "Name": "opencode-anthropic", "Dialect": "anthropic", "BaseUrl": "https://opencode.ai/zen/go", "ApiKey": "",
+  { "Name": "opencode-go", "Dialect": "openai", "BaseUrl": "https://opencode.ai/zen/go", "Secret": "", "AuthScheme": "ApiKey",
+    "OpenAiUpstreamApi": "chat_completions",
+    "Models": [ { "From": "gpt-5.4", "To": "kimi-k2.7", "Caching": true } ] },
+  { "Name": "openrouter", "Dialect": "openai", "BaseUrl": "https://openrouter.ai/api", "Secret": "", "AuthScheme": "Bearer",
+    "OpenAiUpstreamApi": "chat_completions" },
+  { "Name": "opencode-anthropic", "Dialect": "anthropic", "BaseUrl": "https://opencode.ai/zen/go", "Secret": "", "AuthScheme": "ApiKey",
     "Models": [ { "From": "claude-haiku-*", "To": "minimax-m3", "Caching": true } ] }
 ] }
 ```

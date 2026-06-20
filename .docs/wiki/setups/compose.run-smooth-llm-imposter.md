@@ -8,8 +8,8 @@ points at the published GHCR tag — so you can either build locally or `pull`. 
 running across reboots. Works with **`docker compose`** (v2) and **`podman-compose`**.
 
 > SmoothLlmImposter is **stateless and key-less** — no `/data` volume, port **5066**, keys are
-> `Imposter__Providers__N__ApiKey`. (The Smooth Claude Proxy's compose, with `WORKSPACE_PATH`/`LlmService__*`, is a
-> different service.)
+> `Imposter__Providers__N__Secret` plus `Imposter__Providers__N__AuthScheme`. (The Smooth Claude Proxy's compose,
+> with `WORKSPACE_PATH`/`LlmService__*`, is a different service.)
 
 ## Supply keys
 
@@ -18,13 +18,15 @@ variables. Create `.env` next to `docker-compose.yml`:
 
 ```dotenv
 # .env  (never committed — *.env is gitignored)
-OPENCODE_API_KEY=sk-your-opencode-key      # feeds providers 0 (opencode-go) and 2 (opencode-anthropic)
-OPENROUTER_API_KEY=sk-your-openrouter-key  # feeds provider 1 (openrouter)
+OPENCODE_GO_API_KEY=sk-your-opencode-key      # feeds providers 2 (opencode-go) and 4 (opencode-anthropic)
+OPENROUTER_API_KEY=sk-your-openrouter-key  # feeds provider 3 (openrouter)
 ```
 
 `docker-compose.yml` maps these named variables onto the indexed
-`Imposter__Providers__N__ApiKey` settings — edit the `environment:` block there if your provider order
-differs from the shipped `appsettings.json`.
+`Imposter__Providers__N__Secret` settings — edit the `environment:` block there if your provider order
+differs from the shipped `appsettings.json`. Do not set a sparse provider index: for example,
+`Imposter__Providers__5__Secret` creates an otherwise-empty provider if `appsettings.json` only defines indexes
+`0..4`, and startup validation fails with `Providers[5]:Name is required`.
 
 ## Build & first run (local dockerized testing)
 
@@ -37,11 +39,19 @@ start. Full first-run sequence:
 cd /path/to/smooth-llm-imposter        # your conductor workspace dir
 ls docker-compose.yml                  # sanity check: should print the filename
 
+#    Shut down + remove any existing smooth-llm-imposter container first, so a
+#    stale one can't hold the name or the port. Both lines are safe no-ops if
+#    nothing is running. (docker: swap podman-compose->docker compose, podman->docker)
+podman-compose down 2>/dev/null || true
+podman rm -f smooth-llm-imposter 2>/dev/null || true
+
 # 1) (optional) upstream keys — only needed for ROUTED calls, NOT for /health.
-#    *.env is gitignored. Skip this step if you just want to test /health.
-cat > .env <<'EOF'
-OPENCODE_API_KEY=sk-your-opencode-key
-OPENROUTER_API_KEY=sk-your-openrouter-key
+#    Pulls the values from your host shell (export them first), so no secrets are
+#    hardcoded; *.env is gitignored. Note the UNQUOTED <<EOF — that is what lets
+#    ${...} expand. Skip this step if you just want to test /health.
+cat > .env <<EOF
+OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY:-}
+OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
 EOF
 
 # 2) Build the image from the Dockerfile
@@ -152,13 +162,63 @@ curl -fsS http://localhost:5066/health        # {"status":"ok"}
 docker compose logs -f                         # podman-compose logs -f
 ```
 
-Send a routed request — with the shipped config, OpenAI `gpt5.4` is rewritten to `kimi-k2.7` and forwarded to
-opencode-go (requires `Imposter__Providers__0__ApiKey`):
+Point Codex and Anthropic-dialect clients at the Compose port **plus the dialect prefix** before sending
+requests through the router. The router selects the dialect from the `/openai` or `/anthropic` prefix and
+forwards the rest of the path verbatim:
+
+For the OpenAI default passthrough provider in `appsettings.json`, set `BaseUrl` based on the auth path:
+
+- API-key/OpenAI Platform passthrough: `"BaseUrl": "https://api.openai.com"`
+- Codex CLI ChatGPT/subscription passthrough: `"BaseUrl": "https://chatgpt.com/backend-api/codex"`
+
+```toml
+# ~/.codex/config.toml — Codex CLI with ChatGPT/subscription auth
+model_provider = "smooth-llm-proxy"
+
+[model_providers.smooth-llm-proxy]
+name = "Smooth LLM Imposter"
+base_url = "http://127.0.0.1:5066/openai"
+wire_api = "responses"
+requires_openai_auth = true
+```
+
+That provider selection applies to every local Codex model request for the selected config/profile, including
+models selected later with `/model`. It does not proxy Codex login, model-catalog refresh, web search, MCP
+servers, connectors, or cloud tasks.
+
+For generic OpenAI-compatible SDK/API-key clients, keep `/v1` in the base URL because those clients append bare
+paths like `/responses`, `/chat/completions`, and `/models`:
+
+```toml
+openai_base_url = "http://localhost:5066/openai/v1"
+```
 
 ```bash
-curl -fsS http://localhost:5066/v1/chat/completions \
+# Anthropic SDK appends /v1/messages itself, so NO /v1 here
+export ANTHROPIC_BASE_URL="http://localhost:5066/anthropic"
+```
+
+For Claude subscription-based upstreams, create a token with the Claude CLI and supply it yourself as the
+imposter provider `Secret` override:
+
+```bash
+claude setup-token
+
+# Example: provider 4 is the shipped Anthropic-dialect imposter path.
+export Imposter__Providers__4__Secret="paste-the-claude-token-here"
+export Imposter__Providers__4__AuthScheme="Bearer"
+```
+
+Use `AuthScheme="Bearer"` when the upstream expects `Authorization: Bearer <token>`. Use `AuthScheme="ApiKey"`
+when the upstream expects `x-api-key: <token>`.
+
+Send a routed request — with the shipped config, OpenAI `gpt-5.4` is rewritten to `kimi-k2.7` and forwarded
+to opencode-go (requires the provider's `Secret`):
+
+```bash
+curl -fsS http://localhost:5066/openai/v1/chat/completions \
   -H "content-type: application/json" \
-  -d '{ "model": "gpt5.4", "messages": [ { "role": "user", "content": "Say hello in one sentence." } ] }'
+  -d '{ "model": "gpt-5.4", "messages": [ { "role": "user", "content": "Say hello in one sentence." } ] }'
 ```
 
 ## Credential-admin API (optional)
