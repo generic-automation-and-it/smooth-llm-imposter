@@ -62,11 +62,10 @@ permissions:
   contents: read
   issues: write
 
-# Same selective concurrency as the callee: shared group per PR for pull_request
-# events (latest commit wins), unique group for manual/comment triggers.
-concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('ai-review-{0}', github.event.pull_request.number) || format('{0}-{1}', github.run_id, github.run_attempt) }}
-  cancel-in-progress: true
+# NOTE: no top-level `concurrency:` here. The reusable workflow defines its own
+# `ai-review-<pr>` concurrency group; duplicating the same group in this caller
+# makes GitHub detect a caller/callee deadlock and fail the run. Let the callee
+# own concurrency.
 
 jobs:
   review:
