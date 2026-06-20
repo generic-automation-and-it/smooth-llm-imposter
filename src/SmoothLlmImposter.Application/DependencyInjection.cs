@@ -25,6 +25,7 @@ public static class DependencyInjection
         services.AddSingleton<IRequestTransformer, OpenAiRequestTransformer>();
         services.AddSingleton<IRequestTransformer, AnthropicRequestTransformer>();
         services.AddScoped<IImposterRouter, ImposterRouter>();
+        services.AddSingleton<IModelCatalogResponder, OpenAiModelCatalogResponder>();
         services.AddSingleton<IAnthropicModelCatalogResponder, AnthropicModelCatalogResponder>();
         services.AddSingleton<IErrorResponseFactory, ErrorResponseFactory>();
         services.AddSingleton<IAuthorizationOverrideSwitch, AuthorizationOverrideSwitch>();

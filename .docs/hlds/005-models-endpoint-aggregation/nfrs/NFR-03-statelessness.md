@@ -1,6 +1,6 @@
 # NFR-03: Statelessness (no external dependency)
 
-**Status:** Draft
+**Status:** Accepted
 
 <!-- One file per quality attribute. Horizontal concern spanning the whole HLD.
 Status lifecycle: Draft → Prototype → Accepted. -->

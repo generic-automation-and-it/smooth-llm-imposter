@@ -1,6 +1,6 @@
 # NFR-04: Security (secret confidentiality)
 
-**Status:** Draft
+**Status:** Accepted
 
 <!-- One file per quality attribute. Horizontal concern spanning the whole HLD.
 Status lifecycle: Draft → Prototype → Accepted. -->

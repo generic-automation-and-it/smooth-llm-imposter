@@ -239,7 +239,7 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
     }
 
     [Fact]
-    public async Task Get_models_under_dialect_prefix_passes_through_to_default_without_body()
+    public async Task Get_anthropic_models_under_prefix_is_answered_locally_ignoring_query_string()
     {
         // reset to default JSON response (a previous test may have set a streaming factory)
         fixture.Upstream.ResponseFactory = () => new HttpResponseMessage(HttpStatusCode.OK)
@@ -248,15 +248,22 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
         };
 
         HttpClient client = fixture.CreateClient();
+        int upstreamBefore = fixture.Upstream.RequestCount;
 
-        using HttpResponseMessage response = await client.GetAsync("/openai/v1/models?client_version=0.138.0", Ct);
+        // HLD 005 (Anthropic scope): GET /anthropic/v1/models is synthesized locally from the route catalogue,
+        // NOT forwarded — even with a discovery query string. The probe's `?client_version=...` is irrelevant to
+        // local aggregation and must not produce an upstream call (NFR-03).
+        using HttpResponseMessage response = await client.GetAsync("/anthropic/v1/models?client_version=0.138.0", Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        // No model to match → passthrough to the OpenAI default, path + query forwarded verbatim, GET with no body.
-        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://api.openai.test/v1/models?client_version=0.138.0");
-        fixture.Upstream.LastRequestMethod.ShouldBe(HttpMethod.Get);
-        fixture.Upstream.LastRequestBody.ShouldBeNull();
-        fixture.Upstream.LastAuthorization.ShouldBe("Bearer openai-key");
+        response.Content.Headers.ContentType!.MediaType.ShouldBe("application/json");
+
+        // The Anthropic catalogue's single `to` target is advertised; the upstream is never touched (shared
+        // fixture — assert on the request-count delta, not the cross-test LastRequestUri).
+        JsonNode root = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!;
+        root["data"]!.AsArray().Select(m => m!["id"]!.GetValue<string>())
+            .ShouldBe(["claude-3-5-haiku-latest"]);
+        fixture.Upstream.RequestCount.ShouldBe(upstreamBefore);
     }
 
     [Fact]

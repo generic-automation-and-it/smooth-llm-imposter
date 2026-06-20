@@ -139,18 +139,26 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   method and **no content**. No default for the dialect ⇒ 404. An imposter route is never selected for a body-less
   request — imposter matching keys off the body's `model`, which a discovery probe doesn't carry. This passes
   through the same credential seam (stored credential / HLD-003 force-Bearer / fail-closed 403).
-- **`GET /anthropic/v1/models` is answered LOCALLY, not forwarded (HLD 005, Anthropic scope).** The one
-  exception to body-less passthrough: a `GET` whose dialect is Anthropic and whose post-prefix path is
+- **`GET /openai/v1/models` is answered locally, not passthrough (HLD 005).** The Host registers a specific
+  `MapGet("/openai/v1/models", …)` that outranks the `/openai/{**upstreamPath}` catch-all for GET, so it
+  short-circuits the discovery probe to a synthesized OpenAI `ListModelsResponse` built from the route
+  catalogue alone — the **distinct union of every `to`** across the OpenAI-dialect providers, with the
+  first declaring provider supplying `owned_by` on a duplicate. `IModelCatalogResponder` lives in Application
+  and is string-out (no `HttpContext`, no upstream, no credential seam — NFR-03/04). Default/passthrough
+  providers carry no `Models[]` and contribute nothing. Scope is narrow: non-GET on the same path still
+  passthrough (LADR-03). `created` is a fixed constant (`0`), so two calls under one config are byte-identical (NFR-01).
+- **`GET /anthropic/v1/models` is answered LOCALLY, not forwarded (HLD 005, Anthropic scope).** The Anthropic
+  twin of the OpenAI behavior above: a `GET` whose dialect is Anthropic and whose post-prefix path is
   `/v1/models` is recognized in the Host (`MapGet("/anthropic/v1/models")`, which wins over the
   `/anthropic/{**path}` catch-all for GET) and served from `IAnthropicModelCatalogResponder` — the **distinct**
   (ordinal, catalogue-order) union of every Anthropic `to` target, as a valid Anthropic List Models body
   (`{data, first_id, has_more, last_id}`; each `ModelInfo` is minimal — `id`, `type:"model"`,
-  `display_name` (= the `to` id verbatim), `created_at` fixed `1970-01-01T00:00:00Z`). No upstream call, no
-  credential read, no DB (NFR-03); never serializes a `Secret` (NFR-04); the constant `created_at` ⇒
-  byte-identical responses (NFR-01). Aggregation is string-out in Application; recognition is in Host (LADR-04).
-  Scope is exactly that one case: a **non-GET** on `/anthropic/v1/models`, and every other path/dialect, stay
-  transparent passthrough (LADR-03). The OpenAI `/v1/models` aggregation (#20) is **not yet** on this branch, so
-  `GET /openai/v1/models` still passes through.
+  `display_name` (= the `to` id verbatim), `created_at` fixed `1970-01-01T00:00:00Z`). The Anthropic envelope
+  differs from OpenAI's: no `object:"list"` field, `type:"model"` not `object`, RFC3339 `created_at` not integer
+  `created`, `display_name` not `owned_by`. No upstream call, no credential read, no DB (NFR-03); never serializes
+  a `Secret` (NFR-04); the constant `created_at` ⇒ byte-identical responses (NFR-01). Aggregation is string-out in
+  Application; recognition is in Host (LADR-04). Scope is exactly that one case: a **non-GET** on
+  `/anthropic/v1/models`, and every other path, stay transparent passthrough (LADR-03).
 - **Forwarder method/body**: `UpstreamForwarder.SendAsync` takes the inbound `HttpMethod` and a nullable body;
   `Content` is attached only when the body is non-empty. GET probes therefore reach the upstream as real GETs.
 - **Mid-stream caller disconnect is swallowed, not retried.** `RoutingEndpoints.HandleAsync` wraps the streaming
@@ -198,7 +206,7 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 
 - **L0** `Domain.UnitTest/Routing` — matcher, dialect parser.
 - **L0** `Application.UnitTest/Routing` — resolver, transformers (cache injection), router, error factory, options
-  validator, `CodexToOpenAiSdkNormalizerTests` (normalization drop/flatten/name-rules/tool_choice/idempotency, flat+nested shapes).
+  validator, `CodexToOpenAiSdkNormalizerTests` (normalization drop/flatten/name-rules/tool_choice/idempotency, flat+nested shapes), model-catalog responder.
 - **L3** `Upstream.EvalTest` — **live** opencode-go conformance eval (HLD 004): a raw Codex catalog run through the
   real transformer+normalizer is accepted (200), un-normalized is rejected (400). Excluded from `SmoothLlmImposter.slnx`;
   secret-gated on `OPENCODE_API_KEY`, neutral (skipped) when absent; runs only in `pr-evals-gate.yml`.
@@ -232,3 +240,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-20 | Fixed Codex `/responses`→Chat 400 on `opencode-go`: the conversion now folds `role:"developer"` → `role:"system"` (Moonshot rejects `developer` with "tokenization failed"). Independent of tool normalization; covered by an L3 case that reproduces the full #19 failure (bad tools + developer role). | #19 |
 | 2026-06-20 | **Amends HLD 004 LADR-03**: normalization is now **ON by default for `chat_completions`** (resolved in `ProviderCatalog`), `none` to opt out; `responses`/anthropic reject an explicit `codex_to_openai_sdk` (validator). Rationale: the reject rules are the generic OpenAI Chat Completions tool contract (openrouter/Bedrock 400 the same), and normalization is a no-op for clean clients — so opt-in per provider was the wrong default. `opencode-go` no longer needs the explicit flag. | #19 |
 | 2026-06-20 | Implemented the HLD 004 LADR-05 bidirectional bridge: matched OpenAI imposter `/responses` requests downgraded to Chat now translate Chat Completions responses back to Responses SSE incrementally via `ChatToResponsesStreamTransformer`; all off-path responses remain byte-relayed. | #19 |
+| 2026-06-20 | HLD 005 implemented: `GET /openai/v1/models` is answered locally from the route catalogue (distinct union of OpenAI `to` targets, first-declaring-provider `owned_by`, fixed `created=0`). Host registers a specific `MapGet` that outranks the catch-all; `IModelCatalogResponder` lives in Application (string-out, no `HttpContext`/upstream/credential seam). Anthropic discovery and non-GET on the OpenAI path still passthrough. | #20 |
