@@ -18,7 +18,7 @@ variables. Create `.env` next to `docker-compose.yml`:
 
 ```dotenv
 # .env  (never committed — *.env is gitignored)
-OPENCODE_API_KEY=sk-your-opencode-key      # feeds providers 2 (opencode-go) and 4 (opencode-anthropic)
+OPENCODE_GO_API_KEY=sk-your-opencode-key      # feeds providers 2 (opencode-go) and 4 (opencode-anthropic)
 OPENROUTER_API_KEY=sk-your-openrouter-key  # feeds provider 3 (openrouter)
 ```
 
@@ -50,7 +50,7 @@ podman rm -f smooth-llm-imposter 2>/dev/null || true
 #    hardcoded; *.env is gitignored. Note the UNQUOTED <<EOF — that is what lets
 #    ${...} expand. Skip this step if you just want to test /health.
 cat > .env <<EOF
-OPENCODE_API_KEY=${OPENCODE_API_KEY:-}
+OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY:-}
 OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
 EOF
 
@@ -198,13 +198,13 @@ openai_base_url = "http://localhost:5066/openai/v1"
 export ANTHROPIC_BASE_URL="http://localhost:5066/anthropic"
 ```
 
-Send a routed request — with the shipped config, OpenAI `gpt5.4` is rewritten to `kimi-k2.7` and forwarded
+Send a routed request — with the shipped config, OpenAI `gpt-5.4` is rewritten to `kimi-k2.7` and forwarded
 to opencode-go (requires the provider's `ApiKey`):
 
 ```bash
 curl -fsS http://localhost:5066/openai/v1/chat/completions \
   -H "content-type: application/json" \
-  -d '{ "model": "gpt5.4", "messages": [ { "role": "user", "content": "Say hello in one sentence." } ] }'
+  -d '{ "model": "gpt-5.4", "messages": [ { "role": "user", "content": "Say hello in one sentence." } ] }'
 ```
 
 ## Credential-admin API (optional)

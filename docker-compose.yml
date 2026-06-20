@@ -19,9 +19,9 @@ services:
       # 4 opencode-anthropic). The two *-default real providers are catch-all
       # passthrough and take NO key here. Supply imposter keys via shell export
       # or a gitignored .env file; :- keeps compose quiet when a key is unset.
-      Imposter__Providers__2__ApiKey: ${OPENCODE_API_KEY:-}
+      Imposter__Providers__2__ApiKey: ${OPENCODE_GO_API_KEY:-}
       Imposter__Providers__3__ApiKey: ${OPENROUTER_API_KEY:-}
-      Imposter__Providers__4__ApiKey: ${OPENCODE_API_KEY:-}
+      Imposter__Providers__4__ApiKey: ${OPENCODE_GO_API_KEY:-}
     # Only needed for the optional /admin/credentials API (requires PostgreSQL):
     # persist Data Protection keys so stored secrets survive a container rebuild.
     # volumes:

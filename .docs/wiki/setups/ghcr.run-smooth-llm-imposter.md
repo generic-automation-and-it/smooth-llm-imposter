@@ -13,7 +13,7 @@ ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
 
 > **This is the SmoothLlmImposter image — not the Smooth Claude Proxy.** They are different services with different
 > config: this router is **stateless and key-less** (no `/data` volume, no `WORKSPACE_PATH`), uses port **5080**,
-> and keys are `Imposter__Providers__N__ApiKey` — there is no `LlmService__*` / `OPENCODE_API_KEY` / `LOG_TOKEN_FORMAT`.
+> and keys are `Imposter__Providers__N__ApiKey` — there is no `LlmService__*` / `OPENCODE_GO_API_KEY` / `LOG_TOKEN_FORMAT`.
 
 ## Prerequisites
 
@@ -29,8 +29,9 @@ Create or replace the container from the published image:
 docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 docker run -d --name smooth-llm-imposter --restart unless-stopped \
   -p 5080:5080 \
-  -e Imposter__Providers__0__ApiKey \
-  -e Imposter__Providers__1__ApiKey \
+  -e Imposter__Providers__2__ApiKey \
+  -e Imposter__Providers__3__ApiKey \
+  -e Imposter__Providers__4__ApiKey \
   ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
 ```
 
@@ -38,8 +39,9 @@ docker run -d --name smooth-llm-imposter --restart unless-stopped \
 they never appear in the command line or shell history:
 
 ```bash
-export Imposter__Providers__0__ApiKey="sk-your-opencode-key"
-export Imposter__Providers__1__ApiKey="sk-your-anthropic-route-key"
+export Imposter__Providers__2__ApiKey="sk-your-opencode-key"
+export Imposter__Providers__3__ApiKey="sk-your-openrouter-key"
+export Imposter__Providers__4__ApiKey="sk-your-anthropic-route-key"
 ```
 
 After the container has been created once, start it again with:
@@ -56,8 +58,9 @@ Identical, with Podman's SELinux-aware flags where relevant (none needed here �
 podman rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 podman run -d --name smooth-llm-imposter --restart unless-stopped \
   -p 5080:5080 \
-  -e Imposter__Providers__0__ApiKey \
-  -e Imposter__Providers__1__ApiKey \
+  -e Imposter__Providers__2__ApiKey \
+  -e Imposter__Providers__3__ApiKey \
+  -e Imposter__Providers__4__ApiKey \
   ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
 ```
 
@@ -68,7 +71,7 @@ podman run -d --name smooth-llm-imposter --restart unless-stopped \
 ```bash
 docker pull ghcr.io/generic-automation-and-it/smooth-llm-imposter:1.4.0
 docker run -d --name smooth-llm-imposter --restart unless-stopped -p 5080:5080 \
-  -e Imposter__Providers__0__ApiKey \
+  -e Imposter__Providers__2__ApiKey \
   ghcr.io/generic-automation-and-it/smooth-llm-imposter:1.4.0
 ```
 
