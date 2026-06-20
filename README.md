@@ -42,6 +42,9 @@ Run your existing agent client unchanged, and let the router decide what each mo
   and let the router pick which one backs a given model via config order. You only re-authenticate when a
   subscription's token actually expires, not every time you switch. E.g. the client is pinned to Opus
   4.7 1M but the router rewrites and sends it to your private Opus 4.8 1M.
+- **Survive provider dropouts mid-session.** When Claude Code or Codex hits a temporary rate limit or
+  outage (e.g. `API Error: Server is temporarily limiting requests`), imposter the affected model to a
+  different upstream and keep going — same client, same context thread, no re-login.
 
 The same mechanism also enables:
 
@@ -108,7 +111,7 @@ HLDs under `.docs/hlds/`:
 | [002 — Credential Persistence & Overrides](.docs/hlds/002-credential-persistence-overrides/README.md) | Accepted | Opt-in PostgreSQL persistence for passthrough-credential overrides; amends HLD 001 |
 | [003 — Passthrough Authorization Override](.docs/hlds/003-passthrough-authorization-override/README.md) | In Discovery | Force the active stored Bearer over the caller's credential on passthrough routes |
 | [004 — Codex-to-OpenAI-SDK Transformer](.docs/hlds/004-codex-to-openai-sdk-transformer/README.md) | In Discovery | Transform Codex `/responses` payloads to the OpenAI Chat Completions SDK shape for compatible upstreams |
-| [005 — OpenAI /models Endpoint Aggregation](.docs/hlds/005-models-endpoint-aggregation/README.md) | In Discovery | `GET /openai/v1/models` returns the distinct union of configured `to` models, synthesized locally |
+| [005 — OpenAI /models Endpoint Aggregation](.docs/hlds/005-models-endpoint-aggregation/README.md) | Accepted | `GET /openai/v1/models` returns the distinct union of configured `to` models, synthesized locally |
 
 ---
 

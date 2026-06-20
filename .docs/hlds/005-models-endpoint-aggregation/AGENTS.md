@@ -61,3 +61,4 @@ Measurable NFRs live in [`./nfrs/`](./nfrs/). Constraints that change how code i
 | Date | Change | Ref |
 | :---- | :---- | :---- |
 | 2026-06-20 | HLD scaffolded and drafted (README, LADR-01..04, NFR-01..04, C1 + flow diagram). | #20 |
+| 2026-06-20 | Implemented: `MapGet("/openai/v1/models")` in Host short-circuits the catch-all to a locally-synthesized OpenAI `ListModelsResponse`; `IModelCatalogResponder` / `OpenAiModelCatalogResponder` in Application aggregates the distinct `to` set (first-declaring-provider `owned_by`, fixed `created=0`, ordinal dedup). L0 + L2 tests cover dedup/order, empty catalogue, byte-stability, no-secret, zero upstream calls, and scope (Anthropic + non-GET passthrough). LADR-01..04 / NFR-01..04 accepted. | #20 |

@@ -1,6 +1,6 @@
 # LADR-04: Synthetic `Model` field values; recognition in Host, aggregation string-out in Application
 
-**Status:** Draft
+**Status:** Accepted
 
 <!-- Status lifecycle: Draft → Prototype → Accepted. Tactical (how) — numbered after the strategic LADRs. -->
 

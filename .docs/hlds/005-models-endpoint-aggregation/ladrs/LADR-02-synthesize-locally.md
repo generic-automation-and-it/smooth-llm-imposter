@@ -1,6 +1,6 @@
 # LADR-02: Synthesize the list from the catalogue; replace passthrough, no live upstream call
 
-**Status:** Draft
+**Status:** Accepted
 
 <!-- Status lifecycle: Draft → Prototype → Accepted. Also: "Superseded by LADR-MM", "Deprecated". -->
 
