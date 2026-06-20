@@ -75,4 +75,28 @@ public class ImposterOptionsValidatorTests
         };
         _validator.Validate(null, Options(provider)).Succeeded.ShouldBeTrue();
     }
+
+    [Fact]
+    public void Invalid_request_normalization_fails()
+    {
+        var provider = new ProviderOptions
+        {
+            Name = "a", Dialect = "openai", BaseUrl = "https://a.example", RequestNormalization = "rename"
+        };
+        _validator.Validate(null, Options(provider)).Failed.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("none")]
+    [InlineData("codex_to_openai_sdk")]
+    public void Known_or_omitted_request_normalization_succeeds(string? normalization)
+    {
+        var provider = new ProviderOptions
+        {
+            Name = "a", Dialect = "openai", BaseUrl = "https://a.example", RequestNormalization = normalization
+        };
+        _validator.Validate(null, Options(provider)).Succeeded.ShouldBeTrue();
+    }
 }

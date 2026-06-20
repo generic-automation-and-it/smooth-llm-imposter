@@ -62,6 +62,11 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
                 failures.Add($"{prefix}:AuthScheme '{provider.AuthScheme}' is invalid (expected 'ApiKey' or 'Bearer').");
             }
 
+            if (!RequestNormalizationParser.TryParse(provider.RequestNormalization, out _))
+            {
+                failures.Add($"{prefix}:RequestNormalization '{provider.RequestNormalization}' is invalid (expected 'none' or 'codex_to_openai_sdk').");
+            }
+
             for (int j = 0; j < provider.Models.Count; j++)
             {
                 ModelMappingOptions mapping = provider.Models[j];

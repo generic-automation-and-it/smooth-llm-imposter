@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using SmoothLlmImposter.Application.Features.Routing.Normalization;
 using SmoothLlmImposter.Domain.Routing;
 
 namespace SmoothLlmImposter.Application.Features.Routing;
@@ -8,14 +9,31 @@ namespace SmoothLlmImposter.Application.Features.Routing;
 /// OpenAI-dialect transform: rewrites <c>model</c> and, when caching is enabled, sets
 /// <c>prompt_cache_key</c> to the original (inbound) model so requests for the same imposter model
 /// share an upstream cache bucket. OpenAI caches automatically, so no content restructuring is needed.
+/// On a matched imposter route that opts in, an optional request-normalization stage (HLD 004) runs
+/// first; passthrough/default routes are never normalized.
 /// </summary>
 internal sealed class OpenAiRequestTransformer : IRequestTransformer
 {
+    private readonly IReadOnlyDictionary<RequestNormalization, IRequestNormalizer> _normalizers;
+
+    public OpenAiRequestTransformer(IEnumerable<IRequestNormalizer> normalizers) =>
+        _normalizers = normalizers.ToDictionary(n => n.Kind);
+
     public ApiDialect Dialect => ApiDialect.OpenAi;
 
     public string Transform(string requestBody, RouteDecision decision, string inboundModel)
     {
         JsonObject root = ParseObject(requestBody);
+
+        // Normalize before the Responses→Chat conversion: a flattened namespace yields flat function
+        // tools that ConvertTools then nests for chat upstreams, while responses upstreams keep them flat.
+        // Scoped to matched imposter routes (LADR-01) and the provider's opt-in (LADR-03); None never
+        // resolves a normalizer, so an un-opted-in provider is byte-transparent.
+        if (decision.IsImposter &&
+            _normalizers.TryGetValue(decision.Provider.RequestNormalization, out IRequestNormalizer? normalizer))
+        {
+            normalizer.Normalize(root);
+        }
 
         if (decision.Provider.OpenAiUpstreamApi == OpenAiUpstreamApi.ChatCompletions)
         {

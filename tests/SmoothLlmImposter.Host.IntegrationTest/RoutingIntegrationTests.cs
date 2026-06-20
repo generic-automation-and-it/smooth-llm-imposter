@@ -33,6 +33,41 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
     }
 
     [Fact]
+    public async Task Matched_openai_imposter_normalizes_tools_for_strict_upstream()
+    {
+        HttpClient client = fixture.CreateClient();
+
+        // opencode-go opts into codex_to_openai_sdk normalization. A Codex-shaped catalog (namespace
+        // wrapper + unsupported type + dotted name) must be reduced to only valid function tools, and
+        // still reach the upstream as 200.
+        using HttpResponseMessage response = await client.PostAsync(
+            "/v1/chat/completions",
+            Json("""
+            {"model":"gpt5.4","messages":[{"role":"user","content":"hi"}],
+             "tools":[
+               {"type":"namespace","name":"mcp__codex_apps__github","tools":[
+                 {"type":"function","name":"_search_issues","parameters":{"type":"object"}}
+               ]},
+               {"type":"web_search","external_web_access":true},
+               {"type":"function","name":"multi_tool_use.parallel"},
+               {"type":"function","name":"exec_command","parameters":{"type":"object"}}
+             ],
+             "tool_choice":{"type":"function","name":"multi_tool_use.parallel"}}
+            """),
+            Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://opencode.test/v1/chat/completions");
+
+        JsonObject forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!.AsObject();
+        // Survivors only: flattened _search_issues + exec_command; web_search and the dotted name dropped.
+        string[] names = [.. forwarded["tools"]!.AsArray().Select(t => t!["function"]!["name"]!.GetValue<string>())];
+        names.ShouldBe(["_search_issues", "exec_command"]);
+        // tool_choice referenced a dropped tool → removed (request-only; upstream falls back to default).
+        forwarded.ContainsKey("tool_choice").ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task Unmatched_openai_model_passes_through_to_default_unchanged()
     {
         HttpClient client = fixture.CreateClient();

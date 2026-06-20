@@ -31,7 +31,8 @@ internal sealed class ProviderCatalog : IProviderCatalog
                     .Select(m => new ModelMapping(m.From, m.To, m.Caching))
                     .ToArray(),
                 OpenAiUpstreamApiParser.Parse(provider.OpenAiUpstreamApi),
-                authScheme);
+                authScheme,
+                RequestNormalizationParser.Parse(provider.RequestNormalization));
 
             if (!_byDialect.TryGetValue(dialect, out List<ProviderRoute>? routes))
             {
