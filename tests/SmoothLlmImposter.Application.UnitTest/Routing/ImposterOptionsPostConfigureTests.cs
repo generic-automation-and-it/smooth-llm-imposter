@@ -116,6 +116,32 @@ public class ImposterOptionsPostConfigureTests
         options.Providers["openrouter-anthropic"].AuthScheme.ShouldBe("Bearer");
     }
 
+    [Theory]
+    [InlineData("yes", true)]
+    [InlineData("1", true)]
+    [InlineData("", false)]
+    public void IsDefault_env_var_with_unparseable_value_is_ignored(string value, bool shouldWarn)
+    {
+        var (options, logger) = Resolve(
+            new Dictionary<string, string?> { ["OPENCODE_GO_IS_DEFAULT"] = value },
+            "opencode-go",
+            new ProviderOptions { Dialect = "openai", BaseUrl = "https://o.example", IsDefault = true });
+
+        options.Providers["opencode-go"].IsDefault.ShouldBeTrue();
+
+        if (shouldWarn)
+        {
+            logger.Entries.ShouldContain(entry =>
+                entry.Contains("OPENCODE_GO_IS_DEFAULT") &&
+                entry.Contains("opencode-go") &&
+                entry.Contains(value));
+        }
+        else
+        {
+            logger.Entries.ShouldNotContain(entry => entry.Contains("not a recognized boolean"));
+        }
+    }
+
     [Fact]
     public void Absent_conventional_var_leaves_bound_value()
     {

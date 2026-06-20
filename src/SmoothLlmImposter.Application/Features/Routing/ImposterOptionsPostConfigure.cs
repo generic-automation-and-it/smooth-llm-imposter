@@ -45,12 +45,7 @@ internal sealed class ImposterOptionsPostConfigure(
         new("_DIALECT", nameof(ProviderOptions.Dialect), static (p, v) => p.Dialect = v),
         new("_IS_DEFAULT", nameof(ProviderOptions.IsDefault), static (p, v) =>
         {
-            // Apply only on a parseable bool; an unparseable value leaves the bound value for the
-            // validator to deal with (it never silently flips IsDefault).
-            if (bool.TryParse(v, out bool isDefault))
-            {
-                p.IsDefault = isDefault;
-            }
+            p.IsDefault = bool.Parse(v);
         }),
         new("_OPENAI_UPSTREAM_API", nameof(ProviderOptions.OpenAiUpstreamApi), static (p, v) => p.OpenAiUpstreamApi = v),
         new("_REQUEST_NORMALIZATION", nameof(ProviderOptions.RequestNormalization), static (p, v) => p.RequestNormalization = v),
@@ -72,6 +67,19 @@ internal sealed class ImposterOptionsPostConfigure(
                 (string variable, string? value) = ResolveConventionalValue(key, options, field, prefix);
                 if (value is null)
                 {
+                    continue;
+                }
+
+                if (field.PropertyName == nameof(ProviderOptions.IsDefault) &&
+                    !bool.TryParse(value, out _))
+                {
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        logger.LogWarning(
+                            "Ignoring conventional override {EnvVar} for provider {Provider} field {Field}: value '{Value}' is not a recognized boolean.",
+                            variable, key, field.PropertyName, value);
+                    }
+
                     continue;
                 }
 
