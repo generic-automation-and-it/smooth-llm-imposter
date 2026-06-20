@@ -22,6 +22,12 @@ compatible. This HLD introduces an **opt-in request-normalization seam** on matc
 imposter routes: a place where the router reshapes the inbound request into a form a strict
 upstream accepts, **editing only the request and never the response**, so clients stay vanilla.
 
+> **LADR-05 update.** Tool normalization remains request-only. But the separately-existing
+> `OpenAiUpstreamApi: chat_completions` *downgrade* (Responses request → Chat request) leaves the
+> client an unparseable Chat response, so LADR-05 makes that downgrade **bidirectional**: the Chat
+> response stream is translated back to Responses events (incrementally, never buffered). That is the
+> one sanctioned response edit; all other routes stay byte-for-byte.
+
 This HLD designs **the seam and the policy that governs it**. The specific normalizations (which
 fields are reshaped and how) are deliberately **out of scope** here and are introduced as
 separate, individually-scoped increments tracked in the worktask.
@@ -97,6 +103,12 @@ rejected.
 - We will **not** rewrite, buffer, or reinterpret the response stream — and we will not introduce
   request-side state that a response rewrite would later need.
 
+> **Amended by LADR-05.** One sanctioned exception: when the router *downgrades* a `/responses`
+> request to Chat Completions, the response wire-shape no longer matches what the client can parse, so
+> it must be translated back to Responses events. The principle is narrowed to **never *buffer* or
+> *replay* the response, and never touch it on transparent/passthrough routes** — an incremental,
+> forward-only translation on the explicitly-downgraded path is permitted (LADR-05 / NFR-05).
+
 ---
 
 ## Diagrams
@@ -120,6 +132,7 @@ single decision — a horizontal concern spanning this HLD. See [`./ladrs/`](./l
 | [LADR-02](./ladrs/LADR-02-request-only-prefer-removal-over-remap.md) | Request-only normalization; prefer removing an offending element over remapping it through the response. | Prototype |
 | [LADR-03](./ladrs/LADR-03-per-provider-opt-in-safe-default.md) | Per-provider opt-in, off by default, startup-validated. | Prototype |
 | [LADR-04](./ladrs/LADR-04-live-upstream-evals-separate-gate.md) | Live upstream evals run as a separate, secret-gated PR gate (`pr_evals_gate`), classified **L3**; hermetic L0/L2 tests stay external-free. | Draft |
+| [LADR-05](./ladrs/LADR-05-bidirectional-responses-chat-bridge.md) | The `/responses`→Chat downgrade is **bidirectional**: translate the Chat response stream back to Responses events (incremental, never buffered). **Amends LADR-02; narrows HLD 001 LADR-003.** | Draft |
 
 ## Non-Functional Requirements
 
@@ -128,7 +141,8 @@ target, a verification mechanism, and acceptance criteria. See [`./nfrs/`](./nfr
 
 | NFR | Attribute | Target (summary) | Status |
 |-----|-----------|------------------|--------|
-| [NFR-01](./nfrs/NFR-01-request-only-no-response-rewrite.md) | Streaming integrity | Response bytes relayed unchanged; zero response-path reads in normalization | Draft |
+| [NFR-01](./nfrs/NFR-01-request-only-no-response-rewrite.md) | Streaming integrity | Response bytes relayed unchanged on all paths **except** the LADR-05 downgrade bridge; zero response-path reads in tool normalization | Draft (scoped by NFR-05) |
 | [NFR-02](./nfrs/NFR-02-idempotency-safe-default.md) | Correctness / safety | Disabled ⇒ byte-identical; enabled normalization is idempotent | Draft |
 | [NFR-03](./nfrs/NFR-03-performance-single-pass.md) | Performance | No extra full-body JSON pass beyond the existing transform | Draft |
 | [NFR-04](./nfrs/NFR-04-upstream-contract-conformance.md) | Conformance | Normalized request accepted (200) by live upstream; contract rules hold; verified by `pr_evals_gate` | Draft |
+| [NFR-05](./nfrs/NFR-05-streaming-response-translation.md) | Streaming response translation | Chat→Responses stream translated **incrementally** (never buffered), bounded forward-only state, terminates in one `response.completed` | Draft |

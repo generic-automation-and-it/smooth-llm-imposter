@@ -13,9 +13,12 @@ clients work against strict upstreams. Intent in README, decisions in `ladrs/`, 
 
 ## Non-Negotiables
 
-- **Request-only.** Do not read, buffer, or rewrite the upstream response, and do not create
-  request-side state intended for response lookup (LADR-02). Prefer **removing** an offending
-  request element over remapping it through the response.
+- **Request-only — except the LADR-05 downgrade bridge.** For **tool normalization** and on every
+  transparent/passthrough route, do not read, buffer, or rewrite the upstream response (LADR-02);
+  prefer **removing** an offending request element over remapping it. The **one** exception is the
+  `/responses`→Chat downgrade (`OpenAiUpstreamApi: chat_completions` + inbound `/responses`): there the
+  response stream **must** be translated back to Responses events, but **incrementally — never buffer
+  or replay** the response (LADR-05 / NFR-05). Buffering the response reintroduces the LADR-003 hazard.
 - **Scope: OpenAI dialect + matched imposter route, opt-in only.** Never normalize passthrough/
   default or Anthropic routes; off-by-default providers must stay byte-transparent (LADR-03).
 - **This seam designs the framework, not the transforms.** The specific normalizations (which
@@ -37,9 +40,10 @@ Only decisions whose violation produces wrong code. Full records in [`./ladrs/`]
 | LADR | Decision | Why it matters |
 |------|----------|----------------|
 | LADR-01 | Normalize proxy-side; client stays vanilla (supersedes HLD 001 LADR-006) | Establishes a third sanctioned request-rewrite class; build against it, update `ROUTING_AGENTS.md` |
-| LADR-02 | Request-only; prefer removal over remap | Touching the response path breaks streaming (HLD 001 LADR-003) and is forbidden |
+| LADR-02 | Request-only; prefer removal over remap (**amended by LADR-05**) | Holds for tool normalization + transparent routes; the downgrade path may remap the response |
 | LADR-03 | Per-provider opt-in, off by default, startup-validated | Normalizing a provider that didn't opt in silently corrupts its requests |
 | LADR-04 | Live evals = L3, separate secret-gated `pr_evals_gate` | Putting external network/secrets in the hermetic L0/L2 gate breaks the infra-free test design |
+| LADR-05 | `/responses`→Chat downgrade is bidirectional: translate Chat response → Responses events, **incrementally** | Amends LADR-02, narrows HLD 001 LADR-003. Buffering the response (vs. line-by-line transform) breaks streaming |
 
 ## Key Behaviors
 
@@ -48,6 +52,13 @@ Only decisions whose violation produces wrong code. Full records in [`./ladrs/`]
   parse (NFR-03).
 - "Removal" normalizations have a documented capability cost: the removed element is gone for that
   request. That cost is per-normalization and is recorded where each normalization is introduced.
+- **Bidirectional bridge (LADR-05).** The request-side `Responses→Chat` downgrade is paired with a
+  response-side `Chat→Responses` translator, gated by the same route conditions (matched imposter +
+  `chat_completions` + inbound `/responses`). Implement it as a line-by-line SSE transform with bounded
+  forward-only state (current item/content-part, per-index tool-call args, usage, ids), emitting each
+  Responses event as its source Chat chunk arrives and terminating in exactly one `response.completed`.
+  A Responses-mode client (Codex) cannot switch wire API per routed model, which is why the proxy — not
+  the client — owns this translation.
 
 ## Quality Constraints
 
@@ -63,3 +74,4 @@ Measurable NFRs live in [`./nfrs/`](./nfrs/). Constraints that change how code i
 | 2026-06-20 | HLD authored (seam + policy only; transforms deferred). Supersedes HLD 001 LADR-006. | #19 |
 | 2026-06-20 | Added `examples/upstream-tool-validation.md` eval. Empirically: upstream requires `tools[].type` ∈ {function, plugin} and `function.name` non-empty + `[A-Za-z0-9_-]` (no dots); leading `_` is tolerated. Root cause is unsupported tool *types* + dotted/empty names — **not** leading underscores. | #19 |
 | 2026-06-20 | Eval matrix completed (P4–P7): name rule refined to `^[A-Za-z_][A-Za-z0-9_-]*$` (leading digit rejected, P5); `plugin` type unusable as a minimal shape (P6, TBD); normalized toolset accepted (P7→200). Added LADR-04 (L3 `pr_evals_gate`) + NFR-04 (conformance). | #19 |
+| 2026-06-20 | Added **LADR-05** + **NFR-05**: the `/responses`→Chat downgrade is now **bidirectional** — the Chat response stream is translated back to Responses events (incremental, never buffered). Found while implementing #19: a Responses-mode client (Codex) got a 200 it couldn't parse because the downgrade only rewrote the request. Amends LADR-02; narrows HLD 001 LADR-003 to "no buffer/replay, transparent routes untouched". Design-only; implementation follows. | #19 |
