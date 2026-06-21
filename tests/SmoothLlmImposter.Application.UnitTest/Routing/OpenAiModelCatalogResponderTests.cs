@@ -7,7 +7,10 @@ namespace SmoothLlmImposter.Application.UnitTest.Routing;
 public class OpenAiModelCatalogResponderTests
 {
     private static OpenAiModelCatalogResponder Build(params ProviderOptions[] providers) =>
-        new(new ProviderCatalog(Options.Create(new ImposterOptions { Providers = [.. providers] })));
+        new(new ProviderCatalog(Options.Create(new ImposterOptions
+        {
+            Providers = providers.ToDictionary(static p => p.Name!, StringComparer.Ordinal)
+        })));
 
     private static ProviderOptions OpenAi(string name, string? secret = null, bool isDefault = false, params ModelMappingOptions[] models) =>
         new() { Name = name, Dialect = "openai", BaseUrl = "https://" + name + ".example", Secret = secret, IsDefault = isDefault, Models = [.. models] };

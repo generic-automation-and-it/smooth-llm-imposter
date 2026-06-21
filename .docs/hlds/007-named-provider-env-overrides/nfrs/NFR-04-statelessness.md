@@ -1,6 +1,6 @@
 # NFR-04: Statelessness
 
-**Status:** Draft
+**Status:** Prototype
 
 <!-- One file per quality attribute. Status lifecycle: Draft → Prototype → Accepted. -->
 

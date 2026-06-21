@@ -83,26 +83,35 @@ requires_openai_auth = true
 // appsettings.json (shipped example)
 {
   "Imposter": {
-    "Providers": [
-      {
-        "Name": "openai-default",
+    "Providers": {
+      "anthropic-default": {
+        "Dialect": "anthropic",
+        "BaseUrl": "https://api.anthropic.com",
+        "IsDefault": true
+      },
+      "openai-default": {
         "Dialect": "openai",
         "BaseUrl": "https://chatgpt.com/backend-api/codex",
         "IsDefault": true
       },
-      {
-        "Name": "opencode-go",
-        "Dialect": "openai",
-        "BaseUrl": "https://opencode.ai/zen/go",
+      "openrouter-anthropic": {
+        "Dialect": "anthropic",
+        "BaseUrl": "https://openrouter.ai/api",
         "Secret": "",
-        "AuthScheme": "ApiKey",
-        "OpenAiUpstreamApi": "chat_completions",
+        "AuthScheme": "Bearer",
         "Models": [
-          { "From": "gpt-5.4", "To": "kimi-k2.7", "Caching": true }
+          { "From": "claude-opus-4-7*", "To": "z-ai/glm-5.2", "Caching": true }
         ]
       },
-      {
-        "Name": "opencode-anthropic",
+      "openrouter-openai": {
+        "Dialect": "openai",
+        "BaseUrl": "https://openrouter.ai/api",
+        "Secret": "",
+        "AuthScheme": "Bearer",
+        "OpenAiUpstreamApi": "chat_completions",
+        "Models": []
+      },
+      "opencode-go-anthropic": {
         "Dialect": "anthropic",
         "BaseUrl": "https://opencode.ai/zen/go",
         "Secret": "",
@@ -110,8 +119,18 @@ requires_openai_auth = true
         "Models": [
           { "From": "claude-haiku-*", "To": "minimax-m3", "Caching": true }
         ]
+      },
+      "opencode-go-openai": {
+        "Dialect": "openai",
+        "BaseUrl": "https://opencode.ai/zen/go",
+        "Secret": "",
+        "AuthScheme": "Bearer",
+        "OpenAiUpstreamApi": "chat_completions",
+        "Models": [
+          { "From": "gpt-5.4", "To": "kimi-k2.7-code", "Caching": true }
+        ]
       }
-    ]
+    }
   }
 }
 ```
@@ -136,18 +155,32 @@ Routing rules to keep in mind:
 
 ### Supplying keys via environment (preferred)
 
-Never commit real keys. Environment variables override `appsettings.json` (env wins), using the standard
-double-underscore path syntax for the array index:
+Never commit real keys. Environment variables override `appsettings.json` (env wins). Providers are keyed by
+**name** (never by array index), so an override is addressed by the provider's name and survives any
+reordering. There are two equivalent paths:
+
+**Conventional `<NAME>_<FIELD>` surface (the friendly path).** Each provider exposes an env prefix derived
+from its key — uppercase, every run of non-alphanumeric characters collapsed to one `_`. For dialect-suffixed
+siblings, `_API_KEY` can use the shared base prefix (`opencode-go-openai` / `opencode-go-anthropic` →
+`OPENCODE_GO_API_KEY`). Other scalar overrides remain provider-specific or structured
+(`_BASE_URL`, `_AUTH_SCHEME`, `_DIALECT`, `_IS_DEFAULT`, `_OPENAI_UPSTREAM_API`, `_REQUEST_NORMALIZATION`,
+`_ANTHROPIC_VERSION`). Matching is case-insensitive.
 
 ```bash
-export Imposter__Providers__2__Secret="sk-your-opencode-key"          # opencode-go
-export Imposter__Providers__2__AuthScheme="ApiKey"                    # send as x-api-key
-export Imposter__Providers__3__Secret="sk-your-openrouter-key"        # openrouter
-export Imposter__Providers__3__AuthScheme="Bearer"                    # send as Authorization: Bearer
-export Imposter__Providers__4__Secret="sk-your-anthropic-route-key"   # opencode-anthropic
-export Imposter__Providers__4__AuthScheme="ApiKey"
+export OPENCODE_GO_API_KEY="sk-your-opencode-key"            # opencode-go-openai + opencode-go-anthropic secret
+export OPENROUTER_API_KEY="sk-your-openrouter-key"           # openrouter-openai + openrouter-anthropic secret
 dotnet run --project src/SmoothLlmImposter.Host
 ```
+
+**Structured `Imposter__Providers__<name>__<Field>` surface (the equivalent .NET path).** Same effect, using
+the double-underscore section path keyed by provider name:
+
+```bash
+export Imposter__Providers__opencode-go-openai__Secret="sk-your-opencode-key"
+export Imposter__Providers__opencode-go-openai__AuthScheme="ApiKey"
+```
+
+When the same field is set both ways, the **conventional** value wins.
 
 ### Local debugging — .NET user secrets
 
@@ -157,12 +190,13 @@ For day-to-day debugging you can keep keys out of your shell entirely using **.N
 
 ```bash
 cd src/SmoothLlmImposter.Host
-dotnet user-secrets set "Imposter:Providers:2:Secret" "sk-your-opencode-key"   # note the ':' path separator
-dotnet user-secrets set "Imposter:Providers:2:AuthScheme" "ApiKey"
+dotnet user-secrets set "Imposter:Providers:opencode-go-openai:Secret" "sk-your-opencode-key"   # note the ':' path separator
+dotnet user-secrets set "Imposter:Providers:opencode-go-openai:AuthScheme" "ApiKey"
 ```
 
-Precedence is `appsettings.json < user secrets (Dev) < environment variables` — so an exported
-`Imposter__Providers__2__Secret` **overrides** the stored secret for a one-off run.
+Precedence is `appsettings.json < user secrets (Dev) < structured env < conventional env` — so an exported
+`OPENCODE_GO_API_KEY` (or the structured `Imposter__Providers__opencode-go-openai__Secret`) **overrides** the stored
+secret for a one-off run.
 
 ## Point your client at the router
 
@@ -188,7 +222,7 @@ model selected later with `/model`; Codex login, model-catalog refresh, web sear
 cloud tasks are separate network paths.
 
 Keep `wire_api = "responses"` for Codex even when a matched imposter provider uses
-`OpenAiUpstreamApi = "chat_completions"` (for example `opencode-go`). Smooth downgrades the outbound
+`OpenAiUpstreamApi = "chat_completions"` (for example `opencode-go-openai`). Smooth downgrades the outbound
 `/responses` request to Chat Completions for that upstream and translates the Chat response stream back into
 Responses events for Codex.
 
@@ -210,9 +244,8 @@ imposter provider `Secret` override:
 ```bash
 claude setup-token
 
-# Example: provider 4 is the shipped Anthropic-dialect imposter path.
-export Imposter__Providers__4__Secret="paste-the-claude-token-here"
-export Imposter__Providers__4__AuthScheme="Bearer"
+# Example: openrouter-anthropic is the shipped Anthropic-dialect imposter path.
+export OPENROUTER_API_KEY="paste-the-openrouter-key-here"
 ```
 
 Use `AuthScheme="Bearer"` when the upstream expects `Authorization: Bearer <token>`. Use `AuthScheme="ApiKey"`
@@ -240,7 +273,7 @@ incrementally back into Responses events; other streaming routes are relayed byt
 ### Strict upstream tool-name validation (Codex → opencode/Moonshot)
 
 Some upstreams validate tool **function names** more strictly than OpenAI does. Moonshot/kimi (reached via
-`opencode-go`) requires names matching `^[a-zA-Z][a-zA-Z0-9_-]*$` — start with a letter; letters, numbers,
+`opencode-go-openai`) requires names matching `^[a-zA-Z][a-zA-Z0-9_-]*$` — start with a letter; letters, numbers,
 underscores, dashes only. A tool-using turn whose tools break that rule returns **HTTP 400** from the
 upstream:
 

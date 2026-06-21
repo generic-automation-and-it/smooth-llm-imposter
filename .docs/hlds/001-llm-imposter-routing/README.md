@@ -30,25 +30,33 @@ only** — there is no OpenAI⇄Anthropic body translation.
 
 ## Configuration
 
-- Bound from the `Imposter` section; **environment variables override `appsettings.json`** (env wins),
-  e.g. `Imposter__Providers__4__Secret=sk-...`. The sibling `AuthScheme` (`ApiKey`|`Bearer`, case-insensitive)
-  selects the auth header and defaults by dialect when omitted (openai → Bearer, anthropic → ApiKey).
-- A **provider** = `Name` + `Dialect` + `BaseUrl` (server root, no `/v1`; the inbound request path is
-  appended verbatim) + `Secret` + optional `AuthScheme` + optional `IsDefault`, plus `OpenAiUpstreamApi` (`responses` default or
-  `chat_completions` for OpenAI-compatible upstreams without `/responses`), holding nested `Models[]` of `{ From, To, Caching }`.
+- Bound from the `Imposter` section; **environment variables override `appsettings.json`** (env wins).
+  Providers are keyed by **name** (HLD 007), so overrides are name-addressed:
+  `Imposter__Providers__openrouter-anthropic__Secret=sk-...`, or a conventional shared base secret
+  (`OPENROUTER_API_KEY=sk-...` can fill both `openrouter-openai` and `openrouter-anthropic`, winning over
+  the structured path). Each provider's `AuthScheme` (`ApiKey`|`Bearer`, case-insensitive) selects the auth
+  header and defaults by dialect when omitted (openai → Bearer, anthropic → ApiKey).
+- A **provider** = its dictionary key (the name) + `Dialect` + `BaseUrl` (server root, no `/v1`; the inbound
+  request path is appended verbatim) + `Secret` + optional `AuthScheme` + optional `IsDefault` + optional
+  `Name` (a display override of the key), plus `OpenAiUpstreamApi` (`responses` default or `chat_completions`
+  for OpenAI-compatible upstreams without `/responses`), holding nested `Models[]` of `{ From, To, Caching }`.
   `From` supports exact + trailing-`*` wildcard. A provider with no `Models` is inert until one is added.
 - Keys are configuration-only and never persisted. Startup validation (`ValidateOnStart`) rejects unknown
-  dialects, non-absolute base URLs, duplicate names, malformed mappings, and >1 default per dialect.
+  dialects, non-absolute base URLs, duplicate provider names/keys (case-insensitive), a legacy
+  array/numeric-key shape, malformed mappings, and >1 default per dialect.
 
 ```jsonc
-"Imposter": { "Providers": [
-  { "Name": "opencode-go", "Dialect": "openai", "BaseUrl": "https://opencode.ai/zen/go", "Secret": "", "AuthScheme": "ApiKey",
+"Imposter": { "Providers": {
+  "openrouter-anthropic": { "Dialect": "anthropic", "BaseUrl": "https://openrouter.ai/api", "Secret": "", "AuthScheme": "Bearer",
+    "Models": [ { "From": "claude-opus-4-7*", "To": "z-ai/glm-5.2", "Caching": true } ] },
+  "openrouter-openai": { "Dialect": "openai", "BaseUrl": "https://openrouter.ai/api", "Secret": "", "AuthScheme": "Bearer",
+    "OpenAiUpstreamApi": "chat_completions", "Models": [] },
+  "opencode-go-anthropic": { "Dialect": "anthropic", "BaseUrl": "https://opencode.ai/zen/go", "Secret": "", "AuthScheme": "ApiKey",
+    "Models": [ { "From": "claude-haiku-*", "To": "minimax-m3", "Caching": true } ] },
+  "opencode-go-openai": { "Dialect": "openai", "BaseUrl": "https://opencode.ai/zen/go", "Secret": "", "AuthScheme": "Bearer",
     "OpenAiUpstreamApi": "chat_completions",
-    "Models": [ { "From": "gpt-5.4", "To": "kimi-k2.7", "Caching": true } ] },
-  { "Name": "openrouter", "Dialect": "openai", "BaseUrl": "https://openrouter.ai/api", "Secret": "", "AuthScheme": "Bearer" },
-  { "Name": "opencode-anthropic", "Dialect": "anthropic", "BaseUrl": "https://opencode.ai/zen/go", "Secret": "", "AuthScheme": "ApiKey",
-    "Models": [ { "From": "claude-haiku-*", "To": "minimax-m3", "Caching": true } ] }
-] }
+    "Models": [ { "From": "gpt-5.4", "To": "kimi-k2.7-code", "Caching": true } ] }
+} }
 ```
 
 ## Architecture

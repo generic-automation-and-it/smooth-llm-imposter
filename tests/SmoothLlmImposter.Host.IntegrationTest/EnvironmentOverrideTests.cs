@@ -20,12 +20,11 @@ public sealed class EnvironmentOverrideTests
 {
     private static readonly Dictionary<string, string?> BaseConfig = new()
     {
-        ["Imposter:Providers:0:Name"] = "opencode-go",
-        ["Imposter:Providers:0:Dialect"] = "openai",
-        ["Imposter:Providers:0:BaseUrl"] = "https://opencode.test",
-        ["Imposter:Providers:0:Secret"] = "",
-        ["Imposter:Providers:0:Models:0:From"] = "gpt5.4",
-        ["Imposter:Providers:0:Models:0:To"] = "grok-code"
+        ["Imposter:Providers:opencode-go:Dialect"] = "openai",
+        ["Imposter:Providers:opencode-go:BaseUrl"] = "https://opencode.test",
+        ["Imposter:Providers:opencode-go:Secret"] = "",
+        ["Imposter:Providers:opencode-go:Models:0:From"] = "gpt5.4",
+        ["Imposter:Providers:opencode-go:Models:0:To"] = "grok-code"
     };
 
     private sealed class EnvFixture : WebApplicationFactory<HostApp::Program>
@@ -49,11 +48,37 @@ public sealed class EnvironmentOverrideTests
     }
 
     [Fact]
-    public async Task Environment_variable_overrides_configured_secret()
+    public async Task Structured_environment_variable_overrides_configured_secret()
     {
-        const string envKey = "Imposter__Providers__0__Secret";
-        string? original = Environment.GetEnvironmentVariable(envKey);
-        Environment.SetEnvironmentVariable(envKey, "env-openai-key");
+        // Name-addressed structured override (HLD 007) — survives any provider reordering.
+        await AssertSecretAppliedAsync("Imposter__Providers__opencode-go__Secret", "env-openai-key");
+    }
+
+    [Fact]
+    public async Task Conventional_environment_variable_overrides_configured_secret()
+    {
+        // The conventional <NAME>_API_KEY surface (HLD 007) is the friendly path operators expect.
+        await AssertSecretAppliedAsync("OPENCODE_GO_API_KEY", "conventional-openai-key");
+    }
+
+    // Every env var that can supply the opencode-go secret — the structured path and the conventional
+    // surface. The test neutralizes all of them, then sets only the one under test, so an ambient
+    // OPENCODE_GO_API_KEY in the developer's shell cannot pollute the assertion (the conventional var
+    // legitimately wins over the structured one — exactly what this isolation proves out of band).
+    private static readonly string[] OpencodeGoSecretVars =
+        ["Imposter__Providers__opencode-go__Secret", "OPENCODE_GO_API_KEY"];
+
+    private static async Task AssertSecretAppliedAsync(string envKey, string secret)
+    {
+        var originals = OpencodeGoSecretVars.ToDictionary(
+            v => v, Environment.GetEnvironmentVariable);
+
+        foreach (string v in OpencodeGoSecretVars)
+        {
+            Environment.SetEnvironmentVariable(v, null);
+        }
+
+        Environment.SetEnvironmentVariable(envKey, secret);
 
         try
         {
@@ -66,11 +91,14 @@ public sealed class EnvironmentOverrideTests
                 TestContext.Current.CancellationToken);
 
             response.StatusCode.ShouldBe(HttpStatusCode.OK);
-            factory.Upstream.LastAuthorization.ShouldBe("Bearer env-openai-key");
+            factory.Upstream.LastAuthorization.ShouldBe($"Bearer {secret}");
         }
         finally
         {
-            Environment.SetEnvironmentVariable(envKey, original);
+            foreach ((string v, string? original) in originals)
+            {
+                Environment.SetEnvironmentVariable(v, original);
+            }
         }
     }
 }

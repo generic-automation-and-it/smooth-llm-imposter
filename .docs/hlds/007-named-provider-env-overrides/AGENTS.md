@@ -20,7 +20,7 @@ Startup-config change only — the request/forwarding path does not change.
 - Conventional env precedence is fixed: **conventional env > structured env > appsettings**. Do not make the conventional path the weakest ("fill-only-if-empty").
 - A resolved **secret value** is never logged or placed in an exception/validation message (NFR-03).
 - Resolution is config/env only — no DB, no network, no persisted state (NFR-04). Keep the router stateless/key-less.
-- LADRs are Draft status — flag deviations rather than silently overriding.
+- LADRs are Prototype status (implemented + tested) — flag deviations rather than silently overriding.
 
 ## Architecture Decisions
 
@@ -51,3 +51,4 @@ Measurable NFRs live in [`./nfrs/`](./nfrs/). Constraints that change how code i
 | Date | Change | Ref |
 | :---- | :---- | :---- |
 | 2026-06-20 | HLD scaffolded and drafted | TBD |
+| 2026-06-20 | Implemented: `Providers` → `Dictionary<string, ProviderOptions>`; `ImposterOptionsPostConfigure` conventional `<NAME>_<FIELD>` resolver; validator legacy-array/numeric-key + case-dup + blank-`Name` guards; appsettings + all setup docs rewritten to name-keyed. LADRs/NFRs Draft→Prototype. Open items resolved: LADR-02 field-drift → scalar-coverage guard test; LADR-03 double-set warning → **no warning** (silent, documented precedence). | TBD |

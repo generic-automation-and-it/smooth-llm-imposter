@@ -7,9 +7,10 @@ is **dual-mode**: `build: .` builds the image from the local [`Dockerfile`](../.
 points at the published GHCR tag — so you can either build locally or `pull`. `restart: unless-stopped` keeps it
 running across reboots. Works with **`docker compose`** (v2) and **`podman-compose`**.
 
-> SmoothLlmImposter is **stateless and key-less** — no `/data` volume, port **5066**, keys are
-> `Imposter__Providers__N__Secret` plus `Imposter__Providers__N__AuthScheme`. (The Smooth Claude Proxy's compose,
-> with `WORKSPACE_PATH`/`LlmService__*`, is a different service.)
+> SmoothLlmImposter is **stateless and key-less** — no `/data` volume, port **5066**, keys are `<NAME>_API_KEY`
+> (conventional) or `Imposter__Providers__<name>__Secret` (structured) plus the matching `<NAME>_AUTH_SCHEME` /
+> `Imposter__Providers__<name>__AuthScheme`, where `<NAME>` is the uppercased provider key. (The Smooth Claude
+> Proxy's compose, with `WORKSPACE_PATH`/`LlmService__*`, is a different service.)
 
 ## Supply keys
 
@@ -18,15 +19,16 @@ variables. Create `.env` next to `docker-compose.yml`:
 
 ```dotenv
 # .env  (never committed — *.env is gitignored)
-OPENCODE_GO_API_KEY=sk-your-opencode-key      # feeds providers 2 (opencode-go) and 4 (opencode-anthropic)
-OPENROUTER_API_KEY=sk-your-openrouter-key  # feeds provider 3 (openrouter)
+OPENCODE_GO_API_KEY=sk-your-opencode-key              # feeds opencode-go-openai and opencode-go-anthropic
+OPENROUTER_API_KEY=sk-your-openrouter-key             # feeds openrouter-openai and openrouter-anthropic
 ```
 
-`docker-compose.yml` maps these named variables onto the indexed
-`Imposter__Providers__N__Secret` settings — edit the `environment:` block there if your provider order
-differs from the shipped `appsettings.json`. Do not set a sparse provider index: for example,
-`Imposter__Providers__5__Secret` creates an otherwise-empty provider if `appsettings.json` only defines indexes
-`0..4`, and startup validation fails with `Providers[5]:Name is required`.
+`docker-compose.yml` maps these named variables onto the name-keyed
+`Imposter__Providers__<name>__Secret` settings (or the conventional `<NAME>_API_KEY` surface) — edit the
+`environment:` block there to match your provider names. Overrides are keyed by provider name and survive
+reordering, so there is no positional `__N__` addressing. An unknown provider name simply creates a new provider
+entry, and a legacy numeric/array config is rejected at startup with a message naming the
+`Providers: { "<name>": { ... } }` object shape.
 
 ## Build & first run (local dockerized testing)
 
@@ -204,16 +206,16 @@ imposter provider `Secret` override:
 ```bash
 claude setup-token
 
-# Example: provider 4 is the shipped Anthropic-dialect imposter path.
-export Imposter__Providers__4__Secret="paste-the-claude-token-here"
-export Imposter__Providers__4__AuthScheme="Bearer"
+# Example: openrouter-anthropic is the shipped Anthropic-dialect imposter path.
+# It shares the same OpenRouter key as the OpenAI-dialect openrouter-openai provider.
+export OPENROUTER_API_KEY="paste-the-openrouter-key-here"
 ```
 
 Use `AuthScheme="Bearer"` when the upstream expects `Authorization: Bearer <token>`. Use `AuthScheme="ApiKey"`
 when the upstream expects `x-api-key: <token>`.
 
 Send a routed request — with the shipped config, OpenAI `gpt-5.4` is rewritten to `kimi-k2.7` and forwarded
-to opencode-go (requires the provider's `Secret`):
+to opencode-go-openai (requires the provider's `Secret`):
 
 ```bash
 curl -fsS http://localhost:5066/openai/v1/chat/completions \

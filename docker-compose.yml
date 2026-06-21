@@ -17,19 +17,17 @@ services:
       # Load appsettings.Development.json (the debug request dumps live behind its
       # Serilog `SmoothLlmImposter` Debug override). Drop this line to run Production-quiet.
       ASPNETCORE_ENVIRONMENT: Development
-      # Upstream provider secrets — index = provider order in appsettings.json
-      # (0 anthropic-default, 1 openai-default, 2 opencode-go, 3 openrouter,
-      # 4 opencode-anthropic). The two *-default real providers are catch-all
-      # passthrough and take NO secret here. AuthScheme is decoupled from Dialect:
-      # opencode upstreams expect x-api-key, OpenRouter expects Bearer. Supply
-      # imposter secrets via shell export or a gitignored .env file; :- keeps
-      # compose quiet when a secret is unset.
-      Imposter__Providers__2__Secret: ${OPENCODE_GO_API_KEY:-}
-      Imposter__Providers__2__AuthScheme: Bearer
-      Imposter__Providers__3__Secret: ${OPENROUTER_API_KEY:-}
-      Imposter__Providers__3__AuthScheme: Bearer
-      Imposter__Providers__4__Secret: ${OPENCODE_GO_API_KEY:-}
-      Imposter__Providers__4__AuthScheme: ApiKey
+      # Upstream provider secrets — providers are keyed by NAME (HLD 007), not index,
+      # so these survive any reordering of appsettings.json. The shipped imposters are
+      # openrouter-anthropic, openrouter-openai, opencode-go-anthropic, opencode-go-openai; the two *-default real providers are
+      # catch-all passthrough and take NO secret here. These use the conventional
+      # <NAME>_<FIELD> surface (OPENCODE_GO_API_KEY → opencode-go-* Secret, etc.); the
+      # structured form Imposter__Providers__opencode-go-openai__Secret is equivalent. AuthScheme
+      # is decoupled from Dialect: OpenRouter expects Bearer even on its Anthropic-compatible
+      # surface, while opencode-go-anthropic is configured for x-api-key. Supply secrets via shell
+      # export or a gitignored .env file; :- keeps compose quiet when a secret is unset.
+      OPENCODE_GO_API_KEY: ${OPENCODE_GO_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     # Only needed for the optional /admin/credentials API (requires PostgreSQL):
     # persist Data Protection keys so stored secrets survive a container rebuild.
     # volumes:

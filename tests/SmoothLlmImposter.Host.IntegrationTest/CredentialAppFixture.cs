@@ -22,18 +22,16 @@ public sealed class CredentialAppFixture : WebApplicationFactory<HostApp::Progra
         ["Admin:ApiKey"] = AdminKey,
         ["Admin:OperatorApiKey"] = OperatorKey,
 
-        ["Imposter:Providers:0:Name"] = "openai-official",
-        ["Imposter:Providers:0:Dialect"] = "openai",
-        ["Imposter:Providers:0:BaseUrl"] = "https://api.openai.test",
-        ["Imposter:Providers:0:Secret"] = "openai-config-key",
-        ["Imposter:Providers:0:IsDefault"] = "true",
+        ["Imposter:Providers:openai-official:Dialect"] = "openai",
+        ["Imposter:Providers:openai-official:BaseUrl"] = "https://api.openai.test",
+        ["Imposter:Providers:openai-official:Secret"] = "openai-config-key",
+        ["Imposter:Providers:openai-official:IsDefault"] = "true",
 
-        ["Imposter:Providers:1:Name"] = "opencode-go",
-        ["Imposter:Providers:1:Dialect"] = "openai",
-        ["Imposter:Providers:1:BaseUrl"] = "https://opencode.test",
-        ["Imposter:Providers:1:Secret"] = "opencode-key",
-        ["Imposter:Providers:1:Models:0:From"] = "gpt5.4",
-        ["Imposter:Providers:1:Models:0:To"] = "grok-code"
+        ["Imposter:Providers:opencode-go:Dialect"] = "openai",
+        ["Imposter:Providers:opencode-go:BaseUrl"] = "https://opencode.test",
+        ["Imposter:Providers:opencode-go:Secret"] = "opencode-key",
+        ["Imposter:Providers:opencode-go:Models:0:From"] = "gpt5.4",
+        ["Imposter:Providers:opencode-go:Models:0:To"] = "grok-code"
     };
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

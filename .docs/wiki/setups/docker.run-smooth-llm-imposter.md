@@ -42,12 +42,8 @@ docker rm -f smooth-llm-imposter 2>/dev/null || true
 
 docker run -d --name smooth-llm-imposter \
   -p 5080:5080 \
-  -e Imposter__Providers__2__Secret="$OPENCODE_GO_API_KEY" \
-  -e Imposter__Providers__2__AuthScheme="ApiKey" \
-  -e Imposter__Providers__3__Secret="$OPENROUTER_API_KEY" \
-  -e Imposter__Providers__3__AuthScheme="Bearer" \
-  -e Imposter__Providers__4__Secret="$OPENCODE_GO_API_KEY" \
-  -e Imposter__Providers__4__AuthScheme="ApiKey" \
+  -e OPENCODE_GO_API_KEY \
+  -e OPENROUTER_API_KEY \
   smooth-llm-imposter:local
 ```
 
@@ -64,8 +60,9 @@ Podman is identical (`podman run -d --name … -p 5080:5080 -e … smooth-llm-im
 
 - **`-e ASPNETCORE_URLS`** — override the bind address (default in the image: `http://+:5080`). If you change it,
   adjust the `-p` mapping to match.
-- **`-e Imposter__Providers__N__BaseUrl` / `__To` / `__Caching`** — override the shipped `appsettings.json` routing
-  table per provider. `BaseUrl` is the server root **without** a `/v1` path.
+- **`-e Imposter__Providers__<name>__BaseUrl` / `__To` / `__Caching`** — override the shipped `appsettings.json`
+  routing table per provider, keyed by provider name (e.g. `opencode-go-openai`, `openrouter-openai`). `BaseUrl` is the server
+  root **without** a `/v1` path.
 - **`-e Admin__ApiKey` / `-e Admin__OperatorApiKey` / `-e ConnectionStrings__ImposterDb`** — only needed for the
   optional `/admin/credentials` API (requires PostgreSQL; reach it from the container, e.g.
   `Host=host.docker.internal;Port=5432;…`). Pure imposter routing needs no database.
@@ -84,7 +81,7 @@ curl -fsS http://localhost:5080/health        # {"status":"ok"}
 ```
 
 Send a routed request — with the shipped config, OpenAI `gpt-5.4` is rewritten to `kimi-k2.7` and forwarded to
-opencode-go (requires `Imposter__Providers__2__Secret`):
+opencode-go-openai (requires `OPENCODE_GO_API_KEY`, or the structured `Imposter__Providers__opencode-go-openai__Secret`):
 
 ```bash
 curl -fsS http://localhost:5080/v1/chat/completions \
@@ -107,12 +104,8 @@ docker rm -f smooth-llm-imposter
 docker build -t smooth-llm-imposter:local .
 docker run -d --name smooth-llm-imposter \
   -p 5080:5080 \
-  -e Imposter__Providers__2__Secret="$OPENCODE_GO_API_KEY" \
-  -e Imposter__Providers__2__AuthScheme="ApiKey" \
-  -e Imposter__Providers__3__Secret="$OPENROUTER_API_KEY" \
-  -e Imposter__Providers__3__AuthScheme="Bearer" \
-  -e Imposter__Providers__4__Secret="$OPENCODE_GO_API_KEY" \
-  -e Imposter__Providers__4__AuthScheme="ApiKey" \
+  -e OPENCODE_GO_API_KEY \
+  -e OPENROUTER_API_KEY \
   smooth-llm-imposter:local
 ```
 

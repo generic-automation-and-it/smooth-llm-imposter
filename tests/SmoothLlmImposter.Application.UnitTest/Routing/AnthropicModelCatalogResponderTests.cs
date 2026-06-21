@@ -7,7 +7,10 @@ namespace SmoothLlmImposter.Application.UnitTest.Routing;
 public class AnthropicModelCatalogResponderTests
 {
     private static AnthropicModelCatalogResponder Build(params ProviderOptions[] providers) =>
-        new(new ProviderCatalog(Options.Create(new ImposterOptions { Providers = [.. providers] })));
+        new(new ProviderCatalog(Options.Create(new ImposterOptions
+        {
+            Providers = providers.ToDictionary(static p => p.Name!, StringComparer.Ordinal)
+        })));
 
     private static ProviderOptions Anthropic(string name, bool isDefault = false, string? secret = null, params ModelMappingOptions[] models) =>
         new() { Name = name, Dialect = "anthropic", BaseUrl = "https://" + name + ".example", IsDefault = isDefault, Secret = secret, Models = [.. models] };

@@ -13,8 +13,9 @@ ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
 
 > **This is the SmoothLlmImposter image — not the Smooth Claude Proxy.** They are different services with different
 > config: this router is **stateless and key-less** (no `/data` volume, no `WORKSPACE_PATH`), uses port **5080**,
-> and keys are `Imposter__Providers__N__Secret` (with a sibling `Imposter__Providers__N__AuthScheme` of `ApiKey`|`Bearer`,
-> defaulting by dialect) — there is no `LlmService__*` / `OPENCODE_GO_API_KEY` / `LOG_TOKEN_FORMAT`.
+> and keys are `<NAME>_API_KEY` (conventional) or `Imposter__Providers__<name>__Secret` (structured), where
+> `<NAME>` is the uppercased provider key — with a sibling `<NAME>_AUTH_SCHEME` / `Imposter__Providers__<name>__AuthScheme`
+> of `ApiKey`|`Bearer`, defaulting by dialect — there is no `LlmService__*` / `LOG_TOKEN_FORMAT`.
 
 ## Prerequisites
 
@@ -30,9 +31,8 @@ Create or replace the container from the published image:
 docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 docker run -d --name smooth-llm-imposter --restart unless-stopped \
   -p 5080:5080 \
-  -e Imposter__Providers__2__Secret \
-  -e Imposter__Providers__3__Secret \
-  -e Imposter__Providers__4__Secret \
+  -e OPENCODE_GO_API_KEY \
+  -e OPENROUTER_API_KEY \
   ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
 ```
 
@@ -41,12 +41,8 @@ they never appear in the command line or shell history. `AuthScheme` (`ApiKey`|`
 defaults by dialect (openai → Bearer, anthropic → ApiKey); the shipped providers set it explicitly:
 
 ```bash
-export Imposter__Providers__2__Secret="sk-your-opencode-key"
-export Imposter__Providers__2__AuthScheme="ApiKey"
-export Imposter__Providers__3__Secret="sk-your-openrouter-key"
-export Imposter__Providers__3__AuthScheme="Bearer"
-export Imposter__Providers__4__Secret="sk-your-anthropic-route-key"
-export Imposter__Providers__4__AuthScheme="ApiKey"
+export OPENCODE_GO_API_KEY="sk-your-opencode-key"
+export OPENROUTER_API_KEY="sk-your-openrouter-key"
 ```
 
 After the container has been created once, start it again with:
@@ -63,9 +59,8 @@ Identical, with Podman's SELinux-aware flags where relevant (none needed here �
 podman rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 podman run -d --name smooth-llm-imposter --restart unless-stopped \
   -p 5080:5080 \
-  -e Imposter__Providers__2__Secret \
-  -e Imposter__Providers__3__Secret \
-  -e Imposter__Providers__4__Secret \
+  -e OPENCODE_GO_API_KEY \
+  -e OPENROUTER_API_KEY \
   ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
 ```
 
@@ -76,16 +71,16 @@ podman run -d --name smooth-llm-imposter --restart unless-stopped \
 ```bash
 docker pull ghcr.io/generic-automation-and-it/smooth-llm-imposter:1.4.0
 docker run -d --name smooth-llm-imposter --restart unless-stopped -p 5080:5080 \
-  -e Imposter__Providers__2__Secret \
+  -e OPENCODE_GO_API_KEY \
   ghcr.io/generic-automation-and-it/smooth-llm-imposter:1.4.0
 ```
 
 ## Optional knobs
 
 - **`-e ASPNETCORE_URLS`** — override the bind address (image default `http://+:5080`); adjust `-p` to match.
-- **`-e Imposter__Providers__N__To` / `__BaseUrl` / `__Caching`** — override the shipped `appsettings.json` routing
-  table per provider/mapping at run time (model mappings are config, not flat env — there is no single
-  `default_model` switch).
+- **`-e Imposter__Providers__<name>__To` / `__BaseUrl` / `__Caching`** — override the shipped `appsettings.json`
+  routing table per provider/mapping at run time, keyed by provider name (e.g. `opencode-go-openai`, `openrouter-openai`); model
+  mappings are config, not flat env — there is no single `default_model` switch.
 - **`-e Admin__ApiKey` / `-e ConnectionStrings__ImposterDb`** — only for the optional `/admin/credentials` API
   (needs PostgreSQL, e.g. `Host=host.docker.internal;Port=5432;…`). If you use it, persist Data Protection keys
   with `-v slli-dpkeys:/home/app/.aspnet/DataProtection-Keys` so stored secrets survive a rebuild. Pure imposter
