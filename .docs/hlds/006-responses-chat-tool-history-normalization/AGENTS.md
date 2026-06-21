@@ -1,6 +1,6 @@
 # AGENTS.md - Responses Chat Tool History Normalization
 
-AI Context: HLD for Responses Chat Tool History Normalization. Updated: 2026-06-20
+AI Context: HLD for Responses Chat Tool History Normalization. Updated: 2026-06-21
 
 > AI-coder context for this HLD. Architecture diagrams live in [`./diagrams/`](./diagrams/),
 > decisions in [`./ladrs/`](./ladrs/), quality spec in [`./nfrs/`](./nfrs/). This file is

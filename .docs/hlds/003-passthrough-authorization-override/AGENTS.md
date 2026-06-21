@@ -1,6 +1,6 @@
 # AGENTS.md - Passthrough Authorization Override
 
-AI Context: HLD for Passthrough Authorization Override. Updated: 2026-06-17
+AI Context: HLD for Passthrough Authorization Override. Updated: 2026-06-21
 
 > AI-coder context for this HLD. Architecture diagrams live in [`./diagrams/`](./diagrams/),
 > decisions in [`./ladrs/`](./ladrs/), quality spec in [`./nfrs/`](./nfrs/). This file is

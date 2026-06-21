@@ -1,6 +1,6 @@
 # AGENTS.md - Named Provider Config & Conventional Env Overrides
 
-AI Context: HLD for Named Provider Config & Conventional Env Overrides. Updated: 2026-06-20
+AI Context: HLD for Named Provider Config & Conventional Env Overrides. Updated: 2026-06-21
 
 > AI-coder context for this HLD. Architecture diagrams live in [`./diagrams/`](./diagrams/),
 > decisions in [`./ladrs/`](./ladrs/), quality spec in [`./nfrs/`](./nfrs/). This file is

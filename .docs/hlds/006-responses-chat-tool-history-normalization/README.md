@@ -151,10 +151,10 @@ single decision — a horizontal concern spanning this HLD. See [`./ladrs/`](./l
 
 | LADR | Decision | Status |
 |------|----------|--------|
-| [LADR-01](./ladrs/LADR-01-normalize-tool-history-to-chat-adjacency.md) | Normalize Responses prior-turn tool history into Chat's required assistant/tool adjacency model on the downgrade path. | Draft |
-| [LADR-02](./ladrs/LADR-02-remove-incomplete-history-no-synthetic-tool-results.md) | Remove incomplete tool history; never synthesize tool results or remap tool identities. | Draft |
-| [LADR-03](./ladrs/LADR-03-explicit-item-field-downgrade-policy.md) | Classify Responses-only Items and fields as preserve, convert, remove, or reject before downgrade. | Draft |
-| [LADR-04](./ladrs/LADR-04-convert-compatible-structured-output-shape.md) | Convert compatible Responses `text.format` Structured Outputs to Chat `response_format`; reject unsupported formats. | Draft |
+| [LADR-01](./ladrs/LADR-01-normalize-tool-history-to-chat-adjacency.md) | Normalize Responses prior-turn tool history into Chat's required assistant/tool adjacency model on the downgrade path. | Accepted |
+| [LADR-02](./ladrs/LADR-02-remove-incomplete-history-no-synthetic-tool-results.md) | Remove incomplete tool history; never synthesize tool results or remap tool identities. | Accepted |
+| [LADR-03](./ladrs/LADR-03-explicit-item-field-downgrade-policy.md) | Classify Responses-only Items and fields as preserve, convert, remove, or reject before downgrade. | Accepted |
+| [LADR-04](./ladrs/LADR-04-convert-compatible-structured-output-shape.md) | Convert compatible Responses `text.format` Structured Outputs to Chat `response_format`; reject unsupported formats. | Accepted |
 
 ## Non-Functional Requirements
 
@@ -163,6 +163,6 @@ target, a verification mechanism, and acceptance criteria. See [`./nfrs/`](./nfr
 
 | NFR | Attribute | Target (summary) | Status |
 |-----|-----------|------------------|--------|
-| [NFR-01](./nfrs/NFR-01-chat-tool-history-conformance.md) | Upstream conformance | 100% of downgraded Chat requests satisfy tool-call adjacency invariants for emitted tool history. | Draft |
-| [NFR-02](./nfrs/NFR-02-off-path-transparency.md) | Transparency | Zero request-history mutation outside matched OpenAI imposter `/responses`→Chat downgrade routes. | Draft |
-| [NFR-03](./nfrs/NFR-03-no-silent-state-loss.md) | State correctness | Downgraded requests containing Responses state pointers are rejected or explicitly classified; none are silently dropped. | Draft |
+| [NFR-01](./nfrs/NFR-01-chat-tool-history-conformance.md) | Upstream conformance | 100% of downgraded Chat requests satisfy tool-call adjacency invariants for emitted tool history. | Accepted |
+| [NFR-02](./nfrs/NFR-02-off-path-transparency.md) | Transparency | Zero request-history mutation outside matched OpenAI imposter `/responses`→Chat downgrade routes. | Accepted |
+| [NFR-03](./nfrs/NFR-03-no-silent-state-loss.md) | State correctness | Downgraded requests containing Responses state pointers are rejected or explicitly classified; none are silently dropped. | Accepted |

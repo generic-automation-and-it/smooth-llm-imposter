@@ -1,6 +1,6 @@
 # AGENTS.md - CodexToOpenAiSdk Transformer
 
-AI Context: HLD for the CodexToOpenAiSdk request-normalization transformer. Updated: 2026-06-20
+AI Context: HLD for the CodexToOpenAiSdk request-normalization transformer. Updated: 2026-06-21
 
 > AI-coder context for this HLD. Architecture diagrams live in [`./diagrams/`](./diagrams/),
 > decisions in [`./ladrs/`](./ladrs/), quality spec in [`./nfrs/`](./nfrs/). This file is

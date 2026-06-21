@@ -1,4 +1,4 @@
-# LADR-007 — In-proxy tool-name sanitization with response remap (DRAFT)
+# LADR-007 — In-proxy tool-name sanitization with response remap
 
 - **Date / Status:** 2026-06-20 · **Superseded by [HLD 004](../../../hlds/004-codex-to-openai-sdk-transformer/README.md)** (2026-06-21) — parked alternative, never implemented
 
