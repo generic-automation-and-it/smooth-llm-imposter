@@ -1,5 +1,4 @@
 using System.Text.Json.Nodes;
-using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Features.Routing;
 
 namespace SmoothLlmImposter.Application.UnitTest.Routing;
@@ -7,7 +6,7 @@ namespace SmoothLlmImposter.Application.UnitTest.Routing;
 public class OpenAiModelCatalogResponderTests
 {
     private static OpenAiModelCatalogResponder Build(params ProviderOptions[] providers) =>
-        new(new ProviderCatalog(Options.Create(new ImposterOptions
+        new(new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
         {
             Providers = providers.ToDictionary(static p => p.Name!, StringComparer.Ordinal)
         })));

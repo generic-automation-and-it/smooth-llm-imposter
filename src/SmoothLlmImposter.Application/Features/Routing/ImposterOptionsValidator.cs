@@ -60,7 +60,7 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
             {
                 failures.Add($"{prefix}:Dialect '{provider.Dialect}' is invalid (expected 'openai' or 'anthropic').");
             }
-            else if (provider.IsDefault)
+            else if (provider.Enabled && provider.IsDefault)
             {
                 defaultsByDialect[dialect] = defaultsByDialect.GetValueOrDefault(dialect) + 1;
             }

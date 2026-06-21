@@ -18,7 +18,7 @@ internal sealed class RouteResolver(IProviderCatalog catalog) : IRouteResolver
 
         IReadOnlyList<ProviderRoute> providers = catalog.ProvidersFor(dialect);
 
-        foreach (ProviderRoute provider in providers)
+        foreach (ProviderRoute provider in providers.Where(static p => p.Enabled))
         {
             foreach (ModelMapping mapping in provider.Models)
             {
@@ -29,7 +29,7 @@ internal sealed class RouteResolver(IProviderCatalog catalog) : IRouteResolver
             }
         }
 
-        ProviderRoute? defaultProvider = providers.FirstOrDefault(p => p.IsDefault);
+        ProviderRoute? defaultProvider = providers.FirstOrDefault(static p => p.Enabled && p.IsDefault);
         if (defaultProvider is null)
         {
             throw new RoutingException(
@@ -42,7 +42,7 @@ internal sealed class RouteResolver(IProviderCatalog catalog) : IRouteResolver
 
     public RouteDecision ResolveDefault(ApiDialect dialect)
     {
-        ProviderRoute? defaultProvider = catalog.ProvidersFor(dialect).FirstOrDefault(p => p.IsDefault);
+        ProviderRoute? defaultProvider = catalog.ProvidersFor(dialect).FirstOrDefault(static p => p.Enabled && p.IsDefault);
         if (defaultProvider is null)
         {
             throw new RoutingException(

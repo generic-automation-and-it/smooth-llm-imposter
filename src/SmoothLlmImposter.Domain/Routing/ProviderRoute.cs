@@ -17,6 +17,7 @@ public sealed record ProviderRoute(
     Uri BaseUrl,
     string? Secret,
     bool IsDefault,
+    bool Enabled,
     string? AnthropicVersion,
     IReadOnlyList<ModelMapping> Models,
     OpenAiUpstreamApi OpenAiUpstreamApi = OpenAiUpstreamApi.Responses,

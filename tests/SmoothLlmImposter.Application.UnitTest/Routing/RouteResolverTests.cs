@@ -7,7 +7,7 @@ namespace SmoothLlmImposter.Application.UnitTest.Routing;
 public class RouteResolverTests
 {
     private static RouteResolver Build(params ProviderOptions[] providers) =>
-        new(new ProviderCatalog(Options.Create(new ImposterOptions
+        new(new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
         {
             Providers = providers.ToDictionary(static p => p.Name!, StringComparer.Ordinal)
         })));
@@ -67,6 +67,38 @@ public class RouteResolverTests
 
         RoutingException ex = Should.Throw<RoutingException>(() => resolver.Resolve(ApiDialect.OpenAi, "gpt5.5"));
         ex.StatusCode.ShouldBe(404);
+    }
+
+    [Fact]
+    public void Disabled_provider_is_skipped_for_imposter_matching()
+    {
+        ProviderOptions disabled = OpenAi("disabled", models: new ModelMappingOptions { From = "gpt5.4", To = "disabled-model" });
+        disabled.Enabled = false;
+
+        RouteResolver resolver = Build(
+            disabled,
+            OpenAi("enabled", models: new ModelMappingOptions { From = "gpt5.4", To = "enabled-model" }),
+            OpenAi("default", isDefault: true));
+
+        RouteDecision decision = resolver.Resolve(ApiDialect.OpenAi, "gpt5.4");
+
+        decision.Provider.Name.ShouldBe("enabled");
+        decision.TargetModel.ShouldBe("enabled-model");
+    }
+
+    [Fact]
+    public void Disabled_default_is_skipped_for_passthrough()
+    {
+        ProviderOptions disabledDefault = OpenAi("disabled-default", isDefault: true);
+        disabledDefault.Enabled = false;
+
+        RouteResolver resolver = Build(
+            disabledDefault,
+            OpenAi("enabled-default", isDefault: true));
+
+        RouteDecision decision = resolver.Resolve(ApiDialect.OpenAi, "gpt5.5");
+
+        decision.Provider.Name.ShouldBe("enabled-default");
     }
 
     [Fact]

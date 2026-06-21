@@ -12,14 +12,14 @@ public class RequestTransformerTests
 
     private static RouteDecision Decision(string targetModel, bool caching) =>
         new(
-            new ProviderRoute("p", ApiDialect.OpenAi, new Uri("https://p.example"), null, false, null, []),
+            new ProviderRoute("p", ApiDialect.OpenAi, new Uri("https://p.example"), null, false, true, null, []),
             targetModel,
             caching,
             IsImposter: true);
 
     private static RouteDecision ChatDecision(string targetModel, bool caching) =>
         new(
-            new ProviderRoute("p", ApiDialect.OpenAi, new Uri("https://p.example"), null, false, null, [], OpenAiUpstreamApi.ChatCompletions),
+            new ProviderRoute("p", ApiDialect.OpenAi, new Uri("https://p.example"), null, false, true, null, [], OpenAiUpstreamApi.ChatCompletions),
             targetModel,
             caching,
             IsImposter: true);
@@ -27,7 +27,7 @@ public class RequestTransformerTests
     private static RouteDecision NormalizingChatDecision(bool isImposter) =>
         new(
             new ProviderRoute(
-                "p", ApiDialect.OpenAi, new Uri("https://p.example"), null, false, null, [],
+                "p", ApiDialect.OpenAi, new Uri("https://p.example"), null, false, true, null, [],
                 OpenAiUpstreamApi.ChatCompletions, null, RequestNormalization.CodexToOpenAiSdk),
             "kimi",
             CachingEnabled: false,

@@ -87,6 +87,13 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   `System.Net.Http` only — don't leak `HttpContext` into Application/Infrastructure.
 - **No Mediator / FluentValidation request pipeline here** (opaque proxy bodies). Validation is on
   configuration at startup (`ImposterOptionsValidator`), not on requests (HLD LADR-001).
+- **Provider configuration is runtime-mutable (HLD 008 Phase 1).** The startup config/env baseline seeds
+  `IProviderRegistry` once; after that `/admin/providers` is authoritative until restart. The routing catalog,
+  resolver, and local model responders are scoped and consume `IOptionsSnapshot<ImposterOptions>`, whose final
+  post-configure overlays the registry. Do not reintroduce singleton catalog/resolver capture of options.
+- **Provider-config CRUD is secret-free.** `/admin/providers` can list/get/upsert/delete/enable/disable routing
+  config, but neither accepts nor returns `Secret`. A provider-config `PUT` preserves the existing secret for
+  that provider key; new runtime providers start with no secret until the credential boundary owns one.
 
 ## Key Behaviors
 
@@ -97,6 +104,11 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   No match **and** no default → `RoutingException(404)`. At most one `IsDefault` per dialect (startup-validated).
   The shipped `appsettings.json` declares **catch-all key-less defaults** for `anthropic` (`api.anthropic.com`)
   and `openai` (`api.openai.com`); remove them for type-only impostering (404 on unmatched; HLD LADR-005).
+- **Disabled providers are retained but invisible to resolution.** `ProviderOptions.Enabled` defaults `true`.
+  When `false`, the provider is skipped for imposter model matching and for default/passthrough selection; its
+  config (including model mappings and default flag) remains in the runtime registry so re-enabling restores it.
+  The "at most one default" validation counts enabled providers, so a disabled default can coexist with another
+  enabled default, but re-enabling into a duplicate default is rejected by the admin mutation validation.
 - **Caching is per-dialect** (only when `Caching: true`): Anthropic injects ephemeral `cache_control` on the
   `system` block (a string `system` is converted to a one-element block array) and on the last content block
   of the last message; OpenAI sets `prompt_cache_key` to the **inbound** model name.
@@ -269,3 +281,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-20 | HLD 007 (startup-config only; request path unchanged): `ImposterOptions.Providers` is now a name-keyed `Dictionary<string, ProviderOptions>` (was a positional `List`). `ProviderCatalog` route name = `Name` ?? key; `Name` is an optional `string?` display override. `ImposterOptionsValidator` rejects a legacy array / numeric keys (fail-fast migration message), case-only-duplicate keys/names, and a blank `Name` override. New `ImposterOptionsPostConfigure` (`IPostConfigureOptions`, runs before validation) applies the conventional `<NAME>_<FIELD>` env surface (`OPENCODE_GO_API_KEY`, …) over `IConfiguration` with precedence conventional > structured > appsettings; secret values are never logged (NFR-03). `Models[]` stays structured-only. | HLD 007 |
 | 2026-06-20 | HLD 007 follow-up: invalid non-blank conventional `_IS_DEFAULT` values now leave the bound value unchanged and log a warning instead of appearing to apply silently; blank values remain ignored. | #42 review |
 | 2026-06-20 | HLD 007 review follow-up: HLD 001 examples now show the required name-keyed provider object, Conductor env capture keeps structured prefixes as prefix matches, and `_IS_DEFAULT` post-configure uses the parsed bool directly. | #42 review |
+| 2026-06-21 | Implemented HLD 008 Phase 1 runtime provider-config CRUD: `IProviderRegistry` seeds from resolved config/env once, `IOptionsSnapshot` overlays runtime state per request scope, catalog/resolver/model responders are scoped, `/admin/providers` is secret-free CRUD plus enable/disable, and disabled providers are excluded from imposter/default resolution. | #49 |

@@ -13,7 +13,7 @@ internal sealed class ProviderCatalog : IProviderCatalog
 {
     private readonly Dictionary<ApiDialect, List<ProviderRoute>> _byDialect = new();
 
-    public ProviderCatalog(IOptions<ImposterOptions> options)
+    public ProviderCatalog(IOptionsSnapshot<ImposterOptions> options)
     {
         foreach ((string key, ProviderOptions provider) in options.Value.Providers)
         {
@@ -30,6 +30,7 @@ internal sealed class ProviderCatalog : IProviderCatalog
                 new Uri(provider.BaseUrl, UriKind.Absolute),
                 provider.Secret,
                 provider.IsDefault,
+                provider.Enabled,
                 provider.AnthropicVersion,
                 provider.Models
                     .Select(m => new ModelMapping(m.From, m.To, m.Caching))

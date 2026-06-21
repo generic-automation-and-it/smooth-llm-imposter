@@ -53,10 +53,11 @@ internal sealed class ImposterOptionsPostConfigure(
         new("_BASE_URL", nameof(ProviderOptions.BaseUrl), static (p, v) => p.BaseUrl = v),
         new("_AUTH_SCHEME", nameof(ProviderOptions.AuthScheme), static (p, v) => p.AuthScheme = v),
         new("_DIALECT", nameof(ProviderOptions.Dialect), static (p, v) => p.Dialect = v),
-        // IsDefault is a bool, so its Apply is a no-op: PostConfigure handles _IS_DEFAULT inline
-        // because applying it requires bool.TryParse plus a Warning on an unparseable value, which
+        // Booleans have no-op Apply delegates: PostConfigure handles them inline because applying them
+        // requires bool.TryParse plus a Warning on an unparseable value, which
         // the Action<ProviderOptions, string> delegate (no logger) cannot do.
         new("_IS_DEFAULT", nameof(ProviderOptions.IsDefault), static (_, _) => { }),
+        new("_ENABLED", nameof(ProviderOptions.Enabled), static (_, _) => { }),
         new("_OPENAI_UPSTREAM_API", nameof(ProviderOptions.OpenAiUpstreamApi), static (p, v) => p.OpenAiUpstreamApi = v),
         new("_REQUEST_NORMALIZATION", nameof(ProviderOptions.RequestNormalization), static (p, v) => p.RequestNormalization = v),
         new("_ANTHROPIC_VERSION", nameof(ProviderOptions.AnthropicVersion), static (p, v) => p.AnthropicVersion = v),
@@ -95,9 +96,9 @@ internal sealed class ImposterOptionsPostConfigure(
                     secretApplied = true;
                 }
 
-                if (field.PropertyName == nameof(ProviderOptions.IsDefault))
+                if (field.PropertyName is nameof(ProviderOptions.IsDefault) or nameof(ProviderOptions.Enabled))
                 {
-                    if (!bool.TryParse(value, out bool isDefault))
+                    if (!bool.TryParse(value, out bool booleanValue))
                     {
                         if (!string.IsNullOrWhiteSpace(value))
                         {
@@ -109,7 +110,15 @@ internal sealed class ImposterOptionsPostConfigure(
                         continue;
                     }
 
-                    provider.IsDefault = isDefault;
+                    if (field.PropertyName == nameof(ProviderOptions.IsDefault))
+                    {
+                        provider.IsDefault = booleanValue;
+                    }
+                    else
+                    {
+                        provider.Enabled = booleanValue;
+                    }
+
                     LogApplied(variable, key, field.PropertyName);
                     continue;
                 }

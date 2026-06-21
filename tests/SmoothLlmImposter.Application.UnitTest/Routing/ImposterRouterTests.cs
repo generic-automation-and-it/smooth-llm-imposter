@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Common.Persistence;
 using SmoothLlmImposter.Application.Features.AuthorizationOverride;
 using SmoothLlmImposter.Application.Features.Routing;
@@ -14,7 +13,7 @@ public class ImposterRouterTests
         ICredentialStore? credentialStore = null,
         IAuthorizationOverrideSwitch? overrideSwitch = null)
     {
-        var options = Options.Create(new ImposterOptions
+        var options = new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
         {
             Providers =
             {

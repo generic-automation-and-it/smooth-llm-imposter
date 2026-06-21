@@ -45,6 +45,10 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   keys (`"0"`,`"1"`,…); the validator rejects that (and case-only-duplicate keys) at startup with a message
   naming the `Providers: { "<name>": { ... } }` shape, so an un-migrated config fails fast rather than binding
   silently. The conventional resolver runs as an `IPostConfigureOptions` in Application (Host only binds).
+- **Runtime provider-config admin endpoints (HLD 008 Phase 1).** `Endpoints/ProviderConfigurationEndpoints.cs`
+  maps `/admin/providers` and requires the existing `CredentialAdmin` policy. Endpoints are thin HTTP-to-Mediator
+  adapters only; the Application slices own validation, registry mutation, secret preservation, and enable/disable
+  semantics. This boundary is secret-free — do not add `Secret` to Host request/response bodies here.
 
 ## Changelog
 
@@ -59,3 +63,4 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 | 2026-06-20 | Documented the Codex CLI client contract (`~/.codex/config.toml` `model_provider`: `/openai`-prefixed `base_url`, `wire_api = "responses"`, `requires_openai_auth = true`); the Conductor.Build setup script now writes this file with the mode's published port. | #26 |
 | 2026-06-20 | HLD 007: providers are now name-keyed (`Dictionary<string, ProviderOptions>`); supersedes the positional `__N__` sparse-index note — overrides are name-addressed (`Imposter__Providers__<name>__*`) or conventional (`<NAME>_API_KEY`, precedence-winning), and a legacy array/numeric-key shape fails fast at startup. | HLD 007 |
 | 2026-06-20 | Default config uses dialect-suffixed provider keys: `opencode-go-openai` / `opencode-go-anthropic` share `OPENCODE_GO_API_KEY`, and `openrouter-openai` / `openrouter-anthropic` share `OPENROUTER_API_KEY`; OpenRouter routes use Bearer auth even on the Anthropic-compatible surface. | — |
+| 2026-06-21 | Added `/admin/providers` runtime provider-config CRUD plus enable/disable. Host maps the secret-free admin surface and delegates all behavior to Mediator/Application. | #49 |

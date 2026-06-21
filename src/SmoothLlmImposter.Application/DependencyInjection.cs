@@ -18,21 +18,24 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        services.AddSingleton<IProviderCatalog, ProviderCatalog>();
-        services.AddSingleton<IRouteResolver, RouteResolver>();
+        services.AddSingleton<IProviderRegistry, InMemoryProviderRegistry>();
+        services.AddHostedService<ProviderRegistryStartupSeeder>();
+        services.AddScoped<IProviderCatalog, ProviderCatalog>();
+        services.AddScoped<IRouteResolver, RouteResolver>();
         services.AddSingleton<IRequestNormalizer, CodexToOpenAiSdkNormalizer>();
         services.AddSingleton<IChatToResponsesTransformer, ChatToResponsesStreamTransformer>();
         services.AddSingleton<IRequestTransformer, OpenAiRequestTransformer>();
         services.AddSingleton<IRequestTransformer, AnthropicRequestTransformer>();
         services.AddScoped<IImposterRouter, ImposterRouter>();
-        services.AddSingleton<IModelCatalogResponder, OpenAiModelCatalogResponder>();
-        services.AddSingleton<IAnthropicModelCatalogResponder, AnthropicModelCatalogResponder>();
+        services.AddScoped<IModelCatalogResponder, OpenAiModelCatalogResponder>();
+        services.AddScoped<IAnthropicModelCatalogResponder, AnthropicModelCatalogResponder>();
         services.AddSingleton<IErrorResponseFactory, ErrorResponseFactory>();
         services.AddSingleton<IAuthorizationOverrideSwitch, AuthorizationOverrideSwitch>();
 
         // Conventional <NAME>_<FIELD> env surface (HLD 007) runs as a post-configure, so it applies
         // before the validator at ValidateOnStart. Business logic stays in Application; the Host only binds.
         services.AddSingleton<IPostConfigureOptions<ImposterOptions>, ImposterOptionsPostConfigure>();
+        services.AddSingleton<IPostConfigureOptions<ImposterOptions>, ProviderRegistryOptionsPostConfigure>();
         services.AddSingleton<IValidateOptions<ImposterOptions>, ImposterOptionsValidator>();
 
         services.AddMediator(options =>
