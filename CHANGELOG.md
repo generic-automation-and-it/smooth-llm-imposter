@@ -29,6 +29,9 @@ All notable changes to SmoothLlmImposter are documented here.
   now defines the L3 tier.
 
 ### Fixed
+- **Docker build restore path.** Renamed the build-stage `WORKDIR` so the image still mirrors the repo-root
+  `src/SmoothLlmImposter.*` layout while Docker restore/publish output no longer shows a doubled `src/src/`
+  path.
 - **Codex `/responses` → Chat Completions 400 ("tokenization failed") on `opencode-go`.** The
   Responses→Chat conversion now folds `role:"developer"` → `role:"system"`: Moonshot/kimi (and some
   OpenAI-compatible Chat upstreams) reject the OpenAI `developer` role, which Codex sends in its `input`.
