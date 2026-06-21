@@ -45,6 +45,14 @@ dotnet ef database update --project src/SmoothLlmImposter.Infrastructure
 
 Restart the Host. `AddInfrastructure` now wires EF Core + the PostgreSQL-backed `CredentialStore`.
 
+> **Upgrading an existing database?** The `AddProviderNameToCredentials` migration backfills pre-existing
+> (dialect-keyed) rows to the **shipped default keys** `openai-default` / `anthropic-default`. A migration
+> can't read your config, so if you renamed your default provider key (HLD 007 allows any key, e.g.
+> `openai-official`), the backfilled credential **won't resolve** — lookups now key by your configured
+> provider dictionary key. Re-key affected rows after migrating, e.g.
+> `UPDATE "ProviderCredentials" SET "ProviderName" = 'openai-official' WHERE "Dialect" = 'openai' AND "ProviderName" = 'openai-default';`
+> Fresh databases with no existing credentials are unaffected.
+
 ### What "unset" actually means
 
 When `ConnectionStrings:ImposterDb` is **blank or absent**, `AddInfrastructure` registers

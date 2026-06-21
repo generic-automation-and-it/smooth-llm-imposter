@@ -20,6 +20,12 @@ public partial class AddProviderNameToCredentials : Migration
             nullable: false,
             defaultValue: "");
 
+        // Backfill pre-existing (dialect-keyed, HLD 002) rows to the shipped default provider keys
+        // (openai-default / anthropic-default). A migration cannot read DI/config, so this is a best-effort
+        // guess: lookups now key by the *configured* provider dictionary key (ProviderRoute.CredentialProviderName).
+        // Operators who renamed their default provider key (HLD 007 allows arbitrary keys, e.g. "openai-official")
+        // must re-key these rows to match, or the migrated credential will not resolve. See
+        // .docs/wiki/setups/credentials.admin-smooth-llm-imposter.md → "Optional PostgreSQL persistence".
         migrationBuilder.Sql("""
             UPDATE "ProviderCredentials"
             SET "ProviderName" = CASE "Dialect"
