@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | In Discovery |
-| **Owner** | @generic-automation-and-it |
+| **Owner** | @generic-automation-and-it/project |
 | **Tracker** | [#48 — All configurations must be insert, update, get and deletable to change on the fly](https://github.com/generic-automation-and-it/smooth-devex-template/issues/48) |
 | **Last updated** | 2026-06-21 |
 

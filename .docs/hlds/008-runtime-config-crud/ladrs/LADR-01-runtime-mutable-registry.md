@@ -39,7 +39,10 @@ current contents per request scope (see [LADR-07](./LADR-07-snapshot-consumption
 
 ## Open
 
-- Whether a future opt-in snapshot-to-disk export is wanted for operator convenience — owner: design review
+- A future opt-in snapshot-to-disk export of the in-memory registry. **Out of scope for this HLD** — it would
+  contradict [NFR-04](../nfrs/NFR-04-ephemerality.md) ("no file or database is written by the runtime
+  provider-config registry") and the AGENTS.md Non-Negotiable, so it must not be read as an option within the
+  current design. Track in a follow-up HLD that explicitly supersedes NFR-04 if pursued — owner: design review
   on #48; trigger: operator feedback after Phase 1.
 
 ## Related

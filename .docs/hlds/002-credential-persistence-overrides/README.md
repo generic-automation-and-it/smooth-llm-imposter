@@ -1,6 +1,6 @@
 # HLD 002 — Credential Persistence & Overrides
 
-Status: Superseded by [HLD 008](../008-runtime-config-crud/README.md) · 2026-06-15
+Status: Superseded by [HLD 008](../008-runtime-config-crud/README.md) · 2026-06-21
 
 > **Superseded by [HLD 008 — Runtime Config CRUD & Provider-Addressable Credentials](../008-runtime-config-crud/README.md).**
 > HLD 008 re-bases credentials on a settings-backed, **provider-keyed** model and makes the database
@@ -12,6 +12,10 @@ Status: Superseded by [HLD 008](../008-runtime-config-crud/README.md) · 2026-06
 > removed. It **supersedes [HLD 001 LADR-002](../001-llm-imposter-routing/ladrs/LADR-002-stateless-no-ef-postgresql.md)**
 > (stateless, no EF/PostgreSQL) and **amends [HLD 001 NFR-002](../001-llm-imposter-routing/nfrs/NFR-002-credential-security.md)**
 > (credentials never persisted). The routing **hot path is unchanged** — see [LADR-004](ladrs/LADR-004-overrides-passthrough-only.md).
+
+> **Historical content — superseded by [HLD 008](../008-runtime-config-crud/README.md).** The sections below
+> describe the original HLD 002 design (mandatory PostgreSQL, dialect-keyed) and are retained for context.
+> The current design is documented in HLD 008.
 
 ## Problem
 

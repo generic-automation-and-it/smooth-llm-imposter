@@ -45,8 +45,11 @@ encryption-at-rest still applies); otherwise the in-memory store is the default.
 
 ## Open
 
-- Exact uniqueness/activation rule under provider keying (one active credential per provider vs per
-  dialect-default) — owner: design review on #48; trigger: credential-alignment phase.
+- When a dialect has **multiple** named providers, can each hold its own active credential, or is active-ness
+  still per-dialect with the default-provider lookup resolving the target? (The dialect-only case is already
+  resolved by [LADR-06](./LADR-06-provider-addressable-override.md) / AGENTS.md "Key Behaviors" — there is
+  exactly one provider activation can target when only a dialect is named.) Owner: design review on #48;
+  trigger: credential-alignment phase.
 
 ## Related
 
