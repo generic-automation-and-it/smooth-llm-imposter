@@ -37,8 +37,8 @@ fan-out into the validator, catalog, and docs.
 - **Dual-support List and Dictionary for one release** — doubles the binding/validation surface
   and the docs for a router with no installed base to protect.
 - **Drop `Name` entirely (key is the only name)** — cleaner, but removes the ability to give a
-  provider a display name distinct from its override key; rejected in favour of key-default +
-  optional display label.
+  provider a human-facing display label distinct from its dictionary key; rejected in favour of
+  key-as-identity + optional display label.
 
 ## Consequences
 

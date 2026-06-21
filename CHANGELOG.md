@@ -109,9 +109,18 @@ All notable changes to SmoothLlmImposter are documented here.
   `Authorization`/`x-api-key` (so the shipped `api.anthropic.com` / `api.openai.com` defaults authenticate with
   the caller's credential), imposter routes use the provider's configured key, and the HLD-003 override forces
   the active stored Bearer.
-- **Opt-in persistence.** `AddInfrastructure` registers EF Core + the PostgreSQL-backed `CredentialStore`
-  only when `ConnectionStrings:ImposterDb` is set; otherwise a no-op store is registered so the
-  stateless/key-less default boots with no database (the passthrough seam resolves a `null` credential).
+- **Opt-in persistence with an in-memory default.** `AddInfrastructure` registers EF Core + the
+  PostgreSQL-backed `CredentialStore` only when `ConnectionStrings:ImposterDb` is set; otherwise an in-memory
+  `InMemoryCredentialStore` is registered so the stateless/key-less default boots with no database and
+  credential CRUD/activation work without one (the passthrough seam resolves the active stored credential if
+  one exists, otherwise forwards the caller's own auth).
+- **HLD 008 Phase 2 — provider-keyed credential overrides.** Credentials are settings-backed and keyed by the
+  stable provider dictionary key (not the display `Name`); each provider holds its own active credential. The
+  no-DB default is the `InMemoryCredentialStore` above (the prior silent `NullCredentialStore` is removed); the
+  encrypted EF/PostgreSQL backend stays opt-in. Authorization-override and activation accept
+  `/routing/{dialect}/{provider}/override-authorization` with a dialect-only → enabled-default-provider
+  fallback; the inbound proxy URL is unchanged. The imposter hot path remains store-free (HLD 001 / HLD 002
+  LADR-004 parity).
 
 ### Changed
 - Renamed the template scaffold `Project.*` → `SmoothLlmImposter.*` (solution, projects, namespaces,

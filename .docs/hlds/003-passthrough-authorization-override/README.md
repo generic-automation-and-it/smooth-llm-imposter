@@ -89,12 +89,13 @@ passthrough request **fails closed** (a dialect-shaped auth error) rather than s
 > are eligible and never the imposter hot path.
 
 It reuses HLD 002's credential store and its single passthrough seam unchanged; it adds neither a new entity
-nor a new persisted column. The only new state is an in-memory, per-dialect boolean that an operator flips
-over HTTP and the process forgets on restart.
+nor a new persisted column. The only new state is an in-memory, per-`(dialect, provider)` boolean that an
+operator flips over HTTP and the process forgets on restart.
 
 ## Guiding Principle — A curl flips it; a restart forgets it; the imposter path never feels it
 
-> One header-authenticated `curl`, no parameters, per dialect — and it stops at the passthrough door.
+> One header-authenticated `curl`, no parameters, per `(dialect, provider)` (or per dialect, which targets
+> the enabled default provider) — and it stops at the passthrough door.
 
 - The switch owns exactly one decision: *force Bearer from the active credential on passthrough, or not*.
 - It will **not** be persisted, will **not** select credentials (the active credential is chosen via HLD 002's

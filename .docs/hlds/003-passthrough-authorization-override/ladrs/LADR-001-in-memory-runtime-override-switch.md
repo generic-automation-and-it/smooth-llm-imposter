@@ -13,13 +13,15 @@ column or table. HLD 002 already owns all persisted credential state; this featu
 
 ## Decision
 
-**Hold** the override as in-memory, per-dialect boolean state owned by a single application-scoped service,
-defaulting to OFF and resetting to OFF on process start. There is exactly one flag per dialect
-(`anthropic`, `openai`); no row, column, or migration is added. `PUT` sets a dialect's flag true, `DELETE`
-sets it false, and a read returns the current value — all against process memory.
+**Hold** the override as in-memory, per-`(dialect, provider)` boolean state owned by a single
+application-scoped service, defaulting to OFF and resetting to OFF on process start. There is exactly one
+flag per `(dialect, provider)`; the dialect-only `/routing/{dialect}/override-authorization` route targets
+the dialect's **enabled default** provider (HLD 008 LADR-06). No row, column, or migration is added. `PUT`
+sets a `(dialect, provider)`'s flag true, `DELETE` sets it false, and a read returns the current value — all
+against process memory. Provider keys compare case-insensitively, consistent with the credential stores.
 
 Because the routing pipeline is otherwise stateless (HLD 001), this is the only mutable in-process state on
-the request path, and it is a single boolean per dialect read with no I/O.
+the request path, and it is a single boolean per `(dialect, provider)` read with no I/O.
 
 ## Alternatives Considered
 
