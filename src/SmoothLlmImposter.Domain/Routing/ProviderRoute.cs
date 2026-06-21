@@ -25,5 +25,11 @@ public sealed record ProviderRoute(
     bool Enabled = true,
     string? ProviderKey = null)
 {
+    /// <summary>
+    /// The stable identity used to key credentials and the authorization override — the provider's
+    /// dictionary key (<see cref="ProviderKey"/>), never the human-facing <see cref="Name"/>. Callers
+    /// must set <see cref="ProviderKey"/> (as <c>ProviderCatalog</c> does from the dictionary key) to get
+    /// key-as-identity; the <see cref="Name"/> fallback is a defensive backstop for hand-built routes.
+    /// </summary>
     public string CredentialProviderName => string.IsNullOrWhiteSpace(ProviderKey) ? Name : ProviderKey;
 }

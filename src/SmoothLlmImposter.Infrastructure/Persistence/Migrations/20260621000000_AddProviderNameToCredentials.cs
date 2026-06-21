@@ -26,6 +26,10 @@ public partial class AddProviderNameToCredentials : Migration
         // Operators who renamed their default provider key (HLD 007 allows arbitrary keys, e.g. "openai-official")
         // must re-key these rows to match, or the migrated credential will not resolve. See
         // .docs/wiki/setups/credentials.admin-smooth-llm-imposter.md → "Optional PostgreSQL persistence".
+        // Rolling-deploy caveat: an old (pre-migration) app instance inserting during the window writes
+        // ProviderName='' (the column default); the new unique index does not collide with the backfilled
+        // rows, and the new app's GetActiveAsync(providerName) never matches '' — so such rows become
+        // un-discoverable. Quiesce writers across this migration, or re-key '' rows afterwards.
         migrationBuilder.Sql("""
             UPDATE "ProviderCredentials"
             SET "ProviderName" = CASE "Dialect"
@@ -50,6 +54,9 @@ public partial class AddProviderNameToCredentials : Migration
     /// <inheritdoc />
     protected override void Down(MigrationBuilder migrationBuilder)
     {
+        // Additive rollback: dropping ProviderName orphans any credential created after this migration
+        // (its provider scoping is lost) and reverts to the dialect-keyed uniqueness rule. Only roll back
+        // before such rows exist, or export them first.
         migrationBuilder.DropIndex(
             name: "IX_ProviderCredentials_Dialect_ProviderName_Name",
             table: "ProviderCredentials");

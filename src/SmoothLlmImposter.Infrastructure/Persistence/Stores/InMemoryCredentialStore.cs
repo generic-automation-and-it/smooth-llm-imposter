@@ -60,6 +60,9 @@ internal sealed class InMemoryCredentialStore : ICredentialStore
         }
     }
 
+    // No-op by design: the list holds the very reference the caller mutates in place (Activate/Deactivate/
+    // UpdateMetadata/RotateSecret mutate `this`), so the change is already visible. A future caller that
+    // passes a *copy* would silently lose the write — re-find by Id and replace here if that pattern appears.
     public Task<ProviderCredential> UpdateAsync(ProviderCredential credential, CancellationToken cancellationToken) =>
         Task.FromResult(credential);
 
