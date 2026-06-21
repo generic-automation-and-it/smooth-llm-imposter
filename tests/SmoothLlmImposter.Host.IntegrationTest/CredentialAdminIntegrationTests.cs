@@ -28,7 +28,7 @@ public sealed class CredentialAdminIntegrationTests(CredentialAppFixture fixture
     }
 
     [Fact]
-    public async Task Admin_crud_never_returns_secret_and_activate_enforces_single_active_per_dialect()
+    public async Task Admin_crud_never_returns_secret_and_activate_enforces_single_active_per_provider()
     {
         HttpClient client = AuthenticatedClient();
 
