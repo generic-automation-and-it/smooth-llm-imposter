@@ -1,6 +1,6 @@
 # LADR-03: `Enabled` Flag per Provider
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

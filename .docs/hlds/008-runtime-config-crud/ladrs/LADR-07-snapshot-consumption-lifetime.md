@@ -1,6 +1,6 @@
 # LADR-07: Consume Options via `IOptionsSnapshot`; Rebuild the Catalog per Request Scope
 
-**Status:** Draft
+**Status:** Accepted
 
 <!-- Tactical: the *how* behind LADR-01. -->
 

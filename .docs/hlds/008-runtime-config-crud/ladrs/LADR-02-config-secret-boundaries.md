@@ -1,6 +1,6 @@
 # LADR-02: Two Boundaries — Routing Config vs Credentials
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

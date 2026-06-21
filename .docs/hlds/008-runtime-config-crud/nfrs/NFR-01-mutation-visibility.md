@@ -1,6 +1,6 @@
 # NFR-01: Mutation Visibility (Consistency)
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Requirement
 

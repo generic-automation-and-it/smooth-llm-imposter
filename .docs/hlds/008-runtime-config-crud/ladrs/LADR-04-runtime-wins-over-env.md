@@ -1,6 +1,6 @@
 # LADR-04: Runtime CRUD Wins; Environment Overrides Seed at Startup
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

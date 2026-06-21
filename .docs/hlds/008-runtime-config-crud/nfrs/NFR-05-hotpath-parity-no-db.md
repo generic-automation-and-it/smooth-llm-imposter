@@ -1,6 +1,6 @@
 # NFR-05: Imposter Hot-Path Parity & No-Database Operation (Compatibility)
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Requirement
 

@@ -2,15 +2,16 @@
 
 | | |
 |---|---|
-| **Status** | In Prototype |
+| **Status** | Completed |
 | **Owner** | @generic-automation-and-it/project |
 | **Tracker** | [#48 — All configurations must be insert, update, get and deletable to change on the fly](https://github.com/generic-automation-and-it/smooth-devex-template/issues/48) |
 | **Last updated** | 2026-06-21 |
 
-> Discovery / prototyping HLD. This document delivers **intent + spec** — what we are
-> building and why, the decisions behind it, and the quality bar it must meet. It does
-> **not** contain an implementation plan; execution (phasing, sub-issues, sequencing) is
-> tracked in the issue/work tracker.
+> **Completed.** Both phases are implemented and shipped — Phase 1 (runtime provider-config CRUD,
+> `Enabled` flag, `IOptionsSnapshot` consumption; #49) and Phase 2 (provider-keyed, settings-backed
+> credentials and provider-addressable authorization-override; #50). All LADRs and NFRs are Accepted.
+> This document delivers **intent + spec** — what was built and why, the decisions behind it, and the
+> quality bar it meets; execution (phasing, sub-issues) was tracked in the issue/work tracker.
 
 > **Supersedes / amends earlier HLDs.** This design makes the named-provider configuration
 > (HLD 007) **runtime-mutable** and re-bases the credential model (HLD 002) on settings rather
@@ -149,13 +150,13 @@ horizontal concern spanning this HLD. See [`./ladrs/`](./ladrs/).
 
 | LADR | Decision | Status |
 |------|----------|--------|
-| [LADR-01](./ladrs/LADR-01-runtime-mutable-registry.md) | Runtime-mutable provider registry over `IOptionsSnapshot`, in-memory and not persisted | Draft |
-| [LADR-02](./ladrs/LADR-02-config-secret-boundaries.md) | Two boundaries over the registry — routing config (secret-free) vs credentials (secret-only) | Draft |
-| [LADR-03](./ladrs/LADR-03-enabled-flag.md) | `Enabled` flag per provider; disabled providers are excluded from resolution | Draft |
-| [LADR-04](./ladrs/LADR-04-runtime-wins-over-env.md) | Runtime CRUD wins; environment overrides only seed the registry at startup | Draft |
+| [LADR-01](./ladrs/LADR-01-runtime-mutable-registry.md) | Runtime-mutable provider registry over `IOptionsSnapshot`, in-memory and not persisted | Accepted |
+| [LADR-02](./ladrs/LADR-02-config-secret-boundaries.md) | Two boundaries over the registry — routing config (secret-free) vs credentials (secret-only) | Accepted |
+| [LADR-03](./ladrs/LADR-03-enabled-flag.md) | `Enabled` flag per provider; disabled providers are excluded from resolution | Accepted |
+| [LADR-04](./ladrs/LADR-04-runtime-wins-over-env.md) | Runtime CRUD wins; environment overrides only seed the registry at startup | Accepted |
 | [LADR-05](./ladrs/LADR-05-settings-backed-provider-keyed-credentials.md) | Credentials settings-backed and provider-keyed; database backend optional | Accepted |
 | [LADR-06](./ladrs/LADR-06-provider-addressable-override.md) | Provider-addressable authorization-override and activation; dialect-only → default | Accepted |
-| [LADR-07](./ladrs/LADR-07-snapshot-consumption-lifetime.md) | Consume options via `IOptionsSnapshot` (scoped); rebuild the catalog per request scope | Draft |
+| [LADR-07](./ladrs/LADR-07-snapshot-consumption-lifetime.md) | Consume options via `IOptionsSnapshot` (scoped); rebuild the catalog per request scope | Accepted |
 
 ## Non-Functional Requirements
 
@@ -164,8 +165,8 @@ mechanism, and acceptance criteria. See [`./nfrs/`](./nfrs/).
 
 | NFR | Attribute | Target (summary) | Status |
 |-----|-----------|------------------|--------|
-| [NFR-01](./nfrs/NFR-01-mutation-visibility.md) | Consistency | A successful write is observed by the next inbound request | Draft |
-| [NFR-02](./nfrs/NFR-02-secret-confidentiality.md) | Security | No secret value in any config response or log line | Draft |
-| [NFR-03](./nfrs/NFR-03-admin-authorization.md) | Security | Every mutating endpoint requires the admin key (401/403 otherwise) | Draft |
-| [NFR-04](./nfrs/NFR-04-ephemerality.md) | Operability | Runtime mutations are in-memory; restart reseeds deterministically from config + env | Draft |
-| [NFR-05](./nfrs/NFR-05-hotpath-parity-no-db.md) | Compatibility | Imposter hot-path parity preserved; full CRUD + override work with no database | Draft |
+| [NFR-01](./nfrs/NFR-01-mutation-visibility.md) | Consistency | A successful write is observed by the next inbound request | Accepted |
+| [NFR-02](./nfrs/NFR-02-secret-confidentiality.md) | Security | No secret value in any config response or log line | Accepted |
+| [NFR-03](./nfrs/NFR-03-admin-authorization.md) | Security | Every mutating endpoint requires the admin key (401/403 otherwise) | Accepted |
+| [NFR-04](./nfrs/NFR-04-ephemerality.md) | Operability | Runtime mutations are in-memory; restart reseeds deterministically from config + env | Accepted |
+| [NFR-05](./nfrs/NFR-05-hotpath-parity-no-db.md) | Compatibility | Imposter hot-path parity preserved; full CRUD + override work with no database | Accepted |
