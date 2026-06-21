@@ -5,6 +5,7 @@ namespace SmoothLlmImposter.Application.Features.Credentials;
 public sealed record CredentialResponse(
     Guid Id,
     string ProviderDialect,
+    string ProviderName,
     string Name,
     CredentialAuthScheme AuthScheme,
     bool IsActive,
@@ -16,6 +17,7 @@ public sealed record CredentialResponse(
     public static CredentialResponse From(ProviderCredential credential) => new(
         credential.Id,
         credential.ProviderDialect,
+        credential.ProviderName,
         credential.Name,
         credential.AuthScheme,
         credential.IsActive,

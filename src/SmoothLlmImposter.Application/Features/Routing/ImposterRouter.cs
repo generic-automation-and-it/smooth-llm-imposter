@@ -45,7 +45,7 @@ internal sealed class ImposterRouter : IImposterRouter
         string transformedBody = transformer.Transform(requestBody, decision, model);
         RouteCredentialOverride? credentialOverride = decision.IsImposter
             ? null
-            : await ResolvePassthroughCredentialAsync(dialect, cancellationToken);
+            : await ResolvePassthroughCredentialAsync(dialect, decision.Provider.CredentialProviderName, cancellationToken);
 
         _logger.LogInformation(
             "Routed {Dialect} model '{InboundModel}' -> provider '{Provider}' as '{TargetModel}' (imposter={IsImposter}, caching={Caching}, storedCredential={StoredCredential}, auth={Auth})",
@@ -66,7 +66,7 @@ internal sealed class ImposterRouter : IImposterRouter
         // No body, no model (e.g. GET /v1/models): passthrough to the dialect default with no transform.
         // The body forwarded upstream is empty, so the forwarder issues the request with no content.
         RouteDecision decision = _resolver.ResolveDefault(dialect);
-        RouteCredentialOverride? credentialOverride = await ResolvePassthroughCredentialAsync(dialect, cancellationToken);
+        RouteCredentialOverride? credentialOverride = await ResolvePassthroughCredentialAsync(dialect, decision.Provider.CredentialProviderName, cancellationToken);
 
         _logger.LogInformation(
             "Routed {Dialect} body-less request -> provider '{Provider}' (passthrough, no model, storedCredential={StoredCredential}, auth={Auth})",
@@ -78,19 +78,19 @@ internal sealed class ImposterRouter : IImposterRouter
         return new RoutePlan(decision, InboundModel: string.Empty, TransformedBody: string.Empty, credentialOverride);
     }
 
-    private async Task<RouteCredentialOverride?> ResolvePassthroughCredentialAsync(ApiDialect dialect, CancellationToken cancellationToken)
+    private async Task<RouteCredentialOverride?> ResolvePassthroughCredentialAsync(ApiDialect dialect, string providerName, CancellationToken cancellationToken)
     {
         // The authorization override switch is consulted ONLY here, on the passthrough branch. A matched
         // imposter route never enters this method, so it never reads the switch or the store (LADR-003).
-        bool forceBearer = _overrideSwitch.IsEnabled(dialect);
+        bool forceBearer = _overrideSwitch.IsEnabled(dialect, providerName);
 
-        ProviderCredential? credential = await _credentialStore.GetActiveAsync(dialect, cancellationToken);
+        ProviderCredential? credential = await _credentialStore.GetActiveAsync(dialect, providerName, cancellationToken);
         if (credential is null)
         {
             // Override ON + no active credential ⇒ fail closed (403), never fall back to x-api-key/config key (LADR-005).
             return forceBearer
                 ? throw new RoutingException(
-                    $"The {dialect} passthrough authorization override is enabled but no active stored credential is configured.",
+                    $"The {dialect}/{providerName} passthrough authorization override is enabled but no active stored credential is configured.",
                     statusCode: 403)
                 : null;
         }

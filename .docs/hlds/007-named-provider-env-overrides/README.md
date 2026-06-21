@@ -78,7 +78,8 @@ deliberately on the other side of the seam — unchanged.
 
 > An operator overrides a provider by its name — the same name in the file, the structured var, and the convention.
 
-- Provider identity comes from one place — the dictionary key (optionally overridden by `Name`).
+- Provider identity comes from one place — the dictionary key. `Name` remains an optional display label;
+  HLD 008 uses the stable key, not the display label, for provider-keyed credentials and authorization override.
 - The conventional surface is *derived* from that key, so there is nothing extra to keep in sync.
 - This HLD deliberately does **not** change the request path, model-mapping structure, dual-support
   the legacy array, or add per-field config to configure the convention.

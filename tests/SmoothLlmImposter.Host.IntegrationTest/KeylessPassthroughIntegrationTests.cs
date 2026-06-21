@@ -12,7 +12,7 @@ namespace SmoothLlmImposter.Host.IntegrationTest;
 
 /// <summary>
 /// End-to-end proof of the key-less catch-all passthrough: with no provider key, no stored override, and
-/// no PostgreSQL configured (so the real <c>NullCredentialStore</c> is registered), the router relays the
+/// no PostgreSQL configured (so the real <c>InMemoryCredentialStore</c> is registered), the router relays the
 /// caller's own inbound credential to the real provider. A matched imposter route still replaces it.
 /// </summary>
 public sealed class KeylessPassthroughIntegrationTests(KeylessPassthroughIntegrationTests.Fixture fixture)
@@ -101,7 +101,7 @@ public sealed class KeylessPassthroughIntegrationTests(KeylessPassthroughIntegra
     {
         public StubUpstreamHandler Upstream { get; } = new();
 
-        // No connection string ⇒ the real NullCredentialStore is registered (no store swap here on purpose).
+        // No connection string ⇒ the real InMemoryCredentialStore is registered (no store swap here on purpose).
         // anthropic-default is key-less catch-all passthrough; opencode-anthropic is a keyed imposter.
         private static readonly Dictionary<string, string?> Config = new()
         {

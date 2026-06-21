@@ -26,7 +26,8 @@ Makes the named-provider registry (HLD 007) runtime-mutable via an admin API and
   ([LADR-05](./ladrs/LADR-05-settings-backed-provider-keyed-credentials.md)).
 - Do **not** add a provider segment to the inbound proxy URLs (`/openai/...`, `/anthropic/...`) — provider
   addressing is admin-surface only ([LADR-06](./ladrs/LADR-06-provider-addressable-override.md)).
-- LADRs are Draft (discovery) — flag deviations rather than silently overriding.
+- LADRs 05/06 are Accepted for the provider-keyed credentials and provider-addressable override slice; other
+  LADRs remain Draft/Discovery — flag deviations rather than silently overriding.
 
 ## Architecture Decisions
 
@@ -49,6 +50,7 @@ Only decisions whose violation produces wrong code. Full records in [`./ladrs/`]
 - A matched imposter route never reads the credential store or override switch (HLD 001 / HLD 002 LADR-004
   parity); credentials enter only on the passthrough branch.
 - A dialect-only override/activation resolves to the dialect's default provider.
+- Activation is per provider: at most one active credential per `(dialect, providerName)`, not per dialect.
 
 ## Quality Constraints
 
@@ -70,3 +72,4 @@ Measurable NFRs live in [`./nfrs/`](./nfrs/). Constraints that change how code i
 | Date | Change | Ref |
 | :---- | :---- | :---- |
 | 2026-06-21 | HLD scaffolded | #48 |
+| 2026-06-21 | Phase 2 provider-keyed credentials and provider-addressable override implemented; LADR-05/06 accepted. | #50 |

@@ -24,6 +24,7 @@ internal static class CredentialAdminEndpoints
     {
         CredentialMutationResponse response = await sender.Send(new CreateCredential.Request(
             body.ProviderDialect,
+            body.ProviderName,
             body.Name,
             body.Secret,
             body.AuthScheme,
@@ -47,6 +48,7 @@ internal static class CredentialAdminEndpoints
     {
         CredentialMutationResponse? response = await sender.Send(new UpdateCredential.Request(
             id,
+            body.ProviderName,
             body.Name,
             body.AuthScheme,
             body.Secret,
@@ -73,6 +75,7 @@ internal static class CredentialAdminEndpoints
 
     public sealed record CreateCredentialBody(
         string ProviderDialect,
+        string? ProviderName,
         string Name,
         string Secret,
         string AuthScheme,
@@ -80,6 +83,7 @@ internal static class CredentialAdminEndpoints
         string? AnthropicVersion);
 
     public sealed record UpdateCredentialBody(
+        string? ProviderName,
         string Name,
         string AuthScheme,
         string? Secret,

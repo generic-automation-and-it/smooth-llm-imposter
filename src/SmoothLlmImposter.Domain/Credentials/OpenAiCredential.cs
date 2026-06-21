@@ -9,11 +9,12 @@ public sealed class OpenAiCredential : ProviderCredential
     }
 
     public OpenAiCredential(
+        string providerName,
         string name,
         string secretCiphertext,
         CredentialAuthScheme authScheme,
         string? baseUrlOverride)
-        : base(name, secretCiphertext, authScheme, baseUrlOverride)
+        : base(providerName, name, secretCiphertext, authScheme, baseUrlOverride)
     {
     }
 

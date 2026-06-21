@@ -26,10 +26,11 @@ public static class DeleteCredential
 
             await store.DeleteAsync(request.Id, cancellationToken);
             logger.LogInformation(
-                "Credential deleted by {Actor}: {CredentialName} ({ProviderDialect})",
+                "Credential deleted by {Actor}: {CredentialName} ({ProviderDialect}/{ProviderName})",
                 request.Actor ?? "unknown",
                 credential.Name,
-                credential.ProviderDialect);
+                credential.ProviderDialect,
+                credential.ProviderName);
             return true;
         }
     }

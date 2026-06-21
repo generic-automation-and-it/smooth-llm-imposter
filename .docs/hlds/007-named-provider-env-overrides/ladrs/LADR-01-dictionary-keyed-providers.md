@@ -22,9 +22,9 @@ reordering or insertion.
 
 This is a **hard cutover** — the array shape is removed, not dual-supported. The router is
 pre-1.0, stateless, and key-less, so there is no persisted config to migrate and no compatibility
-contract to honour. The `Name` property is **retained as an optional override**: when set it wins,
-otherwise the key supplies the name. This keeps a single source of truth (the key) while leaving
-an escape hatch for a display name that differs from the override key.
+contract to honour. The `Name` property is **retained as an optional display label**: when set it supplies
+the human-facing route name, otherwise the key supplies the name. HLD 008 provider-keyed credentials and
+authorization override use the stable dictionary key, not this display label.
 
 The binder maps a `Dictionary<string,T>` natively — no custom binder, config source, or parsing
 is introduced for the structural change. The whole structural fix is a type change plus its
@@ -38,7 +38,7 @@ fan-out into the validator, catalog, and docs.
   and the docs for a router with no installed base to protect.
 - **Drop `Name` entirely (key is the only name)** — cleaner, but removes the ability to give a
   provider a display name distinct from its override key; rejected in favour of key-default +
-  optional override.
+  optional display label.
 
 ## Consequences
 
@@ -48,8 +48,8 @@ fan-out into the validator, catalog, and docs.
 - The validator's duplicate-name check becomes mostly free — dict keys are unique — but a
   case-only collision (`opencode-go` vs `OpenCode-Go`) is still possible and must be caught
   (see [NFR-02](../nfrs/NFR-02-migration-safety.md)).
-- `Name` being optional means two ways to express a name; the validator must define which wins
-  (key default, `Name` override) and reject a blank `Name` override.
+- `Name` being optional means display name can differ from identity; HLD 008-sensitive surfaces must use the
+  dictionary key and reject a blank `Name` override.
 
 ## Related
 

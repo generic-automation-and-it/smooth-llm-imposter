@@ -1,7 +1,7 @@
 namespace SmoothLlmImposter.Application.Features.AuthorizationOverride;
 
-/// <summary>The observable on/off state of a dialect's passthrough authorization override.</summary>
-public sealed record AuthorizationOverrideState(string Dialect, bool Enabled);
+/// <summary>The observable on/off state of a provider's passthrough authorization override.</summary>
+public sealed record AuthorizationOverrideState(string Dialect, string ProviderName, bool Enabled);
 
 /// <summary>
 /// Outcome of an arm (<c>PUT</c>) request. Distinguishes a successful arm from a refusal because the

@@ -11,7 +11,7 @@ public interface ICredentialStore
 
     Task<ProviderCredential?> GetAsync(Guid id, CancellationToken cancellationToken);
 
-    Task<ProviderCredential?> GetActiveAsync(ApiDialect dialect, CancellationToken cancellationToken);
+    Task<ProviderCredential?> GetActiveAsync(ApiDialect dialect, string providerName, CancellationToken cancellationToken);
 
     Task DeleteAsync(Guid id, CancellationToken cancellationToken);
 

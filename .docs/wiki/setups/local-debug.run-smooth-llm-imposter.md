@@ -61,8 +61,8 @@ dotnet user-secrets set "Imposter:Providers:opencode-go-anthropic:Secret" "sk-yo
 dotnet user-secrets set "Imposter:Providers:openrouter-anthropic:Secret" "sk-your-openrouter-key"
 dotnet user-secrets set "Imposter:Providers:openrouter-anthropic:AuthScheme" "Bearer"
 
-# Optional: credential-admin API (also needs a PostgreSQL connection string).
-# Unset -> no database (NullCredentialStore); see setups/credentials.admin-smooth-llm-imposter.md
+# Optional: credential-admin API. Unset connection string -> in-memory credentials.
+# Set ImposterDb only when you want encrypted PostgreSQL persistence.
 dotnet user-secrets set "Admin:ApiKey" "choose-a-strong-admin-key"
 dotnet user-secrets set "ConnectionStrings:ImposterDb" "Host=localhost;Port=5432;Database=smoothllmimposter;Username=postgres;Password=postgres"
 

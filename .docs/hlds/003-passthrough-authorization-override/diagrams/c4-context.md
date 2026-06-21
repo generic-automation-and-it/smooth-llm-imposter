@@ -28,7 +28,7 @@ C4Context
     System_Ext(openai, "OpenAI-dialect upstream", "Receives passthrough/imposter requests.")
     System_Ext(anthropic, "Anthropic-dialect upstream", "Receives passthrough/imposter requests.")
 
-    Rel(operator, router, "PUT/DELETE/GET /routing/{dialect}/override-authorization", "HTTPS + X-Admin-Api-Key")
+    Rel(operator, router, "PUT/DELETE/GET /routing/{dialect}/{provider}/override-authorization", "HTTPS + X-Admin-Api-Key")
     Rel(caller, router, "POST /v1/* dialect requests", "HTTPS")
     Rel(router, store, "Reads active credential (passthrough only)", "EF Core")
     Rel(router, openai, "Forwards (Bearer when override ON, else config/stored scheme)", "HTTPS")

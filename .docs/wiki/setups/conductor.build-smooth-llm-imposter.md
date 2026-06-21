@@ -41,10 +41,9 @@ unless a provider sets `"IsDefault": true` (passthrough).
   appended verbatim; adding `/v1` double-prefixes).
 - **`Admin__ApiKey` / `Admin__OperatorApiKey`** — only needed to use the `/admin/credentials` API. The admin key
   grants the `CredentialAdmin` role (all mutations); the operator key authenticates without it.
-- **`ConnectionStrings__ImposterDb`** — only needed for the credential-admin API or stored passthrough overrides
-  (these require PostgreSQL). Pure imposter routing needs no database. **When unset, the router uses no database**
-  (a `NullCredentialStore` — the admin API/override are disabled and passthrough forwards the caller's own auth);
-  there is no runtime localhost fallback. See
+- **`ConnectionStrings__ImposterDb`** — only needed when credential-admin data should persist in PostgreSQL.
+  Pure imposter routing needs no database. **When unset, the router uses no database** and stores
+  credential-admin data in memory until restart; there is no runtime localhost fallback. See
   [`credentials.admin-smooth-llm-imposter.md`](credentials.admin-smooth-llm-imposter.md).
 
 ## Why the helper + env-file shape

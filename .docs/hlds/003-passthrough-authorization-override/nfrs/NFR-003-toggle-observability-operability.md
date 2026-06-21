@@ -6,7 +6,7 @@
 
 - **Observable:** each enable/disable is logged at `Information` recording actor, dialect, and action
   (enabled/disabled) — never the secret — per the project logging conventions. The current state is readable
-  via `GET /routing/{dialect}/override-authorization`.
+  via `GET /routing/{dialect}/{provider}/override-authorization` or the dialect-only default-provider fallback.
 - **Zero hot-path cost:** reading the override flag on the passthrough path is an in-memory O(1) lookup and
   adds **no** database round-trip for the switch state itself. (The active-credential lookup it gates is the
   same one HLD 002 already performs on passthrough.)

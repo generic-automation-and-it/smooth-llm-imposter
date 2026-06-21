@@ -2,7 +2,9 @@ using FluentValidation;
 using Mediator;
 using Microsoft.Extensions.Logging;
 using SmoothLlmImposter.Application.Common.Persistence;
+using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Domain.Credentials;
+using SmoothLlmImposter.Domain.Routing;
 
 namespace SmoothLlmImposter.Application.Features.Credentials;
 
@@ -10,6 +12,7 @@ public static class UpdateCredential
 {
     public sealed record Request(
         Guid Id,
+        string? ProviderName,
         string Name,
         string AuthScheme,
         string? Secret,
@@ -22,6 +25,7 @@ public static class UpdateCredential
         public Validator()
         {
             RuleFor(x => x.Id).NotEmpty();
+            RuleFor(x => x.ProviderName).MaximumLength(128);
             RuleFor(x => x.Name).NotEmpty().MaximumLength(128);
             RuleFor(x => x.AuthScheme).Must(x => Enum.TryParse<CredentialAuthScheme>(x, true, out _)).WithMessage("AuthScheme must be 'ApiKey' or 'Bearer'.");
             RuleFor(x => x.BaseUrlOverride).Must(BeAbsoluteUrlRoot).When(x => !string.IsNullOrWhiteSpace(x.BaseUrlOverride));
@@ -33,6 +37,7 @@ public static class UpdateCredential
 
     public sealed class Handler(
         ICredentialStore store,
+        IProviderCatalog catalog,
         ISecretProtector secretProtector,
         ILogger<Handler> logger) : IRequestHandler<Request, CredentialMutationResponse?>
     {
@@ -42,6 +47,15 @@ public static class UpdateCredential
             if (credential is null)
             {
                 return null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.ProviderName) &&
+                !string.Equals(credential.ProviderName, request.ProviderName.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                ApiDialect dialect = CredentialRequestHelpers.ParseDialect(credential.ProviderDialect);
+                ProviderRoute provider = ProviderAddressResolver.Resolve(catalog, dialect, request.ProviderName, nameof(request.ProviderName));
+                credential.MoveToProvider(provider.CredentialProviderName);
+                credential.Deactivate();
             }
 
             credential.UpdateMetadata(
@@ -61,10 +75,11 @@ public static class UpdateCredential
 
             ProviderCredential updated = await store.UpdateAsync(credential, cancellationToken);
             logger.LogInformation(
-                "Credential updated by {Actor}: {CredentialName} ({ProviderDialect})",
+                "Credential updated by {Actor}: {CredentialName} ({ProviderDialect}/{ProviderName})",
                 request.Actor ?? "unknown",
                 updated.Name,
-                updated.ProviderDialect);
+                updated.ProviderDialect,
+                updated.ProviderName);
 
             return new CredentialMutationResponse(CredentialResponse.From(updated));
         }

@@ -56,7 +56,7 @@ public class ImposterRouterTests
     {
         var store = new StubCredentialStore
         {
-            Active = new OpenAiCredential("work", "cipher:stored-key", CredentialAuthScheme.Bearer, "https://override.example")
+            Active = new OpenAiCredential("openai-official", "work", "cipher:stored-key", CredentialAuthScheme.Bearer, "https://override.example")
         };
         ImposterRouter router = Build(store);
 
@@ -73,7 +73,7 @@ public class ImposterRouterTests
     {
         var store = new StubCredentialStore
         {
-            Active = new OpenAiCredential("work", "cipher:stored-key", CredentialAuthScheme.ApiKey, baseUrlOverride: null)
+            Active = new OpenAiCredential("openai-official", "work", "cipher:stored-key", CredentialAuthScheme.ApiKey, baseUrlOverride: null)
         };
         var overrideSwitch = new StubOverrideSwitch { Enabled = true };
         ImposterRouter router = Build(store, overrideSwitch);
@@ -103,7 +103,7 @@ public class ImposterRouterTests
     {
         var store = new StubCredentialStore
         {
-            Active = new OpenAiCredential("work", "cipher:stored-key", CredentialAuthScheme.ApiKey, baseUrlOverride: null)
+            Active = new OpenAiCredential("openai-official", "work", "cipher:stored-key", CredentialAuthScheme.ApiKey, baseUrlOverride: null)
         };
         ImposterRouter router = Build(store, new StubOverrideSwitch { Enabled = false });
 
@@ -158,7 +158,7 @@ public class ImposterRouterTests
 
         public Task<ProviderCredential?> GetAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult<ProviderCredential?>(null);
 
-        public Task<ProviderCredential?> GetActiveAsync(ApiDialect dialect, CancellationToken cancellationToken) => Task.FromResult(Active);
+        public Task<ProviderCredential?> GetActiveAsync(ApiDialect dialect, string providerName, CancellationToken cancellationToken) => Task.FromResult(Active);
 
         public Task DeleteAsync(Guid id, CancellationToken cancellationToken) => Task.CompletedTask;
 
@@ -171,20 +171,20 @@ public class ImposterRouterTests
     {
         public bool Enabled { get; init; }
 
-        public bool IsEnabled(ApiDialect dialect) => Enabled;
+        public bool IsEnabled(ApiDialect dialect, string providerName) => Enabled;
 
-        public void Enable(ApiDialect dialect) { }
+        public void Enable(ApiDialect dialect, string providerName) { }
 
-        public void Disable(ApiDialect dialect) { }
+        public void Disable(ApiDialect dialect, string providerName) { }
     }
 
     private sealed class ThrowingOverrideSwitch : IAuthorizationOverrideSwitch
     {
-        public bool IsEnabled(ApiDialect dialect) => throw new InvalidOperationException("Imposter route must not read the authorization override switch.");
+        public bool IsEnabled(ApiDialect dialect, string providerName) => throw new InvalidOperationException("Imposter route must not read the authorization override switch.");
 
-        public void Enable(ApiDialect dialect) => throw new InvalidOperationException();
+        public void Enable(ApiDialect dialect, string providerName) => throw new InvalidOperationException();
 
-        public void Disable(ApiDialect dialect) => throw new InvalidOperationException();
+        public void Disable(ApiDialect dialect, string providerName) => throw new InvalidOperationException();
     }
 
     private sealed class ThrowingCredentialStore : ICredentialStore
@@ -195,7 +195,7 @@ public class ImposterRouterTests
 
         public Task<ProviderCredential?> GetAsync(Guid id, CancellationToken cancellationToken) => throw new InvalidOperationException();
 
-        public Task<ProviderCredential?> GetActiveAsync(ApiDialect dialect, CancellationToken cancellationToken) =>
+        public Task<ProviderCredential?> GetActiveAsync(ApiDialect dialect, string providerName, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("Imposter route must not read the credential store.");
 
         public Task DeleteAsync(Guid id, CancellationToken cancellationToken) => throw new InvalidOperationException();

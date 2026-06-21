@@ -10,8 +10,8 @@ public class AuthorizationOverrideSwitchTests
     {
         var sut = new AuthorizationOverrideSwitch();
 
-        sut.IsEnabled(ApiDialect.OpenAi).ShouldBeFalse();
-        sut.IsEnabled(ApiDialect.Anthropic).ShouldBeFalse();
+        sut.IsEnabled(ApiDialect.OpenAi, "openai-official").ShouldBeFalse();
+        sut.IsEnabled(ApiDialect.Anthropic, "anthropic-official").ShouldBeFalse();
     }
 
     [Fact]
@@ -19,13 +19,24 @@ public class AuthorizationOverrideSwitchTests
     {
         var sut = new AuthorizationOverrideSwitch();
 
-        sut.Enable(ApiDialect.Anthropic);
+        sut.Enable(ApiDialect.Anthropic, "anthropic-official");
 
-        sut.IsEnabled(ApiDialect.Anthropic).ShouldBeTrue();
-        sut.IsEnabled(ApiDialect.OpenAi).ShouldBeFalse();
+        sut.IsEnabled(ApiDialect.Anthropic, "anthropic-official").ShouldBeTrue();
+        sut.IsEnabled(ApiDialect.OpenAi, "openai-official").ShouldBeFalse();
 
-        sut.Disable(ApiDialect.Anthropic);
-        sut.IsEnabled(ApiDialect.Anthropic).ShouldBeFalse();
+        sut.Disable(ApiDialect.Anthropic, "anthropic-official");
+        sut.IsEnabled(ApiDialect.Anthropic, "anthropic-official").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Enable_and_disable_are_isolated_per_provider()
+    {
+        var sut = new AuthorizationOverrideSwitch();
+
+        sut.Enable(ApiDialect.OpenAi, "default");
+
+        sut.IsEnabled(ApiDialect.OpenAi, "default").ShouldBeTrue();
+        sut.IsEnabled(ApiDialect.OpenAi, "alternate").ShouldBeFalse();
     }
 
     [Fact]
@@ -33,9 +44,9 @@ public class AuthorizationOverrideSwitchTests
     {
         var sut = new AuthorizationOverrideSwitch();
 
-        sut.Enable(ApiDialect.OpenAi);
-        sut.Enable(ApiDialect.OpenAi);
+        sut.Enable(ApiDialect.OpenAi, "openai-official");
+        sut.Enable(ApiDialect.OpenAi, "openai-official");
 
-        sut.IsEnabled(ApiDialect.OpenAi).ShouldBeTrue();
+        sut.IsEnabled(ApiDialect.OpenAi, "openai-official").ShouldBeTrue();
     }
 }

@@ -11,16 +11,15 @@ public class DependencyInjectionTests
     private CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task Without_a_connection_string_the_no_op_credential_store_is_registered()
+    public async Task Without_a_connection_string_the_in_memory_credential_store_is_registered()
     {
-        // Stateless, key-less default: no PostgreSQL configured ⇒ the router must boot and the catch-all
-        // passthrough must resolve a null credential rather than crash building/opening an EF model.
+        // Stateless, key-less default: no PostgreSQL configured ⇒ credential management still works in memory.
         ServiceProvider provider = BuildProvider(connectionString: null);
 
         var store = provider.GetRequiredService<ICredentialStore>();
 
-        store.ShouldBeOfType<NullCredentialStore>();
-        (await store.GetActiveAsync(ApiDialect.Anthropic, Ct)).ShouldBeNull();
+        store.ShouldBeOfType<InMemoryCredentialStore>();
+        (await store.GetActiveAsync(ApiDialect.Anthropic, "anthropic-official", Ct)).ShouldBeNull();
         (await store.ListAsync(Ct)).ShouldBeEmpty();
     }
 

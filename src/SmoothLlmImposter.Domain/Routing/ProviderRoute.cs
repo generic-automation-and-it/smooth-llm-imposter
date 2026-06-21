@@ -22,4 +22,8 @@ public sealed record ProviderRoute(
     OpenAiUpstreamApi OpenAiUpstreamApi = OpenAiUpstreamApi.Responses,
     CredentialAuthScheme? AuthScheme = null,
     RequestNormalization RequestNormalization = RequestNormalization.None,
-    bool Enabled = true);
+    bool Enabled = true,
+    string? ProviderKey = null)
+{
+    public string CredentialProviderName => string.IsNullOrWhiteSpace(ProviderKey) ? Name : ProviderKey;
+}

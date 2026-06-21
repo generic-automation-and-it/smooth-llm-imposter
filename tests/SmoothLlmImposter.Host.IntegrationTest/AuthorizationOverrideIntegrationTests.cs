@@ -16,6 +16,7 @@ namespace SmoothLlmImposter.Host.IntegrationTest;
 public sealed class AuthorizationOverrideIntegrationTests
 {
     private const string OverridePath = "/routing/openai/override-authorization";
+    private const string ProviderOverridePath = "/routing/openai/openai-official/override-authorization";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -68,7 +69,7 @@ public sealed class AuthorizationOverrideIntegrationTests
 
         using HttpResponseMessage put = await client.PutAsync(OverridePath, content: null, Ct);
         AuthorizationOverrideState armed = await ReadStateAsync(put);
-        armed.ShouldBe(new AuthorizationOverrideState("openai", true));
+        armed.ShouldBe(new AuthorizationOverrideState("openai", "openai-official", true));
 
         using HttpResponseMessage passthrough = await client.PostAsync("/v1/chat/completions", Json("""{"model":"gpt5.5"}"""), Ct);
         passthrough.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -89,7 +90,7 @@ public sealed class AuthorizationOverrideIntegrationTests
         }
 
         using HttpResponseMessage delete = await client.DeleteAsync(OverridePath, Ct);
-        (await ReadStateAsync(delete)).ShouldBe(new AuthorizationOverrideState("openai", false));
+        (await ReadStateAsync(delete)).ShouldBe(new AuthorizationOverrideState("openai", "openai-official", false));
 
         using HttpResponseMessage passthrough = await client.PostAsync("/v1/chat/completions", Json("""{"model":"gpt5.5"}"""), Ct);
         passthrough.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -111,6 +112,20 @@ public sealed class AuthorizationOverrideIntegrationTests
 
         using (await client.DeleteAsync(OverridePath, Ct)) { }
         (await GetStateAsync(client)).Enabled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Provider_addressable_route_controls_that_provider()
+    {
+        using var fixture = new CredentialAppFixture();
+        HttpClient client = AdminClient(fixture);
+        await CreateAndActivateAsync(client, "stored-secret", "Bearer", providerName: "openai-official");
+
+        using HttpResponseMessage put = await client.PutAsync(ProviderOverridePath, content: null, Ct);
+        (await ReadStateAsync(put)).ShouldBe(new AuthorizationOverrideState("openai", "openai-official", true));
+
+        AuthorizationOverrideState defaultState = await GetStateAsync(client);
+        defaultState.ShouldBe(new AuthorizationOverrideState("openai", "openai-official", true));
     }
 
     [Fact]
@@ -187,11 +202,11 @@ public sealed class AuthorizationOverrideIntegrationTests
         return JsonNode.Parse(body)!.Deserialize<AuthorizationOverrideState>(JsonOptions)!;
     }
 
-    private async Task<Guid> CreateAndActivateAsync(HttpClient client, string secret, string authScheme)
+    private async Task<Guid> CreateAndActivateAsync(HttpClient client, string secret, string authScheme, string? providerName = null)
     {
         using HttpResponseMessage created = await client.PostAsJsonAsync(
             "/admin/credentials",
-            new { providerDialect = "openai", name = "routing", secret, authScheme, baseUrlOverride = (string?)null },
+            new { providerDialect = "openai", providerName, name = "routing", secret, authScheme, baseUrlOverride = (string?)null },
             Ct);
         string json = await created.Content.ReadAsStringAsync(Ct);
         created.StatusCode.ShouldBe(HttpStatusCode.Created, json);

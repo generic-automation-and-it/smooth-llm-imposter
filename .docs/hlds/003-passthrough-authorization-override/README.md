@@ -30,11 +30,12 @@ memory (a restart forgets it) and never touches the imposter hot path.
 
 ## Key Goals
 
-### 1. A parameterless, per-dialect runtime toggle
+### 1. A parameterless, provider-addressable runtime toggle
 
-Expose `PUT /routing/{dialect}/override-authorization` to **enable** the override for a dialect and
-`DELETE /routing/{dialect}/override-authorization` to **disable** it, where `{dialect}` is
-`anthropic` or `openai`. The verbs are honest: `PUT` *sets* the override on, `DELETE` removes it —
+Expose `PUT /routing/{dialect}/{provider}/override-authorization` to **enable** the override for a provider and
+`DELETE /routing/{dialect}/{provider}/override-authorization` to **disable** it, where `{dialect}` is
+`anthropic` or `openai` and `{provider}` is the stable provider dictionary key. The dialect-only route remains
+as a fallback to the dialect's enabled default provider. The verbs are honest: `PUT` *sets* the override on, `DELETE` removes it —
 not a `GET`, which only reads. Both are driven by a bare `curl` with no query string and no body,
 authenticated with the existing `X-Admin-Api-Key` header. A `GET` on the same path reports the
 current on/off state so the toggle is observable.
@@ -114,10 +115,10 @@ a horizontal concern spanning this HLD. See [`./ladrs/`](./ladrs/).
 
 | LADR | Decision | Status |
 |------|----------|--------|
-| [LADR-001](./ladrs/LADR-001-in-memory-runtime-override-switch.md) | Override state is an in-memory, per-dialect switch — never persisted | Accepted |
+| [LADR-001](./ladrs/LADR-001-in-memory-runtime-override-switch.md) | Override state is an in-memory switch — never persisted; provider-keyed by HLD 008 | Accepted |
 | [LADR-002](./ladrs/LADR-002-force-bearer-from-active-credential.md) | ON forces `Bearer` from the **active** credential, dropping `x-api-key` | Accepted |
 | [LADR-003](./ladrs/LADR-003-passthrough-only-imposter-untouched.md) | Override applies to passthrough only; imposter routes keep config auth | Accepted |
-| [LADR-004](./ladrs/LADR-004-put-delete-routing-endpoint-admin-authed.md) | `PUT`/`DELETE /routing/{dialect}/override-authorization`, admin-authed | Accepted |
+| [LADR-004](./ladrs/LADR-004-put-delete-routing-endpoint-admin-authed.md) | `PUT`/`DELETE /routing/{dialect}/{provider}/override-authorization`, admin-authed; dialect-only fallback | Accepted |
 | [LADR-005](./ladrs/LADR-005-403-no-active-credential-fail-closed.md) | `403` when arming with no active credential; fail closed at request time | Accepted |
 
 ## Non-Functional Requirements

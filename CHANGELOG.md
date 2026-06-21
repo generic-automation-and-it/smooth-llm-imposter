@@ -110,7 +110,7 @@ All notable changes to SmoothLlmImposter are documented here.
   the caller's credential), imposter routes use the provider's configured key, and the HLD-003 override forces
   the active stored Bearer.
 - **Opt-in persistence.** `AddInfrastructure` registers EF Core + the PostgreSQL-backed `CredentialStore`
-  only when `ConnectionStrings:ImposterDb` is set; otherwise a `NullCredentialStore` is registered so the
+  only when `ConnectionStrings:ImposterDb` is set; otherwise a no-op store is registered so the
   stateless/key-less default boots with no database (the passthrough seam resolves a `null` credential).
 
 ### Changed

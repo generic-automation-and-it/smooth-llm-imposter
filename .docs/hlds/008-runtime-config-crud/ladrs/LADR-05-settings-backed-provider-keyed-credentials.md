@@ -1,6 +1,6 @@
 # LADR-05: Credentials Settings-Backed and Provider-Keyed; Database Optional
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 
@@ -13,7 +13,7 @@ scoped to the specific provider they serve.
 
 ## Decision
 
-**Re-base** credentials on the runtime settings model and **key them by provider name** rather than dialect.
+**Re-base** credentials on the runtime settings model and **key them by the provider dictionary key** rather than dialect.
 The default backend is an **in-memory settings-backed store** whose writes succeed without any database. The
 existing encrypted PostgreSQL/EF Core backend is **retained as an opt-in** behind the same store
 abstraction: when a connection string is configured it is used (and HLD 002
@@ -36,20 +36,15 @@ encryption-at-rest still applies); otherwise the in-memory store is the default.
 ## Consequences
 
 - Full credential CRUD + activation works with no database — the no-op silent-fail store is removed.
-- Passthrough credential lookup keys by `(dialect, provider)` instead of dialect alone; the resolver must
-  know the resolved provider's name.
+- Passthrough credential lookup keys by `(dialect, provider key)` instead of dialect alone; the resolver must
+  know the resolved provider's stable dictionary key.
+- Each provider can hold its own active credential; activation deactivates siblings only within the same
+  `(dialect, provider key)` key. Dialect-only admin calls resolve their provider key through the dialect's
+  enabled default provider.
 - Two backends behind one abstraction: in-memory (default, ephemeral) and EF/PostgreSQL (opt-in, encrypted,
   persistent). Their differing durability must be documented.
 - HLD 002's data model and its dialect-keyed uniqueness rule are superseded; HLD 002 files get supersession
   notes.
-
-## Open
-
-- When a dialect has **multiple** named providers, can each hold its own active credential, or is active-ness
-  still per-dialect with the default-provider lookup resolving the target? (The dialect-only case is already
-  resolved by [LADR-06](./LADR-06-provider-addressable-override.md) / AGENTS.md "Key Behaviors" — there is
-  exactly one provider activation can target when only a dialect is named.) Owner: design review on #48;
-  trigger: credential-alignment phase.
 
 ## Related
 

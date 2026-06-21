@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | In Discovery |
+| **Status** | In Prototype |
 | **Owner** | @generic-automation-and-it/project |
 | **Tracker** | [#48 — All configurations must be insert, update, get and deletable to change on the fly](https://github.com/generic-automation-and-it/smooth-devex-template/issues/48) |
 | **Last updated** | 2026-06-21 |
@@ -153,8 +153,8 @@ horizontal concern spanning this HLD. See [`./ladrs/`](./ladrs/).
 | [LADR-02](./ladrs/LADR-02-config-secret-boundaries.md) | Two boundaries over the registry — routing config (secret-free) vs credentials (secret-only) | Draft |
 | [LADR-03](./ladrs/LADR-03-enabled-flag.md) | `Enabled` flag per provider; disabled providers are excluded from resolution | Draft |
 | [LADR-04](./ladrs/LADR-04-runtime-wins-over-env.md) | Runtime CRUD wins; environment overrides only seed the registry at startup | Draft |
-| [LADR-05](./ladrs/LADR-05-settings-backed-provider-keyed-credentials.md) | Credentials settings-backed and provider-keyed; database backend optional | Draft |
-| [LADR-06](./ladrs/LADR-06-provider-addressable-override.md) | Provider-addressable authorization-override and activation; dialect-only → default | Draft |
+| [LADR-05](./ladrs/LADR-05-settings-backed-provider-keyed-credentials.md) | Credentials settings-backed and provider-keyed; database backend optional | Accepted |
+| [LADR-06](./ladrs/LADR-06-provider-addressable-override.md) | Provider-addressable authorization-override and activation; dialect-only → default | Accepted |
 | [LADR-07](./ladrs/LADR-07-snapshot-consumption-lifetime.md) | Consume options via `IOptionsSnapshot` (scoped); rebuild the catalog per request scope | Draft |
 
 ## Non-Functional Requirements

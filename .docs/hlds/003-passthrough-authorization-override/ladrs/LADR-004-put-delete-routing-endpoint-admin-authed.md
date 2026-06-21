@@ -1,4 +1,4 @@
-# LADR-004: `PUT`/`DELETE /routing/{dialect}/override-authorization`, admin-authed
+# LADR-004: `PUT`/`DELETE /routing/{dialect}/{provider}/override-authorization`, admin-authed
 
 **Status:** Accepted
 
@@ -13,11 +13,13 @@ the unauthenticated routing surface that HLD 001/002 keep key-less.
 
 ## Decision
 
-**Expose** the switch as a resource keyed by dialect:
+**Expose** the switch as a resource keyed by dialect and provider (HLD 008), with the dialect-only route
+retained as a default-provider fallback:
 
-- `PUT /routing/{dialect}/override-authorization` — enable the override (idempotent set-on).
-- `DELETE /routing/{dialect}/override-authorization` — disable it (idempotent set-off).
-- `GET /routing/{dialect}/override-authorization` — report current on/off state.
+- `PUT /routing/{dialect}/{provider}/override-authorization` — enable the override (idempotent set-on).
+- `DELETE /routing/{dialect}/{provider}/override-authorization` — disable it (idempotent set-off).
+- `GET /routing/{dialect}/{provider}/override-authorization` — report current on/off state.
+- `PUT`/`DELETE`/`GET /routing/{dialect}/override-authorization` — same operations against the dialect's enabled default provider.
 
 `{dialect}` is `anthropic` or `openai`; any other value is rejected (`400`/`404`). No request body or query
 parameter is read. All three require the existing **`X-Admin-Api-Key`** admin authorization

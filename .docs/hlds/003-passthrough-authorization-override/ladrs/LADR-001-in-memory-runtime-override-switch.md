@@ -1,4 +1,4 @@
-# LADR-001: Override state is an in-memory, per-dialect switch — never persisted
+# LADR-001: Override state is an in-memory switch — never persisted
 
 **Status:** Accepted
 
