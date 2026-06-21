@@ -84,7 +84,8 @@ docker run -d --name smooth-llm-imposter --restart unless-stopped -p 5080:5080 \
 - **`-e Admin__ApiKey` / `-e ConnectionStrings__ImposterDb`** — only for the optional `/admin/credentials` API
   (needs PostgreSQL, e.g. `Host=host.docker.internal;Port=5432;…`). If you use it, persist Data Protection keys
   with `-v slli-dpkeys:/home/app/.aspnet/DataProtection-Keys` so stored secrets survive a rebuild. Pure imposter
-  routing stores nothing.
+  routing stores nothing; when `ConnectionStrings__ImposterDb` is unset the router uses no database. Full guide:
+  [`credentials.admin-smooth-llm-imposter.md`](credentials.admin-smooth-llm-imposter.md).
 
 ## Verify
 

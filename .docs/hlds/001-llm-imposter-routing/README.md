@@ -47,8 +47,13 @@ only** — there is no OpenAI⇄Anthropic body translation.
 
 ```jsonc
 "Imposter": { "Providers": {
+  // Personal-subscription provider (HLD 007 LADR-04): operator's own Bearer token captures Opus-4.7
+  // calls onto a personal subscription (a distinct glob from openrouter-anthropic's claude-opus-4-6*).
+  "anthropic-personal": { "Dialect": "anthropic", "BaseUrl": "https://api.anthropic.com", "Secret": "", "AuthScheme": "Bearer",
+    "Models": [ { "From": "claude-opus-4-7*", "To": "claude-opus-4-8", "Caching": true } ] },
+  "openai-personal": { "Dialect": "openai", "BaseUrl": "https://chatgpt.com/backend-api/codex", "Secret": "", "AuthScheme": "Bearer" },
   "openrouter-anthropic": { "Dialect": "anthropic", "BaseUrl": "https://openrouter.ai/api", "Secret": "", "AuthScheme": "Bearer",
-    "Models": [ { "From": "claude-opus-4-7*", "To": "z-ai/glm-5.2", "Caching": true } ] },
+    "Models": [ { "From": "claude-opus-4-6*", "To": "z-ai/glm-5.2", "Caching": true } ] },
   "openrouter-openai": { "Dialect": "openai", "BaseUrl": "https://openrouter.ai/api", "Secret": "", "AuthScheme": "Bearer",
     "OpenAiUpstreamApi": "chat_completions", "Models": [] },
   "opencode-go-anthropic": { "Dialect": "anthropic", "BaseUrl": "https://opencode.ai/zen/go", "Secret": "", "AuthScheme": "ApiKey",

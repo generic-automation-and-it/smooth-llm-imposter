@@ -46,7 +46,8 @@ the structural change. See [LADR-01](./ladrs/LADR-01-dictionary-keyed-providers.
 ### 2. Conventional `<NAME>_<FIELD>` env override surface
 
 A provider keyed `opencode-go` exposes a conventional env prefix `OPENCODE_GO_`, mapping suffixes
-to fields across the **full** scalar surface — `_API_KEY` → `Secret`, `_BASE_URL` → `BaseUrl`,
+to fields across the **full** scalar surface — `_API_KEY` → `Secret` (with the auth-typed alias
+`_AUTHORIZATION_BEARER` → `Secret`, `_API_KEY` canonical), `_BASE_URL` → `BaseUrl`,
 `_AUTH_SCHEME` → `AuthScheme`, plus `_DIALECT`, `_IS_DEFAULT`, `_OPENAI_UPSTREAM_API`,
 `_REQUEST_NORMALIZATION`, `_ANTHROPIC_VERSION`. Matching is case-insensitive. The convention is
 additive — `appsettings.json` and the structured `Imposter__Providers__<name>__*` path keep working
@@ -90,14 +91,16 @@ deliberately on the other side of the seam — unchanged.
 
 ## Architecture Decisions (LADRs)
 
-LADRs 01–02 are strategic (*what* and *why*); LADR-03 is tactical (*how*). Each is a single
-decision — a horizontal concern spanning this HLD. See [`./ladrs/`](./ladrs/).
+LADRs 01–02 are strategic (*what* and *why*); LADR-03 is tactical (*how*); LADR-04 is an additive
+application of the surface (named personal-subscription providers). Each is a single decision — a
+horizontal concern spanning this HLD. See [`./ladrs/`](./ladrs/).
 
 | LADR | Decision | Status |
 |------|----------|--------|
 | [LADR-01](./ladrs/LADR-01-dictionary-keyed-providers.md) | Key providers by name (Dictionary), hard cutover; `Name` optional override | Accepted |
-| [LADR-02](./ladrs/LADR-02-conventional-env-surface.md) | Conventional `<NAME>_<FIELD>` env surface, case-insensitive, full field set | Accepted |
+| [LADR-02](./ladrs/LADR-02-conventional-env-surface.md) | Conventional `<NAME>_<FIELD>` env surface, case-insensitive, full field set (incl. `_AUTHORIZATION_BEARER` secret alias) | Accepted |
 | [LADR-03](./ladrs/LADR-03-resolution-mechanism.md) | Post-configure resolver, key→prefix normalization, precedence, legacy-shape guard | Accepted |
+| [LADR-04](./ladrs/LADR-04-personal-subscription-providers.md) | Named personal-subscription providers (`anthropic-personal` / `openai-personal`) — operator-owned Bearer tokens, distinct from key-less defaults | Accepted |
 
 ## Non-Functional Requirements
 

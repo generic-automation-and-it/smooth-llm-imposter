@@ -70,6 +70,8 @@ dotnet run --project src/SmoothLlmImposter.Host     # run the router locally
 
 Target a single test project directly when needed (e.g. `dotnet test tests/SmoothLlmImposter.Domain.UnitTest`); `ls tests/` lists them. Tests are infra-free (no Docker/DB) — integration tests stub the upstream transport in-process.
 
+Container builds intentionally mirror the repo-root layout inside the SDK stage (`src/SmoothLlmImposter.*` under a non-`/src` working directory). When editing `Dockerfile`, keep `SmoothLlmImposter.slnx`, `Directory.*.props`, `NuGet.Config`, and `src/` in their repo-root-relative positions so solution/project references and central package props continue to resolve.
+
 ## Test Framework
 
 xunit.v3 · Shouldly · Bogus. Tiers (the distinction drives where a test belongs):

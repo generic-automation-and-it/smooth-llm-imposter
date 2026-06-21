@@ -36,6 +36,36 @@ public class ImposterOptionsPostConfigureTests
     }
 
     [Fact]
+    public void Authorization_bearer_suffix_fills_secret()
+    {
+        // The auth-typed secret alias: a Bearer subscription token reads as <NAME>_AUTHORIZATION_BEARER
+        // and fills the same Secret slot as _API_KEY (the motivating case is the personal providers).
+        var (options, _) = Resolve(
+            new Dictionary<string, string?> { ["ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER"] = "sk-personal-sub" },
+            "anthropic-personal",
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://api.anthropic.com", AuthScheme = "Bearer" });
+
+        options.Providers["anthropic-personal"].Secret.ShouldBe("sk-personal-sub");
+    }
+
+    [Fact]
+    public void Api_key_wins_when_both_secret_suffixes_are_set()
+    {
+        // First-present-wins: _API_KEY is canonical and applied first, so the _AUTHORIZATION_BEARER alias
+        // never clobbers it when an operator (mis)configures both for one provider.
+        var (options, _) = Resolve(
+            new Dictionary<string, string?>
+            {
+                ["ANTHROPIC_PERSONAL_API_KEY"] = "sk-canonical",
+                ["ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER"] = "sk-alias"
+            },
+            "anthropic-personal",
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://api.anthropic.com", AuthScheme = "Bearer" });
+
+        options.Providers["anthropic-personal"].Secret.ShouldBe("sk-canonical");
+    }
+
+    [Fact]
     public void Every_suffix_applies_to_its_mapped_field()
     {
         foreach (ImposterOptionsPostConfigure.ConventionalField field in ImposterOptionsPostConfigure.Fields)

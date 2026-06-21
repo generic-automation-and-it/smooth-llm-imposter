@@ -6,7 +6,7 @@
 
 # ── Build stage ───────────────────────────────────────────────────────────
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-WORKDIR /src
+WORKDIR /build
 
 # Central build/package management files first, then the source. Restoring the
 # Host csproj transitively restores its referenced projects (Domain /

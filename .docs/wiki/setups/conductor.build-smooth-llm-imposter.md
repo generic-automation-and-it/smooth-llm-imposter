@@ -11,7 +11,8 @@ the shipped `appsettings.json`:
 | Inbound dialect / model | Rewritten to | Upstream provider |
 |:------------------------|:-------------|:------------------|
 | OpenAI `gpt-5.4`        | `kimi-k2.7-code`  | opencode-go-openai (`https://opencode.ai/zen/go`) |
-| Anthropic `claude-opus-4-7*` | `z-ai/glm-5.2` | openrouter-anthropic (`https://openrouter.ai/api`) |
+| Anthropic `claude-opus-4-7*` | `claude-opus-4-8` | anthropic-personal (`https://api.anthropic.com`, personal Bearer token) |
+| Anthropic `claude-opus-4-6*` | `z-ai/glm-5.2` | openrouter-anthropic (`https://openrouter.ai/api`) |
 | Anthropic `claude-haiku-*` | `minimax-m3` | opencode-go-anthropic (`https://opencode.ai/zen/go`) |
 
 The router is **stateless and key-less**: it does not capture or persist the caller's auth, and it does not run
@@ -41,8 +42,10 @@ unless a provider sets `"IsDefault": true` (passthrough).
 - **`Admin__ApiKey` / `Admin__OperatorApiKey`** — only needed to use the `/admin/credentials` API. The admin key
   grants the `CredentialAdmin` role (all mutations); the operator key authenticates without it.
 - **`ConnectionStrings__ImposterDb`** — only needed for the credential-admin API or stored passthrough overrides
-  (these require PostgreSQL). Pure imposter routing needs no database. Default when unset:
-  `Host=localhost;Port=5432;Database=smoothllmimposter;Username=postgres;Password=postgres`.
+  (these require PostgreSQL). Pure imposter routing needs no database. **When unset, the router uses no database**
+  (a `NullCredentialStore` — the admin API/override are disabled and passthrough forwards the caller's own auth);
+  there is no runtime localhost fallback. See
+  [`credentials.admin-smooth-llm-imposter.md`](credentials.admin-smooth-llm-imposter.md).
 
 ## Why the helper + env-file shape
 
@@ -88,7 +91,7 @@ mkdir -p "$CONF_DIR" "$STATE_DIR"
 umask 077
 {
   echo "ASPNETCORE_URLS=$ASPNETCORE_URLS"
-  for var in $(compgen -e | grep -E '^(Imposter__|Admin__|ConnectionStrings__)|^[A-Z0-9_]+_(API_KEY|AUTH_SCHEME|BASE_URL|DIALECT|IS_DEFAULT|OPENAI_UPSTREAM_API|REQUEST_NORMALIZATION|ANTHROPIC_VERSION)$'); do
+  for var in $(compgen -e | grep -E '^(Imposter__|Admin__|ConnectionStrings__)|^[A-Z0-9_]+_(API_KEY|AUTHORIZATION_BEARER|AUTH_SCHEME|BASE_URL|DIALECT|IS_DEFAULT|OPENAI_UPSTREAM_API|REQUEST_NORMALIZATION|ANTHROPIC_VERSION)$'); do
     printf '%s=%s\n' "$var" "${!var}"
   done
 } > "$ENV_FILE"
