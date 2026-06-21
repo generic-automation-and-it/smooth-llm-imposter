@@ -97,11 +97,12 @@ PR gate — `.github/workflows/pr-gate.yml` (triggers: `pull_request` → `main`
 
 ## Git Constraints
 
-This repository is hosted on **GitHub** at `https://github.com/generic-automation-and-it/project`.
+This repository is hosted on **GitHub** at `https://github.com/generic-automation-and-it/smooth-llm-imposter`.
 
 - **CLI tool:** Use `gh` (GitHub CLI) for PR and repository operations.
+- **Issue/PR target:** create issues and PRs in *this* repo (auto-detected from `git remote`). Do **not** target a different repo unless the user explicitly names it — even when a linked design/tracker issue lives elsewhere.
 - **PR template:** `.github/pull_request_template.md`
-- **Code owners:** `.github/CODEOWNERS` — all files owned by `@generic-automation-and-it/project`
+- **Code owners:** `.github/CODEOWNERS` — all files owned by `@generic-automation-and-it/project` (a GitHub *team* handle, not the repo URL)
 
 ## Glossary
 
