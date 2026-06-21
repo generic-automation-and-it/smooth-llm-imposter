@@ -117,10 +117,11 @@ All notable changes to SmoothLlmImposter are documented here.
 - **HLD 008 Phase 2 — provider-keyed credential overrides.** Credentials are settings-backed and keyed by the
   stable provider dictionary key (not the display `Name`); each provider holds its own active credential. The
   no-DB default is the `InMemoryCredentialStore` above (the prior silent `NullCredentialStore` is removed); the
-  encrypted EF/PostgreSQL backend stays opt-in. Authorization-override and activation accept
+  encrypted EF/PostgreSQL backend stays opt-in. Authorization-override is provider-addressable at
   `/routing/{dialect}/{provider}/override-authorization` with a dialect-only → enabled-default-provider
-  fallback; the inbound proxy URL is unchanged. The imposter hot path remains store-free (HLD 001 / HLD 002
-  LADR-004 parity).
+  fallback; activation is per-credential at `PUT /admin/credentials/{id}/activate` (at most one active per
+  `(dialect, providerName)`). The inbound proxy URL is unchanged. The imposter hot path remains store-free
+  (HLD 001 / HLD 002 LADR-004 parity).
 
 ### Changed
 - Renamed the template scaffold `Project.*` → `SmoothLlmImposter.*` (solution, projects, namespaces,

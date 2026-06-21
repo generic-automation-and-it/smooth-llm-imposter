@@ -31,8 +31,8 @@ untouched — this is a startup-configuration change only.
 provider's stable identity. Structured overrides become `Imposter__Providers__opencode-go__Secret`
 and survive any reordering. This is a hard cutover — the array shape is removed, not dual-supported
 — because the router is pre-1.0, stateless, and key-less, so there is no persisted config to
-migrate. The `Name` field is retained as an **optional** override (key supplies the name unless
-`Name` is set). The .NET binder maps a dictionary natively, so no custom binder is introduced for
+migrate. The `Name` field is retained as an **optional display label** (the key supplies the name unless
+`Name` is set; the stable dictionary key is the identity). The .NET binder maps a dictionary natively, so no custom binder is introduced for
 the structural change. See [LADR-01](./ladrs/LADR-01-dictionary-keyed-providers.md).
 
 **Acceptance criteria / DoD**
@@ -98,7 +98,7 @@ horizontal concern spanning this HLD. See [`./ladrs/`](./ladrs/).
 
 | LADR | Decision | Status |
 |------|----------|--------|
-| [LADR-01](./ladrs/LADR-01-dictionary-keyed-providers.md) | Key providers by name (Dictionary), hard cutover; `Name` optional override | Accepted |
+| [LADR-01](./ladrs/LADR-01-dictionary-keyed-providers.md) | Key providers by name (Dictionary), hard cutover; `Name` optional display label | Accepted |
 | [LADR-02](./ladrs/LADR-02-conventional-env-surface.md) | Conventional `<NAME>_<FIELD>` env surface, case-insensitive, full field set (incl. `_AUTHORIZATION_BEARER` secret alias) | Accepted |
 | [LADR-03](./ladrs/LADR-03-resolution-mechanism.md) | Post-configure resolver, key→prefix normalization, precedence, legacy-shape guard | Accepted |
 | [LADR-04](./ladrs/LADR-04-personal-subscription-providers.md) | Named personal-subscription providers (`anthropic-personal` / `openai-personal`) — operator-owned Bearer tokens, distinct from key-less defaults | Accepted |

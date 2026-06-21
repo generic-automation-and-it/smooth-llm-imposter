@@ -21,7 +21,7 @@ Pick the setup that matches how you want to run the router. Each links to a self
 | **Compose** | One-command up/down (and full rebuild) via `docker compose` / `podman-compose` from `docker-compose.yml`. | [`setups/compose.run-smooth-llm-imposter.md`](setups/compose.run-smooth-llm-imposter.md) |
 | **Conductor.Build fresh-sandbox** | Install .NET, build & run the Host on `:5080`, and point a client at it. | [`setups/conductor.build-smooth-llm-imposter.md`](setups/conductor.build-smooth-llm-imposter.md) |
 | **Message debug / logging** | Flip the router to `Debug` to dump the full inbound request (headers + body, auth masked) — no rebuild. | [`setups/logging.debug-smooth-llm-imposter.md`](setups/logging.debug-smooth-llm-imposter.md) |
-| **Credential admin / authorization override** | _Optional._ PostgreSQL-backed passthrough credentials (`/admin/credentials`, HLD 002) + per-dialect force-Bearer override (HLD 003). Off by default. | [`setups/credentials.admin-smooth-llm-imposter.md`](setups/credentials.admin-smooth-llm-imposter.md) |
+| **Credential admin / authorization override** | _Optional._ Provider-keyed passthrough credentials (`/admin/credentials`, HLD 008) + provider-addressable force-Bearer override (HLD 003 amended by HLD 008). No DB required (in-memory default; PostgreSQL opt-in). | [`setups/credentials.admin-smooth-llm-imposter.md`](setups/credentials.admin-smooth-llm-imposter.md) |
 
 ## Prerequisites
 

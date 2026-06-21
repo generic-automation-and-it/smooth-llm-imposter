@@ -7,9 +7,9 @@
 | **Tracker** | TBD ([NO-TICKET] at time of authoring) |
 | **Last updated** | 2026-06-21 |
 
-> Discovery / prototyping HLD. This document delivers **intent + spec** — what we are building
-> and why, the decisions behind it, and the quality bar it must meet. It does **not** contain an
-> implementation plan; execution (phasing, sub-issues, sequencing) is tracked in the issue/work
+> **Completed.** This HLD is implemented and shipped; it was later amended by HLD 008 to make the
+> override provider-addressable. It delivers **intent + spec** — what was built and why, the decisions
+> behind it, and the quality bar it meets; execution (phasing, sub-issues) was tracked in the issue/work
 > tracker.
 >
 > **Builds on HLD 002.** This reuses the stored-credential model and the passthrough credential
