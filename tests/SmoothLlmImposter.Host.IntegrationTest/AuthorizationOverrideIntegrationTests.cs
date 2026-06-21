@@ -148,6 +148,33 @@ public sealed class AuthorizationOverrideIntegrationTests
     }
 
     [Fact]
+    public async Task Provider_override_is_isolated_to_the_addressed_provider()
+    {
+        // LADR-06: provider addressing is per (dialect, provider), not per dialect. Arm a NON-default
+        // openai provider (opencode-go) and assert the dialect default (openai-official) stays OFF — this
+        // is what the default-provider case in Provider_addressable_route_controls_that_provider cannot show.
+        // Note: a non-default provider's override has no wire effect (the passthrough path only resolves the
+        // default, and imposter routes never read the switch — LADR-003), so the contract here is the
+        // per-provider state isolation, asserted via the admin GET.
+        using var fixture = new CredentialAppFixture();
+        HttpClient client = AdminClient(fixture);
+        await CreateAndActivateAsync(client, "opencode-secret", "Bearer", providerName: "opencode-go");
+
+        const string opencodeOverridePath = "/routing/openai/opencode-go/override-authorization";
+        using HttpResponseMessage put = await client.PutAsync(opencodeOverridePath, content: null, Ct);
+        (await ReadStateAsync(put)).ShouldBe(new AuthorizationOverrideState("openai", "opencode-go", true));
+
+        // The addressed provider is ON...
+        AuthorizationOverrideState addressed =
+            (await client.GetFromJsonAsync<AuthorizationOverrideState>(opencodeOverridePath, JsonOptions, Ct))!;
+        addressed.ShouldBe(new AuthorizationOverrideState("openai", "opencode-go", true));
+
+        // ...while the dialect default (openai-official, via the dialect-only route) is untouched.
+        AuthorizationOverrideState defaultState = await GetStateAsync(client);
+        defaultState.ShouldBe(new AuthorizationOverrideState("openai", "openai-official", false));
+    }
+
+    [Fact]
     public async Task Armed_then_credential_removed_fails_closed_with_dialect_shaped_403()
     {
         using var fixture = new CredentialAppFixture();
