@@ -49,6 +49,18 @@ public sealed class AuthorizationOverrideIntegrationTests
     }
 
     [Fact]
+    public async Task Unknown_provider_is_rejected_with_400()
+    {
+        using var fixture = new CredentialAppFixture();
+        HttpClient client = AdminClient(fixture);
+
+        using HttpResponseMessage put = await client.PutAsync(
+            "/routing/openai/does-not-exist/override-authorization", content: null, Ct);
+
+        put.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task Arming_without_an_active_credential_returns_403_and_leaves_switch_off()
     {
         using var fixture = new CredentialAppFixture();
