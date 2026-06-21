@@ -88,8 +88,7 @@ public class ImposterOptionsPostConfigureTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["OPENCODE_GO_API_KEY"] = "sk-opencode",
-                ["OPENROUTER_API_KEY"] = "sk-openrouter",
-                ["OPENROUTER_AUTH_SCHEME"] = "Bearer"
+                ["OPENROUTER_API_KEY"] = "sk-openrouter"
             })
             .Build();
         var logger = new CapturingLogger();
@@ -140,6 +139,19 @@ public class ImposterOptionsPostConfigureTests
         {
             logger.Entries.ShouldNotContain(entry => entry.Contains("not a recognized boolean"));
         }
+    }
+
+    [Fact]
+    public void IsDefault_false_overrides_bound_true()
+    {
+        // The false→already-true direction: a conventional _IS_DEFAULT=false must flip a provider
+        // whose bound IsDefault is true (the inverse of the suffix-coverage test's true-on-false case).
+        var (options, _) = Resolve(
+            new Dictionary<string, string?> { ["OPENCODE_GO_IS_DEFAULT"] = "false" },
+            "opencode-go",
+            new ProviderOptions { Dialect = "openai", BaseUrl = "https://o.example", IsDefault = true });
+
+        options.Providers["opencode-go"].IsDefault.ShouldBeFalse();
     }
 
     [Fact]

@@ -45,6 +45,9 @@ internal sealed class ImposterOptionsPostConfigure(
         new("_BASE_URL", nameof(ProviderOptions.BaseUrl), static (p, v) => p.BaseUrl = v),
         new("_AUTH_SCHEME", nameof(ProviderOptions.AuthScheme), static (p, v) => p.AuthScheme = v),
         new("_DIALECT", nameof(ProviderOptions.Dialect), static (p, v) => p.Dialect = v),
+        // IsDefault is a bool, so its Apply is a no-op: PostConfigure handles _IS_DEFAULT inline
+        // because applying it requires bool.TryParse plus a Warning on an unparseable value, which
+        // the Action<ProviderOptions, string> delegate (no logger) cannot do.
         new("_IS_DEFAULT", nameof(ProviderOptions.IsDefault), static (_, _) => { }),
         new("_OPENAI_UPSTREAM_API", nameof(ProviderOptions.OpenAiUpstreamApi), static (p, v) => p.OpenAiUpstreamApi = v),
         new("_REQUEST_NORMALIZATION", nameof(ProviderOptions.RequestNormalization), static (p, v) => p.RequestNormalization = v),

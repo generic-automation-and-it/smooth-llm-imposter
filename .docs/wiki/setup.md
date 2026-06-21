@@ -83,15 +83,18 @@ requires_openai_auth = true
 // appsettings.json (shipped example)
 {
   "Imposter": {
-    "Providers": [
-      {
-        "Name": "openai-default",
+    "Providers": {
+      "anthropic-default": {
+        "Dialect": "anthropic",
+        "BaseUrl": "https://api.anthropic.com",
+        "IsDefault": true
+      },
+      "openai-default": {
         "Dialect": "openai",
         "BaseUrl": "https://chatgpt.com/backend-api/codex",
         "IsDefault": true
       },
-      {
-        "Name": "openrouter-anthropic",
+      "openrouter-anthropic": {
         "Dialect": "anthropic",
         "BaseUrl": "https://openrouter.ai/api",
         "Secret": "",
@@ -100,8 +103,7 @@ requires_openai_auth = true
           { "From": "claude-opus-4-7*", "To": "z-ai/glm-5.2", "Caching": true }
         ]
       },
-      {
-        "Name": "openrouter-openai",
+      "openrouter-openai": {
         "Dialect": "openai",
         "BaseUrl": "https://openrouter.ai/api",
         "Secret": "",
@@ -109,8 +111,7 @@ requires_openai_auth = true
         "OpenAiUpstreamApi": "chat_completions",
         "Models": []
       },
-      {
-        "Name": "opencode-go-anthropic",
+      "opencode-go-anthropic": {
         "Dialect": "anthropic",
         "BaseUrl": "https://opencode.ai/zen/go",
         "Secret": "",
@@ -119,18 +120,17 @@ requires_openai_auth = true
           { "From": "claude-haiku-*", "To": "minimax-m3", "Caching": true }
         ]
       },
-      {
-        "Name": "opencode-go-openai",
+      "opencode-go-openai": {
         "Dialect": "openai",
         "BaseUrl": "https://opencode.ai/zen/go",
         "Secret": "",
-        "AuthScheme": "ApiKey",
+        "AuthScheme": "Bearer",
         "OpenAiUpstreamApi": "chat_completions",
         "Models": [
-          { "From": "gpt-5.4", "To": "kimi-k2.7", "Caching": true }
+          { "From": "gpt-5.4", "To": "kimi-k2.7-code", "Caching": true }
         ]
       }
-    ]
+    }
   }
 }
 ```
