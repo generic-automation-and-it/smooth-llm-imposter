@@ -105,8 +105,10 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   The shipped `appsettings.json` declares **catch-all key-less defaults** for `anthropic` (`api.anthropic.com`)
   and `openai` (`api.openai.com`); remove them for type-only impostering (404 on unmatched; HLD LADR-005).
 - **Disabled providers are retained but invisible to resolution.** `ProviderOptions.Enabled` defaults `true`.
-  When `false`, the provider is skipped for imposter model matching and for default/passthrough selection; its
-  config (including model mappings and default flag) remains in the runtime registry so re-enabling restores it.
+  When `false`, the provider is skipped for imposter model matching, default/passthrough selection, **and the
+  local `/v1/models` catalogue** — `ProviderCatalog.ProvidersFor` filters disabled providers in one place, so no
+  consumer (resolver or model responders) surfaces them. Its config (including model mappings and default flag)
+  remains in the runtime registry so re-enabling restores it.
   The "at most one default" validation counts enabled providers, so a disabled default can coexist with another
   enabled default, but re-enabling into a duplicate default is rejected by the admin mutation validation.
 - **Caching is per-dialect** (only when `Caching: true`): Anthropic injects ephemeral `cache_control` on the
@@ -282,3 +284,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-20 | HLD 007 follow-up: invalid non-blank conventional `_IS_DEFAULT` values now leave the bound value unchanged and log a warning instead of appearing to apply silently; blank values remain ignored. | #42 review |
 | 2026-06-20 | HLD 007 review follow-up: HLD 001 examples now show the required name-keyed provider object, Conductor env capture keeps structured prefixes as prefix matches, and `_IS_DEFAULT` post-configure uses the parsed bool directly. | #42 review |
 | 2026-06-21 | Implemented HLD 008 Phase 1 runtime provider-config CRUD: `IProviderRegistry` seeds from resolved config/env once, `IOptionsSnapshot` overlays runtime state per request scope, catalog/resolver/model responders are scoped, `/admin/providers` is secret-free CRUD plus enable/disable, and disabled providers are excluded from imposter/default resolution. | #49 |
+| 2026-06-21 | HLD 008 Phase 1 review (#51): disabled providers are now also excluded from the local `/v1/models` catalogue (`ProviderCatalog.ProvidersFor` filters in one place); `DeleteProvider` validates the post-delete registry (can't delete the last provider); `IProviderRegistry.TryGet` returns a nullable `out` with `[NotNullWhen(true)]`, `IsSeeded` is `volatile`, unused `TrySetEnabled` removed; `ProviderRoute.Enabled` moved to an optional trailing constructor param. | #51 |

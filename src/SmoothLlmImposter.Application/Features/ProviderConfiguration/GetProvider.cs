@@ -18,7 +18,7 @@ public static class GetProvider
         public ValueTask<ProviderConfigurationResponse?> Handle(Request request, CancellationToken cancellationToken)
         {
             return ValueTask.FromResult(
-                registry.TryGet(request.Key, out ProviderOptions provider)
+                registry.TryGet(request.Key, out ProviderOptions? provider)
                     ? ProviderConfigurationResponse.From(request.Key, provider)
                     : null);
         }

@@ -275,7 +275,7 @@ public class UpstreamForwarderTests
         string? secret = "config-key",
         bool isImposter = false,
         CredentialAuthScheme? authScheme = null) => new(
-        new ProviderRoute("provider", dialect, new Uri("https://upstream.test"), Secret: secret, IsDefault: !isImposter, Enabled: true, AnthropicVersion: null, Models: [], AuthScheme: authScheme),
+        new ProviderRoute("provider", dialect, new Uri("https://upstream.test"), Secret: secret, IsDefault: !isImposter, AnthropicVersion: null, Models: [], AuthScheme: authScheme),
         TargetModel: "model",
         CachingEnabled: false,
         IsImposter: isImposter);

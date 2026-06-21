@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace SmoothLlmImposter.Application.Features.Routing;
 
 /// <summary>
@@ -9,7 +11,11 @@ internal sealed class InMemoryProviderRegistry : IProviderRegistry
     private readonly object _gate = new();
     private readonly Dictionary<string, ProviderOptions> _providers = new(StringComparer.Ordinal);
 
-    public bool IsSeeded { get; private set; }
+    // volatile: read by ProviderRegistryOptionsPostConfigure outside the _gate lock, so the write in Seed()
+    // must publish with release semantics or a weakly-ordered CPU could observe a stale false.
+    private volatile bool _isSeeded;
+
+    public bool IsSeeded => _isSeeded;
 
     public IReadOnlyDictionary<string, ProviderOptions> Snapshot()
     {
@@ -19,7 +25,7 @@ internal sealed class InMemoryProviderRegistry : IProviderRegistry
         }
     }
 
-    public bool TryGet(string key, out ProviderOptions provider)
+    public bool TryGet(string key, [NotNullWhen(true)] out ProviderOptions? provider)
     {
         lock (_gate)
         {
@@ -30,7 +36,7 @@ internal sealed class InMemoryProviderRegistry : IProviderRegistry
             }
         }
 
-        provider = new ProviderOptions();
+        provider = null;
         return false;
     }
 
@@ -38,7 +44,7 @@ internal sealed class InMemoryProviderRegistry : IProviderRegistry
     {
         lock (_gate)
         {
-            if (IsSeeded)
+            if (_isSeeded)
             {
                 return;
             }
@@ -49,7 +55,7 @@ internal sealed class InMemoryProviderRegistry : IProviderRegistry
                 _providers[key] = ProviderOptionsCloner.Clone(provider);
             }
 
-            IsSeeded = true;
+            _isSeeded = true;
         }
     }
 
@@ -66,24 +72,6 @@ internal sealed class InMemoryProviderRegistry : IProviderRegistry
         lock (_gate)
         {
             return _providers.Remove(key);
-        }
-    }
-
-    public bool TrySetEnabled(string key, bool enabled, out ProviderOptions? provider)
-    {
-        lock (_gate)
-        {
-            if (!_providers.TryGetValue(key, out ProviderOptions? existing))
-            {
-                provider = null;
-                return false;
-            }
-
-            ProviderOptions updated = ProviderOptionsCloner.Clone(existing);
-            updated.Enabled = enabled;
-            _providers[key] = updated;
-            provider = ProviderOptionsCloner.Clone(updated);
-            return true;
         }
     }
 }

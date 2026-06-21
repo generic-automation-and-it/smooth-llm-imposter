@@ -176,6 +176,37 @@ public sealed class ProviderConfigAdminIntegrationTests
         provider.BaseUrl.ShouldBe("https://opencode.test");
     }
 
+    [Fact]
+    public async Task Runtime_upsert_wins_over_environment_override_and_env_does_not_reassert()
+    {
+        // Conventional env surface (HLD 007) seeds the registry at startup; HLD 008 LADR-04 requires that a
+        // later runtime PUT win over it AND that env not re-assert on the per-request IOptionsSnapshot.
+        using var fixture = new ProviderConfigAppFixture(new Dictionary<string, string?>
+        {
+            ["OPENCODE_GO_BASE_URL"] = "https://env-opencode.test"
+        });
+        HttpClient client = AuthenticatedClient(fixture);
+
+        // Env override won at seed time over the structured BaseUrl (https://opencode.test).
+        ProviderConfigurationResponse seeded = (await client.GetFromJsonAsync<ProviderConfigurationResponse>(
+            "/admin/providers/opencode-go", JsonOptions, Ct))!;
+        seeded.BaseUrl.ShouldBe("https://env-opencode.test");
+
+        // Runtime PUT overrides the env-seeded value.
+        ProviderConfigurationBody update = Body(baseUrl: "https://runtime-opencode.test");
+        using HttpResponseMessage put = await client.PutAsJsonAsync("/admin/providers/opencode-go", update, JsonOptions, Ct);
+        put.StatusCode.ShouldBe(HttpStatusCode.OK, await put.Content.ReadAsStringAsync(Ct));
+
+        // Next proxied request routes to the runtime value — env does not reapply on the fresh snapshot.
+        using HttpResponseMessage after = await client.PostAsync(
+            "/v1/chat/completions",
+            Json("""{"model":"gpt5.4","messages":[{"role":"user","content":"hi"}]}"""),
+            Ct);
+
+        after.StatusCode.ShouldBe(HttpStatusCode.OK);
+        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://runtime-opencode.test/v1/chat/completions");
+    }
+
     private static HttpClient AuthenticatedClient(ProviderConfigAppFixture fixture)
     {
         HttpClient client = fixture.CreateClient();
@@ -200,7 +231,8 @@ public sealed class ProviderConfigAdminIntegrationTests
 
     private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
 
-    private sealed class ProviderConfigAppFixture : WebApplicationFactory<HostApp::Program>
+    private sealed class ProviderConfigAppFixture(IReadOnlyDictionary<string, string?>? extraConfig = null)
+        : WebApplicationFactory<HostApp::Program>
     {
         public StubUpstreamHandler Upstream { get; } = new();
 
@@ -209,7 +241,7 @@ public sealed class ProviderConfigAdminIntegrationTests
             builder.ConfigureAppConfiguration((_, config) =>
             {
                 config.Sources.Clear();
-                config.AddInMemoryCollection(new Dictionary<string, string?>
+                var settings = new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
                     ["Admin:ApiKey"] = AdminKey,
                     ["Admin:OperatorApiKey"] = OperatorKey,
@@ -226,7 +258,17 @@ public sealed class ProviderConfigAdminIntegrationTests
                     ["Imposter:Providers:opencode-go:OpenAiUpstreamApi"] = "chat_completions",
                     ["Imposter:Providers:opencode-go:Models:0:From"] = "gpt5.4",
                     ["Imposter:Providers:opencode-go:Models:0:To"] = "grok-code"
-                });
+                };
+
+                if (extraConfig is not null)
+                {
+                    foreach ((string key, string? value) in extraConfig)
+                    {
+                        settings[key] = value;
+                    }
+                }
+
+                config.AddInMemoryCollection(settings);
             });
 
             builder.ConfigureServices(services =>

@@ -20,6 +20,18 @@ public static class DeleteProvider
     {
         public ValueTask<bool> Handle(Request request, CancellationToken cancellationToken)
         {
+            if (!registry.TryGet(request.Key, out _))
+            {
+                return ValueTask.FromResult(false);
+            }
+
+            // Validate the post-delete registry before committing, symmetrically with Upsert/SetProviderEnabled,
+            // so a delete can't leave the proxy in a state the startup validator would reject (e.g. zero
+            // providers). The full set reseeds from config on restart (NFR-04).
+            Dictionary<string, ProviderOptions> proposed = ProviderOptionsCloner.CloneDictionary(registry.Snapshot());
+            proposed.Remove(request.Key);
+            ProviderConfigurationValidation.EnsureValidRegistry(proposed);
+
             bool deleted = registry.Delete(request.Key);
             if (deleted)
             {

@@ -112,4 +112,21 @@ public class OpenAiModelCatalogResponderTests
 
         responder.BuildOpenAiModelsResponse().ShouldNotContain("sk-super-secret-key");
     }
+
+    [Fact]
+    public void Disabled_providers_are_excluded_from_the_models_catalogue()
+    {
+        ProviderOptions disabled = OpenAi("disabled", models: [Map("gpt5.4", "hidden-model")]);
+        disabled.Enabled = false;
+
+        OpenAiModelCatalogResponder responder = Build(
+            disabled,
+            OpenAi("enabled", models: [Map("gpt5.5", "visible-model")]));
+
+        string[] ids = [.. JsonNode.Parse(responder.BuildOpenAiModelsResponse())!.AsObject()["data"]!
+            .AsArray().Select(m => m!["id"]!.GetValue<string>())];
+
+        ids.ShouldContain("visible-model");
+        ids.ShouldNotContain("hidden-model");
+    }
 }

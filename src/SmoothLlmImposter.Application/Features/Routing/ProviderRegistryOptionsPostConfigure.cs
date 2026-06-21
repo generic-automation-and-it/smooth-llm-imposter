@@ -15,6 +15,8 @@ internal sealed class ProviderRegistryOptionsPostConfigure(IProviderRegistry reg
             return;
         }
 
+        // Safe to mutate the init-set dictionary: IOptionsSnapshot constructs a fresh ImposterOptions per
+        // scope, so Clear()+refill never leaks back to the singleton or another request's snapshot.
         options.Providers.Clear();
         foreach ((string key, ProviderOptions provider) in registry.Snapshot())
         {

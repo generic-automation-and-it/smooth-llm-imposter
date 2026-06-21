@@ -36,8 +36,8 @@ public class ProviderConfigurationHandlerTests
             TestContext.Current.CancellationToken);
 
         response.BaseUrl.ShouldBe("https://new.example");
-        registry.TryGet("opencode", out ProviderOptions stored).ShouldBeTrue();
-        stored.Secret.ShouldBe("sk-existing");
+        registry.TryGet("opencode", out ProviderOptions? stored).ShouldBeTrue();
+        stored!.Secret.ShouldBe("sk-existing");
         stored.Models.Single().To.ShouldBe("grok-code");
     }
 
@@ -95,7 +95,8 @@ public class ProviderConfigurationHandlerTests
         var registry = new InMemoryProviderRegistry();
         registry.Seed(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
         {
-            ["opencode"] = Provider("openai", "https://old.example")
+            ["opencode"] = Provider("openai", "https://old.example"),
+            ["keep"] = Provider("openai", "https://keep.example")
         });
 
         var handler = new DeleteProvider.Handler(registry, NullLogger<DeleteProvider.Handler>.Instance);
@@ -103,6 +104,41 @@ public class ProviderConfigurationHandlerTests
         (await handler.Handle(new DeleteProvider.Request("opencode", Actor: "test"), TestContext.Current.CancellationToken))
             .ShouldBeTrue();
         registry.TryGet("opencode", out _).ShouldBeFalse();
+        registry.TryGet("keep", out _).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Delete_missing_provider_returns_false()
+    {
+        var registry = new InMemoryProviderRegistry();
+        registry.Seed(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
+        {
+            ["opencode"] = Provider("openai", "https://old.example")
+        });
+
+        var handler = new DeleteProvider.Handler(registry, NullLogger<DeleteProvider.Handler>.Instance);
+
+        (await handler.Handle(new DeleteProvider.Request("absent", Actor: "test"), TestContext.Current.CancellationToken))
+            .ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Delete_rejects_removing_the_last_provider()
+    {
+        var registry = new InMemoryProviderRegistry();
+        registry.Seed(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
+        {
+            ["opencode"] = Provider("openai", "https://old.example")
+        });
+
+        var handler = new DeleteProvider.Handler(registry, NullLogger<DeleteProvider.Handler>.Instance);
+
+        // Deleting the only provider would leave an empty registry, which the startup validator rejects;
+        // the delete handler enforces the same invariant at runtime (HLD 008 — config reseeds on restart).
+        await Should.ThrowAsync<ValidationException>(() => handler.Handle(
+            new DeleteProvider.Request("opencode", Actor: "test"),
+            TestContext.Current.CancellationToken).AsTask());
+        registry.TryGet("opencode", out _).ShouldBeTrue();
     }
 
     private static ProviderOptions Provider(string dialect, string baseUrl, bool isDefault = false, string? secret = null) => new()

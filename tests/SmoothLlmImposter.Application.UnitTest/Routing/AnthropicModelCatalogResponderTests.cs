@@ -53,6 +53,22 @@ public class AnthropicModelCatalogResponderTests
     }
 
     [Fact]
+    public void Disabled_providers_are_excluded_from_the_models_catalogue()
+    {
+        ProviderOptions disabled = Anthropic("disabled", models: [Map("alias-x", "hidden-model")]);
+        disabled.Enabled = false;
+
+        AnthropicModelCatalogResponder responder = Build(
+            disabled,
+            Anthropic("enabled", models: [Map("alias-y", "visible-model")]));
+
+        string[] ids = Ids(Parse(responder.BuildModelsResponse()));
+
+        ids.ShouldContain("visible-model");
+        ids.ShouldNotContain("hidden-model");
+    }
+
+    [Fact]
     public void Empty_anthropic_catalogue_returns_valid_envelope_with_empty_data()
     {
         AnthropicModelCatalogResponder responder = Build(OpenAi("openai-only", Map("gpt", "grok-code")));

@@ -34,6 +34,11 @@ public static class DependencyInjection
 
         // Conventional <NAME>_<FIELD> env surface (HLD 007) runs as a post-configure, so it applies
         // before the validator at ValidateOnStart. Business logic stays in Application; the Host only binds.
+        //
+        // Registration ORDER is load-bearing (post-configures run in registration order): the env surface
+        // MUST run first so it seeds the baseline, then the registry overlay runs LAST so runtime CRUD wins
+        // over env after startup (HLD 008 LADR-04). Reordering these silently breaks runtime-wins — the
+        // `Runtime_upsert_wins_over_environment_override_*` integration test guards it.
         services.AddSingleton<IPostConfigureOptions<ImposterOptions>, ImposterOptionsPostConfigure>();
         services.AddSingleton<IPostConfigureOptions<ImposterOptions>, ProviderRegistryOptionsPostConfigure>();
         services.AddSingleton<IValidateOptions<ImposterOptions>, ImposterOptionsValidator>();

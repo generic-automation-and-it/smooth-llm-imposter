@@ -24,7 +24,7 @@ public static class UpsertProvider
     {
         public ValueTask<ProviderConfigurationResponse> Handle(Request request, CancellationToken cancellationToken)
         {
-            string? existingSecret = registry.TryGet(request.Key, out ProviderOptions existing)
+            string? existingSecret = registry.TryGet(request.Key, out ProviderOptions? existing)
                 ? existing.Secret
                 : null;
             ProviderOptions replacement = request.Body.ToProviderOptions(existingSecret);

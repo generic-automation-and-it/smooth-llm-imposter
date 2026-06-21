@@ -20,7 +20,7 @@ public static class SetProviderEnabled
     {
         public ValueTask<ProviderConfigurationResponse?> Handle(Request request, CancellationToken cancellationToken)
         {
-            if (!registry.TryGet(request.Key, out ProviderOptions existing))
+            if (!registry.TryGet(request.Key, out ProviderOptions? existing))
             {
                 return ValueTask.FromResult<ProviderConfigurationResponse?>(null);
             }
