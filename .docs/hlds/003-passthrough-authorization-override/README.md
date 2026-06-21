@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | In Discovery |
+| **Status** | Completed |
 | **Owner** | TBD (resolve before Accepted) |
 | **Tracker** | TBD ([NO-TICKET] at time of authoring) |
-| **Last updated** | 2026-06-17 |
+| **Last updated** | 2026-06-21 |
 
 > Discovery / prototyping HLD. This document delivers **intent + spec** — what we are building
 > and why, the decisions behind it, and the quality bar it must meet. It does **not** contain an
@@ -114,11 +114,11 @@ a horizontal concern spanning this HLD. See [`./ladrs/`](./ladrs/).
 
 | LADR | Decision | Status |
 |------|----------|--------|
-| [LADR-001](./ladrs/LADR-001-in-memory-runtime-override-switch.md) | Override state is an in-memory, per-dialect switch — never persisted | Draft |
-| [LADR-002](./ladrs/LADR-002-force-bearer-from-active-credential.md) | ON forces `Bearer` from the **active** credential, dropping `x-api-key` | Draft |
-| [LADR-003](./ladrs/LADR-003-passthrough-only-imposter-untouched.md) | Override applies to passthrough only; imposter routes keep config auth | Draft |
-| [LADR-004](./ladrs/LADR-004-put-delete-routing-endpoint-admin-authed.md) | `PUT`/`DELETE /routing/{dialect}/override-authorization`, admin-authed | Draft |
-| [LADR-005](./ladrs/LADR-005-403-no-active-credential-fail-closed.md) | `403` when arming with no active credential; fail closed at request time | Draft |
+| [LADR-001](./ladrs/LADR-001-in-memory-runtime-override-switch.md) | Override state is an in-memory, per-dialect switch — never persisted | Accepted |
+| [LADR-002](./ladrs/LADR-002-force-bearer-from-active-credential.md) | ON forces `Bearer` from the **active** credential, dropping `x-api-key` | Accepted |
+| [LADR-003](./ladrs/LADR-003-passthrough-only-imposter-untouched.md) | Override applies to passthrough only; imposter routes keep config auth | Accepted |
+| [LADR-004](./ladrs/LADR-004-put-delete-routing-endpoint-admin-authed.md) | `PUT`/`DELETE /routing/{dialect}/override-authorization`, admin-authed | Accepted |
+| [LADR-005](./ladrs/LADR-005-403-no-active-credential-fail-closed.md) | `403` when arming with no active credential; fail closed at request time | Accepted |
 
 ## Non-Functional Requirements
 
@@ -127,9 +127,9 @@ criteria. See [`./nfrs/`](./nfrs/).
 
 | NFR | Attribute | Target (summary) | Status |
 |-----|-----------|------------------|--------|
-| [NFR-001](./nfrs/NFR-001-no-apikey-leak-secret-handling.md) | Security | Override ON ⇒ outbound passthrough has `Bearer`, never `x-api-key`; secret never logged | Draft |
-| [NFR-002](./nfrs/NFR-002-toggle-endpoint-authorization.md) | Security / AuthZ | Toggle endpoints admin-only: anon `401`, non-admin `403` | Draft |
-| [NFR-003](./nfrs/NFR-003-toggle-observability-operability.md) | Operability | Toggles logged (no secret); switch read is in-memory O(1), zero hot-path DB cost; OFF on restart | Draft |
+| [NFR-001](./nfrs/NFR-001-no-apikey-leak-secret-handling.md) | Security | Override ON ⇒ outbound passthrough has `Bearer`, never `x-api-key`; secret never logged | Accepted |
+| [NFR-002](./nfrs/NFR-002-toggle-endpoint-authorization.md) | Security / AuthZ | Toggle endpoints admin-only: anon `401`, non-admin `403` | Accepted |
+| [NFR-003](./nfrs/NFR-003-toggle-observability-operability.md) | Operability | Toggles logged (no secret); switch read is in-memory O(1), zero hot-path DB cost; OFF on restart | Accepted |
 
 ## Out of scope (for now)
 

@@ -1,6 +1,6 @@
 # LADR-03: Resolution mechanism, key normalization, and precedence
 
-**Status:** Prototype
+**Status:** Accepted
 
 <!-- Status lifecycle: Draft → Prototype → Accepted. Also: "Superseded by LADR-MM", "Deprecated". -->
 

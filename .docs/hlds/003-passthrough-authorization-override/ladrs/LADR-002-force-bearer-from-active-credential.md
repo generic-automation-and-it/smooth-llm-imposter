@@ -1,6 +1,6 @@
 # LADR-002: ON forces `Bearer` from the active credential, dropping `x-api-key`
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

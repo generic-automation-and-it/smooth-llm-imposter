@@ -1,6 +1,6 @@
 # NFR-03: No silent Responses state loss
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Requirement
 

@@ -1,6 +1,6 @@
 # NFR-02: Correctness — idempotency and safe default
 
-**Status:** Draft
+**Status:** Accepted
 
 <!-- One file per quality attribute. Horizontal concern spanning the whole HLD.
 Status lifecycle: Draft → Prototype → Accepted. -->

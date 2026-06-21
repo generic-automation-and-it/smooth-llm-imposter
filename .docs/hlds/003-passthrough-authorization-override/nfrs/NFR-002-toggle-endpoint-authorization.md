@@ -1,6 +1,6 @@
 # NFR-002: Security / Authorization — toggle endpoints are admin-only
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Requirement
 

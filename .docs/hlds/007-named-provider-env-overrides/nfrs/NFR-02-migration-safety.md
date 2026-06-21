@@ -1,6 +1,6 @@
 # NFR-02: Migration Safety
 
-**Status:** Prototype
+**Status:** Accepted
 
 <!-- One file per quality attribute. Status lifecycle: Draft → Prototype → Accepted. -->
 

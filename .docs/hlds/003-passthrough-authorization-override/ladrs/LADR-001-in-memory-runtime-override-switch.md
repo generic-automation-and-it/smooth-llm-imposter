@@ -1,6 +1,6 @@
 # LADR-001: Override state is an in-memory, per-dialect switch — never persisted
 
-**Status:** Draft
+**Status:** Accepted
 
 <!-- Status lifecycle: Draft → Prototype → Accepted. -->
 

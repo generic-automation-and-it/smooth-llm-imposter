@@ -1,6 +1,6 @@
 # LADR-05: The `/responses`→Chat downgrade is bidirectional — translate the response stream back
 
-**Status:** Draft
+**Status:** Accepted
 
 <!-- Status lifecycle: Draft → Prototype → Accepted. Also: "Superseded by LADR-MM", "Deprecated". -->
 

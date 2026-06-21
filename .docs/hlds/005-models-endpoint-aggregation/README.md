@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | Accepted |
+| **Status** | Completed |
 | **Owner** | @generic-automation-and-it/project |
 | **Tracker** | [feat: /models endpoint returns distinct union of all configured imposter models (#20)](https://github.com/generic-automation-and-it/smooth-llm-imposter/issues/20) |
-| **Last updated** | 2026-06-20 |
+| **Last updated** | 2026-06-21 |
 
 > Discovery / prototyping HLD. This document delivers **intent + spec** — what we are
 > building and why, the decisions behind it, and the quality bar it must meet. It does

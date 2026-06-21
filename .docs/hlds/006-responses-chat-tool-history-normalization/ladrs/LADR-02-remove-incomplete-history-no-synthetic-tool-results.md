@@ -1,6 +1,6 @@
 # LADR-02: Remove incomplete history; do not synthesize tool results
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

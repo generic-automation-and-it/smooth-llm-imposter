@@ -1,6 +1,6 @@
 # LADR-01: Normalize Responses tool history to Chat adjacency
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

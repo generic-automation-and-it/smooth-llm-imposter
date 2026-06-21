@@ -1,6 +1,6 @@
 # LADR-02: Conventional `<NAME>_<FIELD>` env override surface
 
-**Status:** Prototype
+**Status:** Accepted
 
 <!-- Status lifecycle: Draft → Prototype → Accepted. Also: "Superseded by LADR-MM", "Deprecated". -->
 
@@ -21,6 +21,7 @@ maps conventional suffixes onto provider fields:
 | Env suffix | Provider field |
 |------------|----------------|
 | `_API_KEY` | `Secret` |
+| `_AUTHORIZATION_BEARER` | `Secret` (auth-typed alias of `_API_KEY`) |
 | `_BASE_URL` | `BaseUrl` |
 | `_AUTH_SCHEME` | `AuthScheme` |
 | `_DIALECT` | `Dialect` |
@@ -30,7 +31,13 @@ maps conventional suffixes onto provider fields:
 | `_ANTHROPIC_VERSION` | `AnthropicVersion` |
 
 Matching is **case-insensitive** and the **full field surface** is covered, not just the secret —
-the secret (`_API_KEY`) is simply the most common entry point. The convention is additive: the
+the secret (`_API_KEY`) is simply the most common entry point. The secret accepts a second,
+auth-typed spelling, **`_AUTHORIZATION_BEARER`**, so a Bearer subscription token (e.g.
+`ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER` from `claude setup-token`) reads naturally; it is an alias of
+`_API_KEY` onto the same `Secret` field, and `_API_KEY` is canonical — if an operator sets both for one
+provider, `_API_KEY` wins (first-present-wins, see [LADR-03](./LADR-03-resolution-mechanism.md)). The
+motivating case is the personal-subscription providers ([LADR-04](./LADR-04-personal-subscription-providers.md)).
+The convention is additive: the
 structured `Imposter__Providers__<name>__<Field>` path and `appsettings.json` continue to work
 unchanged. Model mappings (`Models[]`) are **out of scope** for the convention — they are
 structured collections, not scalar per-provider knobs, and stay on the structured path.
@@ -71,3 +78,4 @@ conventional and structured paths are tactical concerns specified in
 
 - **LADR-01** — provides the stable keys this convention derives prefixes from.
 - **LADR-03** — the mechanism and precedence that make this convention concrete.
+- **LADR-04** — the personal-subscription providers that motivated the `_AUTHORIZATION_BEARER` alias.

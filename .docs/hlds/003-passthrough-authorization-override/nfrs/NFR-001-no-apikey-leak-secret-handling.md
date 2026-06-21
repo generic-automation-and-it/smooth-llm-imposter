@@ -1,6 +1,6 @@
 # NFR-001: Security — no `x-api-key` leak, secret handled just-in-time
 
-**Status:** Draft
+**Status:** Accepted
 
 <!-- Horizontal security concern for the override path. Lifecycle: Draft → Prototype → Accepted. -->
 

@@ -70,6 +70,8 @@ dotnet run --project src/SmoothLlmImposter.Host     # run the router locally
 
 Target a single test project directly when needed (e.g. `dotnet test tests/SmoothLlmImposter.Domain.UnitTest`); `ls tests/` lists them. Tests are infra-free (no Docker/DB) — integration tests stub the upstream transport in-process.
 
+Container builds intentionally mirror the repo-root layout inside the SDK stage (`src/SmoothLlmImposter.*` under a non-`/src` working directory). When editing `Dockerfile`, keep `SmoothLlmImposter.slnx`, `Directory.*.props`, `NuGet.Config`, and `src/` in their repo-root-relative positions so solution/project references and central package props continue to resolve.
+
 ## Test Framework
 
 xunit.v3 · Shouldly · Bogus. Tiers (the distinction drives where a test belongs):
@@ -87,7 +89,7 @@ Authoritative stack and coding conventions for AI coders are in `.agents/rules/p
 
 Human-facing reviewer documentation lives in `.docs/wiki/`. Detailed high-level designs, non-functional requirements, and lightweight architecture decision records live under `.docs/hlds/`.
 
-The [`README.md` → How it works](README.md#how-it-works) **HLD table is the human-facing index** for `.docs/hld/`. **Keep it in sync** — when a new HLD is created, removed, or changes status (Discovery → Accepted → Superseded), update the table in the same PR. A stale table makes the HLD folder harder to discover and contradicts the Drift Minimization rule below.
+The [`README.md` → How it works](README.md#how-it-works) **HLD table is the human-facing index** for `.docs/hld/`. **Keep it in sync** — when a new HLD is created, removed, or changes status (Discovery → Accepted → Completed, or → Cancelled), update the table in the same PR. A stale table makes the HLD folder harder to discover and contradicts the Drift Minimization rule below.
 
 ## CI/CD
 

@@ -1,6 +1,6 @@
 # NFR-01: Override Stability
 
-**Status:** Prototype
+**Status:** Accepted
 
 <!-- One file per quality attribute. Status lifecycle: Draft → Prototype → Accepted. -->
 

@@ -6,6 +6,8 @@ README, AGENTS.md, LADRs, and NFRs.
 | Term | Applies to | Meaning |
 |---|---|---|
 | **In Discovery** | HLD (README metadata) | The initiative is in discovery; decisions and quality spec are still in flux. |
+| **Completed** | HLD (README metadata) | The design is implemented and shipped in `src` (verified against code/tests). Terminal state. |
+| **Cancelled** | HLD (README metadata) | The initiative was abandoned without shipping. Keep the HLD for history; note why at the top. Terminal state. |
 | **Draft** | LADR / NFR | Under active discovery. Directional but not yet validated. Default in an in-discovery HLD. |
 | **Prototype** | LADR / NFR | Directional, under active validation. Work may begin against it; treat as load-bearing but flag deviations. |
 | **Accepted** | LADR / NFR | Locked in. Implementations can rely on it. |

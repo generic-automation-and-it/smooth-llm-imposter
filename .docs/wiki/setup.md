@@ -21,6 +21,7 @@ Pick the setup that matches how you want to run the router. Each links to a self
 | **Compose** | One-command up/down (and full rebuild) via `docker compose` / `podman-compose` from `docker-compose.yml`. | [`setups/compose.run-smooth-llm-imposter.md`](setups/compose.run-smooth-llm-imposter.md) |
 | **Conductor.Build fresh-sandbox** | Install .NET, build & run the Host on `:5080`, and point a client at it. | [`setups/conductor.build-smooth-llm-imposter.md`](setups/conductor.build-smooth-llm-imposter.md) |
 | **Message debug / logging** | Flip the router to `Debug` to dump the full inbound request (headers + body, auth masked) — no rebuild. | [`setups/logging.debug-smooth-llm-imposter.md`](setups/logging.debug-smooth-llm-imposter.md) |
+| **Credential admin / authorization override** | _Optional._ PostgreSQL-backed passthrough credentials (`/admin/credentials`, HLD 002) + per-dialect force-Bearer override (HLD 003). Off by default. | [`setups/credentials.admin-smooth-llm-imposter.md`](setups/credentials.admin-smooth-llm-imposter.md) |
 
 ## Prerequisites
 
@@ -79,61 +80,11 @@ wire_api = "responses"
 requires_openai_auth = true
 ```
 
-```jsonc
-// appsettings.json (shipped example)
-{
-  "Imposter": {
-    "Providers": {
-      "anthropic-default": {
-        "Dialect": "anthropic",
-        "BaseUrl": "https://api.anthropic.com",
-        "IsDefault": true
-      },
-      "openai-default": {
-        "Dialect": "openai",
-        "BaseUrl": "https://chatgpt.com/backend-api/codex",
-        "IsDefault": true
-      },
-      "openrouter-anthropic": {
-        "Dialect": "anthropic",
-        "BaseUrl": "https://openrouter.ai/api",
-        "Secret": "",
-        "AuthScheme": "Bearer",
-        "Models": [
-          { "From": "claude-opus-4-7*", "To": "z-ai/glm-5.2", "Caching": true }
-        ]
-      },
-      "openrouter-openai": {
-        "Dialect": "openai",
-        "BaseUrl": "https://openrouter.ai/api",
-        "Secret": "",
-        "AuthScheme": "Bearer",
-        "OpenAiUpstreamApi": "chat_completions",
-        "Models": []
-      },
-      "opencode-go-anthropic": {
-        "Dialect": "anthropic",
-        "BaseUrl": "https://opencode.ai/zen/go",
-        "Secret": "",
-        "AuthScheme": "ApiKey",
-        "Models": [
-          { "From": "claude-haiku-*", "To": "minimax-m3", "Caching": true }
-        ]
-      },
-      "opencode-go-openai": {
-        "Dialect": "openai",
-        "BaseUrl": "https://opencode.ai/zen/go",
-        "Secret": "",
-        "AuthScheme": "Bearer",
-        "OpenAiUpstreamApi": "chat_completions",
-        "Models": [
-          { "From": "gpt-5.4", "To": "kimi-k2.7-code", "Caching": true }
-        ]
-      }
-    }
-  }
-}
-```
+The shipped provider set lives in **[`src/SmoothLlmImposter.Host/appsettings.json`](../../src/SmoothLlmImposter.Host/appsettings.json)**
+— read it there rather than copying it here (a duplicated block drifts). It declares the catch-all
+`*-default` passthrough providers, the personal-subscription providers (`anthropic-personal` /
+`openai-personal`, see below), and the `openrouter-*` / `opencode-go-*` imposter routes. Each entry is a
+provider key → `{ Dialect, BaseUrl, Secret, AuthScheme, optional IsDefault / OpenAiUpstreamApi, Models[] }`.
 
 Routing rules to keep in mind:
 
@@ -162,9 +113,11 @@ reordering. There are two equivalent paths:
 **Conventional `<NAME>_<FIELD>` surface (the friendly path).** Each provider exposes an env prefix derived
 from its key — uppercase, every run of non-alphanumeric characters collapsed to one `_`. For dialect-suffixed
 siblings, `_API_KEY` can use the shared base prefix (`opencode-go-openai` / `opencode-go-anthropic` →
-`OPENCODE_GO_API_KEY`). Other scalar overrides remain provider-specific or structured
-(`_BASE_URL`, `_AUTH_SCHEME`, `_DIALECT`, `_IS_DEFAULT`, `_OPENAI_UPSTREAM_API`, `_REQUEST_NORMALIZATION`,
-`_ANTHROPIC_VERSION`). Matching is case-insensitive.
+`OPENCODE_GO_API_KEY`). The secret also accepts the auth-typed alias `_AUTHORIZATION_BEARER`
+(`ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER` fills the same `Secret` as `ANTHROPIC_PERSONAL_API_KEY`;
+`_API_KEY` is canonical and wins if both are set). Other scalar overrides remain provider-specific or
+structured (`_BASE_URL`, `_AUTH_SCHEME`, `_DIALECT`, `_IS_DEFAULT`, `_OPENAI_UPSTREAM_API`,
+`_REQUEST_NORMALIZATION`, `_ANTHROPIC_VERSION`). Matching is case-insensitive.
 
 ```bash
 export OPENCODE_GO_API_KEY="sk-your-opencode-key"            # opencode-go-openai + opencode-go-anthropic secret
@@ -251,6 +204,64 @@ export OPENROUTER_API_KEY="paste-the-openrouter-key-here"
 Use `AuthScheme="Bearer"` when the upstream expects `Authorization: Bearer <token>`. Use `AuthScheme="ApiKey"`
 when the upstream expects `x-api-key: <token>`.
 
+### Personal-subscription providers (`anthropic-personal` / `openai-personal`)
+
+The shipped config includes two **personal-subscription** providers for the common "company subscription
+for daily use, personal subscription for private use" split: route a specific model family to *your own*
+first-party subscription token instead of the key-less default (which forwards the caller's company
+credential). They target the real first-party endpoints (`api.anthropic.com` /
+`chatgpt.com/backend-api/codex`) with `AuthScheme: Bearer` and ship with an empty `Secret` — you supply
+your token via env. The secret accepts the auth-typed alias `_AUTHORIZATION_BEARER` so a Bearer
+subscription token reads naturally:
+
+```bash
+export ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER="paste-your-anthropic-subscription-token"
+export OPENAI_PERSONAL_AUTHORIZATION_BEARER="paste-your-openai-subscription-token"
+# (ANTHROPIC_PERSONAL_API_KEY / OPENAI_PERSONAL_API_KEY are equivalent and canonical.)
+```
+
+#### Minting the tokens
+
+**Anthropic — `claude setup-token`.** Claude Code can mint a long-lived subscription token. If you
+normally run Claude Code on a **company** license, you can grab a **personal** token without losing that
+session for long:
+
+```bash
+claude login          # sign in with your PERSONAL Claude account, then exit the interactive session
+claude setup-token    # prints a long-lived subscription token from that personal session — copy it
+claude logout && claude login   # sign back in with your COMPANY account for day-to-day use
+```
+
+Then paste the copied value into `ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER`.
+
+**OpenAI / Codex — no `setup-token` equivalent.** Codex CLI has no one-shot portable-token command
+([OpenAI Codex auth docs](https://developers.openai.com/codex/auth)). The supported ways to get a
+ChatGPT-subscription credential for this router:
+
+- `codex login` with your personal ChatGPT account (on a trusted machine) writes `~/.codex/auth.json`,
+  which holds the access/refresh tokens. Extract the current access token and paste it — e.g.
+  `jq -r '.tokens.access_token' ~/.codex/auth.json`. **Caveat:** that token is short-lived and Codex
+  auto-refreshes it *inside* `auth.json`, so a statically pasted Bearer **will expire** — fine for a
+  dev/short-lived run, not for a long-running deployment.
+- **ChatGPT Business/Enterprise:** an admin can mint a dedicated, non-interactive **access token** in
+  the ChatGPT admin console ([access tokens](https://developers.openai.com/codex/enterprise/access-tokens)) —
+  the durable option.
+- Or skip the subscription entirely and use a plain OpenAI **API key** as the provider `Secret`
+  (per-token billing); this is OpenAI's recommended path for non-interactive use.
+
+> **Check your plan's terms first.** A provider's terms may restrict using subscription OAuth tokens
+> outside its official apps/CLI (Anthropic clarified this for Claude Free/Pro/Max in early 2026). Route a
+> personal subscription token through this proxy only where your plan permits it; a provider-issued API
+> key is the unambiguous path.
+
+- `anthropic-personal` captures `claude-opus-4-7*` and serves it as `claude-opus-4-8` on your personal
+  subscription (capture within the Opus family). It uses a glob distinct from `openrouter-anthropic`
+  (`claude-opus-4-6*`), so the two never compete. (If two same-dialect providers ever share a glob, the
+  one declared earlier in config wins — first match wins.)
+- `openai-personal` ships **inert** (no `Models`) — it is a template you activate by adding your own
+  mappings. Neither personal provider is `IsDefault` (that role belongs to `*-default`). See HLD 007
+  LADR-04.
+
 ```bash
 # OpenAI dialect — prefix /openai, client appends /v1/chat/completions (also /v1/responses, GET /v1/models)
 curl http://localhost:5080/openai/v1/chat/completions \
@@ -310,21 +321,13 @@ passes through to the dialect's default provider unchanged.
 Errors are dialect-shaped: OpenAI `{error:{message,type}}`, Anthropic `{type:"error",error:{...}}`. Routing
 failures map to 400/404; upstream transport failures map to 502.
 
-## Credential admin API (optional)
+## Credential admin API & authorization override (optional)
 
-The `/admin/credentials` group manages encrypted **passthrough** credentials (HLD 002) and requires PostgreSQL.
-It is guarded by the `X-Admin-Api-Key` header, matched in constant time against:
+The `/admin/credentials` API (encrypted **passthrough** credentials, HLD 002) and the per-dialect
+authorization override (HLD 003) are **optional** add-ons that require PostgreSQL. They are **off by
+default**: with `ConnectionStrings:ImposterDb` unset the router uses **no database** (a `NullCredentialStore`),
+the admin API is disabled, and the passthrough forwards the caller's own auth. Imposter routes — including the
+`*-personal` providers — never use this store; they authenticate with their config/env `Secret`.
 
-- `Admin:ApiKey` — full admin (`CredentialAdmin` role; required for all mutations)
-- `Admin:OperatorApiKey` — operator (authenticated, non-admin)
-
-```bash
-export Admin__ApiKey="choose-a-strong-admin-key"
-export ConnectionStrings__ImposterDb="Host=localhost;Port=5432;Database=smoothllmimposter;Username=postgres;Password=postgres"
-
-curl http://localhost:5080/admin/credentials -H "X-Admin-Api-Key: $Admin__ApiKey"
-```
-
-The default connection string (when `ConnectionStrings:ImposterDb` is unset) is
-`Host=localhost;Port=5432;Database=smoothllmimposter;Username=postgres;Password=postgres`. Stored secrets are
-encrypted at rest via ASP.NET Core Data Protection.
+Full setup (enabling it, admin auth, every endpoint incl. the PUTs, Data Protection keys) lives in the
+dedicated guide: **[`setups/credentials.admin-smooth-llm-imposter.md`](setups/credentials.admin-smooth-llm-imposter.md)**.

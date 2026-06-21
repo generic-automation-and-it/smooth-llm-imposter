@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | In Prototype (implemented + tested) |
+| **Status** | Completed |
 | **Owner** | @generic-automation-and-it/project |
 | **Tracker** | TBD — link the GitHub issue when filed |
-| **Last updated** | 2026-06-20 |
+| **Last updated** | 2026-06-21 |
 
 > Discovery / prototyping HLD. This document delivers **intent + spec** — what we are
 > building and why, the decisions behind it, and the quality bar it must meet. It does
@@ -46,7 +46,8 @@ the structural change. See [LADR-01](./ladrs/LADR-01-dictionary-keyed-providers.
 ### 2. Conventional `<NAME>_<FIELD>` env override surface
 
 A provider keyed `opencode-go` exposes a conventional env prefix `OPENCODE_GO_`, mapping suffixes
-to fields across the **full** scalar surface — `_API_KEY` → `Secret`, `_BASE_URL` → `BaseUrl`,
+to fields across the **full** scalar surface — `_API_KEY` → `Secret` (with the auth-typed alias
+`_AUTHORIZATION_BEARER` → `Secret`, `_API_KEY` canonical), `_BASE_URL` → `BaseUrl`,
 `_AUTH_SCHEME` → `AuthScheme`, plus `_DIALECT`, `_IS_DEFAULT`, `_OPENAI_UPSTREAM_API`,
 `_REQUEST_NORMALIZATION`, `_ANTHROPIC_VERSION`. Matching is case-insensitive. The convention is
 additive — `appsettings.json` and the structured `Imposter__Providers__<name>__*` path keep working
@@ -90,14 +91,16 @@ deliberately on the other side of the seam — unchanged.
 
 ## Architecture Decisions (LADRs)
 
-LADRs 01–02 are strategic (*what* and *why*); LADR-03 is tactical (*how*). Each is a single
-decision — a horizontal concern spanning this HLD. See [`./ladrs/`](./ladrs/).
+LADRs 01–02 are strategic (*what* and *why*); LADR-03 is tactical (*how*); LADR-04 is an additive
+application of the surface (named personal-subscription providers). Each is a single decision — a
+horizontal concern spanning this HLD. See [`./ladrs/`](./ladrs/).
 
 | LADR | Decision | Status |
 |------|----------|--------|
-| [LADR-01](./ladrs/LADR-01-dictionary-keyed-providers.md) | Key providers by name (Dictionary), hard cutover; `Name` optional override | Prototype |
-| [LADR-02](./ladrs/LADR-02-conventional-env-surface.md) | Conventional `<NAME>_<FIELD>` env surface, case-insensitive, full field set | Prototype |
-| [LADR-03](./ladrs/LADR-03-resolution-mechanism.md) | Post-configure resolver, key→prefix normalization, precedence, legacy-shape guard | Prototype |
+| [LADR-01](./ladrs/LADR-01-dictionary-keyed-providers.md) | Key providers by name (Dictionary), hard cutover; `Name` optional override | Accepted |
+| [LADR-02](./ladrs/LADR-02-conventional-env-surface.md) | Conventional `<NAME>_<FIELD>` env surface, case-insensitive, full field set (incl. `_AUTHORIZATION_BEARER` secret alias) | Accepted |
+| [LADR-03](./ladrs/LADR-03-resolution-mechanism.md) | Post-configure resolver, key→prefix normalization, precedence, legacy-shape guard | Accepted |
+| [LADR-04](./ladrs/LADR-04-personal-subscription-providers.md) | Named personal-subscription providers (`anthropic-personal` / `openai-personal`) — operator-owned Bearer tokens, distinct from key-less defaults | Accepted |
 
 ## Non-Functional Requirements
 
@@ -106,7 +109,7 @@ verification mechanism, and acceptance criteria. See [`./nfrs/`](./nfrs/).
 
 | NFR | Attribute | Target (summary) | Status |
 |-----|-----------|------------------|--------|
-| [NFR-01](./nfrs/NFR-01-override-stability.md) | Override Stability | Override targets same provider under any declaration order; no positional addressing | Prototype |
-| [NFR-02](./nfrs/NFR-02-migration-safety.md) | Migration Safety | Legacy array / numeric / case-dup keys fail fast at startup with guidance | Prototype |
-| [NFR-03](./nfrs/NFR-03-secret-confidentiality.md) | Security | Resolved secret values never logged or surfaced in errors | Prototype |
-| [NFR-04](./nfrs/NFR-04-statelessness.md) | Statelessness | Resolution is config/env only — zero DB connections, zero upstream calls | Prototype |
+| [NFR-01](./nfrs/NFR-01-override-stability.md) | Override Stability | Override targets same provider under any declaration order; no positional addressing | Accepted |
+| [NFR-02](./nfrs/NFR-02-migration-safety.md) | Migration Safety | Legacy array / numeric / case-dup keys fail fast at startup with guidance | Accepted |
+| [NFR-03](./nfrs/NFR-03-secret-confidentiality.md) | Security | Resolved secret values never logged or surfaced in errors | Accepted |
+| [NFR-04](./nfrs/NFR-04-statelessness.md) | Statelessness | Resolution is config/env only — zero DB connections, zero upstream calls | Accepted |
