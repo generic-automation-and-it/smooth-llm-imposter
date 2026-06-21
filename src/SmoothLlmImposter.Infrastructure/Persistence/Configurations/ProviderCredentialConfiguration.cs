@@ -28,6 +28,8 @@ internal sealed class ProviderCredentialConfiguration : IEntityTypeConfiguration
             .HasValue<OpenAiCredential>(OpenAiCredential.DialectToken)
             .HasValue<AnthropicCredential>(AnthropicCredential.DialectToken);
 
-        builder.HasIndex("Dialect", nameof(ProviderCredential.ProviderName), nameof(ProviderCredential.Name)).IsUnique();
+        builder.HasIndex("Dialect", nameof(ProviderCredential.ProviderName), nameof(ProviderCredential.Name))
+            .HasDatabaseName("IX_ProviderCredentials_Dialect_ProviderName_Name")
+            .IsUnique();
     }
 }
