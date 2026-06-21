@@ -40,6 +40,21 @@ public class AuthorizationOverrideSwitchTests
     }
 
     [Fact]
+    public void Provider_keys_compare_case_insensitively()
+    {
+        // Guards the canonicalisation contract: the switch must agree with the credential stores and
+        // ProviderAddressResolver, which all key the provider OrdinalIgnoreCase. Arming under one casing
+        // and reading under another must hit the same flag.
+        var sut = new AuthorizationOverrideSwitch();
+
+        sut.Enable(ApiDialect.OpenAi, "OpenAI-Default");
+        sut.IsEnabled(ApiDialect.OpenAi, "openai-default").ShouldBeTrue();
+
+        sut.Disable(ApiDialect.OpenAi, "OPENAI-DEFAULT");
+        sut.IsEnabled(ApiDialect.OpenAi, "openai-default").ShouldBeFalse();
+    }
+
+    [Fact]
     public void Enable_is_idempotent()
     {
         var sut = new AuthorizationOverrideSwitch();
