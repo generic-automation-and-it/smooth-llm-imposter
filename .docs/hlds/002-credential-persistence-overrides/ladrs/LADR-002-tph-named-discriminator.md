@@ -1,6 +1,11 @@
 # LADR-002 — TPH with a named discriminator over a shared base
 
-- **Date / Status:** 2026-06-15 · Accepted
+- **Date / Status:** 2026-06-15 · Superseded by [HLD 008 LADR-05](../../008-runtime-config-crud/ladrs/LADR-05-settings-backed-provider-keyed-credentials.md)
+
+> **Superseded by [HLD 008 LADR-05](../../008-runtime-config-crud/ladrs/LADR-05-settings-backed-provider-keyed-credentials.md).**
+> Credentials are re-keyed from **dialect** to **named provider** (HLD 007), so the dialect discriminator and
+> the `(Dialect, Name)` uniqueness rule described here no longer model identity. The TPH shape remains
+> relevant only to the opt-in database backend. Kept for history.
 
 ## Context
 

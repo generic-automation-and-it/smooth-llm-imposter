@@ -1,7 +1,12 @@
 # LADR-001 — Reintroduce EF Core + PostgreSQL for credentials
 
-- **Date / Status:** 2026-06-15 · Accepted
+- **Date / Status:** 2026-06-15 · Superseded by [HLD 008 LADR-05](../../008-runtime-config-crud/ladrs/LADR-05-settings-backed-provider-keyed-credentials.md)
 - **Supersedes:** [HLD 001 LADR-002 — Stateless, no EF Core / PostgreSQL](../../001-llm-imposter-routing/ladrs/LADR-002-stateless-no-ef-postgresql.md)
+
+> **Superseded by [HLD 008 LADR-05](../../008-runtime-config-crud/ladrs/LADR-05-settings-backed-provider-keyed-credentials.md).**
+> The database is no longer mandatory: credentials default to a settings-backed in-memory store, and the
+> EF Core + PostgreSQL backend described here becomes an **opt-in** alternative (encryption-at-rest per
+> [LADR-003](LADR-003-idataprotector-secret-encryption.md) still applies to that backend). Kept for history.
 
 ## Context
 
