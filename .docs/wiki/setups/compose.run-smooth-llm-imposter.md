@@ -227,4 +227,6 @@ curl -fsS http://localhost:5066/openai/v1/chat/completions \
 
 If you use `/admin/credentials` (needs PostgreSQL), uncomment the `volumes:` block in `docker-compose.yml` to persist
 Data Protection keys (`slli-dpkeys:/home/app/.aspnet/DataProtection-Keys`) so encrypted secrets survive a rebuild,
-and add `Admin__ApiKey` / `ConnectionStrings__ImposterDb` to your `.env`. Pure imposter routing needs neither.
+and add `Admin__ApiKey` / `ConnectionStrings__ImposterDb` to your `.env`. Pure imposter routing needs neither; with
+`ConnectionStrings__ImposterDb` unset the router uses no database. Full guide:
+[`credentials.admin-smooth-llm-imposter.md`](credentials.admin-smooth-llm-imposter.md).
