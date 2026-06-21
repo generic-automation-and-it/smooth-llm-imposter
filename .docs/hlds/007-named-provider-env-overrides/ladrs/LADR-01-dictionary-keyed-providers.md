@@ -1,6 +1,6 @@
 # LADR-01: Key providers by name, not array index
 
-**Status:** Prototype
+**Status:** Accepted
 
 <!-- Status lifecycle: Draft → Prototype → Accepted. Also: "Superseded by LADR-MM", "Deprecated". -->
 

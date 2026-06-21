@@ -1,6 +1,6 @@
 # AGENTS.md - OpenAI /models Endpoint Aggregation
 
-AI Context: HLD for OpenAI /models Endpoint Aggregation. Updated: 2026-06-20
+AI Context: HLD for OpenAI /models Endpoint Aggregation. Updated: 2026-06-21
 
 > AI-coder context for this HLD. Architecture diagrams live in [`./diagrams/`](./diagrams/),
 > decisions in [`./ladrs/`](./ladrs/), quality spec in [`./nfrs/`](./nfrs/). This file is
@@ -26,7 +26,7 @@ decisions in [`./ladrs/`](./ladrs/), quality spec in [`./nfrs/`](./nfrs/).
 - **`created` is a fixed constant, never wall-clock.** Time-derived fields break determinism (NFR-01).
 - **Aggregation is string-out in Application; recognition is in Host.** No `HttpContext` in
   Application; no body-building in the Host endpoint (LADR-04).
-- LADRs are Accepted — do not deviate.
+- HLD is Completed (implemented + tested); LADRs are Accepted/load-bearing — do not deviate.
 
 ## Architecture Decisions
 
@@ -62,3 +62,4 @@ Measurable NFRs live in [`./nfrs/`](./nfrs/). Constraints that change how code i
 | :---- | :---- | :---- |
 | 2026-06-20 | HLD scaffolded and drafted (README, LADR-01..04, NFR-01..04, C1 + flow diagram). | #20 |
 | 2026-06-20 | Implemented: `MapGet("/openai/v1/models")` in Host short-circuits the catch-all to a locally-synthesized OpenAI `ListModelsResponse`; `IModelCatalogResponder` / `OpenAiModelCatalogResponder` in Application aggregates the distinct `to` set (first-declaring-provider `owned_by`, fixed `created=0`, ordinal dedup). L0 + L2 tests cover dedup/order, empty catalogue, byte-stability, no-secret, zero upstream calls, and scope (Anthropic + non-GET passthrough). LADR-01..04 / NFR-01..04 accepted. | #20 |
+| 2026-06-21 | HLD → **Completed**; LADR-01..04 + NFR-01..04 confirmed **Accepted** (shipped + tested). Added the Completed/Accepted Non-Negotiables stamp for parity with sibling HLDs. | #20 |

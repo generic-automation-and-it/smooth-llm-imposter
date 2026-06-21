@@ -1,6 +1,6 @@
 # LADR-004: `PUT`/`DELETE /routing/{dialect}/override-authorization`, admin-authed
 
-**Status:** Draft
+**Status:** Accepted
 
 <!-- Tactical: the HTTP shape of the toggle. -->
 

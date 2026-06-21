@@ -1,6 +1,6 @@
 # LADR-02: Conventional `<NAME>_<FIELD>` env override surface
 
-**Status:** Prototype
+**Status:** Accepted
 
 <!-- Status lifecycle: Draft → Prototype → Accepted. Also: "Superseded by LADR-MM", "Deprecated". -->
 

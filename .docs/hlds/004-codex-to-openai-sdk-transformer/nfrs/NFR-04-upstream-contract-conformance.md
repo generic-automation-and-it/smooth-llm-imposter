@@ -1,6 +1,6 @@
 # NFR-04: Upstream contract conformance
 
-**Status:** Draft
+**Status:** Accepted
 
 <!-- One file per quality attribute (Compatibility / Conformance). Horizontal concern.
 Status lifecycle: Draft → Prototype → Accepted. -->

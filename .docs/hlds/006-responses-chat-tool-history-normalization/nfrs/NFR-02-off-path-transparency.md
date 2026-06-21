@@ -1,6 +1,6 @@
 # NFR-02: Off-path transparency
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Requirement
 

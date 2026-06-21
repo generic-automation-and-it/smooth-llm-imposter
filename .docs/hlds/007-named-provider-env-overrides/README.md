@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | In Prototype (implemented + tested) |
+| **Status** | Completed |
 | **Owner** | @generic-automation-and-it/project |
 | **Tracker** | TBD — link the GitHub issue when filed |
 | **Last updated** | 2026-06-21 |
@@ -97,10 +97,10 @@ horizontal concern spanning this HLD. See [`./ladrs/`](./ladrs/).
 
 | LADR | Decision | Status |
 |------|----------|--------|
-| [LADR-01](./ladrs/LADR-01-dictionary-keyed-providers.md) | Key providers by name (Dictionary), hard cutover; `Name` optional override | Prototype |
-| [LADR-02](./ladrs/LADR-02-conventional-env-surface.md) | Conventional `<NAME>_<FIELD>` env surface, case-insensitive, full field set (incl. `_AUTHORIZATION_BEARER` secret alias) | Prototype |
-| [LADR-03](./ladrs/LADR-03-resolution-mechanism.md) | Post-configure resolver, key→prefix normalization, precedence, legacy-shape guard | Prototype |
-| [LADR-04](./ladrs/LADR-04-personal-subscription-providers.md) | Named personal-subscription providers (`anthropic-personal` / `openai-personal`) — operator-owned Bearer tokens, distinct from key-less defaults | Prototype |
+| [LADR-01](./ladrs/LADR-01-dictionary-keyed-providers.md) | Key providers by name (Dictionary), hard cutover; `Name` optional override | Accepted |
+| [LADR-02](./ladrs/LADR-02-conventional-env-surface.md) | Conventional `<NAME>_<FIELD>` env surface, case-insensitive, full field set (incl. `_AUTHORIZATION_BEARER` secret alias) | Accepted |
+| [LADR-03](./ladrs/LADR-03-resolution-mechanism.md) | Post-configure resolver, key→prefix normalization, precedence, legacy-shape guard | Accepted |
+| [LADR-04](./ladrs/LADR-04-personal-subscription-providers.md) | Named personal-subscription providers (`anthropic-personal` / `openai-personal`) — operator-owned Bearer tokens, distinct from key-less defaults | Accepted |
 
 ## Non-Functional Requirements
 
@@ -109,7 +109,7 @@ verification mechanism, and acceptance criteria. See [`./nfrs/`](./nfrs/).
 
 | NFR | Attribute | Target (summary) | Status |
 |-----|-----------|------------------|--------|
-| [NFR-01](./nfrs/NFR-01-override-stability.md) | Override Stability | Override targets same provider under any declaration order; no positional addressing | Prototype |
-| [NFR-02](./nfrs/NFR-02-migration-safety.md) | Migration Safety | Legacy array / numeric / case-dup keys fail fast at startup with guidance | Prototype |
-| [NFR-03](./nfrs/NFR-03-secret-confidentiality.md) | Security | Resolved secret values never logged or surfaced in errors | Prototype |
-| [NFR-04](./nfrs/NFR-04-statelessness.md) | Statelessness | Resolution is config/env only — zero DB connections, zero upstream calls | Prototype |
+| [NFR-01](./nfrs/NFR-01-override-stability.md) | Override Stability | Override targets same provider under any declaration order; no positional addressing | Accepted |
+| [NFR-02](./nfrs/NFR-02-migration-safety.md) | Migration Safety | Legacy array / numeric / case-dup keys fail fast at startup with guidance | Accepted |
+| [NFR-03](./nfrs/NFR-03-secret-confidentiality.md) | Security | Resolved secret values never logged or surfaced in errors | Accepted |
+| [NFR-04](./nfrs/NFR-04-statelessness.md) | Statelessness | Resolution is config/env only — zero DB connections, zero upstream calls | Accepted |

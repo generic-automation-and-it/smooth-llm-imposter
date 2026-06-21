@@ -1,6 +1,6 @@
 # LADR-04: Live upstream evals run as a separate, secret-gated PR gate (L3)
 
-**Status:** Draft
+**Status:** Accepted
 
 <!-- Tactical LADR (how we verify). Status lifecycle: Draft → Prototype → Accepted. -->
 

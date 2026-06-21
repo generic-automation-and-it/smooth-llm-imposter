@@ -1,6 +1,6 @@
 # LADR-01: Normalize on the proxy side so the client stays vanilla
 
-**Status:** Prototype
+**Status:** Accepted
 
 <!-- Status lifecycle: Draft → Prototype → Accepted. Also: "Superseded by LADR-MM", "Deprecated". -->
 

@@ -20,7 +20,7 @@ Startup-config change only — the request/forwarding path does not change.
 - Conventional env precedence is fixed: **conventional env > structured env > appsettings**. Do not make the conventional path the weakest ("fill-only-if-empty").
 - A resolved **secret value** is never logged or placed in an exception/validation message (NFR-03).
 - Resolution is config/env only — no DB, no network, no persisted state (NFR-04). Keep the router stateless/key-less.
-- LADRs are Prototype status (implemented + tested) — flag deviations rather than silently overriding.
+- HLD is Completed (implemented + tested); LADRs are load-bearing — flag deviations rather than silently overriding.
 
 ## Architecture Decisions
 
@@ -54,3 +54,4 @@ Measurable NFRs live in [`./nfrs/`](./nfrs/). Constraints that change how code i
 | 2026-06-20 | HLD scaffolded and drafted | TBD |
 | 2026-06-20 | Implemented: `Providers` → `Dictionary<string, ProviderOptions>`; `ImposterOptionsPostConfigure` conventional `<NAME>_<FIELD>` resolver; validator legacy-array/numeric-key + case-dup + blank-`Name` guards; appsettings + all setup docs rewritten to name-keyed. LADRs/NFRs Draft→Prototype. Open items resolved: LADR-02 field-drift → scalar-coverage guard test; LADR-03 double-set warning → **no warning** (silent, documented precedence). | TBD |
 | 2026-06-21 | Added LADR-04: named personal-subscription providers `anthropic-personal` (captures `claude-opus-4-7*`→`claude-opus-4-8` on the operator's own Bearer token) and `openai-personal` (inert codex passthrough template), Bearer + empty committed `Secret`, neither `IsDefault`. `openrouter-anthropic`'s glob narrowed to `claude-opus-4-6*` so the Opus globs stay distinct. Extended LADR-02 with the `_AUTHORIZATION_BEARER` secret alias (`_API_KEY` canonical, first-present-wins). Resolver, appsettings, HLD 001 example, setup docs, and L0 tests updated. | #39 |
+| 2026-06-21 | Status → **Completed** — shipped + tested (PR #42); LADR-01..04 + NFR-01..04 confirmed **Accepted**. | TBD |

@@ -1,6 +1,6 @@
 # LADR-04: Personal-subscription providers (`anthropic-personal` / `openai-personal`)
 
-**Status:** Prototype
+**Status:** Accepted
 
 <!-- Status lifecycle: Draft → Prototype → Accepted. Also: "Superseded by LADR-MM", "Deprecated". -->
 

@@ -1,6 +1,6 @@
 # NFR-03: Secret Confidentiality
 
-**Status:** Prototype
+**Status:** Accepted
 
 <!-- One file per quality attribute. Status lifecycle: Draft → Prototype → Accepted. -->
 

@@ -1,6 +1,6 @@
 # NFR-01: Streaming integrity (request-only normalization)
 
-**Status:** Draft — **scoped by LADR-05 / NFR-05**
+**Status:** Accepted — **scoped by LADR-05 / NFR-05**
 
 <!-- One file per quality attribute. Horizontal concern spanning the whole HLD.
 Status lifecycle: Draft → Prototype → Accepted. -->
