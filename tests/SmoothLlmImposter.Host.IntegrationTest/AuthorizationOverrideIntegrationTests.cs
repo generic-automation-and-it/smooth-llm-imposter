@@ -138,6 +138,13 @@ public sealed class AuthorizationOverrideIntegrationTests
 
         AuthorizationOverrideState defaultState = await GetStateAsync(client);
         defaultState.ShouldBe(new AuthorizationOverrideState("openai", "openai-official", true));
+
+        // Close the loop: arming the provider-addressable route must change wire behaviour, not just the
+        // reported state — the passthrough now forces the active credential as Bearer.
+        using HttpResponseMessage passthrough = await client.PostAsync("/v1/chat/completions", Json("""{"model":"gpt5.5"}"""), Ct);
+        passthrough.StatusCode.ShouldBe(HttpStatusCode.OK);
+        fixture.Upstream.LastAuthorization.ShouldBe("Bearer stored-secret");
+        fixture.Upstream.LastApiKey.ShouldBeNull();
     }
 
     [Fact]
