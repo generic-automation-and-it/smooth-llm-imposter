@@ -1,6 +1,6 @@
 # NFR-05: Streaming integrity of the Chat→Responses response translation
 
-**Status:** Draft
+**Status:** Accepted
 
 <!-- One file per quality attribute. Horizontal concern spanning the whole HLD.
 Status lifecycle: Draft → Prototype → Accepted. -->

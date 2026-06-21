@@ -1,6 +1,6 @@
 # HLD 001 — LLM Imposter Routing
 
-Status: Accepted · 2026-06-14
+Status: Completed · 2026-06-21
 
 ## Problem
 

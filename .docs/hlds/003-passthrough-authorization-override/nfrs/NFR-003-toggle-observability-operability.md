@@ -1,6 +1,6 @@
 # NFR-003: Operability — observable toggling, zero hot-path cost, fail-safe default
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Requirement
 

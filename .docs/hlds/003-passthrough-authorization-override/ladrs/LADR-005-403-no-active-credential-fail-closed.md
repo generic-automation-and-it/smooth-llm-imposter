@@ -1,6 +1,6 @@
 # LADR-005: `403` when arming with no active credential; fail closed at request time
 
-**Status:** Draft
+**Status:** Accepted
 
 <!-- Tactical: the no-credential behaviour, at toggle time and at request time. -->
 

@@ -1,6 +1,6 @@
 # LADR-02: Request-only normalization; prefer removal over remap
 
-**Status:** Prototype — **amended by LADR-05**
+**Status:** Accepted — **amended by LADR-05**
 
 <!-- Status lifecycle: Draft → Prototype → Accepted. Also: "Superseded by LADR-MM", "Deprecated". -->
 

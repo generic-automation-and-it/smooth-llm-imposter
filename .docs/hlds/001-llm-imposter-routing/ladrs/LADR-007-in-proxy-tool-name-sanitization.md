@@ -1,11 +1,11 @@
 # LADR-007 — In-proxy tool-name sanitization with response remap (DRAFT)
 
-- **Date / Status:** 2026-06-20 · **Draft** (not implemented; superseded for now by
-  [LADR-006](LADR-006-no-in-proxy-tool-name-sanitization.md))
+- **Date / Status:** 2026-06-20 · **Superseded by [HLD 004](../../../hlds/004-codex-to-openai-sdk-transformer/README.md)** (2026-06-21) — parked alternative, never implemented
 
-> This is a parked design, kept so the option is not lost. It is **not** a decision to build. Implementing
-> it requires a dedicated HLD because it overrides the transparent-proxy / no-response-rewrite
-> non-negotiables in `ROUTING_AGENTS.md`.
+> This was a parked alternative, kept so the option is not lost. It was **never built**: the project
+> instead shipped **[HLD 004](../../../hlds/004-codex-to-openai-sdk-transformer/README.md)** (proxy-side
+> normalization via removal, now Completed), which supersedes this sketch and the sibling
+> [LADR-006](LADR-006-no-in-proxy-tool-name-sanitization.md). Kept for history.
 
 ## Context
 

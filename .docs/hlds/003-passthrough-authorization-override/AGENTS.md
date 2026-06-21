@@ -27,7 +27,7 @@ admin-authed) that forces the **passthrough** path to send the dialect's **activ
 - **The control surface is privileged.** Toggle endpoints require `AdminPolicy` (`X-Admin-Api-Key`); the
   proxy `/v1/*` endpoints stay key-less (NFR-002). Use `PUT`/`DELETE` (and `GET` to read) — never a `GET`
   that mutates.
-- LADRs are Draft — flag deviations rather than silently overriding.
+- HLD is Completed (implemented + tested); LADRs are Accepted/load-bearing — flag deviations rather than silently overriding.
 
 ## Architecture Decisions
 
@@ -62,3 +62,4 @@ Measurable NFRs live in [`./nfrs/`](./nfrs/). Constraints that change how code i
 | :---- | :---- | :---- |
 | 2026-06-17 | HLD authored — in-memory per-dialect passthrough Bearer override; PUT/DELETE/GET control; passthrough-only; fail-closed. | [NO-TICKET] |
 | 2026-06-17 | Implemented per the approved plan (Application switch + slices, Infrastructure force-Bearer, Host admin endpoints, L0+L2 tests). LADRs 001–005 remain **Draft** — recommend promotion to **Prototype** on review (not flipped here). | [NO-TICKET] |
+| 2026-06-21 | HLD → **Completed**; LADRs 001–005 + NFRs 001–003 rolled **Draft → Accepted** (shipped + tested). | [NO-TICKET] |

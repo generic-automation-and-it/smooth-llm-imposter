@@ -1,6 +1,6 @@
 # LADR-04: Convert compatible Structured Outputs shape
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

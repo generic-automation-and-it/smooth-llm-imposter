@@ -1,6 +1,6 @@
 # LADR-03: Per-provider opt-in, off by default
 
-**Status:** Prototype
+**Status:** Accepted
 
 <!-- Status lifecycle: Draft → Prototype → Accepted. Also: "Superseded by LADR-MM", "Deprecated". -->
 

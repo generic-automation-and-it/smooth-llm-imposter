@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | In Discovery |
+| **Status** | Completed |
 | **Owner** | TBD (resolve before Accepted) |
 | **Tracker** | TBD ([NO-TICKET] at time of authoring) |
-| **Last updated** | 2026-06-17 |
+| **Last updated** | 2026-06-21 |
 
 > Discovery / prototyping HLD. This document delivers **intent + spec** — what we are building
 > and why, the decisions behind it, and the quality bar it must meet. It does **not** contain an

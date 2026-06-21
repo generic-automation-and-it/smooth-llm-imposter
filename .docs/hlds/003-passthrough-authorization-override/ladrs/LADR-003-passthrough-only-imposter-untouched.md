@@ -1,6 +1,6 @@
 # LADR-003: Override applies to the passthrough path only; imposter routes keep config auth
 
-**Status:** Draft
+**Status:** Accepted
 
 <!-- Reaffirms HLD 002 LADR-004 for this new switch. -->
 

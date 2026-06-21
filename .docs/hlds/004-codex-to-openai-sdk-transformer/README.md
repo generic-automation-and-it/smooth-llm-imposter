@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Status** | In Discovery |
+| **Status** | Completed |
 | **Owner** | Routing feature (@generik0) |
 | **Tracker** | [Issue #19 — Codex tool-name 400 on opencode/Moonshot](https://github.com/generic-automation-and-it/smooth-llm-imposter/issues/19) |
-| **Last updated** | 2026-06-20 |
+| **Last updated** | 2026-06-21 |
 
 > Discovery / prototyping HLD. This document delivers **intent + spec** — what we are
 > building and why, the decisions behind it, and the quality bar it must meet. It does

@@ -31,7 +31,7 @@ clients work against strict upstreams. Intent in README, decisions in `ladrs/`, 
   `OPENCODE_API_KEY`), never in the hermetic L0/L2 `pr-gate`; the gate stays **neutral** when the
   secret is absent (fork PRs) and never logs the key (LADR-04). Don't add external network/secrets
   to L0/L2.
-- LADRs are Prototype/Draft status — flag deviations rather than silently overriding.
+- HLD is Completed (implemented + tested); LADRs are load-bearing — flag deviations rather than silently overriding.
 
 ## Architecture Decisions
 
@@ -75,3 +75,4 @@ Measurable NFRs live in [`./nfrs/`](./nfrs/). Constraints that change how code i
 | 2026-06-20 | Added `examples/upstream-tool-validation.md` eval. Empirically: upstream requires `tools[].type` ∈ {function, plugin} and `function.name` non-empty + `[A-Za-z0-9_-]` (no dots); leading `_` is tolerated. Root cause is unsupported tool *types* + dotted/empty names — **not** leading underscores. | #19 |
 | 2026-06-20 | Eval matrix completed (P4–P7): name rule refined to `^[A-Za-z_][A-Za-z0-9_-]*$` (leading digit rejected, P5); `plugin` type unusable as a minimal shape (P6, TBD); normalized toolset accepted (P7→200). Added LADR-04 (L3 `pr_evals_gate`) + NFR-04 (conformance). | #19 |
 | 2026-06-20 | Added **LADR-05** + **NFR-05**: the `/responses`→Chat downgrade is now **bidirectional** — the Chat response stream is translated back to Responses events (incremental, never buffered). Found while implementing #19: a Responses-mode client (Codex) got a 200 it couldn't parse because the downgrade only rewrote the request. Amends LADR-02; narrows HLD 001 LADR-003 to "no buffer/replay, transparent routes untouched". Design-only; implementation follows. | #19 |
+| 2026-06-21 | Status → **Completed** — normalizer, request downgrade, and response stream bridge shipped in `src` (Routing + Normalization). | #19 |

@@ -29,7 +29,7 @@ downgrade; intent is in README, decisions in `ladrs/`, quality spec in `nfrs/`.
   no stateless Chat equivalent; reject them on the downgrade path.
 - **Structured Outputs need shape conversion.** Compatible Responses `text.format` maps to Chat
   `response_format`; unsupported formats fail fast.
-- LADRs are Draft status — flag deviations rather than silently overriding.
+- HLD is Completed (implemented + tested); LADRs are load-bearing — flag deviations rather than silently overriding.
 
 ## Architecture Decisions
 
@@ -67,3 +67,4 @@ Measurable NFRs live in [`./nfrs/`](./nfrs/). Constraints that change how code i
 | :---- | :---- | :---- |
 | 2026-06-20 | HLD authored for strict-upstream failure on orphaned prior-turn tool calls. | #19 |
 | 2026-06-20 | Added OpenAI migration-guide gap analysis for typed Items, state pointers, and Structured Outputs. | #19 |
+| 2026-06-21 | Status → **Completed** — tool-history adjacency normalization (orphan `function_call`/`function_call_output` handling) shipped in `OpenAiRequestTransformer`. | #19 |

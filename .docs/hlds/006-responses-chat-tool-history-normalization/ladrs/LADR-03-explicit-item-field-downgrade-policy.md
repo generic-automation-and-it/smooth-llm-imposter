@@ -1,6 +1,6 @@
 # LADR-03: Classify every Responses Item and field before downgrade
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

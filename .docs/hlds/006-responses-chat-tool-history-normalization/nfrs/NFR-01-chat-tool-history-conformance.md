@@ -1,6 +1,6 @@
 # NFR-01: Chat tool-history conformance
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Requirement
 
