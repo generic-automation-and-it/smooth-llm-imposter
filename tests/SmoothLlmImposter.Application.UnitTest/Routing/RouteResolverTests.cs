@@ -15,6 +15,9 @@ public class RouteResolverTests
     private static ProviderOptions OpenAi(string name, bool isDefault = false, params ModelMappingOptions[] models) =>
         new() { Name = name, Dialect = "openai", BaseUrl = "https://" + name + ".example", IsDefault = isDefault, Models = [.. models] };
 
+    private static ProviderOptions Anthropic(string name, bool isDefault = false, params ModelMappingOptions[] models) =>
+        new() { Name = name, Dialect = "anthropic", BaseUrl = "https://" + name + ".example", IsDefault = isDefault, Models = [.. models] };
+
     [Fact]
     public void Exact_mapping_is_an_imposter_route_with_rewritten_model()
     {
@@ -71,5 +74,28 @@ public class RouteResolverTests
     {
         RouteResolver resolver = Build(OpenAi("openai-official", isDefault: true));
         Should.Throw<RoutingException>(() => resolver.Resolve(ApiDialect.OpenAi, " "));
+    }
+
+    [Fact]
+    public void Personal_provider_captures_real_opus_id_with_canonical_glob()
+    {
+        // Guards the LADR-04 From-glob decision: the canonical "claude-opus-4-7*" matches a real inbound
+        // Opus id (claude-opus-4-7-20250930), routing it to the operator's personal subscription and
+        // pinning it to their chosen Opus version (To = claude-opus-4-8 — capture within the Opus family,
+        // not a cross-vendor remap).
+        RouteResolver resolver = Build(
+            Anthropic("anthropic-personal", models: new ModelMappingOptions { From = "claude-opus-4-7*", To = "claude-opus-4-8", Caching = true }),
+            Anthropic("anthropic-default", isDefault: true));
+
+        RouteDecision decision = resolver.Resolve(ApiDialect.Anthropic, "claude-opus-4-7-20250930");
+
+        decision.IsImposter.ShouldBeTrue();
+        decision.Provider.Name.ShouldBe("anthropic-personal");
+        decision.TargetModel.ShouldBe("claude-opus-4-8");
+        decision.CachingEnabled.ShouldBeTrue();
+
+        // The shorthand the worktask flagged (opus-4.7*) would not have matched this inbound id, which is
+        // why the canonical claude-opus-4-7* glob is the correct From.
+        ModelMatcher.Matches("opus-4.7*", "claude-opus-4-7-20250930").ShouldBeFalse();
     }
 }

@@ -8,7 +8,10 @@ namespace SmoothLlmImposter.Application.Features.Routing;
 /// Layers the conventional per-provider environment surface (HLD 007, LADR-02/03) onto the bound
 /// <see cref="ImposterOptions"/>. For a provider keyed <c>opencode-go</c> the env prefix is
 /// <c>OPENCODE_GO_</c>, and conventional suffixes map onto the provider's scalar fields
-/// (<c>OPENCODE_GO_API_KEY</c> → <see cref="ProviderOptions.Secret"/>, etc.). Dialect-suffixed sibling
+/// (<c>OPENCODE_GO_API_KEY</c> → <see cref="ProviderOptions.Secret"/>, etc.). The secret accepts a second,
+/// auth-typed spelling — <c>_AUTHORIZATION_BEARER</c> (e.g. <c>ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER</c>
+/// for a Bearer subscription token) — that also fills <see cref="ProviderOptions.Secret"/>; <c>_API_KEY</c>
+/// is canonical and wins if both are set. Dialect-suffixed sibling
 /// providers can share the base provider's secret convention when both are configured
 /// (<c>openrouter-openai</c> and <c>openrouter-anthropic</c> may use <c>OPENROUTER_API_KEY</c>, while
 /// retaining their own bound <c>AuthScheme</c>).
@@ -42,6 +45,11 @@ internal sealed class ImposterOptionsPostConfigure(
     internal static readonly IReadOnlyList<ConventionalField> Fields =
     [
         new("_API_KEY", nameof(ProviderOptions.Secret), static (p, v) => p.Secret = v),
+        // Auth-typed alias for the same Secret slot: a Bearer subscription token (e.g. from
+        // `claude setup-token` on a personal provider) reads more naturally as
+        // <NAME>_AUTHORIZATION_BEARER than as <NAME>_API_KEY. Both suffixes target Secret; _API_KEY is
+        // canonical and wins if both are set for one provider (first-present-wins guard in PostConfigure).
+        new("_AUTHORIZATION_BEARER", nameof(ProviderOptions.Secret), static (p, v) => p.Secret = v),
         new("_BASE_URL", nameof(ProviderOptions.BaseUrl), static (p, v) => p.BaseUrl = v),
         new("_AUTH_SCHEME", nameof(ProviderOptions.AuthScheme), static (p, v) => p.AuthScheme = v),
         new("_DIALECT", nameof(ProviderOptions.Dialect), static (p, v) => p.Dialect = v),
@@ -64,12 +72,27 @@ internal sealed class ImposterOptionsPostConfigure(
                 continue;
             }
 
+            // Secret is reachable via two suffixes (_API_KEY canonical, _AUTHORIZATION_BEARER alias).
+            // Apply the first present in Fields order and ignore the rest, so the canonical var always
+            // wins over the alias when an operator (mis)configures both for one provider.
+            bool secretApplied = false;
+
             foreach (ConventionalField field in Fields)
             {
                 (string variable, string? value) = ResolveConventionalValue(key, options, field, prefix);
                 if (value is null)
                 {
                     continue;
+                }
+
+                if (field.PropertyName == nameof(ProviderOptions.Secret))
+                {
+                    if (secretApplied)
+                    {
+                        continue;
+                    }
+
+                    secretApplied = true;
                 }
 
                 if (field.PropertyName == nameof(ProviderOptions.IsDefault))

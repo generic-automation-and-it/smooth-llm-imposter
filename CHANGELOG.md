@@ -5,6 +5,16 @@ All notable changes to SmoothLlmImposter are documented here.
 ## [Unreleased]
 
 ### Added
+- **Personal-subscription providers (HLD 007 LADR-04).** Added two named providers to `appsettings.json` for
+  the "company subscription for daily use, personal for private use" split: `anthropic-personal` captures
+  `claude-opus-4-7*` and serves it as `claude-opus-4-8` on the operator's own Anthropic subscription token
+  (`AuthScheme: Bearer`, committed `Secret` empty — supplied via env), and `openai-personal` is an inert
+  codex passthrough template (no `Models` until the operator adds them). Neither is `IsDefault`.
+  `openrouter-anthropic`'s glob narrowed to `claude-opus-4-6*` so the Opus globs stay distinct.
+  - The conventional env surface gains an auth-typed secret alias **`_AUTHORIZATION_BEARER`** (→ `Secret`),
+    so a Bearer subscription token reads as `ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER` /
+    `OPENAI_PERSONAL_AUTHORIZATION_BEARER`. It is an alias of `_API_KEY`; `_API_KEY` is canonical and wins
+    if both are set for one provider (first-present-wins).
 - **Codex → OpenAI-SDK request normalization (HLD 004).** New per-provider `RequestNormalization` config
   (`codex_to_openai_sdk` / `none`) adds a proxy-side, **request-only** normalization seam on matched OpenAI
   imposter routes so vanilla Codex clients work against strict OpenAI-compatible upstreams (e.g.
