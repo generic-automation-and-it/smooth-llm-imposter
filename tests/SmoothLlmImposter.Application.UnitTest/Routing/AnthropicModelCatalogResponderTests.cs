@@ -1,5 +1,4 @@
 using System.Text.Json.Nodes;
-using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Features.Routing;
 
 namespace SmoothLlmImposter.Application.UnitTest.Routing;
@@ -7,7 +6,7 @@ namespace SmoothLlmImposter.Application.UnitTest.Routing;
 public class AnthropicModelCatalogResponderTests
 {
     private static AnthropicModelCatalogResponder Build(params ProviderOptions[] providers) =>
-        new(new ProviderCatalog(Options.Create(new ImposterOptions
+        new(new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
         {
             Providers = providers.ToDictionary(static p => p.Name!, StringComparer.Ordinal)
         })));
@@ -51,6 +50,22 @@ public class AnthropicModelCatalogResponderTests
 
         ids.ShouldBe(["claude-sonnet-4-6"]);
         ids.ShouldNotContain("grok-code");
+    }
+
+    [Fact]
+    public void Disabled_providers_are_excluded_from_the_models_catalogue()
+    {
+        ProviderOptions disabled = Anthropic("disabled", models: [Map("alias-x", "hidden-model")]);
+        disabled.Enabled = false;
+
+        AnthropicModelCatalogResponder responder = Build(
+            disabled,
+            Anthropic("enabled", models: [Map("alias-y", "visible-model")]));
+
+        string[] ids = Ids(Parse(responder.BuildModelsResponse()));
+
+        ids.ShouldContain("visible-model");
+        ids.ShouldNotContain("hidden-model");
     }
 
     [Fact]

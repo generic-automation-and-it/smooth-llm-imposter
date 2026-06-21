@@ -48,6 +48,7 @@ app.UseSerilogRequestLogging();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapImposterEndpoints();
+app.MapProviderConfigurationEndpoints();
 app.MapCredentialAdminEndpoints();
 app.MapAuthorizationOverrideEndpoints();
 

@@ -13,7 +13,7 @@ internal sealed class ProviderCatalog : IProviderCatalog
 {
     private readonly Dictionary<ApiDialect, List<ProviderRoute>> _byDialect = new();
 
-    public ProviderCatalog(IOptions<ImposterOptions> options)
+    public ProviderCatalog(IOptionsSnapshot<ImposterOptions> options)
     {
         foreach ((string key, ProviderOptions provider) in options.Value.Providers)
         {
@@ -36,7 +36,8 @@ internal sealed class ProviderCatalog : IProviderCatalog
                     .ToArray(),
                 upstreamApi,
                 authScheme,
-                ResolveNormalization(provider.RequestNormalization, upstreamApi));
+                ResolveNormalization(provider.RequestNormalization, upstreamApi),
+                provider.Enabled);
 
             if (!_byDialect.TryGetValue(dialect, out List<ProviderRoute>? routes))
             {
@@ -60,6 +61,11 @@ internal sealed class ProviderCatalog : IProviderCatalog
                 : RequestNormalization.None
             : RequestNormalizationParser.Parse(configured);
 
+    // Disabled providers are invisible to every resolution path — imposter matching, default passthrough,
+    // and the local /v1/models catalogue (HLD 008 LADR-03). Filtering here is the single source of truth, so
+    // downstream consumers (resolver, model responders) never surface a disabled provider.
     public IReadOnlyList<ProviderRoute> ProvidersFor(ApiDialect dialect) =>
-        _byDialect.TryGetValue(dialect, out List<ProviderRoute>? routes) ? routes : [];
+        _byDialect.TryGetValue(dialect, out List<ProviderRoute>? routes)
+            ? routes.Where(static route => route.Enabled).ToArray()
+            : [];
 }

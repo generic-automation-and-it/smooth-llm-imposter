@@ -1,5 +1,4 @@
 using System.Text.Json.Nodes;
-using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Features.Routing;
 
 namespace SmoothLlmImposter.Application.UnitTest.Routing;
@@ -7,7 +6,7 @@ namespace SmoothLlmImposter.Application.UnitTest.Routing;
 public class OpenAiModelCatalogResponderTests
 {
     private static OpenAiModelCatalogResponder Build(params ProviderOptions[] providers) =>
-        new(new ProviderCatalog(Options.Create(new ImposterOptions
+        new(new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
         {
             Providers = providers.ToDictionary(static p => p.Name!, StringComparer.Ordinal)
         })));
@@ -112,5 +111,22 @@ public class OpenAiModelCatalogResponderTests
             OpenAi("opencode", secret: "sk-super-secret-key", models: [Map("gpt5.4", "grok-code")]));
 
         responder.BuildOpenAiModelsResponse().ShouldNotContain("sk-super-secret-key");
+    }
+
+    [Fact]
+    public void Disabled_providers_are_excluded_from_the_models_catalogue()
+    {
+        ProviderOptions disabled = OpenAi("disabled", models: [Map("gpt5.4", "hidden-model")]);
+        disabled.Enabled = false;
+
+        OpenAiModelCatalogResponder responder = Build(
+            disabled,
+            OpenAi("enabled", models: [Map("gpt5.5", "visible-model")]));
+
+        string[] ids = [.. JsonNode.Parse(responder.BuildOpenAiModelsResponse())!.AsObject()["data"]!
+            .AsArray().Select(m => m!["id"]!.GetValue<string>())];
+
+        ids.ShouldContain("visible-model");
+        ids.ShouldNotContain("hidden-model");
     }
 }

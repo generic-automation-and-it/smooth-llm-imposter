@@ -97,9 +97,10 @@ public sealed class OpencodeToolNormalizationEvalTests
             IsDefault: false,
             AnthropicVersion: null,
             Models: [],
-            OpenAiUpstreamApi.ChatCompletions,
+            OpenAiUpstreamApi: OpenAiUpstreamApi.ChatCompletions,
             AuthScheme: null,
-            normalization);
+            RequestNormalization: normalization,
+            Enabled: true);
 
     private static async Task<HttpResponseMessage> PostAsync(string body, string apiKey)
     {

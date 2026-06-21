@@ -70,7 +70,7 @@ public class ImposterOptionsPostConfigureTests
     {
         foreach (ImposterOptionsPostConfigure.ConventionalField field in ImposterOptionsPostConfigure.Fields)
         {
-            bool isBool = field.Suffix == "_IS_DEFAULT";
+            bool isBool = field.PropertyName is nameof(ProviderOptions.IsDefault) or nameof(ProviderOptions.Enabled);
             string value = isBool ? "true" : "v" + field.Suffix;
 
             var (options, _) = Resolve(
@@ -182,6 +182,17 @@ public class ImposterOptionsPostConfigureTests
             new ProviderOptions { Dialect = "openai", BaseUrl = "https://o.example", IsDefault = true });
 
         options.Providers["opencode-go"].IsDefault.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Enabled_false_overrides_bound_true()
+    {
+        var (options, _) = Resolve(
+            new Dictionary<string, string?> { ["OPENCODE_GO_ENABLED"] = "false" },
+            "opencode-go",
+            new ProviderOptions { Dialect = "openai", BaseUrl = "https://o.example", Enabled = true });
+
+        options.Providers["opencode-go"].Enabled.ShouldBeFalse();
     }
 
     [Fact]

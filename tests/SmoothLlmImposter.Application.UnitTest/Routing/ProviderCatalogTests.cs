@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Domain.Routing;
 
@@ -8,7 +7,7 @@ public class ProviderCatalogTests
 {
     private static ProviderRoute BuildOpenAi(string? upstreamApi, string? normalization)
     {
-        var catalog = new ProviderCatalog(Options.Create(new ImposterOptions
+        var catalog = new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
         {
             Providers =
             {
@@ -41,7 +40,7 @@ public class ProviderCatalogTests
     [Fact]
     public void Route_name_uses_key_when_name_unset()
     {
-        var catalog = new ProviderCatalog(Options.Create(new ImposterOptions
+        var catalog = new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
         {
             Providers = { ["opencode-go"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://o.example" } }
         }));
@@ -52,7 +51,7 @@ public class ProviderCatalogTests
     [Fact]
     public void Route_name_uses_explicit_name_override_over_key()
     {
-        var catalog = new ProviderCatalog(Options.Create(new ImposterOptions
+        var catalog = new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
         {
             Providers = { ["opencode-go"] = new ProviderOptions { Name = "display", Dialect = "openai", BaseUrl = "https://o.example" } }
         }));
@@ -67,11 +66,11 @@ public class ProviderCatalogTests
         static ProviderOptions P(string url, bool isDefault = false) =>
             new() { Dialect = "openai", BaseUrl = url, IsDefault = isDefault, AuthScheme = "Bearer" };
 
-        var first = new ProviderCatalog(Options.Create(new ImposterOptions
+        var first = new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
         {
             Providers = { ["a"] = P("https://a.example", isDefault: true), ["b"] = P("https://b.example") }
         }));
-        var second = new ProviderCatalog(Options.Create(new ImposterOptions
+        var second = new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
         {
             Providers = { ["b"] = P("https://b.example"), ["a"] = P("https://a.example", isDefault: true) }
         }));

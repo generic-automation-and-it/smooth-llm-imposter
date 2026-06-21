@@ -51,6 +51,9 @@ public sealed class ProviderOptions
     /// <summary>When no model mapping matches, the dialect's default provider receives the request unchanged.</summary>
     public bool IsDefault { get; set; }
 
+    /// <summary>When false, the provider remains configured but is excluded from all routing resolution.</summary>
+    public bool Enabled { get; set; } = true;
+
     /// <summary>Optional override for the <c>anthropic-version</c> header (anthropic dialect only).</summary>
     public string? AnthropicVersion { get; set; }
 

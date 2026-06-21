@@ -17,6 +17,17 @@ public class ImposterOptionsValidatorTests
         _validator.Validate(null, Options(Valid("a", isDefault: true))).Succeeded.ShouldBeTrue();
 
     [Fact]
+    public void Disabled_default_can_coexist_with_an_enabled_default_for_the_same_dialect()
+    {
+        // "At most one default per dialect" counts only ENABLED defaults (HLD 008): a disabled default must
+        // not collide with the live one. Re-enabling it into a duplicate is gated by the admin mutation validator.
+        var live = ("live", new ProviderOptions { Dialect = "openai", BaseUrl = "https://live.example", IsDefault = true });
+        var shadow = ("shadow", new ProviderOptions { Dialect = "openai", BaseUrl = "https://shadow.example", IsDefault = true, Enabled = false });
+
+        _validator.Validate(null, Options(live, shadow)).Succeeded.ShouldBeTrue();
+    }
+
+    [Fact]
     public void Empty_providers_fails() =>
         _validator.Validate(null, Options()).Failed.ShouldBeTrue();
 
