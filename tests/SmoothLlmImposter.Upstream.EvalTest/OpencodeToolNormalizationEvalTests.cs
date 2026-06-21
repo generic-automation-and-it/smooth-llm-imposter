@@ -95,12 +95,12 @@ public sealed class OpencodeToolNormalizationEvalTests
             new Uri("https://opencode.ai/zen/go"),
             Secret: null,
             IsDefault: false,
-            Enabled: true,
             AnthropicVersion: null,
             Models: [],
             OpenAiUpstreamApi: OpenAiUpstreamApi.ChatCompletions,
             AuthScheme: null,
-            RequestNormalization: normalization);
+            RequestNormalization: normalization,
+            Enabled: true);
 
     private static async Task<HttpResponseMessage> PostAsync(string body, string apiKey)
     {
