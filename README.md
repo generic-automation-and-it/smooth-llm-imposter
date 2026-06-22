@@ -108,7 +108,7 @@ HLDs under `.docs/hlds/`:
 | HLD | Status | Covers |
 |---|---|---|
 | [001 — LLM Imposter Routing](.docs/hlds/001-llm-imposter-routing/README.md) | Completed | Core routing — read `model`, match provider, rewrite, forward, optional cache injection |
-| [002 — Credential Persistence & Overrides](.docs/hlds/002-credential-persistence-overrides/README.md) | Superseded by 008 | Opt-in PostgreSQL persistence for passthrough-credential overrides; amends HLD 001 (DB/dialect-keying superseded by HLD 008) |
+| [002 — Credential Persistence & Overrides](.docs/hlds/002-credential-persistence-overrides/README.md) | Superseded by 008 | Opt-in PostgreSQL persistence for passthrough-credential overrides; amends HLD 001. LADR-001 (mandatory DB) and LADR-002 (TPH dialect discriminator) superseded by HLD 008; LADR-003 (`IDataProtector` encryption, opt-in DB only), LADR-004 (passthrough-only), LADR-005 (Mediator admin CRUD) remain in force |
 | [003 — Passthrough Authorization Override](.docs/hlds/003-passthrough-authorization-override/README.md) | Completed | Force the active stored Bearer over the caller's credential on passthrough routes (made provider-addressable by HLD 008) |
 | [004 — Codex-to-OpenAI-SDK Transformer](.docs/hlds/004-codex-to-openai-sdk-transformer/README.md) | Completed | Transform Codex `/responses` payloads to the OpenAI Chat Completions SDK shape for compatible upstreams |
 | [005 — OpenAI /models Endpoint Aggregation](.docs/hlds/005-models-endpoint-aggregation/README.md) | Completed | `GET /openai/v1/models` returns the distinct union of configured `to` models, synthesized locally |

@@ -11,26 +11,27 @@ No ER or class diagram: this design adds **no** entity or type to HLD 002's data
 ## System Context (C1)
 
 The router exposes key-less proxy endpoints to LLM callers and a separate admin-authorized control surface to
-an operator. This HLD adds one operator control — the per-dialect authorization override — that influences how
-the router presents credentials to upstreams on the **passthrough** path only. Stored credentials live in
-PostgreSQL (HLD 002); the override switch itself is in-memory.
+an operator. This HLD adds one operator control — the per-`(dialect, provider)` authorization override (made
+provider-addressable by HLD 008) — that influences how the router presents credentials to upstreams on the
+**passthrough** path only. Stored credentials live in an in-memory store by default (encrypted PostgreSQL is
+opt-in — HLD 008 LADR-05); the override switch itself is in-memory.
 
 ```mermaid
 C4Context
     title Passthrough Authorization Override — System Context
 
-    Person(operator, "Operator", "Flips the per-dialect override via curl (admin key).")
+    Person(operator, "Operator", "Flips the per-(dialect, provider) override via curl (admin key).")
     Person(caller, "LLM Caller", "Claude Code / OpenAI SDK sending dialect requests.")
 
     System(router, "SmoothLlmImposter Router", "Same-dialect router: imposter rewrite or passthrough; streams responses.")
 
-    SystemDb_Ext(store, "Credential Store (PostgreSQL)", "Encrypted stored credentials (HLD 002). Active credential per dialect.")
+    SystemDb_Ext(store, "Credential Store", "Stored credentials: in-memory default, encrypted PostgreSQL opt-in (HLD 008 LADR-05). Active credential per (dialect, provider).")
     System_Ext(openai, "OpenAI-dialect upstream", "Receives passthrough/imposter requests.")
     System_Ext(anthropic, "Anthropic-dialect upstream", "Receives passthrough/imposter requests.")
 
     Rel(operator, router, "PUT/DELETE/GET /routing/{dialect}/{provider}/override-authorization", "HTTPS + X-Admin-Api-Key")
     Rel(caller, router, "POST /v1/* dialect requests", "HTTPS")
-    Rel(router, store, "Reads active credential (passthrough only)", "EF Core")
+    Rel(router, store, "Reads active credential (passthrough only)", "in-memory / EF Core")
     Rel(router, openai, "Forwards (Bearer when override ON, else config/stored scheme)", "HTTPS")
     Rel(router, anthropic, "Forwards (Bearer when override ON, else config/stored scheme)", "HTTPS")
 ```
