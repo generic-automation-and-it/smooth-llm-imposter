@@ -19,15 +19,20 @@ internal sealed class CredentialStore(ImposterDbContext dbContext) : ICredential
     public async Task<IReadOnlyList<ProviderCredential>> ListAsync(CancellationToken cancellationToken) =>
         await dbContext.ProviderCredentials
             .OrderBy(c => EF.Property<string>(c, "Dialect"))
+            .ThenBy(c => c.ProviderName)
             .ThenBy(c => c.Name)
             .ToArrayAsync(cancellationToken);
 
     public async Task<ProviderCredential?> GetAsync(Guid id, CancellationToken cancellationToken) =>
         await dbContext.ProviderCredentials.FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
-    public async Task<ProviderCredential?> GetActiveAsync(ApiDialect dialect, CancellationToken cancellationToken) =>
+    public async Task<ProviderCredential?> GetActiveAsync(ApiDialect dialect, string providerName, CancellationToken cancellationToken) =>
         await dbContext.ProviderCredentials
-            .FirstOrDefaultAsync(c => EF.Property<string>(c, "Dialect") == dialect.ToToken() && c.IsActive, cancellationToken);
+            .FirstOrDefaultAsync(
+                c => EF.Property<string>(c, "Dialect") == dialect.ToToken() &&
+                    c.ProviderName == providerName &&
+                    c.IsActive,
+                cancellationToken);
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -55,8 +60,9 @@ internal sealed class CredentialStore(ImposterDbContext dbContext) : ICredential
         await using IDbContextTransaction? transaction = await BeginTransactionIfSupportedAsync(cancellationToken);
 
         string dialect = EF.Property<string>(credential, "Dialect");
+        string providerName = credential.ProviderName;
         ProviderCredential[] siblings = await dbContext.ProviderCredentials
-            .Where(c => EF.Property<string>(c, "Dialect") == dialect)
+            .Where(c => EF.Property<string>(c, "Dialect") == dialect && c.ProviderName == providerName)
             .ToArrayAsync(cancellationToken);
 
         foreach (ProviderCredential sibling in siblings)

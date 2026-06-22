@@ -27,14 +27,15 @@ internal static class CredentialRequestHelpers
 
     public static ProviderCredential NewCredential(
         ApiDialect dialect,
+        string providerName,
         string name,
         string secretCiphertext,
         CredentialAuthScheme authScheme,
         string? baseUrlOverride,
         string? anthropicVersion) => dialect switch
     {
-        ApiDialect.OpenAi => new OpenAiCredential(name, secretCiphertext, authScheme, baseUrlOverride),
-        ApiDialect.Anthropic => new AnthropicCredential(name, secretCiphertext, authScheme, baseUrlOverride, anthropicVersion),
+        ApiDialect.OpenAi => new OpenAiCredential(providerName, name, secretCiphertext, authScheme, baseUrlOverride),
+        ApiDialect.Anthropic => new AnthropicCredential(providerName, name, secretCiphertext, authScheme, baseUrlOverride, anthropicVersion),
         _ => throw new ArgumentOutOfRangeException(nameof(dialect), dialect, "Unsupported provider dialect.")
     };
 }

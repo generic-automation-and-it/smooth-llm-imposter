@@ -210,28 +210,26 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 
 ## Credential Overrides
 
-- **HLD 002 — credential persistence & overrides** (`.docs/hld/002-credential-persistence-overrides/`, status
-  *Accepted*) reintroduced EF Core + PostgreSQL for stored **passthrough** credentials and added the
-  Mediator-based `/admin/credentials` API. Routing has exactly **one credential seam**: after no-match →
-  default/passthrough resolution, `ImposterRouter` consults `ICredentialStore` for the active dialect credential
-  and passes a decrypted `RouteCredentialOverride` to the forwarder. **Do not** extend this to matched-imposter
-  routes — those stay config-key-only and DB-free (HLD 002 LADR-004). The hot-path non-negotiables above are
-  unchanged; the admin API uses Mediator/FluentValidation while routing stays raw (HLD 002 LADR-005).
-- **Persistence is opt-in.** `AddInfrastructure` wires EF Core + `CredentialStore` **only** when
-  `ConnectionStrings:ImposterDb` is set; otherwise it registers a `NullCredentialStore`. This keeps the
-  stateless/key-less default booting with **no database**: the passthrough seam resolves a `null` credential
-  (then forwards caller auth, above) instead of opening a connection. The credential-admin and authorization-
-  override features simply require a connection string to be available.
+- **HLD 008 — provider-keyed credentials** supersedes HLD 002's dialect-keyed persistence model. Routing has
+  exactly **one credential seam**: after no-match → default/passthrough resolution, `ImposterRouter` consults
+  `ICredentialStore` for the active `(dialect, decision.Provider.CredentialProviderName)` credential and passes a decrypted
+  `RouteCredentialOverride` to the forwarder. **Do not** extend this to matched-imposter routes — those stay
+  config-key-only and DB-free (HLD 002 LADR-004). The hot-path non-negotiables above are unchanged; the admin
+  API uses Mediator/FluentValidation while routing stays raw (HLD 002 LADR-005).
+- **Credential persistence is optional.** `AddInfrastructure` wires EF Core + `CredentialStore` **only** when
+  `ConnectionStrings:ImposterDb` is set; otherwise it registers `InMemoryCredentialStore`. Credential CRUD,
+  activation, and authorization override work with **no database**; the in-memory backend is ephemeral and the
+  EF backend keeps HLD 002 encryption-at-rest.
 
 ## Authorization Override (HLD 003)
 
 - **`IAuthorizationOverrideSwitch`** (`Features/AuthorizationOverride/`, in-memory singleton, default OFF) is read
-  on **exactly one line** — `ResolvePassthroughCredentialAsync`, the same seam above. When ON for a dialect, the
-  returned `RouteCredentialOverride` carries **`ForceBearer = true`**, and the forwarder presents the active
-  credential's secret as `Authorization: Bearer` while omitting `x-api-key`, regardless of the stored `AuthScheme`.
+  on **exactly one line** — `ResolvePassthroughCredentialAsync`, the same seam above. When ON for the resolved
+  provider, the returned `RouteCredentialOverride` carries **`ForceBearer = true`**, and the forwarder presents
+  the active credential's secret as `Authorization: Bearer` while omitting `x-api-key`, regardless of the stored `AuthScheme`.
   Because the imposter branch returns `null` before this method, it never reads the switch or the store (LADR-003) —
   a throwing-spy unit test enforces this.
-- **Fail closed:** override ON + no active credential ⇒ `RoutingException(statusCode: 403)`, surfaced as a
+- **Fail closed:** provider override ON + no active credential ⇒ `RoutingException(statusCode: 403)`, surfaced as a
   dialect-shaped `permission_error` (`RoutingEndpoints.ErrorTypeFor`). Never falls back to `x-api-key`/config key
   (LADR-005). Arm-time refusal (no active credential at `PUT`) is handled in the Mediator slice, not here.
 - The switch adds **no** DB read of its own — it gates HLD 002's existing active-credential lookup (NFR-003).
@@ -262,7 +260,7 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-17 | Implemented HLD 003 passthrough authorization override: in-memory per-dialect force-Bearer switch read only on the passthrough seam, fail-closed 403 (`permission_error`), imposter path untouched. | HLD 003 |
 | 2026-06-17 | Renamed provider config key `Api` → `Dialect` (`ImposterOptions.ProviderOptions.Dialect`) to match the `ApiDialect` ubiquitous language; breaking config change — `Imposter__Providers__N__Api` is no longer bound. | — |
 | 2026-06-17 | Forwarder is now a transparent proxy: relays the caller's full inbound header set (`CallerHeaders`) verbatim minus a fixed hop-by-hop/content/auth set — so `anthropic-beta` (and the matching `context_management` body field), vendor `x-*`, and the caller's `anthropic-version` reach the upstream. Only the auth header is managed: key-less passthrough forwards the caller's own `Authorization`/`x-api-key`; imposter routes use the provider key; HLD-003 override forces the active stored Bearer. | — |
-| 2026-06-17 | Persistence is opt-in: `AddInfrastructure` registers a `NullCredentialStore` when `ConnectionStrings:ImposterDb` is unset, so the stateless default boots without PostgreSQL. Fixed EF discriminator NRE (shadow column `ProviderDialect` → `Dialect`) that crashed model build on the passthrough path. | HLD 002 |
+| 2026-06-17 | Persistence is opt-in: `AddInfrastructure` registered a no-op store when `ConnectionStrings:ImposterDb` was unset, so the stateless default booted without PostgreSQL. Fixed EF discriminator NRE (shadow column `ProviderDialect` → `Dialect`) that crashed model build on the passthrough path. | HLD 002 |
 | 2026-06-19 | Added dialect-prefixed routing (`/openai/{**path}`, `/anthropic/{**path}`, any method): prefix selects dialect, tail forwarded verbatim — disambiguates shared paths like `/v1/models`. Body-less requests (`GET /v1/models`) passthrough to the dialect default via `PlanPassthroughAsync`/`ResolveDefault` (no model to match). Forwarder now forwards the inbound `HttpMethod` with a nullable body. Legacy unprefixed `POST /v1/*` retained; unprefixed `/v1/models` left unmapped (ambiguous). | — |
 | 2026-06-20 | Added `OpenAiUpstreamApi: chat_completions` for OpenAI-compatible upstreams without `/responses`; matched OpenAI imposter routes can downgrade `/responses` requests to `/v1/chat/completions` and convert common Responses payload fields to chat `messages`. | — |
 | 2026-06-20 | Renamed provider config `ApiKey` → `Secret` and added `AuthScheme` (`Bearer`/`ApiKey`), decoupling auth scheme from `Dialect`. Forwarder resolves `override.AuthScheme ?? provider.AuthScheme ?? dialect default` (openai → Bearer, anthropic → ApiKey) via a single unified path; this fixes openai-dialect upstreams (opencode) that require `x-api-key`. Breaking config change — no `ApiKey` alias. | — |
@@ -285,3 +283,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-20 | HLD 007 review follow-up: HLD 001 examples now show the required name-keyed provider object, Conductor env capture keeps structured prefixes as prefix matches, and `_IS_DEFAULT` post-configure uses the parsed bool directly. | #42 review |
 | 2026-06-21 | Implemented HLD 008 Phase 1 runtime provider-config CRUD: `IProviderRegistry` seeds from resolved config/env once, `IOptionsSnapshot` overlays runtime state per request scope, catalog/resolver/model responders are scoped, `/admin/providers` is secret-free CRUD plus enable/disable, and disabled providers are excluded from imposter/default resolution. | #49 |
 | 2026-06-21 | HLD 008 Phase 1 review (#51): disabled providers are now also excluded from the local `/v1/models` catalogue (`ProviderCatalog.ProvidersFor` filters in one place); `DeleteProvider` validates the post-delete registry (can't delete the last provider); `IProviderRegistry.TryGet` returns a nullable `out` with `[NotNullWhen(true)]`, `IsSeeded` is `volatile`, unused `TrySetEnabled` removed; `ProviderRoute.Enabled` moved to an optional trailing constructor param. | #51 |
+| 2026-06-21 | HLD 008 Phase 2 provider-keyed credentials: `InMemoryCredentialStore` replaces no-DB no-op storage, EF adds `ProviderName`, active lookup keys by stable provider key, and authorization override routes accept `/routing/{dialect}/{provider}/override-authorization` with dialect-only → default. | #50 |

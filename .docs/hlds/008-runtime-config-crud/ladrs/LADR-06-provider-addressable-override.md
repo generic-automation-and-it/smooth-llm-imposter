@@ -1,6 +1,6 @@
 # LADR-06: Provider-Addressable Authorization-Override and Activation
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 
@@ -14,7 +14,8 @@ express *which* provider's auth to force or activate. The operator asked for the
 ## Decision
 
 **Make** the authorization-override and credential activation **provider-addressable**, e.g.
-`/routing/{dialect}/{provider}/override-authorization`. When a request names **only a dialect** (no
+`/routing/{dialect}/{provider}/override-authorization`, where `{provider}` is the stable provider dictionary key.
+When a request names **only a dialect** (no
 provider), it resolves to that dialect's **default** provider — preserving today's ergonomics for the common
 single-provider case. The **inbound proxy URLs are unchanged**: provider addressing is confined to the admin
 / routing-control surface; the data-plane proxy still routes by dialect endpoint + model-mapping → default.

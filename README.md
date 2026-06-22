@@ -108,13 +108,13 @@ HLDs under `.docs/hlds/`:
 | HLD | Status | Covers |
 |---|---|---|
 | [001 — LLM Imposter Routing](.docs/hlds/001-llm-imposter-routing/README.md) | Completed | Core routing — read `model`, match provider, rewrite, forward, optional cache injection |
-| [002 — Credential Persistence & Overrides](.docs/hlds/002-credential-persistence-overrides/README.md) | Superseded by 008 | Opt-in PostgreSQL persistence for passthrough-credential overrides; amends HLD 001 (DB/dialect-keying superseded by HLD 008) |
+| [002 — Credential Persistence & Overrides](.docs/hlds/002-credential-persistence-overrides/README.md) | Superseded by 008 | Opt-in PostgreSQL persistence for passthrough-credential overrides; amends HLD 001. LADR-001 (mandatory DB) and LADR-002 (TPH dialect discriminator) superseded by HLD 008; LADR-003 (`IDataProtector` encryption, opt-in DB only), LADR-004 (passthrough-only), LADR-005 (Mediator admin CRUD) remain in force |
 | [003 — Passthrough Authorization Override](.docs/hlds/003-passthrough-authorization-override/README.md) | Completed | Force the active stored Bearer over the caller's credential on passthrough routes (made provider-addressable by HLD 008) |
 | [004 — Codex-to-OpenAI-SDK Transformer](.docs/hlds/004-codex-to-openai-sdk-transformer/README.md) | Completed | Transform Codex `/responses` payloads to the OpenAI Chat Completions SDK shape for compatible upstreams |
 | [005 — OpenAI /models Endpoint Aggregation](.docs/hlds/005-models-endpoint-aggregation/README.md) | Completed | `GET /openai/v1/models` returns the distinct union of configured `to` models, synthesized locally |
 | [006 — Responses Chat Tool History Normalization](.docs/hlds/006-responses-chat-tool-history-normalization/README.md) | Completed | Normalize prior-turn Responses tool-call history so downgraded Chat requests satisfy strict upstream adjacency rules |
 | [007 — Named Provider Config & Conventional Env Overrides](.docs/hlds/007-named-provider-env-overrides/README.md) | Completed | Key providers by name (dictionary, not array) + conventional `<NAME>_<FIELD>` env overrides for stable, ergonomic config (made runtime-mutable by HLD 008) |
-| [008 — Runtime Config CRUD & Provider-Addressable Credentials](.docs/hlds/008-runtime-config-crud/README.md) | In Discovery | Runtime CRUD over the provider registry via `IOptionsSnapshot` (in-memory, not persisted) + `Enabled` flag; provider-keyed, settings-backed credentials with optional DB; provider-addressable auth-override. Supersedes HLD 002 LADR-001/002 |
+| [008 — Runtime Config CRUD & Provider-Addressable Credentials](.docs/hlds/008-runtime-config-crud/README.md) | Completed | Runtime CRUD over the provider registry via `IOptionsSnapshot` (in-memory, not persisted) + `Enabled` flag; provider-keyed, settings-backed credentials with optional DB; provider-addressable auth-override. Supersedes HLD 002 LADR-001 (mandatory PostgreSQL) and LADR-002 (dialect discriminator); LADR-003/004/005 remain in force |
 
 ---
 

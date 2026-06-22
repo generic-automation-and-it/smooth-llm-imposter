@@ -63,10 +63,10 @@ Podman is identical (`podman run -d --name … -p 5080:5080 -e … smooth-llm-im
 - **`-e Imposter__Providers__<name>__BaseUrl` / `__To` / `__Caching`** — override the shipped `appsettings.json`
   routing table per provider, keyed by provider name (e.g. `opencode-go-openai`, `openrouter-openai`). `BaseUrl` is the server
   root **without** a `/v1` path.
-- **`-e Admin__ApiKey` / `-e Admin__OperatorApiKey` / `-e ConnectionStrings__ImposterDb`** — only needed for the
-  optional `/admin/credentials` API (requires PostgreSQL; reach it from the container, e.g.
-  `Host=host.docker.internal;Port=5432;…`). Pure imposter routing needs no database; when unset the router uses
-  none (a `NullCredentialStore`). Full guide:
+- **`-e Admin__ApiKey` / `-e Admin__OperatorApiKey` / `-e ConnectionStrings__ImposterDb`** — admin keys enable
+  `/admin/credentials`; `ConnectionStrings__ImposterDb` is only needed for PostgreSQL persistence (reach it from
+  the container, e.g. `Host=host.docker.internal;Port=5432;…`). Pure imposter routing needs no database; when
+  unset credential-admin state is in memory. Full guide:
   [`credentials.admin-smooth-llm-imposter.md`](credentials.admin-smooth-llm-imposter.md).
 
 > **Data Protection keys (only matters if you use the credential-admin API).** Stored credentials are encrypted at

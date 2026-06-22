@@ -1,6 +1,6 @@
 # NFR-03: Admin Endpoint Authorization (Security)
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Requirement
 

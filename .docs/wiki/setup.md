@@ -21,7 +21,7 @@ Pick the setup that matches how you want to run the router. Each links to a self
 | **Compose** | One-command up/down (and full rebuild) via `docker compose` / `podman-compose` from `docker-compose.yml`. | [`setups/compose.run-smooth-llm-imposter.md`](setups/compose.run-smooth-llm-imposter.md) |
 | **Conductor.Build fresh-sandbox** | Install .NET, build & run the Host on `:5080`, and point a client at it. | [`setups/conductor.build-smooth-llm-imposter.md`](setups/conductor.build-smooth-llm-imposter.md) |
 | **Message debug / logging** | Flip the router to `Debug` to dump the full inbound request (headers + body, auth masked) — no rebuild. | [`setups/logging.debug-smooth-llm-imposter.md`](setups/logging.debug-smooth-llm-imposter.md) |
-| **Credential admin / authorization override** | _Optional._ PostgreSQL-backed passthrough credentials (`/admin/credentials`, HLD 002) + per-dialect force-Bearer override (HLD 003). Off by default. | [`setups/credentials.admin-smooth-llm-imposter.md`](setups/credentials.admin-smooth-llm-imposter.md) |
+| **Credential admin / authorization override** | _Optional._ Provider-keyed passthrough credentials (`/admin/credentials`, HLD 008) + provider-addressable force-Bearer override (HLD 003 amended by HLD 008). No DB required (in-memory default; PostgreSQL opt-in). | [`setups/credentials.admin-smooth-llm-imposter.md`](setups/credentials.admin-smooth-llm-imposter.md) |
 
 ## Prerequisites
 
@@ -323,11 +323,11 @@ failures map to 400/404; upstream transport failures map to 502.
 
 ## Credential admin API & authorization override (optional)
 
-The `/admin/credentials` API (encrypted **passthrough** credentials, HLD 002) and the per-dialect
-authorization override (HLD 003) are **optional** add-ons that require PostgreSQL. They are **off by
-default**: with `ConnectionStrings:ImposterDb` unset the router uses **no database** (a `NullCredentialStore`),
-the admin API is disabled, and the passthrough forwards the caller's own auth. Imposter routes — including the
-`*-personal` providers — never use this store; they authenticate with their config/env `Secret`.
+The `/admin/credentials` API (provider-keyed **passthrough** credentials, HLD 008) and the provider-addressable
+authorization override (HLD 003 amended by HLD 008) work without PostgreSQL. With `ConnectionStrings:ImposterDb`
+unset the router uses **no database** and keeps credentials in memory until restart. Set the connection string
+only when you want encrypted PostgreSQL persistence. Imposter routes — including the `*-personal` providers —
+never use this store; they authenticate with their config/env `Secret`.
 
 Full setup (enabling it, admin auth, every endpoint incl. the PUTs, Data Protection keys) lives in the
 dedicated guide: **[`setups/credentials.admin-smooth-llm-imposter.md`](setups/credentials.admin-smooth-llm-imposter.md)**.

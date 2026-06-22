@@ -4,10 +4,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using SmoothLlmImposter.Application.Common.Persistence;
-using SmoothLlmImposter.Domain.Credentials;
-using SmoothLlmImposter.Domain.Routing;
 
 namespace SmoothLlmImposter.Host.IntegrationTest;
 
@@ -44,63 +40,8 @@ public sealed class CredentialAppFixture : WebApplicationFactory<HostApp::Progra
 
         builder.ConfigureServices(services =>
         {
-            services.RemoveAll<ICredentialStore>();
-            services.AddSingleton<ICredentialStore, TestCredentialStore>();
             services.AddHttpClient("imposter-upstream")
                 .ConfigurePrimaryHttpMessageHandler(() => Upstream);
         });
-    }
-
-    private sealed class TestCredentialStore : ICredentialStore
-    {
-        private readonly List<ProviderCredential> _credentials = [];
-
-        public Task<ProviderCredential> AddAsync(ProviderCredential credential, CancellationToken cancellationToken)
-        {
-            _credentials.Add(credential);
-            return Task.FromResult(credential);
-        }
-
-        public Task<IReadOnlyList<ProviderCredential>> ListAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ProviderCredential>>(_credentials.ToArray());
-
-        public Task<ProviderCredential?> GetAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult(_credentials.FirstOrDefault(x => x.Id == id));
-
-        public Task<ProviderCredential?> GetActiveAsync(ApiDialect dialect, CancellationToken cancellationToken) =>
-            Task.FromResult(_credentials.FirstOrDefault(x => x.ProviderDialect == ToToken(dialect) && x.IsActive));
-
-        public Task DeleteAsync(Guid id, CancellationToken cancellationToken)
-        {
-            _credentials.RemoveAll(x => x.Id == id);
-            return Task.CompletedTask;
-        }
-
-        public Task<ProviderCredential> UpdateAsync(ProviderCredential credential, CancellationToken cancellationToken) => Task.FromResult(credential);
-
-        public Task<ProviderCredential> ActivateAsync(Guid id, CancellationToken cancellationToken)
-        {
-            ProviderCredential credential = _credentials.Single(x => x.Id == id);
-            foreach (ProviderCredential sibling in _credentials.Where(x => x.ProviderDialect == credential.ProviderDialect))
-            {
-                if (sibling.Id == id)
-                {
-                    sibling.Activate();
-                }
-                else
-                {
-                    sibling.Deactivate();
-                }
-            }
-
-            return Task.FromResult(credential);
-        }
-
-        private static string ToToken(ApiDialect dialect) => dialect switch
-        {
-            ApiDialect.OpenAi => OpenAiCredential.DialectToken,
-            ApiDialect.Anthropic => AnthropicCredential.DialectToken,
-            _ => throw new ArgumentOutOfRangeException(nameof(dialect), dialect, "Unsupported provider dialect.")
-        };
     }
 }

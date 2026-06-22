@@ -1,6 +1,6 @@
 # NFR-02: Secret Confidentiality (Security)
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Requirement
 

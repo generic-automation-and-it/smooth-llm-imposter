@@ -4,7 +4,8 @@
 
 ## Requirement
 
-The override toggle endpoints (`PUT`/`DELETE`/`GET /routing/{dialect}/override-authorization`) change how the
+The override toggle endpoints (`PUT`/`DELETE`/`GET /routing/{dialect}/{provider}/override-authorization`, plus
+the dialect-only default-provider fallback) change how the
 router authenticates to upstreams and therefore must be **authenticated and authorized** with the existing
 admin authorization policy — they must **not** be reachable by the unauthenticated routing surface. Anonymous
 access returns `401`; authenticated-but-unauthorized returns `403`. This is the same boundary HLD 002 applies

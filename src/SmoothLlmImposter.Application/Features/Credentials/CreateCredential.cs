@@ -2,6 +2,7 @@ using FluentValidation;
 using Mediator;
 using Microsoft.Extensions.Logging;
 using SmoothLlmImposter.Application.Common.Persistence;
+using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Domain.Credentials;
 using SmoothLlmImposter.Domain.Routing;
 
@@ -11,6 +12,7 @@ public static class CreateCredential
 {
     public sealed record Request(
         string ProviderDialect,
+        string? ProviderName,
         string Name,
         string Secret,
         string AuthScheme,
@@ -23,6 +25,7 @@ public static class CreateCredential
         public Validator()
         {
             RuleFor(x => x.ProviderDialect).Must(x => ApiDialectParser.TryParse(x, out _)).WithMessage("ProviderDialect must be 'openai' or 'anthropic'.");
+            RuleFor(x => x.ProviderName).MaximumLength(128);
             RuleFor(x => x.Name).NotEmpty().MaximumLength(128);
             RuleFor(x => x.Secret).NotEmpty();
             RuleFor(x => x.AuthScheme).Must(x => Enum.TryParse<CredentialAuthScheme>(x, true, out _)).WithMessage("AuthScheme must be 'ApiKey' or 'Bearer'.");
@@ -35,16 +38,19 @@ public static class CreateCredential
 
     public sealed class Handler(
         ICredentialStore store,
+        IProviderCatalog catalog,
         ISecretProtector secretProtector,
         ILogger<Handler> logger) : IRequestHandler<Request, CredentialMutationResponse>
     {
         public async ValueTask<CredentialMutationResponse> Handle(Request request, CancellationToken cancellationToken)
         {
             ApiDialect dialect = CredentialRequestHelpers.ParseDialect(request.ProviderDialect);
+            ProviderRoute provider = ProviderAddressResolver.Resolve(catalog, dialect, request.ProviderName, nameof(request.ProviderName));
             CredentialAuthScheme scheme = CredentialRequestHelpers.ParseAuthScheme(request.AuthScheme);
             string ciphertext = secretProtector.Protect(request.Secret);
             ProviderCredential credential = CredentialRequestHelpers.NewCredential(
                 dialect,
+                provider.CredentialProviderName,
                 request.Name,
                 ciphertext,
                 scheme,
@@ -53,10 +59,11 @@ public static class CreateCredential
 
             ProviderCredential created = await store.AddAsync(credential, cancellationToken);
             logger.LogInformation(
-                "Credential created by {Actor}: {CredentialName} ({ProviderDialect})",
+                "Credential created by {Actor}: {CredentialName} ({ProviderDialect}/{ProviderName})",
                 request.Actor ?? "unknown",
                 created.Name,
-                created.ProviderDialect);
+                created.ProviderDialect,
+                created.ProviderName);
 
             return new CredentialMutationResponse(CredentialResponse.From(created));
         }

@@ -12,6 +12,7 @@ internal sealed class ProviderCredentialConfiguration : IEntityTypeConfiguration
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Name).HasMaxLength(128).IsRequired();
+        builder.Property(x => x.ProviderName).HasMaxLength(128).IsRequired();
         builder.Property(x => x.SecretCiphertext).IsRequired();
         builder.Property(x => x.AuthScheme).HasConversion<string>().HasMaxLength(32).IsRequired();
         builder.Property(x => x.BaseUrlOverride).HasMaxLength(2048);
@@ -27,6 +28,8 @@ internal sealed class ProviderCredentialConfiguration : IEntityTypeConfiguration
             .HasValue<OpenAiCredential>(OpenAiCredential.DialectToken)
             .HasValue<AnthropicCredential>(AnthropicCredential.DialectToken);
 
-        builder.HasIndex("Dialect", nameof(ProviderCredential.Name)).IsUnique();
+        builder.HasIndex("Dialect", nameof(ProviderCredential.ProviderName), nameof(ProviderCredential.Name))
+            .HasDatabaseName("IX_ProviderCredentials_Dialect_ProviderName_Name")
+            .IsUnique();
     }
 }

@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using SmoothLlmImposter.Application.Common.Persistence;
 using SmoothLlmImposter.Application.Features.AuthorizationOverride;
+using SmoothLlmImposter.Application.Features.Routing;
+using SmoothLlmImposter.Application.UnitTest.Routing;
 using SmoothLlmImposter.Domain.Credentials;
 using SmoothLlmImposter.Domain.Routing;
 
@@ -14,14 +16,14 @@ public class AuthorizationOverrideHandlerTests
     public async Task Set_arms_switch_when_an_active_credential_exists()
     {
         var overrideSwitch = new AuthorizationOverrideSwitch();
-        var store = new StubCredentialStore { Active = new OpenAiCredential("work", "cipher", CredentialAuthScheme.ApiKey, null) };
-        var handler = new SetAuthorizationOverride.Handler(overrideSwitch, store, NullLogger<SetAuthorizationOverride.Handler>.Instance);
+        var store = new StubCredentialStore { Active = new OpenAiCredential("openai-official", "work", "cipher", CredentialAuthScheme.ApiKey, null) };
+        var handler = new SetAuthorizationOverride.Handler(overrideSwitch, store, Catalog(), NullLogger<SetAuthorizationOverride.Handler>.Instance);
 
-        SetAuthorizationOverrideResult result = await handler.Handle(new SetAuthorizationOverride.Request("openai", "tester"), Ct);
+        SetAuthorizationOverrideResult result = await handler.Handle(new SetAuthorizationOverride.Request("openai", null, "tester"), Ct);
 
         result.Armed.ShouldBeTrue();
-        result.State.ShouldBe(new AuthorizationOverrideState("openai", true));
-        overrideSwitch.IsEnabled(ApiDialect.OpenAi).ShouldBeTrue();
+        result.State.ShouldBe(new AuthorizationOverrideState("openai", "openai-official", true));
+        overrideSwitch.IsEnabled(ApiDialect.OpenAi, "openai-official").ShouldBeTrue();
     }
 
     [Fact]
@@ -29,38 +31,39 @@ public class AuthorizationOverrideHandlerTests
     {
         var overrideSwitch = new AuthorizationOverrideSwitch();
         var store = new StubCredentialStore { Active = null };
-        var handler = new SetAuthorizationOverride.Handler(overrideSwitch, store, NullLogger<SetAuthorizationOverride.Handler>.Instance);
+        var handler = new SetAuthorizationOverride.Handler(overrideSwitch, store, Catalog(), NullLogger<SetAuthorizationOverride.Handler>.Instance);
 
-        SetAuthorizationOverrideResult result = await handler.Handle(new SetAuthorizationOverride.Request("anthropic", "tester"), Ct);
+        SetAuthorizationOverrideResult result = await handler.Handle(new SetAuthorizationOverride.Request("anthropic", null, "tester"), Ct);
 
         result.Armed.ShouldBeFalse();
         result.NoActiveCredential.ShouldBeTrue();
         result.State.Enabled.ShouldBeFalse();
-        overrideSwitch.IsEnabled(ApiDialect.Anthropic).ShouldBeFalse();
+        result.State.ProviderName.ShouldBe("anthropic-official");
+        overrideSwitch.IsEnabled(ApiDialect.Anthropic, "anthropic-official").ShouldBeFalse();
     }
 
     [Fact]
     public async Task Clear_disables_the_switch()
     {
         var overrideSwitch = new AuthorizationOverrideSwitch();
-        overrideSwitch.Enable(ApiDialect.OpenAi);
-        var handler = new ClearAuthorizationOverride.Handler(overrideSwitch, NullLogger<ClearAuthorizationOverride.Handler>.Instance);
+        overrideSwitch.Enable(ApiDialect.OpenAi, "openai-official");
+        var handler = new ClearAuthorizationOverride.Handler(overrideSwitch, Catalog(), NullLogger<ClearAuthorizationOverride.Handler>.Instance);
 
-        AuthorizationOverrideState state = await handler.Handle(new ClearAuthorizationOverride.Request("openai", "tester"), Ct);
+        AuthorizationOverrideState state = await handler.Handle(new ClearAuthorizationOverride.Request("openai", null, "tester"), Ct);
 
-        state.ShouldBe(new AuthorizationOverrideState("openai", false));
-        overrideSwitch.IsEnabled(ApiDialect.OpenAi).ShouldBeFalse();
+        state.ShouldBe(new AuthorizationOverrideState("openai", "openai-official", false));
+        overrideSwitch.IsEnabled(ApiDialect.OpenAi, "openai-official").ShouldBeFalse();
     }
 
     [Fact]
     public async Task Get_reports_current_state()
     {
         var overrideSwitch = new AuthorizationOverrideSwitch();
-        overrideSwitch.Enable(ApiDialect.Anthropic);
-        var handler = new GetAuthorizationOverride.Handler(overrideSwitch);
+        overrideSwitch.Enable(ApiDialect.Anthropic, "anthropic-official");
+        var handler = new GetAuthorizationOverride.Handler(overrideSwitch, Catalog());
 
-        (await handler.Handle(new GetAuthorizationOverride.Request("anthropic"), Ct)).ShouldBe(new AuthorizationOverrideState("anthropic", true));
-        (await handler.Handle(new GetAuthorizationOverride.Request("openai"), Ct)).ShouldBe(new AuthorizationOverrideState("openai", false));
+        (await handler.Handle(new GetAuthorizationOverride.Request("anthropic", null), Ct)).ShouldBe(new AuthorizationOverrideState("anthropic", "anthropic-official", true));
+        (await handler.Handle(new GetAuthorizationOverride.Request("openai", null), Ct)).ShouldBe(new AuthorizationOverrideState("openai", "openai-official", false));
     }
 
     [Theory]
@@ -68,17 +71,27 @@ public class AuthorizationOverrideHandlerTests
     [InlineData("")]
     public void Validators_reject_unknown_dialect(string dialect)
     {
-        new SetAuthorizationOverride.Validator().Validate(new SetAuthorizationOverride.Request(dialect, null)).IsValid.ShouldBeFalse();
-        new ClearAuthorizationOverride.Validator().Validate(new ClearAuthorizationOverride.Request(dialect, null)).IsValid.ShouldBeFalse();
-        new GetAuthorizationOverride.Validator().Validate(new GetAuthorizationOverride.Request(dialect)).IsValid.ShouldBeFalse();
+        new SetAuthorizationOverride.Validator().Validate(new SetAuthorizationOverride.Request(dialect, null, null)).IsValid.ShouldBeFalse();
+        new ClearAuthorizationOverride.Validator().Validate(new ClearAuthorizationOverride.Request(dialect, null, null)).IsValid.ShouldBeFalse();
+        new GetAuthorizationOverride.Validator().Validate(new GetAuthorizationOverride.Request(dialect, null)).IsValid.ShouldBeFalse();
     }
 
     [Fact]
     public void Validators_accept_known_dialects()
     {
-        new SetAuthorizationOverride.Validator().Validate(new SetAuthorizationOverride.Request("openai", null)).IsValid.ShouldBeTrue();
-        new GetAuthorizationOverride.Validator().Validate(new GetAuthorizationOverride.Request("anthropic")).IsValid.ShouldBeTrue();
+        new SetAuthorizationOverride.Validator().Validate(new SetAuthorizationOverride.Request("openai", null, null)).IsValid.ShouldBeTrue();
+        new GetAuthorizationOverride.Validator().Validate(new GetAuthorizationOverride.Request("anthropic", null)).IsValid.ShouldBeTrue();
     }
+
+    private static IProviderCatalog Catalog() =>
+        new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
+        {
+            Providers =
+            {
+                ["openai-official"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://api.openai.test", IsDefault = true },
+                ["anthropic-official"] = new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://api.anthropic.test", IsDefault = true }
+            }
+        }));
 
     private sealed class StubCredentialStore : ICredentialStore
     {
@@ -90,7 +103,7 @@ public class AuthorizationOverrideHandlerTests
 
         public Task<ProviderCredential?> GetAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult<ProviderCredential?>(null);
 
-        public Task<ProviderCredential?> GetActiveAsync(ApiDialect dialect, CancellationToken cancellationToken) => Task.FromResult(Active);
+        public Task<ProviderCredential?> GetActiveAsync(ApiDialect dialect, string providerName, CancellationToken cancellationToken) => Task.FromResult(Active);
 
         public Task DeleteAsync(Guid id, CancellationToken cancellationToken) => Task.CompletedTask;
 

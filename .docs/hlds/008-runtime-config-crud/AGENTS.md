@@ -26,7 +26,8 @@ Makes the named-provider registry (HLD 007) runtime-mutable via an admin API and
   ([LADR-05](./ladrs/LADR-05-settings-backed-provider-keyed-credentials.md)).
 - Do **not** add a provider segment to the inbound proxy URLs (`/openai/...`, `/anthropic/...`) — provider
   addressing is admin-surface only ([LADR-06](./ladrs/LADR-06-provider-addressable-override.md)).
-- LADRs are Draft (discovery) — flag deviations rather than silently overriding.
+- This HLD is **Completed**: all LADRs (01–07) and NFRs (01–05) are Accepted and implemented across Phase 1
+  (#49) and Phase 2 (#50). Treat the decisions as binding — flag deviations rather than silently overriding.
 
 ## Architecture Decisions
 
@@ -49,6 +50,7 @@ Only decisions whose violation produces wrong code. Full records in [`./ladrs/`]
 - A matched imposter route never reads the credential store or override switch (HLD 001 / HLD 002 LADR-004
   parity); credentials enter only on the passthrough branch.
 - A dialect-only override/activation resolves to the dialect's default provider.
+- Activation is per provider: at most one active credential per `(dialect, providerName)`, not per dialect.
 
 ## Quality Constraints
 
@@ -62,11 +64,13 @@ Measurable NFRs live in [`./nfrs/`](./nfrs/). Constraints that change how code i
 ## Migration Plans
 
 - HLD 002 credential model (mandatory PostgreSQL, dialect-keyed) is superseded by the settings-backed,
-  provider-keyed model; the DB becomes an opt-in backend. HLD 003 override becomes provider-addressable.
-  Update HLD 002/003 statuses when this HLD is accepted.
+  provider-keyed model; the DB is now an opt-in backend. HLD 003 override is provider-addressable. HLD 002
+  carries supersession notes and HLD 003 is Completed — those statuses are already synced.
 
 ## Changelog
 
 | Date | Change | Ref |
 | :---- | :---- | :---- |
 | 2026-06-21 | HLD scaffolded | #48 |
+| 2026-06-21 | Phase 2 provider-keyed credentials and provider-addressable override implemented; LADR-05/06 accepted. | #50 |
+| 2026-06-21 | HLD Completed: both phases shipped; all LADRs (01–07) and NFRs (01–05) Accepted. | #50 |

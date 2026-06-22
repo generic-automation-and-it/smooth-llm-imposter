@@ -7,10 +7,9 @@
 | **Tracker** | TBD — link the GitHub issue when filed |
 | **Last updated** | 2026-06-21 |
 
-> Discovery / prototyping HLD. This document delivers **intent + spec** — what we are
-> building and why, the decisions behind it, and the quality bar it must meet. It does
-> **not** contain an implementation plan; execution (phasing, sub-issues, sequencing) is
-> tracked in the issue/work tracker.
+> **Completed.** This HLD is implemented and shipped; it was later made runtime-mutable by HLD 008. It
+> delivers **intent + spec** — what was built and why, the decisions behind it, and the quality bar it
+> meets; execution (phasing, sub-issues) was tracked in the issue/work tracker.
 
 ## Intent
 
@@ -31,8 +30,8 @@ untouched — this is a startup-configuration change only.
 provider's stable identity. Structured overrides become `Imposter__Providers__opencode-go__Secret`
 and survive any reordering. This is a hard cutover — the array shape is removed, not dual-supported
 — because the router is pre-1.0, stateless, and key-less, so there is no persisted config to
-migrate. The `Name` field is retained as an **optional** override (key supplies the name unless
-`Name` is set). The .NET binder maps a dictionary natively, so no custom binder is introduced for
+migrate. The `Name` field is retained as an **optional display label** (the key supplies the name unless
+`Name` is set; the stable dictionary key is the identity). The .NET binder maps a dictionary natively, so no custom binder is introduced for
 the structural change. See [LADR-01](./ladrs/LADR-01-dictionary-keyed-providers.md).
 
 **Acceptance criteria / DoD**
@@ -78,7 +77,8 @@ deliberately on the other side of the seam — unchanged.
 
 > An operator overrides a provider by its name — the same name in the file, the structured var, and the convention.
 
-- Provider identity comes from one place — the dictionary key (optionally overridden by `Name`).
+- Provider identity comes from one place — the dictionary key. `Name` remains an optional display label;
+  HLD 008 uses the stable key, not the display label, for provider-keyed credentials and authorization override.
 - The conventional surface is *derived* from that key, so there is nothing extra to keep in sync.
 - This HLD deliberately does **not** change the request path, model-mapping structure, dual-support
   the legacy array, or add per-field config to configure the convention.
@@ -97,7 +97,7 @@ horizontal concern spanning this HLD. See [`./ladrs/`](./ladrs/).
 
 | LADR | Decision | Status |
 |------|----------|--------|
-| [LADR-01](./ladrs/LADR-01-dictionary-keyed-providers.md) | Key providers by name (Dictionary), hard cutover; `Name` optional override | Accepted |
+| [LADR-01](./ladrs/LADR-01-dictionary-keyed-providers.md) | Key providers by name (Dictionary), hard cutover; `Name` optional display label | Accepted |
 | [LADR-02](./ladrs/LADR-02-conventional-env-surface.md) | Conventional `<NAME>_<FIELD>` env surface, case-insensitive, full field set (incl. `_AUTHORIZATION_BEARER` secret alias) | Accepted |
 | [LADR-03](./ladrs/LADR-03-resolution-mechanism.md) | Post-configure resolver, key→prefix normalization, precedence, legacy-shape guard | Accepted |
 | [LADR-04](./ladrs/LADR-04-personal-subscription-providers.md) | Named personal-subscription providers (`anthropic-personal` / `openai-personal`) — operator-owned Bearer tokens, distinct from key-less defaults | Accepted |

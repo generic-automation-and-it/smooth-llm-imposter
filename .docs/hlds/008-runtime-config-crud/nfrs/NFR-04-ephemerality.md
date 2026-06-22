@@ -1,6 +1,6 @@
 # NFR-04: Ephemerality / Restart Semantics (Operability)
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Requirement
 

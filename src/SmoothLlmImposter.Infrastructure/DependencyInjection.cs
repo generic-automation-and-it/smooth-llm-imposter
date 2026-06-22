@@ -24,15 +24,12 @@ public static class DependencyInjection
         services.AddSingleton<IUpstreamForwarder, UpstreamForwarder>();
         services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
 
-        // Stored passthrough credentials (HLD 002) and the authorization override (HLD 003) are an
-        // optional add-on that requires PostgreSQL. The router is stateless and key-less by default:
-        // when no connection string is configured we register a no-op store, so the catch-all
-        // passthrough resolves a null credential (and forwards the caller's own auth) instead of
-        // opening a database connection. Only wire EF Core when an operator opts in.
+        // Stored passthrough credentials default to an in-memory settings-backed store. Only wire the
+        // encrypted EF Core backend when an operator opts in with a connection string.
         string? connectionString = configuration.GetConnectionString("ImposterDb");
         if (string.IsNullOrWhiteSpace(connectionString))
         {
-            services.AddSingleton<ICredentialStore, NullCredentialStore>();
+            services.AddSingleton<ICredentialStore, InMemoryCredentialStore>();
         }
         else
         {

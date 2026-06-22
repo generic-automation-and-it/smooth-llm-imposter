@@ -56,7 +56,9 @@ public class ProviderCatalogTests
             Providers = { ["opencode-go"] = new ProviderOptions { Name = "display", Dialect = "openai", BaseUrl = "https://o.example" } }
         }));
 
-        catalog.ProvidersFor(ApiDialect.OpenAi).Single().Name.ShouldBe("display");
+        ProviderRoute route = catalog.ProvidersFor(ApiDialect.OpenAi).Single();
+        route.Name.ShouldBe("display");
+        route.CredentialProviderName.ShouldBe("opencode-go");
     }
 
     [Fact]

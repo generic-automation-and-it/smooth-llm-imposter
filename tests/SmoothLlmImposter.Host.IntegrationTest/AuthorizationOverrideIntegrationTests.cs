@@ -16,6 +16,7 @@ namespace SmoothLlmImposter.Host.IntegrationTest;
 public sealed class AuthorizationOverrideIntegrationTests
 {
     private const string OverridePath = "/routing/openai/override-authorization";
+    private const string ProviderOverridePath = "/routing/openai/openai-official/override-authorization";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -48,6 +49,18 @@ public sealed class AuthorizationOverrideIntegrationTests
     }
 
     [Fact]
+    public async Task Unknown_provider_is_rejected_with_400()
+    {
+        using var fixture = new CredentialAppFixture();
+        HttpClient client = AdminClient(fixture);
+
+        using HttpResponseMessage put = await client.PutAsync(
+            "/routing/openai/does-not-exist/override-authorization", content: null, Ct);
+
+        put.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task Arming_without_an_active_credential_returns_403_and_leaves_switch_off()
     {
         using var fixture = new CredentialAppFixture();
@@ -68,7 +81,7 @@ public sealed class AuthorizationOverrideIntegrationTests
 
         using HttpResponseMessage put = await client.PutAsync(OverridePath, content: null, Ct);
         AuthorizationOverrideState armed = await ReadStateAsync(put);
-        armed.ShouldBe(new AuthorizationOverrideState("openai", true));
+        armed.ShouldBe(new AuthorizationOverrideState("openai", "openai-official", true));
 
         using HttpResponseMessage passthrough = await client.PostAsync("/v1/chat/completions", Json("""{"model":"gpt5.5"}"""), Ct);
         passthrough.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -89,7 +102,7 @@ public sealed class AuthorizationOverrideIntegrationTests
         }
 
         using HttpResponseMessage delete = await client.DeleteAsync(OverridePath, Ct);
-        (await ReadStateAsync(delete)).ShouldBe(new AuthorizationOverrideState("openai", false));
+        (await ReadStateAsync(delete)).ShouldBe(new AuthorizationOverrideState("openai", "openai-official", false));
 
         using HttpResponseMessage passthrough = await client.PostAsync("/v1/chat/completions", Json("""{"model":"gpt5.5"}"""), Ct);
         passthrough.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -111,6 +124,54 @@ public sealed class AuthorizationOverrideIntegrationTests
 
         using (await client.DeleteAsync(OverridePath, Ct)) { }
         (await GetStateAsync(client)).Enabled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Provider_addressable_route_controls_that_provider()
+    {
+        using var fixture = new CredentialAppFixture();
+        HttpClient client = AdminClient(fixture);
+        await CreateAndActivateAsync(client, "stored-secret", "Bearer", providerName: "openai-official");
+
+        using HttpResponseMessage put = await client.PutAsync(ProviderOverridePath, content: null, Ct);
+        (await ReadStateAsync(put)).ShouldBe(new AuthorizationOverrideState("openai", "openai-official", true));
+
+        AuthorizationOverrideState defaultState = await GetStateAsync(client);
+        defaultState.ShouldBe(new AuthorizationOverrideState("openai", "openai-official", true));
+
+        // Close the loop: arming the provider-addressable route must change wire behaviour, not just the
+        // reported state — the passthrough now forces the active credential as Bearer.
+        using HttpResponseMessage passthrough = await client.PostAsync("/v1/chat/completions", Json("""{"model":"gpt5.5"}"""), Ct);
+        passthrough.StatusCode.ShouldBe(HttpStatusCode.OK);
+        fixture.Upstream.LastAuthorization.ShouldBe("Bearer stored-secret");
+        fixture.Upstream.LastApiKey.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Provider_override_is_isolated_to_the_addressed_provider()
+    {
+        // LADR-06: provider addressing is per (dialect, provider), not per dialect. Arm a NON-default
+        // openai provider (opencode-go) and assert the dialect default (openai-official) stays OFF — this
+        // is what the default-provider case in Provider_addressable_route_controls_that_provider cannot show.
+        // Note: a non-default provider's override has no wire effect (the passthrough path only resolves the
+        // default, and imposter routes never read the switch — LADR-003), so the contract here is the
+        // per-provider state isolation, asserted via the admin GET.
+        using var fixture = new CredentialAppFixture();
+        HttpClient client = AdminClient(fixture);
+        await CreateAndActivateAsync(client, "opencode-secret", "Bearer", providerName: "opencode-go");
+
+        const string opencodeOverridePath = "/routing/openai/opencode-go/override-authorization";
+        using HttpResponseMessage put = await client.PutAsync(opencodeOverridePath, content: null, Ct);
+        (await ReadStateAsync(put)).ShouldBe(new AuthorizationOverrideState("openai", "opencode-go", true));
+
+        // The addressed provider is ON...
+        AuthorizationOverrideState addressed =
+            (await client.GetFromJsonAsync<AuthorizationOverrideState>(opencodeOverridePath, JsonOptions, Ct))!;
+        addressed.ShouldBe(new AuthorizationOverrideState("openai", "opencode-go", true));
+
+        // ...while the dialect default (openai-official, via the dialect-only route) is untouched.
+        AuthorizationOverrideState defaultState = await GetStateAsync(client);
+        defaultState.ShouldBe(new AuthorizationOverrideState("openai", "openai-official", false));
     }
 
     [Fact]
@@ -187,11 +248,11 @@ public sealed class AuthorizationOverrideIntegrationTests
         return JsonNode.Parse(body)!.Deserialize<AuthorizationOverrideState>(JsonOptions)!;
     }
 
-    private async Task<Guid> CreateAndActivateAsync(HttpClient client, string secret, string authScheme)
+    private async Task<Guid> CreateAndActivateAsync(HttpClient client, string secret, string authScheme, string? providerName = null)
     {
         using HttpResponseMessage created = await client.PostAsJsonAsync(
             "/admin/credentials",
-            new { providerDialect = "openai", name = "routing", secret, authScheme, baseUrlOverride = (string?)null },
+            new { providerDialect = "openai", providerName, name = "routing", secret, authScheme, baseUrlOverride = (string?)null },
             Ct);
         string json = await created.Content.ReadAsStringAsync(Ct);
         created.StatusCode.ShouldBe(HttpStatusCode.Created, json);

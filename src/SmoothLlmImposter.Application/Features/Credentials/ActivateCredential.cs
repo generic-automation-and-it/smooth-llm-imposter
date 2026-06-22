@@ -26,10 +26,11 @@ public static class ActivateCredential
 
             var activated = await store.ActivateAsync(request.Id, cancellationToken);
             logger.LogInformation(
-                "Credential activated by {Actor}: {CredentialName} ({ProviderDialect})",
+                "Credential activated by {Actor}: {CredentialName} ({ProviderDialect}/{ProviderName})",
                 request.Actor ?? "unknown",
                 activated.Name,
-                activated.ProviderDialect);
+                activated.ProviderDialect,
+                activated.ProviderName);
 
             return new CredentialMutationResponse(CredentialResponse.From(activated));
         }

@@ -37,7 +37,8 @@ internal sealed class ProviderCatalog : IProviderCatalog
                 upstreamApi,
                 authScheme,
                 ResolveNormalization(provider.RequestNormalization, upstreamApi),
-                provider.Enabled);
+                provider.Enabled,
+                key);
 
             if (!_byDialect.TryGetValue(dialect, out List<ProviderRoute>? routes))
             {

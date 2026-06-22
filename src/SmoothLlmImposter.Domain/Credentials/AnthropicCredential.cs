@@ -9,12 +9,13 @@ public sealed class AnthropicCredential : ProviderCredential
     }
 
     public AnthropicCredential(
+        string providerName,
         string name,
         string secretCiphertext,
         CredentialAuthScheme authScheme,
         string? baseUrlOverride,
         string? anthropicVersion)
-        : base(name, secretCiphertext, authScheme, baseUrlOverride)
+        : base(providerName, name, secretCiphertext, authScheme, baseUrlOverride)
     {
         AnthropicVersion = string.IsNullOrWhiteSpace(anthropicVersion) ? null : anthropicVersion.Trim();
     }

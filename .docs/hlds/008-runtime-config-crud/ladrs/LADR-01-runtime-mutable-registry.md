@@ -1,6 +1,6 @@
 # LADR-01: Runtime-Mutable Provider Registry over `IOptionsSnapshot`
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

@@ -7,16 +7,20 @@ public abstract class ProviderCredential : BaseEntity
     }
 
     protected ProviderCredential(
+        string providerName,
         string name,
         string secretCiphertext,
         CredentialAuthScheme authScheme,
         string? baseUrlOverride)
     {
+        SetProviderName(providerName);
         Rename(name);
         RotateSecret(secretCiphertext);
         AuthScheme = authScheme;
         BaseUrlOverride = NormalizeOptional(baseUrlOverride);
     }
+
+    public string ProviderName { get; private set; } = string.Empty;
 
     public string Name { get; private set; } = string.Empty;
 
@@ -29,6 +33,12 @@ public abstract class ProviderCredential : BaseEntity
     public string? BaseUrlOverride { get; private set; }
 
     public abstract string ProviderDialect { get; }
+
+    public void MoveToProvider(string providerName)
+    {
+        SetProviderName(providerName);
+        Touch(DateTime.UtcNow);
+    }
 
     public void UpdateMetadata(string name, CredentialAuthScheme authScheme, string? baseUrlOverride)
     {
@@ -69,6 +79,16 @@ public abstract class ProviderCredential : BaseEntity
         }
 
         Name = name.Trim();
+    }
+
+    private void SetProviderName(string providerName)
+    {
+        if (string.IsNullOrWhiteSpace(providerName))
+        {
+            throw new ArgumentException("Provider name is required.", nameof(providerName));
+        }
+
+        ProviderName = providerName.Trim();
     }
 
     private static string? NormalizeOptional(string? value) =>

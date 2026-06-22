@@ -28,12 +28,15 @@ public sealed class CredentialAdminIntegrationTests(CredentialAppFixture fixture
     }
 
     [Fact]
-    public async Task Admin_crud_never_returns_secret_and_activate_enforces_single_active_per_dialect()
+    public async Task Admin_crud_never_returns_secret_and_activate_enforces_single_active_per_provider()
     {
         HttpClient client = AuthenticatedClient();
 
         CredentialResponse first = await CreateAsync(client, "work", "first-secret");
         CredentialResponse second = await CreateAsync(client, "private", "second-secret");
+
+        first.ProviderName.ShouldBe("openai-official");
+        second.ProviderName.ShouldBe("openai-official");
 
         using HttpResponseMessage activate = await client.PutAsync($"/admin/credentials/{second.Id}/activate", null, Ct);
         string activateBody = await activate.Content.ReadAsStringAsync(Ct);
@@ -46,6 +49,25 @@ public sealed class CredentialAdminIntegrationTests(CredentialAppFixture fixture
         string json = await client.GetStringAsync($"/admin/credentials/{second.Id}", Ct);
         json.ShouldNotContain("second-secret");
         json.ShouldNotContain("secretCiphertext", Case.Insensitive);
+    }
+
+    [Fact]
+    public async Task Activate_is_scoped_to_provider()
+    {
+        HttpClient client = AuthenticatedClient();
+
+        CredentialResponse defaultCredential = await CreateAsync(client, "default", "default-secret", providerName: "openai-official");
+        CredentialResponse imposterProviderCredential = await CreateAsync(client, "opencode", "opencode-secret", providerName: "opencode-go");
+
+        using HttpResponseMessage activateDefault = await client.PutAsync($"/admin/credentials/{defaultCredential.Id}/activate", null, Ct);
+        activateDefault.StatusCode.ShouldBe(HttpStatusCode.OK, await activateDefault.Content.ReadAsStringAsync(Ct));
+
+        using HttpResponseMessage activateProvider = await client.PutAsync($"/admin/credentials/{imposterProviderCredential.Id}/activate", null, Ct);
+        activateProvider.StatusCode.ShouldBe(HttpStatusCode.OK, await activateProvider.Content.ReadAsStringAsync(Ct));
+
+        CredentialResponse[] list = (await client.GetFromJsonAsync<CredentialResponse[]>("/admin/credentials", JsonOptions, Ct))!;
+        list.Single(x => x.Id == defaultCredential.Id).IsActive.ShouldBeTrue();
+        list.Single(x => x.Id == imposterProviderCredential.Id).IsActive.ShouldBeTrue();
     }
 
     [Fact]
@@ -111,13 +133,15 @@ public sealed class CredentialAdminIntegrationTests(CredentialAppFixture fixture
         string name,
         string secret,
         string authScheme = "Bearer",
-        string? baseUrlOverride = null)
+        string? baseUrlOverride = null,
+        string? providerName = null)
     {
         using HttpResponseMessage response = await client.PostAsJsonAsync(
             "/admin/credentials",
             new
             {
                 providerDialect = "openai",
+                providerName,
                 name,
                 secret,
                 authScheme,
