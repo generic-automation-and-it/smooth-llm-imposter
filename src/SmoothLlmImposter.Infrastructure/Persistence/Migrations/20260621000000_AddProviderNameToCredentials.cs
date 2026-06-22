@@ -57,6 +57,22 @@ public partial class AddProviderNameToCredentials : Migration
         // Additive rollback: dropping ProviderName orphans any credential created after this migration
         // (its provider scoping is lost) and reverts to the dialect-keyed uniqueness rule. Only roll back
         // before such rows exist, or export them first.
+        //
+        // Guard: under the new model two credentials may legally share (Dialect, Name) when ProviderName
+        // differs. Recreating the dialect-keyed unique index below would then fail on a cryptic unique
+        // violation. Detect that up front and fail with an actionable message instead.
+        migrationBuilder.Sql("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM "ProviderCredentials"
+                    GROUP BY "Dialect", "Name" HAVING COUNT(*) > 1
+                ) THEN
+                    RAISE EXCEPTION 'Cannot roll back AddProviderNameToCredentials: rows share (Dialect, Name) but differ by ProviderName. Export or merge them before downgrading.';
+                END IF;
+            END $$;
+            """);
+
         migrationBuilder.DropIndex(
             name: "IX_ProviderCredentials_Dialect_ProviderName_Name",
             table: "ProviderCredentials");
