@@ -4,7 +4,29 @@ All notable changes to SmoothLlmImposter are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- **Blank conventional secret var no longer shadows a populated alias (or wipes an appsettings secret).**
+  `ImposterOptionsPostConfigure` treated an empty-but-present env var as a real override, so a blank
+  canonical `<NAME>_API_KEY` (e.g. compose `ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}` with the host var
+  unset) claimed the first-present-wins `Secret` slot and shadowed a populated `<NAME>_AUTH_TOKEN` /
+  `<NAME>_AUTHORIZATION_BEARER` alias — surfacing as `auth=none` on a matched imposter route. Empty/whitespace
+  conventional values are now treated as absent (both for the first-present-wins ordering and the shared
+  base-secret fallback), so the populated alias wins and an appsettings-bound `Secret` isn't blanked.
+
 ### Added
+- **LEGO gateway providers + `{model}` model-rewrite token.** `appsettings.json` gains two imposter
+  providers pointing at the internal gateway: `anthropic` → `https://models.assistant.legogroup.io/claude`
+  (rewrites `claude-opus-*`/`claude-sonnet-*`/`claude-haiku-*` to `anthropic.{model}`, `AuthScheme: Bearer`,
+  credential from `ANTHROPIC_AUTH_TOKEN`/`ANTHROPIC_API_KEY`) and `openai` →
+  `https://models.assistant.legogroup.io/openai` (pins `gpt-4o`, `gpt-5.4-*`, `gpt-5.5-*` to fixed upstream
+  ids, credential from `OPENAI_API_KEY`). Both are placed first so first-match-wins routing makes the gateway
+  authoritative for those families; `Secret` stays empty in config (supplied via env/user-secrets).
+  - The model-mapping `To` field now supports the literal token **`{model}`** (`ModelMapping.ResolveTarget`),
+    which expands to the full inbound model name — enabling prefix rewrites that keep the caller's version
+    suffix (`To: "anthropic.{model}"` → `anthropic.claude-opus-4-1`). Literal `To` values are unchanged.
+  - The conventional env surface gains a third Secret alias **`_AUTH_TOKEN`** (→ `Secret`), mirroring the
+    Claude Code / Anthropic SDK `ANTHROPIC_AUTH_TOKEN` Bearer variable, so an operator can reuse the exact
+    env var cc exports. Alias of `_API_KEY` (canonical) alongside `_AUTHORIZATION_BEARER`.
 - **Personal-subscription providers (HLD 007 LADR-04).** Added two named providers to `appsettings.json` for
   the "company subscription for daily use, personal for private use" split: `anthropic-personal` captures
   `claude-opus-4-7*` and serves it as `claude-opus-4-8` on the operator's own Anthropic subscription token

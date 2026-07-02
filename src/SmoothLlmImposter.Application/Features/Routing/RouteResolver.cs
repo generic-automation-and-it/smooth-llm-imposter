@@ -25,7 +25,7 @@ internal sealed class RouteResolver(IProviderCatalog catalog) : IRouteResolver
             {
                 if (ModelMatcher.Matches(mapping.From, model))
                 {
-                    return new RouteDecision(provider, mapping.To, mapping.Caching, IsImposter: true);
+                    return new RouteDecision(provider, mapping.ResolveTarget(model), mapping.Caching, IsImposter: true);
                 }
             }
         }

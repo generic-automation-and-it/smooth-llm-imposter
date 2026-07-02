@@ -49,6 +49,49 @@ public class ImposterOptionsPostConfigureTests
     }
 
     [Fact]
+    public void Auth_token_suffix_fills_secret()
+    {
+        // Third Secret alias, mirroring the Claude Code / Anthropic SDK ANTHROPIC_AUTH_TOKEN Bearer var:
+        // <NAME>_AUTH_TOKEN fills the same Secret slot so an operator can reuse the var they export for cc.
+        var (options, _) = Resolve(
+            new Dictionary<string, string?> { ["ANTHROPIC_AUTH_TOKEN"] = "sk-cc-bearer" },
+            "anthropic",
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.legogroup.io/claude", AuthScheme = "Bearer" });
+
+        options.Providers["anthropic"].Secret.ShouldBe("sk-cc-bearer");
+    }
+
+    [Fact]
+    public void Empty_canonical_api_key_does_not_shadow_a_populated_alias()
+    {
+        // Regression: a container injecting a blank-but-present ANTHROPIC_API_KEY (e.g. compose
+        // `ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}` with the host var unset) must NOT claim the
+        // first-present-wins Secret slot and shadow the populated ANTHROPIC_AUTH_TOKEN alias.
+        var (options, _) = Resolve(
+            new Dictionary<string, string?>
+            {
+                ["ANTHROPIC_API_KEY"] = "",
+                ["ANTHROPIC_AUTH_TOKEN"] = "sk-real-bearer"
+            },
+            "anthropic",
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.legogroup.io/claude", AuthScheme = "Bearer" });
+
+        options.Providers["anthropic"].Secret.ShouldBe("sk-real-bearer");
+    }
+
+    [Fact]
+    public void Empty_conventional_secret_does_not_blank_a_secret_bound_from_appsettings()
+    {
+        // A blank per-provider secret var must not wipe a Secret already bound from appsettings.
+        var (options, _) = Resolve(
+            new Dictionary<string, string?> { ["ANTHROPIC_API_KEY"] = "" },
+            "anthropic",
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://api.anthropic.com", Secret = "from-appsettings" });
+
+        options.Providers["anthropic"].Secret.ShouldBe("from-appsettings");
+    }
+
+    [Fact]
     public void Api_key_wins_when_both_secret_suffixes_are_set()
     {
         // First-present-wins: _API_KEY is canonical and applied first, so the _AUTHORIZATION_BEARER alias

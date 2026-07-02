@@ -100,6 +100,10 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 - **First match wins, in configuration order.** The resolver scans the dialect's providers top-to-bottom and
   returns the first `Models[].From` that matches; order providers/mappings from most to least specific.
 - **`From` matching** is exact or single trailing-`*` wildcard (`claude-haiku-*`), case-insensitive (`ModelMatcher`).
+- **`To` rewriting** is a literal replacement, except the token `{model}` expands to the full inbound model
+  name (`ModelMapping.ResolveTarget`). This enables prefix rewrites that keep the caller's version suffix —
+  e.g. `To: "anthropic.{model}"` turns `claude-opus-4-1` into `anthropic.claude-opus-4-1`. Use a literal `To`
+  (no token) to pin a family to one fixed upstream id (e.g. `gpt-5.4-*` → `gpt-5.4-2026-03-05`).
 - **No match → default passthrough** (model unchanged, no caching) via the dialect's `IsDefault` provider.
   No match **and** no default → `RoutingException(404)`. At most one `IsDefault` per dialect (startup-validated).
   The shipped `appsettings.json` declares **catch-all key-less defaults** for `anthropic` (`api.anthropic.com`)
@@ -284,3 +288,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-21 | Implemented HLD 008 Phase 1 runtime provider-config CRUD: `IProviderRegistry` seeds from resolved config/env once, `IOptionsSnapshot` overlays runtime state per request scope, catalog/resolver/model responders are scoped, `/admin/providers` is secret-free CRUD plus enable/disable, and disabled providers are excluded from imposter/default resolution. | #49 |
 | 2026-06-21 | HLD 008 Phase 1 review (#51): disabled providers are now also excluded from the local `/v1/models` catalogue (`ProviderCatalog.ProvidersFor` filters in one place); `DeleteProvider` validates the post-delete registry (can't delete the last provider); `IProviderRegistry.TryGet` returns a nullable `out` with `[NotNullWhen(true)]`, `IsSeeded` is `volatile`, unused `TrySetEnabled` removed; `ProviderRoute.Enabled` moved to an optional trailing constructor param. | #51 |
 | 2026-06-21 | HLD 008 Phase 2 provider-keyed credentials: `InMemoryCredentialStore` replaces no-DB no-op storage, EF adds `ProviderName`, active lookup keys by stable provider key, and authorization override routes accept `/routing/{dialect}/{provider}/override-authorization` with dialect-only → default. | #50 |
+| 2026-07-02 | `ModelMapping.To` now supports the `{model}` template token (`ResolveTarget`), which expands to the full inbound model name so a mapping can prepend a prefix while keeping the caller's version suffix (`To: "anthropic.{model}"` → `anthropic.claude-opus-4-1`). Literal `To` values are unchanged. Added shipped `anthropic`/`openai` providers routing to the LEGO gateway (`models.assistant.legogroup.io/claude` and `/openai`); provider keys chosen so the conventional secret env vars are `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`. | — |

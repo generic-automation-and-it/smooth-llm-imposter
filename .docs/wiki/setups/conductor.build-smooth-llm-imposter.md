@@ -25,8 +25,9 @@ unless a provider sets `"IsDefault": true` (passthrough).
 ## Prerequisites / knobs
 
 - **`<NAME>_API_KEY`** (conventional) or **`Imposter__Providers__<name>__Secret`** (structured) — the upstream key
-  for the named provider, where `<NAME>` can be the shared base prefix for dialect-suffixed siblings
-  (e.g. `opencode-go-openai` / `opencode-go-anthropic` → `OPENCODE_GO_API_KEY`). Identity is the name, so it is
+  for the named provider, where `<NAME>` is the uppercased provider key (e.g. the LEGO-gateway imposters
+  `anthropic` → `ANTHROPIC_API_KEY`, `openai` → `OPENAI_API_KEY`) or the shared base prefix for dialect-suffixed
+  siblings (`opencode-go-openai` / `opencode-go-anthropic` → `OPENCODE_GO_API_KEY`). Identity is the name, so it is
   order-independent. The sibling provider-specific **`<NAME>_AUTH_SCHEME`** /
   **`Imposter__Providers__<name>__AuthScheme`** (`ApiKey`|`Bearer`, case-insensitive) selects the auth header and
   defaults by dialect when omitted (openai → Bearer, anthropic → ApiKey).

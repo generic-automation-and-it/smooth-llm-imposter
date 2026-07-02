@@ -56,6 +56,9 @@ cd src/SmoothLlmImposter.Host
 
 # Upstream provider keys (keyed by provider name, order-independent)
 # AuthScheme (ApiKey|Bearer) selects the header; defaults by dialect (openai -> Bearer, anthropic -> ApiKey).
+# (Env vars work too and override user secrets — e.g. export ANTHROPIC_API_KEY / OPENAI_API_KEY; see Precedence.)
+dotnet user-secrets set "Imposter:Providers:anthropic:Secret" "sk-your-lego-token"     # LEGO gateway /claude
+dotnet user-secrets set "Imposter:Providers:openai:Secret" "sk-your-lego-token"        # LEGO gateway /openai
 dotnet user-secrets set "Imposter:Providers:opencode-go-openai:Secret" "sk-your-opencode-key"
 dotnet user-secrets set "Imposter:Providers:opencode-go-anthropic:Secret" "sk-your-anthropic-route-key"
 dotnet user-secrets set "Imposter:Providers:openrouter-anthropic:Secret" "sk-your-openrouter-key"

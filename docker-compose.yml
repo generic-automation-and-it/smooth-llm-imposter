@@ -28,6 +28,12 @@ services:
       # export or a gitignored .env file; :- keeps compose quiet when a secret is unset.
       OPENCODE_GO_API_KEY: ${OPENCODE_GO_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # LEGO-gateway imposters (models.assistant.legogroup.io): the `anthropic` provider (/claude) uses
+      # AuthScheme=Bearer and reads its token from ANTHROPIC_AUTH_TOKEN (the same var Claude Code sends as
+      # Authorization: Bearer) or ANTHROPIC_API_KEY; the `openai` provider (/openai) reads OPENAI_API_KEY.
+      ANTHROPIC_AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     # Only needed for the optional /admin/credentials API (requires PostgreSQL):
     # persist Data Protection keys so stored secrets survive a container rebuild.
     # volumes:

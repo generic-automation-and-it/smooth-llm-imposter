@@ -8,10 +8,11 @@ namespace SmoothLlmImposter.Application.Features.Routing;
 /// Layers the conventional per-provider environment surface (HLD 007, LADR-02/03) onto the bound
 /// <see cref="ImposterOptions"/>. For a provider keyed <c>opencode-go</c> the env prefix is
 /// <c>OPENCODE_GO_</c>, and conventional suffixes map onto the provider's scalar fields
-/// (<c>OPENCODE_GO_API_KEY</c> → <see cref="ProviderOptions.Secret"/>, etc.). The secret accepts a second,
-/// auth-typed spelling — <c>_AUTHORIZATION_BEARER</c> (e.g. <c>ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER</c>
-/// for a Bearer subscription token) — that also fills <see cref="ProviderOptions.Secret"/>; <c>_API_KEY</c>
-/// is canonical and wins if both are set. Dialect-suffixed sibling
+/// (<c>OPENCODE_GO_API_KEY</c> → <see cref="ProviderOptions.Secret"/>, etc.). The secret accepts two
+/// auth-typed aliases — <c>_AUTHORIZATION_BEARER</c> (e.g. <c>ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER</c>
+/// for a Bearer subscription token) and <c>_AUTH_TOKEN</c> (mirroring the Claude Code / Anthropic SDK
+/// <c>ANTHROPIC_AUTH_TOKEN</c> Bearer variable) — that also fill <see cref="ProviderOptions.Secret"/>;
+/// <c>_API_KEY</c> is canonical and wins if more than one is set. Dialect-suffixed sibling
 /// providers can share the base provider's secret convention when both are configured
 /// (<c>openrouter-openai</c> and <c>openrouter-anthropic</c> may use <c>OPENROUTER_API_KEY</c>, while
 /// retaining their own bound <c>AuthScheme</c>).
@@ -50,6 +51,11 @@ internal sealed class ImposterOptionsPostConfigure(
         // <NAME>_AUTHORIZATION_BEARER than as <NAME>_API_KEY. Both suffixes target Secret; _API_KEY is
         // canonical and wins if both are set for one provider (first-present-wins guard in PostConfigure).
         new("_AUTHORIZATION_BEARER", nameof(ProviderOptions.Secret), static (p, v) => p.Secret = v),
+        // Third spelling for the same Secret slot, mirroring the Claude Code / Anthropic SDK
+        // <NAME>_AUTH_TOKEN Bearer-token variable (e.g. ANTHROPIC_AUTH_TOKEN) so an operator can reuse
+        // the exact env var they already export for cc. Also an alias of _API_KEY; _API_KEY stays
+        // canonical and wins over both aliases via the first-present-wins guard in PostConfigure.
+        new("_AUTH_TOKEN", nameof(ProviderOptions.Secret), static (p, v) => p.Secret = v),
         new("_BASE_URL", nameof(ProviderOptions.BaseUrl), static (p, v) => p.BaseUrl = v),
         new("_AUTH_SCHEME", nameof(ProviderOptions.AuthScheme), static (p, v) => p.AuthScheme = v),
         new("_DIALECT", nameof(ProviderOptions.Dialect), static (p, v) => p.Dialect = v),
@@ -73,15 +79,21 @@ internal sealed class ImposterOptionsPostConfigure(
                 continue;
             }
 
-            // Secret is reachable via two suffixes (_API_KEY canonical, _AUTHORIZATION_BEARER alias).
-            // Apply the first present in Fields order and ignore the rest, so the canonical var always
-            // wins over the alias when an operator (mis)configures both for one provider.
+            // Secret is reachable via three suffixes (_API_KEY canonical, _AUTHORIZATION_BEARER and
+            // _AUTH_TOKEN aliases). Apply the first present in Fields order and ignore the rest, so the
+            // canonical var always wins over the aliases when an operator (mis)configures more than one.
             bool secretApplied = false;
 
             foreach (ConventionalField field in Fields)
             {
                 (string variable, string? value) = ResolveConventionalValue(key, options, field, prefix);
-                if (value is null)
+
+                // An empty/whitespace conventional value is treated as ABSENT, not as an override. This
+                // matters when a container injects blank vars (e.g. compose `ANTHROPIC_API_KEY=${…:-}` with
+                // the host var unset writes an empty-but-present ANTHROPIC_API_KEY): a blank canonical
+                // _API_KEY must not claim the first-present-wins Secret slot and shadow a populated
+                // _AUTHORIZATION_BEARER/_AUTH_TOKEN alias, nor blank a Secret already bound from appsettings.
+                if (string.IsNullOrWhiteSpace(value))
                 {
                     continue;
                 }
@@ -148,7 +160,10 @@ internal sealed class ImposterOptionsPostConfigure(
         // IConfiguration already includes environment variables and matches keys
         // case-insensitively, so OPENCODE_GO_API_KEY (any casing) resolves here.
         string? value = configuration[variable];
-        if (value is not null || field.PropertyName != nameof(ProviderOptions.Secret))
+
+        // Treat a blank direct value as absent so an empty-but-present per-provider secret var still
+        // falls through to a populated shared base var (the caller also skips blank values entirely).
+        if (!string.IsNullOrWhiteSpace(value) || field.PropertyName != nameof(ProviderOptions.Secret))
         {
             return (variable, value);
         }

@@ -34,7 +34,8 @@ podman build -t smooth-llm-imposter:local .
 
 Pass configuration via environment variables using the standard double-underscore path syntax. Map the
 container's `5080` to a host port. The example below assumes your shell already exports
-`$OPENCODE_GO_API_KEY` and `$OPENROUTER_API_KEY`:
+`$ANTHROPIC_API_KEY` / `$OPENAI_API_KEY` (the LEGO-gateway `anthropic` / `openai` imposters) and
+`$OPENCODE_GO_API_KEY` / `$OPENROUTER_API_KEY`:
 
 ```bash
 # Remove any existing container with the same name first.
@@ -42,6 +43,8 @@ docker rm -f smooth-llm-imposter 2>/dev/null || true
 
 docker run -d --name smooth-llm-imposter \
   -p 5080:5080 \
+  -e ANTHROPIC_API_KEY \
+  -e OPENAI_API_KEY \
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \
   smooth-llm-imposter:local
@@ -106,6 +109,8 @@ docker rm -f smooth-llm-imposter
 docker build -t smooth-llm-imposter:local .
 docker run -d --name smooth-llm-imposter \
   -p 5080:5080 \
+  -e ANTHROPIC_API_KEY \
+  -e OPENAI_API_KEY \
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \
   smooth-llm-imposter:local

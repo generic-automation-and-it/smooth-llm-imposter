@@ -31,6 +31,8 @@ Create or replace the container from the published image:
 docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 docker run -d --name smooth-llm-imposter --restart unless-stopped \
   -p 5080:5080 \
+  -e ANTHROPIC_API_KEY \
+  -e OPENAI_API_KEY \
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \
   ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
@@ -41,6 +43,8 @@ they never appear in the command line or shell history. `AuthScheme` (`ApiKey`|`
 defaults by dialect (openai → Bearer, anthropic → ApiKey); the shipped providers set it explicitly:
 
 ```bash
+export ANTHROPIC_API_KEY="sk-your-lego-token"
+export OPENAI_API_KEY="sk-your-lego-token"
 export OPENCODE_GO_API_KEY="sk-your-opencode-key"
 export OPENROUTER_API_KEY="sk-your-openrouter-key"
 ```
@@ -59,6 +63,8 @@ Identical, with Podman's SELinux-aware flags where relevant (none needed here �
 podman rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 podman run -d --name smooth-llm-imposter --restart unless-stopped \
   -p 5080:5080 \
+  -e ANTHROPIC_API_KEY \
+  -e OPENAI_API_KEY \
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \
   ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
@@ -71,6 +77,8 @@ podman run -d --name smooth-llm-imposter --restart unless-stopped \
 ```bash
 docker pull ghcr.io/generic-automation-and-it/smooth-llm-imposter:1.4.0
 docker run -d --name smooth-llm-imposter --restart unless-stopped -p 5080:5080 \
+  -e ANTHROPIC_API_KEY \
+  -e OPENAI_API_KEY \
   -e OPENCODE_GO_API_KEY \
   ghcr.io/generic-automation-and-it/smooth-llm-imposter:1.4.0
 ```
