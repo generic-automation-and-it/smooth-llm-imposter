@@ -21,17 +21,15 @@ variables. Create `.env` next to `docker-compose.yml`:
 # .env  (never committed — *.env is gitignored)
 OPENCODE_GO_API_KEY=sk-your-opencode-key              # feeds opencode-go-openai and opencode-go-anthropic
 OPENROUTER_API_KEY=sk-your-openrouter-key             # feeds openrouter-openai and openrouter-anthropic
-ANTHROPIC_AUTH_TOKEN=sk-your-lego-token               # `anthropic` imposter secret — Bearer scheme prefers this
-OPENAI_API_KEY=sk-your-lego-token                     # `openai` LEGO-gateway imposter (/openai) — ApiKey scheme
 ```
 
-> `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY` fill the **same** `anthropic` provider secret, but which one wins
-> **follows the provider's auth scheme**: the shipped `anthropic` imposter is `Bearer`, so `ANTHROPIC_AUTH_TOKEN`
-> is preferred and `ANTHROPIC_API_KEY` is ignored while the token is present (an `ApiKey` provider is the
-> reverse). This keeps a personal `ANTHROPIC_API_KEY` from being sent as a Bearer token to the gateway. The
-> off-scheme var stays a fallback, so a single var still authenticates. The **header** the scheme sends is
-> `Bearer` → `Authorization: Bearer`, `ApiKey` → `x-api-key`; toggle it in `appsettings.json` or with
-> `ANTHROPIC_AUTH_SCHEME=Bearer|ApiKey`.
+> `<NAME>_AUTH_TOKEN` and `<NAME>_API_KEY` fill the **same** provider secret, but which one wins **follows the
+> provider's auth scheme**: a `Bearer` provider prefers `<NAME>_AUTH_TOKEN`, an `ApiKey` provider prefers
+> `<NAME>_API_KEY` (the shipped providers set the scheme explicitly). The off-scheme var stays a fallback, so a
+> single var still authenticates. The **header** the scheme sends is `Bearer` → `Authorization: Bearer`, `ApiKey`
+> → `x-api-key`; toggle it in `appsettings.json` or with `<NAME>_AUTH_SCHEME=Bearer|ApiKey`. If a provider's
+> gateway wants the credential in a non-standard header name, set `Imposter__Providers__<name>__AuthHeader`
+> (e.g. `api-key`) to relocate it.
 
 `docker-compose.yml` maps these named variables onto the name-keyed
 `Imposter__Providers__<name>__Secret` settings (or the conventional `<NAME>_API_KEY` surface) — edit the
@@ -64,10 +62,6 @@ podman rm -f smooth-llm-imposter 2>/dev/null || true
 cat > .env <<EOF
 OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY:-}
 OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
-ANTHROPIC_AUTH_TOKEN=${ANTHROPIC_AUTH_TOKEN:-}
-ANTHROPIC_API_KEY=${ANTHROPIC_AUTH_TOKEN:-}
-OPENAI_API_KEY=${OPENAI_API_KEY:-}
-OPENAI_AUTH_TOKEN=${OPENAI_API_KEY:-}
 EOF
 
 # 2) Build the image from the Dockerfile

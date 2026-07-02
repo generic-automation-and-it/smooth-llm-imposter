@@ -125,10 +125,9 @@ structured (`_BASE_URL`, `_AUTH_SCHEME`, `_AUTH_HEADER`, `_DIALECT`, `_IS_DEFAUL
 
 `_AUTH_SCHEME` picks the value format **and** the default header (`Bearer` → `Authorization: Bearer <token>`,
 `ApiKey` → `x-api-key: <token>`). `_AUTH_HEADER` overrides only the **header name** — the value format still
-follows the scheme. A gateway that expects the credential in a non-standard header sets it: the shipped
-`lego-openai` imposter uses `AuthScheme: ApiKey` + `AuthHeader: api-key` (`LEGO_OPENAI_AUTH_HEADER=api-key`) →
-`api-key: <token>`, because the LEGO codex gateway wants `api-key`, not `x-api-key`. The two LEGO imposters
-(`lego-anthropic`, `lego-openai`) share the `lego-` base, so one `LEGO_AUTH_TOKEN` supplies both secrets.
+follows the scheme. A gateway that expects the credential in a non-standard header sets it: e.g. a provider
+with `AuthScheme: ApiKey` + `AuthHeader: api-key` (`<PREFIX>_AUTH_HEADER=api-key`) sends `api-key: <token>`
+instead of `x-api-key: <token>`.
 
 ```bash
 export OPENCODE_GO_API_KEY="sk-your-opencode-key"            # opencode-go-openai + opencode-go-anthropic secret

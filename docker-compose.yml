@@ -28,16 +28,6 @@ services:
       # export or a gitignored .env file; :- keeps compose quiet when a secret is unset.
       OPENCODE_GO_API_KEY: ${OPENCODE_GO_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      # LEGO-gateway imposters (models.assistant.legogroup.io), keyed lego-anthropic (/claude,
-      # AuthScheme=Bearer) and lego-openai (/openai, AuthScheme=ApiKey via an api-key header). The
-      # conventional env var is <KEY>_<SUFFIX>: the KEY uppercased with dashes -> underscores
-      # (lego-anthropic -> LEGO_ANTHROPIC), and the SUFFIX by scheme — _AUTH_TOKEN for a Bearer provider,
-      # _API_KEY for an ApiKey provider (the off-scheme suffix is also accepted as a fallback). This block
-      # is the ONLY bridge from your shell/.env into the container, so the vars must be forwarded here.
-      LEGO_ANTHROPIC_AUTH_TOKEN: ${LEGO_ANTHROPIC_AUTH_TOKEN:-}
-      LEGO_ANTHROPIC_API_KEY: ${LEGO_ANTHROPIC_API_KEY:-}
-      LEGO_OPENAI_API_KEY: ${LEGO_OPENAI_API_KEY:-}
-      LEGO_OPENAI_AUTH_TOKEN: ${LEGO_OPENAI_AUTH_TOKEN:-}
     # Only needed for the optional /admin/credentials API (requires PostgreSQL):
     # persist Data Protection keys so stored secrets survive a container rebuild.
     # volumes:

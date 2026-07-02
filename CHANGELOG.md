@@ -24,27 +24,20 @@ All notable changes to SmoothLlmImposter are documented here.
   header actually written. Applies to every provider.
 
 ### Added
-- **`AuthHeader` — override the header name the credential is written into.** The LEGO codex gateway
-  expects the credential in a header literally named `api-key`, not the `ApiKey` scheme's default
-  `x-api-key`. Providers gain an optional `AuthHeader` (config, `<PREFIX>_AUTH_HEADER` env surface, and the
-  runtime `/admin/providers` CRUD body/response) that relocates only the header **name**; the value format
-  still follows `AuthScheme` — `Bearer` keeps its `Bearer ` prefix (now idempotent: a secret already
-  starting with `Bearer ` is not double-prefixed), `ApiKey` stays the raw token. So `AuthScheme: ApiKey` +
+- **`AuthHeader` — override the header name the credential is written into.** Some gateways expect the
+  credential in a header literally named `api-key`, not the `ApiKey` scheme's default `x-api-key`. Providers
+  gain an optional `AuthHeader` (config, `<PREFIX>_AUTH_HEADER` env surface, and the runtime
+  `/admin/providers` CRUD body/response) that relocates only the header **name**; the value format still
+  follows `AuthScheme` — `Bearer` keeps its `Bearer ` prefix (now idempotent: a secret already starting with
+  `Bearer ` is not double-prefixed), `ApiKey` stays the raw token. So `AuthScheme: ApiKey` +
   `AuthHeader: api-key` → `api-key: <token>`, while `AuthScheme: Bearer` + `AuthHeader: api-key` →
   `api-key: Bearer <token>`. The forwarder drops a relayed caller header of the same name before writing the
   managed value and masks the custom header in the Debug outbound dump; `UpstreamAuthResolver.DefaultHeaderNameFor`
-  is the fallback. The shipped `lego-openai` imposter is set to `AuthHeader: api-key`.
-- **LEGO gateway providers + `{model}` model-rewrite token.** `appsettings.json` gains two imposter
-  providers pointing at the internal gateway: `lego-anthropic` → `https://models.assistant.legogroup.io/claude`
-  (rewrites `claude-opus-*`/`claude-sonnet-*`/`claude-haiku-*` to `anthropic.{model}`, `AuthScheme: Bearer`)
-  and `lego-openai` → `https://models.assistant.legogroup.io/openai` (pins `gpt-4o`, `gpt-5.4`, `gpt-5.5` to
-  fixed upstream ids, `AuthScheme: ApiKey` in an `api-key` header). Both are placed first so first-match-wins
-  routing makes the gateway authoritative for those families; `Secret` stays empty in config (supplied via
-  env/user-secrets). They share the `lego-` base, so a single `LEGO_AUTH_TOKEN` feeds both secrets — keeping a
-  personal `ANTHROPIC_API_KEY` off the gateway.
-  - The model-mapping `To` field now supports the literal token **`{model}`** (`ModelMapping.ResolveTarget`),
-    which expands to the full inbound model name — enabling prefix rewrites that keep the caller's version
-    suffix (`To: "anthropic.{model}"` → `anthropic.claude-opus-4-1`). Literal `To` values are unchanged.
+  is the fallback.
+- **`{model}` model-rewrite token.** The model-mapping `To` field now supports the literal token
+  **`{model}`** (`ModelMapping.ResolveTarget`), which expands to the full inbound model name — enabling prefix
+  rewrites that keep the caller's version suffix (`To: "anthropic.{model}"` → `anthropic.claude-opus-4-1`).
+  Literal `To` values are unchanged.
   - The conventional env surface gains a third Secret alias **`_AUTH_TOKEN`** (→ `Secret`), mirroring the
     Claude Code / Anthropic SDK `ANTHROPIC_AUTH_TOKEN` Bearer variable, so an operator can reuse the exact
     env var cc exports. One of three `Secret` suffixes alongside `_API_KEY` and `_AUTHORIZATION_BEARER`;

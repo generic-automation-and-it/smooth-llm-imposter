@@ -25,9 +25,9 @@ unless a provider sets `"IsDefault": true` (passthrough).
 ## Prerequisites / knobs
 
 - **`<NAME>_API_KEY`** / **`<NAME>_AUTH_TOKEN`** (conventional) or **`Imposter__Providers__<name>__Secret`**
-  (structured) — the upstream key for the named provider, where `<NAME>` is the uppercased provider key (e.g. the
-  LEGO-gateway imposters `anthropic` → `ANTHROPIC_AUTH_TOKEN`, `openai` → `OPENAI_API_KEY`) or the shared base
-  prefix for dialect-suffixed siblings (`opencode-go-openai` / `opencode-go-anthropic` → `OPENCODE_GO_API_KEY`).
+  (structured) — the upstream key for the named provider, where `<NAME>` is the uppercased provider key (or the
+  shared base prefix for dialect-suffixed siblings, e.g. `opencode-go-openai` / `opencode-go-anthropic` →
+  `OPENCODE_GO_API_KEY`, `openrouter-openai` / `openrouter-anthropic` → `OPENROUTER_API_KEY`).
   Identity is the name, so it is order-independent. `_API_KEY` and `_AUTH_TOKEN` fill the **same** provider
   `Secret`; which one wins **follows the effective auth scheme** — a `Bearer` provider prefers `_AUTH_TOKEN`, an
   `ApiKey` provider prefers `_API_KEY` (the off-scheme var stays a fallback). The sibling provider-specific
