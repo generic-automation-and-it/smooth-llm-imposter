@@ -163,8 +163,9 @@ secret for a one-off run.
 
 ## Point your client at the router
 
-Send standard OpenAI- or Anthropic-dialect requests to the router instead of the real provider. With the shipped
-config, OpenAI model `gpt-5.4` is rewritten to `kimi-k2.7` and forwarded to opencode.
+Send standard OpenAI- or Anthropic-dialect requests to the router instead of the real provider. The shipped
+config has no model rewrites committed; configure an imposter provider in `appsettings.json` (or via env) to
+route specific inbound models to an alternate upstream.
 
 **Point the client at a dialect prefix.** The router selects the dialect from a `/openai` or `/anthropic` path
 prefix and forwards everything after it to the matching upstream verbatim — so the client's own paths
@@ -220,8 +221,8 @@ The shipped config includes two **personal-subscription** providers for the comm
 for daily use, personal subscription for private use" split: route a specific model family to *your own*
 first-party subscription token instead of the key-less default (which forwards the caller's company
 credential). They target the real first-party endpoints (`api.anthropic.com` /
-`chatgpt.com/backend-api/codex`) and ship with an empty `Secret` — you supply your token via env. The
-Both shipped personal providers are `Bearer`, so the conventional secret var follows that scheme: a
+`chatgpt.com/backend-api/codex`) and ship with an empty `Secret` — you supply your token via env. Both
+shipped personal providers are `Bearer`, so the conventional secret var follows that scheme: a
 `Bearer` provider prefers the auth-typed `_AUTH_TOKEN` / `_AUTHORIZATION_BEARER`; `_API_KEY` is an
 accepted fallback that fills the same `Secret` (the off-scheme suffix stays a fallback so a single
 populated var still authenticates). All three suffixes fill the same `Secret`:

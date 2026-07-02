@@ -277,7 +277,7 @@ public class ImposterOptionsPostConfigureTests
     }
 
     [Fact]
-    public void Lego_providers_pick_up_the_per_provider_conventional_vars()
+    public void Per_provider_conventional_vars_resolve_to_the_correct_secret_per_scheme()
     {
         // The <PROVIDER>_<SUFFIX> convention for the hyphenated keys: mycompany-anthropic -> MYCOMPANY_ANTHROPIC prefix
         // (Bearer picks _AUTH_TOKEN), mycompany-openai -> MYCOMPANY_OPENAI prefix (ApiKey picks _API_KEY). No shared

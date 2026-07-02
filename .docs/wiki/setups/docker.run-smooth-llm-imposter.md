@@ -87,8 +87,9 @@ Podman is identical (`podman run -d --name … -p 5080:5080 -e … smooth-llm-im
 curl -fsS http://localhost:5080/health        # {"status":"ok"}
 ```
 
-Send a routed request — with the shipped config, OpenAI `gpt-5.4` is rewritten to `kimi-k2.7` and forwarded to
-opencode-go-openai (requires `OPENCODE_GO_API_KEY`, or the structured `Imposter__Providers__opencode-go-openai__Secret`):
+Send a request — the shipped config has no model rewrites committed; configure an imposter provider in
+`appsettings.json` (or via env) to route specific inbound models to an alternate upstream. Example
+(requires `OPENCODE_GO_API_KEY`, or the structured `Imposter__Providers__opencode-go-openai__Secret`):
 
 ```bash
 curl -fsS http://localhost:5080/v1/chat/completions \

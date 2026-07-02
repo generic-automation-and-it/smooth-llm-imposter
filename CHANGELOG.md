@@ -4,25 +4,6 @@ All notable changes to SmoothLlmImposter are documented here.
 
 ## [Unreleased]
 
-### Fixed
-- **Blank conventional secret var no longer shadows a populated alias (or wipes an appsettings secret).**
-  `ImposterOptionsPostConfigure` treated an empty-but-present env var as a real override, so a blank
-  canonical `<NAME>_API_KEY` (e.g. compose `ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}` with the host var
-  unset) claimed the first-present-wins `Secret` slot and shadowed a populated `<NAME>_AUTH_TOKEN` /
-  `<NAME>_AUTHORIZATION_BEARER` alias — surfacing as `auth=none` on a matched imposter route. Empty/whitespace
-  conventional values are now treated as absent (both for the first-present-wins ordering and the shared
-  base-secret fallback), so the populated alias wins and an appsettings-bound `Secret` isn't blanked.
-- **Conventional secret env vars now follow the auth scheme instead of a fixed `_API_KEY`-wins order.**
-  When both a key and a token are exported (e.g. a personal `ANTHROPIC_API_KEY` alongside the gateway's
-  `ANTHROPIC_AUTH_TOKEN`), the previous fixed precedence sent the api-key-typed `_API_KEY` even on a
-  `Bearer` provider — so the wrong credential was presented and the upstream rejected it (403). The winning
-  secret suffix now follows the provider's **effective** `AuthScheme` (naming-convention priority): `Bearer`
-  prefers `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` → `_API_KEY`; `ApiKey` prefers `_API_KEY` → `_AUTH_TOKEN`
-  → `_AUTHORIZATION_BEARER`. Off-scheme suffixes remain as fallbacks so a single populated var still
-  authenticates. `ImposterOptionsPostConfigure` resolves the scheme (`_AUTH_SCHEME` env → bound `AuthScheme`
-  → dialect default, via `UpstreamAuthResolver`) before choosing the secret, so the chosen var matches the
-  header actually written. Applies to every provider.
-
 ### Added
 - **`AuthHeader` — override the header name the credential is written into.** Some gateways expect the
   credential in a header literally named `api-key`, not the `ApiKey` scheme's default `x-api-key`. Providers
@@ -75,6 +56,23 @@ All notable changes to SmoothLlmImposter are documented here.
   now defines the L3 tier.
 
 ### Fixed
+- **Blank conventional secret var no longer shadows a populated alias (or wipes an appsettings secret).**
+  `ImposterOptionsPostConfigure` treated an empty-but-present env var as a real override, so a blank
+  canonical `<NAME>_API_KEY` (e.g. compose `ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}` with the host var
+  unset) claimed the first-present-wins `Secret` slot and shadowed a populated `<NAME>_AUTH_TOKEN` /
+  `<NAME>_AUTHORIZATION_BEARER` alias — surfacing as `auth=none` on a matched imposter route. Empty/whitespace
+  conventional values are now treated as absent (both for the first-present-wins ordering and the shared
+  base-secret fallback), so the populated alias wins and an appsettings-bound `Secret` isn't blanked.
+- **Conventional secret env vars now follow the auth scheme instead of a fixed `_API_KEY`-wins order.**
+  When both a key and a token are exported (e.g. a personal `ANTHROPIC_API_KEY` alongside the gateway's
+  `ANTHROPIC_AUTH_TOKEN`), the previous fixed precedence sent the api-key-typed `_API_KEY` even on a
+  `Bearer` provider — so the wrong credential was presented and the upstream rejected it (403). The winning
+  secret suffix now follows the provider's **effective** `AuthScheme` (naming-convention priority): `Bearer`
+  prefers `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` → `_API_KEY`; `ApiKey` prefers `_API_KEY` → `_AUTH_TOKEN`
+  → `_AUTHORIZATION_BEARER`. Off-scheme suffixes remain as fallbacks so a single populated var still
+  authenticates. `ImposterOptionsPostConfigure` resolves the scheme (`_AUTH_SCHEME` env → bound `AuthScheme`
+  → dialect default, via `UpstreamAuthResolver`) before choosing the secret, so the chosen var matches the
+  header actually written. Applies to every provider.
 - **Docker build restore path.** Renamed the build-stage `WORKDIR` so the image still mirrors the repo-root
   `src/SmoothLlmImposter.*` layout while Docker restore/publish output no longer shows a doubled `src/src/`
   path.

@@ -222,8 +222,9 @@ export OPENROUTER_API_KEY="paste-the-openrouter-key-here"
 Use `AuthScheme="Bearer"` when the upstream expects `Authorization: Bearer <token>`. Use `AuthScheme="ApiKey"`
 when the upstream expects `x-api-key: <token>`.
 
-Send a routed request — with the shipped config, OpenAI `gpt-5.4` is rewritten to `kimi-k2.7` and forwarded
-to opencode-go-openai (requires the provider's `Secret`):
+Send a request — the shipped config has no model rewrites committed; configure an imposter provider in
+`appsettings.json` (or via env) to route specific inbound models to an alternate upstream. Example with
+a custom model mapping (requires the provider's `Secret`):
 
 ```bash
 curl -fsS http://localhost:5066/openai/v1/chat/completions \

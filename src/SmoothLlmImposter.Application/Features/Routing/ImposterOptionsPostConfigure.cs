@@ -56,7 +56,7 @@ internal sealed class ImposterOptionsPostConfigure(
     internal static readonly IReadOnlyList<ConventionalField> Fields =
     [
         // Three suffixes fill the same Secret slot; the winner is chosen by the effective auth scheme
-        // (see SecretSuffixOrderFor / ApplyConventionalSecret), not by their order here. _API_KEY is the
+        // (see ResolveEffectiveScheme / ApplyConventionalSecret), not by their order here. _API_KEY is the
         // api-key-typed spelling; _AUTHORIZATION_BEARER and _AUTH_TOKEN are Bearer-typed. A Bearer
         // provider prefers the Bearer-typed vars; an ApiKey provider prefers _API_KEY.
         new("_API_KEY", nameof(ProviderOptions.Secret), static (p, v) => p.Secret = v),

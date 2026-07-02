@@ -10,7 +10,10 @@ the shipped `appsettings.json`:
 
 | Inbound dialect / model | Rewritten to | Upstream provider |
 |:------------------------|:-------------|:------------------|
-| (none — add your own) | (n/a) | The shipped `appsettings.json` has no `Models[]` for any non-default provider. Unmatched models pass through to the dialect's default (`anthropic-default` → `api.anthropic.com`, `openai-default` → `chatgpt.com/backend-api/codex`) or 404 if no default is configured. Add `Models[]` to `anthropic-personal`, `openai-personal`, `openrouter-*`, or `opencode-go-*` to enable imposter routing. |
+| OpenAI `gpt-5.4` | `kimi-k2.7-code` | opencode-go-openai (`https://opencode.ai/zen/go`) — *example only; add a `Models[]` entry, not committed* |
+| Anthropic `claude-haiku-*` | `minimax-m3` | opencode-go-anthropic (`https://opencode.ai/zen/go`) — *example only; add a `Models[]` entry, not committed* |
+
+> **Shipped `appsettings.json` has no `Models[]` for any non-default provider.** The rows above are illustrative templates — copy and add them to `opencode-go-openai`/`opencode-go-anthropic` (or any other non-default provider) to enable imposter routing. Unmatched models pass through to the dialect's default (`anthropic-default` → `api.anthropic.com`, `openai-default` → `chatgpt.com/backend-api/codex`) or 404 if no default is configured.
 
 The router is **stateless and key-less**: it does not capture or persist the caller's auth, and it does not run
 as a container. Each provider's upstream key comes from the environment (`<NAME>_API_KEY` conventional, or the
