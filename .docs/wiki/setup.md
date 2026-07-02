@@ -120,8 +120,15 @@ auth scheme:** a `Bearer` provider prefers `_AUTH_TOKEN` → `_AUTHORIZATION_BEA
 provider prefers `_API_KEY` → `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` (the off-scheme suffixes stay as
 fallbacks, so a single populated var still authenticates). This keeps a personal `ANTHROPIC_API_KEY` from being
 sent as a Bearer token, and vice versa. Other scalar overrides remain provider-specific or
-structured (`_BASE_URL`, `_AUTH_SCHEME`, `_DIALECT`, `_IS_DEFAULT`, `_OPENAI_UPSTREAM_API`,
+structured (`_BASE_URL`, `_AUTH_SCHEME`, `_AUTH_HEADER`, `_DIALECT`, `_IS_DEFAULT`, `_OPENAI_UPSTREAM_API`,
 `_REQUEST_NORMALIZATION`, `_ANTHROPIC_VERSION`). Matching is case-insensitive.
+
+`_AUTH_SCHEME` picks the value format **and** the default header (`Bearer` → `Authorization: Bearer <token>`,
+`ApiKey` → `x-api-key: <token>`). `_AUTH_HEADER` overrides only the **header name** — the value format still
+follows the scheme. A gateway that expects the credential in a non-standard header sets it: the shipped
+`lego-openai` imposter uses `AuthScheme: ApiKey` + `AuthHeader: api-key` (`LEGO_OPENAI_AUTH_HEADER=api-key`) →
+`api-key: <token>`, because the LEGO codex gateway wants `api-key`, not `x-api-key`. The two LEGO imposters
+(`lego-anthropic`, `lego-openai`) share the `lego-` base, so one `LEGO_AUTH_TOKEN` supplies both secrets.
 
 ```bash
 export OPENCODE_GO_API_KEY="sk-your-opencode-key"            # opencode-go-openai + opencode-go-anthropic secret
