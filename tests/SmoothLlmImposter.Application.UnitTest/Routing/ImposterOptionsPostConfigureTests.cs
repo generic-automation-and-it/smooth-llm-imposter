@@ -56,7 +56,7 @@ public class ImposterOptionsPostConfigureTests
         var (options, _) = Resolve(
             new Dictionary<string, string?> { ["ANTHROPIC_AUTH_TOKEN"] = "sk-cc-bearer" },
             "anthropic",
-            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.legogroup.io/claude", AuthScheme = "Bearer" });
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.mycompany.io/claude", AuthScheme = "Bearer" });
 
         options.Providers["anthropic"].Secret.ShouldBe("sk-cc-bearer");
     }
@@ -74,7 +74,7 @@ public class ImposterOptionsPostConfigureTests
                 ["ANTHROPIC_AUTH_TOKEN"] = "sk-real-bearer"
             },
             "anthropic",
-            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.legogroup.io/claude", AuthScheme = "Bearer" });
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.mycompany.io/claude", AuthScheme = "Bearer" });
 
         options.Providers["anthropic"].Secret.ShouldBe("sk-real-bearer");
     }
@@ -95,7 +95,7 @@ public class ImposterOptionsPostConfigureTests
     public void Bearer_scheme_prefers_auth_token_over_api_key()
     {
         // Naming-convention priority: a Bearer provider must send the Bearer-typed _AUTH_TOKEN, never a
-        // personal _API_KEY that happens to be exported alongside it (the LEGO gateway regression).
+        // personal _API_KEY that happens to be exported alongside it (the MyCompany Gateway regression).
         var (options, _) = Resolve(
             new Dictionary<string, string?>
             {
@@ -103,7 +103,7 @@ public class ImposterOptionsPostConfigureTests
                 ["ANTHROPIC_AUTH_TOKEN"] = "sk-gateway-bearer"
             },
             "anthropic",
-            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.legogroup.io/claude", AuthScheme = "Bearer" });
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.mycompany.io/claude", AuthScheme = "Bearer" });
 
         options.Providers["anthropic"].Secret.ShouldBe("sk-gateway-bearer");
     }
@@ -134,7 +134,7 @@ public class ImposterOptionsPostConfigureTests
                 ["OPENAI_AUTH_TOKEN"] = "sk-bearer"
             },
             "openai",
-            new ProviderOptions { Dialect = "openai", BaseUrl = "https://models.assistant.legogroup.io/openai", AuthScheme = "ApiKey" });
+            new ProviderOptions { Dialect = "openai", BaseUrl = "https://models.assistant.mycompany.io/openai", AuthScheme = "ApiKey" });
 
         options.Providers["openai"].Secret.ShouldBe("sk-apikey");
     }
@@ -146,7 +146,7 @@ public class ImposterOptionsPostConfigureTests
         var (options, _) = Resolve(
             new Dictionary<string, string?> { ["ANTHROPIC_API_KEY"] = "sk-only-apikey" },
             "anthropic",
-            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.legogroup.io/claude", AuthScheme = "Bearer" });
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.mycompany.io/claude", AuthScheme = "Bearer" });
 
         options.Providers["anthropic"].Secret.ShouldBe("sk-only-apikey");
     }
@@ -157,7 +157,7 @@ public class ImposterOptionsPostConfigureTests
         var (options, _) = Resolve(
             new Dictionary<string, string?> { ["OPENAI_AUTH_TOKEN"] = "sk-only-bearer" },
             "openai",
-            new ProviderOptions { Dialect = "openai", BaseUrl = "https://models.assistant.legogroup.io/openai", AuthScheme = "ApiKey" });
+            new ProviderOptions { Dialect = "openai", BaseUrl = "https://models.assistant.mycompany.io/openai", AuthScheme = "ApiKey" });
 
         options.Providers["openai"].Secret.ShouldBe("sk-only-bearer");
     }
@@ -175,7 +175,7 @@ public class ImposterOptionsPostConfigureTests
                 ["ANTHROPIC_AUTH_TOKEN"] = "sk-bearer"
             },
             "anthropic",
-            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.legogroup.io/claude", AuthScheme = "ApiKey" });
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.mycompany.io/claude", AuthScheme = "ApiKey" });
 
         options.Providers["anthropic"].Secret.ShouldBe("sk-bearer");
     }
@@ -279,14 +279,14 @@ public class ImposterOptionsPostConfigureTests
     [Fact]
     public void Lego_providers_pick_up_the_per_provider_conventional_vars()
     {
-        // The <PROVIDER>_<SUFFIX> convention for the hyphenated keys: lego-anthropic -> LEGO_ANTHROPIC prefix
-        // (Bearer picks _AUTH_TOKEN), lego-openai -> LEGO_OPENAI prefix (ApiKey picks _API_KEY). No shared
+        // The <PROVIDER>_<SUFFIX> convention for the hyphenated keys: mycompany-anthropic -> MYCOMPANY_ANTHROPIC prefix
+        // (Bearer picks _AUTH_TOKEN), mycompany-openai -> MYCOMPANY_OPENAI prefix (ApiKey picks _API_KEY). No shared
         // base var involved — the direct per-provider var is resolved.
         IConfiguration configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["LEGO_ANTHROPIC_AUTH_TOKEN"] = "lego-claude-token",
-                ["LEGO_OPENAI_API_KEY"] = "lego-openai-key"
+                ["MYCOMPANY_ANTHROPIC_AUTH_TOKEN"] = "mycompany-claude-token",
+                ["MYCOMPANY_OPENAI_API_KEY"] = "mycompany-openai-key"
             })
             .Build();
         var sut = new ImposterOptionsPostConfigure(configuration, new CapturingLogger());
@@ -295,15 +295,15 @@ public class ImposterOptionsPostConfigureTests
         {
             Providers =
             {
-                ["lego-anthropic"] = new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.legogroup.io/claude", AuthScheme = "Bearer" },
-                ["lego-openai"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://models.assistant.legogroup.io/openai", AuthScheme = "ApiKey" }
+                ["mycompany-anthropic"] = new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.mycompany.io/claude", AuthScheme = "Bearer" },
+                ["mycompany-openai"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://models.assistant.mycompany.io/openai", AuthScheme = "ApiKey" }
             }
         };
 
         sut.PostConfigure(name: null, options);
 
-        options.Providers["lego-anthropic"].Secret.ShouldBe("lego-claude-token");
-        options.Providers["lego-openai"].Secret.ShouldBe("lego-openai-key");
+        options.Providers["mycompany-anthropic"].Secret.ShouldBe("mycompany-claude-token");
+        options.Providers["mycompany-openai"].Secret.ShouldBe("mycompany-openai-key");
     }
 
     [Theory]

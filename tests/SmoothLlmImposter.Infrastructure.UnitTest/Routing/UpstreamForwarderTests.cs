@@ -221,19 +221,19 @@ public class UpstreamForwarderTests
     [Fact]
     public async Task Apikey_scheme_with_auth_header_override_writes_raw_token_to_custom_header()
     {
-        // The LEGO codex gateway scenario: ApiKey scheme relocated to the `api-key` header. The value is the
+        // The MyCompany Gateway scenario: ApiKey scheme relocated to the `api-key` header. The value is the
         // raw token (no scheme prefix), and neither the default x-api-key nor Authorization is written.
         var capture = new CapturingHandler();
         UpstreamForwarder forwarder = Build(capture);
 
         await Send(
             forwarder,
-            Decision(ApiDialect.OpenAi, secret: "lego-key", isImposter: true, authScheme: CredentialAuthScheme.ApiKey, authHeader: "api-key"),
+            Decision(ApiDialect.OpenAi, secret: "mycompany-key", isImposter: true, authScheme: CredentialAuthScheme.ApiKey, authHeader: "api-key"),
             credentialOverride: null,
             ApiDialect.OpenAi,
             CallerHeaders.None);
 
-        capture.Header("api-key").ShouldBe("lego-key");
+        capture.Header("api-key").ShouldBe("mycompany-key");
         capture.ApiKey.ShouldBeNull();          // default x-api-key not used
         capture.Authorization.ShouldBeNull();
     }
@@ -248,12 +248,12 @@ public class UpstreamForwarderTests
 
         await Send(
             forwarder,
-            Decision(ApiDialect.OpenAi, secret: "lego-token", isImposter: true, authScheme: CredentialAuthScheme.Bearer, authHeader: "api-key"),
+            Decision(ApiDialect.OpenAi, secret: "mycompany-token", isImposter: true, authScheme: CredentialAuthScheme.Bearer, authHeader: "api-key"),
             credentialOverride: null,
             ApiDialect.OpenAi,
             CallerHeaders.None);
 
-        capture.Header("api-key").ShouldBe("Bearer lego-token");
+        capture.Header("api-key").ShouldBe("Bearer mycompany-token");
         capture.Authorization.ShouldBeNull();   // default Authorization not used
     }
 
@@ -284,12 +284,12 @@ public class UpstreamForwarderTests
 
         await Send(
             forwarder,
-            Decision(ApiDialect.OpenAi, secret: "lego-key", isImposter: true, authScheme: CredentialAuthScheme.ApiKey, authHeader: "api-key"),
+            Decision(ApiDialect.OpenAi, secret: "mycompany-key", isImposter: true, authScheme: CredentialAuthScheme.ApiKey, authHeader: "api-key"),
             credentialOverride: null,
             ApiDialect.OpenAi,
             caller);
 
-        capture.Header("api-key").ShouldBe("lego-key");
+        capture.Header("api-key").ShouldBe("mycompany-key");
     }
 
     [Fact]

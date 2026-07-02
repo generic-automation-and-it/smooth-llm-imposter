@@ -12,7 +12,7 @@ namespace SmoothLlmImposter.Host.IntegrationTest;
 
 /// <summary>
 /// Proves the <c>AuthHeader</c> override relocates the credential to a non-standard header end-to-end —
-/// the LEGO codex gateway scenario, where the credential must be sent in a header literally named
+/// the MyCompany Gateway scenario, where the credential must be sent in a header literally named
 /// <c>api-key</c> rather than the ApiKey scheme's default <c>x-api-key</c>. The value format still follows
 /// the scheme (raw token for ApiKey), and the default auth headers are not written.
 /// </summary>
@@ -20,14 +20,14 @@ public sealed class AuthHeaderOverrideIntegrationTests
 {
     private static readonly Dictionary<string, string?> Config = new()
     {
-        ["Imposter:Providers:lego-openai:Dialect"] = "openai",
-        ["Imposter:Providers:lego-openai:BaseUrl"] = "https://lego.test/openai",
-        ["Imposter:Providers:lego-openai:Secret"] = "lego-secret",
-        ["Imposter:Providers:lego-openai:AuthScheme"] = "ApiKey",
-        ["Imposter:Providers:lego-openai:AuthHeader"] = "api-key",
-        ["Imposter:Providers:lego-openai:OpenAiUpstreamApi"] = "chat_completions",
-        ["Imposter:Providers:lego-openai:Models:0:From"] = "gpt5.4",
-        ["Imposter:Providers:lego-openai:Models:0:To"] = "gpt-5.4-2026-03-05"
+        ["Imposter:Providers:mycompany-openai:Dialect"] = "openai",
+        ["Imposter:Providers:mycompany-openai:BaseUrl"] = "https://mycompany.test/openai",
+        ["Imposter:Providers:mycompany-openai:Secret"] = "mycompany-secret",
+        ["Imposter:Providers:mycompany-openai:AuthScheme"] = "ApiKey",
+        ["Imposter:Providers:mycompany-openai:AuthHeader"] = "api-key",
+        ["Imposter:Providers:mycompany-openai:OpenAiUpstreamApi"] = "chat_completions",
+        ["Imposter:Providers:mycompany-openai:Models:0:From"] = "gpt5.4",
+        ["Imposter:Providers:mycompany-openai:Models:0:To"] = "gpt-5.4-2026-03-05"
     };
 
     private sealed class Fixture : WebApplicationFactory<HostApp::Program>
@@ -61,7 +61,7 @@ public sealed class AuthHeaderOverrideIntegrationTests
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         factory.Upstream.LastHeaders.TryGetValue("api-key", out string? apiKeyHeader).ShouldBeTrue();
-        apiKeyHeader.ShouldBe("lego-secret");            // raw token (ApiKey value format), relocated header
+        apiKeyHeader.ShouldBe("mycompany-secret");            // raw token (ApiKey value format), relocated header
         factory.Upstream.LastApiKey.ShouldBeNull();      // default x-api-key not used
         factory.Upstream.LastAuthorization.ShouldBeNull();
     }

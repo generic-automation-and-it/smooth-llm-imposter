@@ -124,7 +124,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
                 credentialOverride?.ForceBearer ?? false);
 
             // The scheme's default header (Authorization/x-api-key) unless the provider relocates the value
-            // to a gateway-specific header (e.g. the LEGO codex gateway's `api-key`). The value format still
+            // to a gateway-specific header (e.g. the MyCompany Gateway's `api-key`). The value format still
             // follows the scheme, so a Bearer credential in `api-key` is `api-key: Bearer <token>`.
             string headerName = decision.Provider.AuthHeader ?? UpstreamAuthResolver.DefaultHeaderNameFor(scheme);
             ApplyScheme(request, scheme, secret, headerName);

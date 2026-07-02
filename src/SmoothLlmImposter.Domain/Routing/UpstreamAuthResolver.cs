@@ -32,7 +32,7 @@ public static class UpstreamAuthResolver
     /// The conventional header a scheme writes its credential into when a provider does not override it via
     /// <see cref="ProviderRoute.AuthHeader"/>: <see cref="CredentialAuthScheme.Bearer"/> → <c>Authorization</c>,
     /// <see cref="CredentialAuthScheme.ApiKey"/> → <c>x-api-key</c>. A provider whose gateway expects the
-    /// credential in a differently-named header (e.g. the LEGO codex gateway's <c>api-key</c>) sets
+    /// credential in a differently-named header (e.g. the MyCompany Gateway's <c>api-key</c>) sets
     /// <c>AuthHeader</c> to relocate the value; the value format still follows the scheme (Bearer keeps its
     /// <c>Bearer </c> prefix, ApiKey stays the raw token).
     /// </summary>

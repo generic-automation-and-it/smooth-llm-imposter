@@ -22,7 +22,7 @@ public sealed class StubUpstreamHandler : HttpMessageHandler
     public string? LastAnthropicBeta { get; private set; }
 
     /// <summary>Snapshot of every request header (comma-joined values), so a test can assert a non-standard
-    /// auth header such as the LEGO codex gateway's <c>api-key</c>. Snapshotted because the request is
+    /// auth header such as the MyCompany Gateway's <c>api-key</c>. Snapshotted because the request is
     /// disposed once the send completes.</summary>
     public IReadOnlyDictionary<string, string> LastHeaders { get; private set; } =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

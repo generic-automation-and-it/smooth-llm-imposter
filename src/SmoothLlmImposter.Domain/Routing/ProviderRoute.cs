@@ -11,7 +11,7 @@ namespace SmoothLlmImposter.Domain.Routing;
 /// <see cref="AuthHeader"/> overrides only the <b>header name</b> the credential is written into
 /// (<c>null</c> = the scheme's default, <c>Authorization</c>/<c>x-api-key</c>); the value format still
 /// follows <see cref="AuthScheme"/>. A gateway that wants the credential in a non-standard header — e.g. the
-/// LEGO codex gateway's <c>api-key</c> — sets it.
+/// MyCompany Gateway's <c>api-key</c> — sets it.
 /// <see cref="RequestNormalization"/> opts the provider into a proxy-side request-normalization profile
 /// (HLD 004); <see cref="RequestNormalization.None"/> (default) forwards the body unchanged.
 /// </summary>
