@@ -49,11 +49,11 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
 
         // Proxy the caller's headers through unchanged (minus hop-by-hop/content/auth), then manage auth only.
         ForwardCallerHeaders(request, callerHeaders);
-        ApplyAuthentication(request, decision, credentialOverride, dialect, callerHeaders);
+        string? managedAuthHeader = ApplyAuthentication(request, decision, credentialOverride, dialect, callerHeaders);
         EnsureAnthropicVersion(request, decision, credentialOverride, dialect);
 
         logger.LogDebug("Forwarding to {Provider} at {Target}", decision.Provider.Name, target);
-        LogOutboundRequest(request, target, body);
+        LogOutboundRequest(request, target, body, managedAuthHeader);
 
         HttpClient client = httpClientFactory.CreateClient(HttpClientName);
         return await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
@@ -89,7 +89,10 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         }
     }
 
-    private static void ApplyAuthentication(
+    // Returns the header name the managed credential was written into (so the Debug dump can mask a
+    // non-standard AuthHeader carrying the secret), or null on key-less passthrough (where only the static
+    // Authorization/x-api-key are written, already masked).
+    private static string? ApplyAuthentication(
         HttpRequestMessage request,
         RouteDecision decision,
         RouteCredentialOverride? credentialOverride,
@@ -119,9 +122,14 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
                 decision.Provider.AuthScheme,
                 credentialOverride?.AuthScheme,
                 credentialOverride?.ForceBearer ?? false);
-            ApplyScheme(request, scheme, secret);
 
-            return;
+            // The scheme's default header (Authorization/x-api-key) unless the provider relocates the value
+            // to a gateway-specific header (e.g. the MyCompany Gateway's `api-key`). The value format still
+            // follows the scheme, so a Bearer credential in `api-key` is `api-key: Bearer <token>`.
+            string headerName = decision.Provider.AuthHeader ?? UpstreamAuthResolver.DefaultHeaderNameFor(scheme);
+            ApplyScheme(request, scheme, secret, headerName);
+
+            return headerName;
         }
 
         // Key-less passthrough: forward the caller's own credential verbatim so the router still authenticates.
@@ -138,6 +146,8 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
                 request.Headers.TryAddWithoutValidation("x-api-key", apiKey);
             }
         }
+
+        return null;
     }
 
     private static void EnsureAnthropicVersion(
@@ -169,7 +179,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
     // upstream will actually receive). Mirrors the Host's inbound dump so you can diff what the caller sent vs what
     // is forwarded — the suspect is a relayed caller header the upstream rejects. Off by default (Information); the
     // IsEnabled guard keeps it free when disabled. Auth secrets are masked (scheme + last 4 chars only).
-    private void LogOutboundRequest(HttpRequestMessage request, string target, string? body)
+    private void LogOutboundRequest(HttpRequestMessage request, string target, string? body, string? managedAuthHeader)
     {
         if (!logger.IsEnabled(LogLevel.Debug))
         {
@@ -179,7 +189,11 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         var headers = new StringBuilder();
         foreach (KeyValuePair<string, IEnumerable<string>> header in request.Headers)
         {
-            string value = SensitiveHeaders.Contains(header.Key)
+            // Mask the static auth headers and any provider-specific AuthHeader the managed secret was written
+            // into, so a relocated credential (e.g. `api-key`) never reaches the log sink in the clear.
+            bool sensitive = SensitiveHeaders.Contains(header.Key) ||
+                (managedAuthHeader is not null && string.Equals(header.Key, managedAuthHeader, StringComparison.OrdinalIgnoreCase));
+            string value = sensitive
                 ? MaskSecretHeader(string.Join(", ", header.Value))
                 : string.Join(", ", header.Value);
             headers.Append("\n  ").Append(header.Key).Append(": ").Append(value);
@@ -218,16 +232,18 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         return $"{scheme}***{tail}";
     }
 
-    private static void ApplyScheme(HttpRequestMessage request, CredentialAuthScheme scheme, string secret)
+    // Writes the credential into headerName using the value format the scheme dictates: Bearer prepends
+    // "Bearer " (idempotent — a secret already carrying the prefix is not double-prefixed), ApiKey uses the
+    // raw token. headerName is the scheme's default (Authorization/x-api-key) unless the provider relocates
+    // it via AuthHeader. Any caller-relayed header of that name is dropped first so managed auth is the sole
+    // value (the default headers are already withheld by NonForwardableHeaders; a custom name may not be).
+    private static void ApplyScheme(HttpRequestMessage request, CredentialAuthScheme scheme, string secret, string headerName)
     {
-        switch (scheme)
-        {
-            case CredentialAuthScheme.Bearer:
-                request.Headers.TryAddWithoutValidation("Authorization", $"Bearer {secret}");
-                break;
-            case CredentialAuthScheme.ApiKey:
-                request.Headers.TryAddWithoutValidation("x-api-key", secret);
-                break;
-        }
+        string value = scheme == CredentialAuthScheme.Bearer
+            ? secret.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ? secret : $"Bearer {secret}"
+            : secret;
+
+        request.Headers.Remove(headerName);
+        request.Headers.TryAddWithoutValidation(headerName, value);
     }
 }

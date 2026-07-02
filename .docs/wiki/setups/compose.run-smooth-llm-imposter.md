@@ -7,10 +7,11 @@ is **dual-mode**: `build: .` builds the image from the local [`Dockerfile`](../.
 points at the published GHCR tag — so you can either build locally or `pull`. `restart: unless-stopped` keeps it
 running across reboots. Works with **`docker compose`** (v2) and **`podman-compose`**.
 
-> SmoothLlmImposter is **stateless and key-less** — no `/data` volume, port **5066**, keys are `<NAME>_API_KEY`
-> (conventional) or `Imposter__Providers__<name>__Secret` (structured) plus the matching `<NAME>_AUTH_SCHEME` /
-> `Imposter__Providers__<name>__AuthScheme`, where `<NAME>` is the uppercased provider key. (The Smooth Claude
-> Proxy's compose, with `WORKSPACE_PATH`/`LlmService__*`, is a different service.)
+> SmoothLlmImposter is **stateless and key-less** — no `/data` volume, port **5066**, keys are `<NAME>_API_KEY` /
+> `<NAME>_AUTH_TOKEN` / `<NAME>_AUTHORIZATION_BEARER` (conventional) or
+> `Imposter__Providers__<name>__Secret` (structured) plus the matching
+> `<NAME>_AUTH_SCHEME` / `Imposter__Providers__<name>__AuthScheme`, where `<NAME>` is the uppercased provider key.
+> (The Smooth Claude Proxy's compose, with `WORKSPACE_PATH`/`LlmService__*`, is a different service.)
 
 ## Supply keys
 
@@ -22,6 +23,15 @@ variables. Create `.env` next to `docker-compose.yml`:
 OPENCODE_GO_API_KEY=sk-your-opencode-key              # feeds opencode-go-openai and opencode-go-anthropic
 OPENROUTER_API_KEY=sk-your-openrouter-key             # feeds openrouter-openai and openrouter-anthropic
 ```
+
+> `<NAME>_AUTH_TOKEN`, `<NAME>_AUTHORIZATION_BEARER`, and `<NAME>_API_KEY` fill the **same** provider secret, but
+> which one wins **follows the provider's auth scheme**: a `Bearer` provider prefers `<NAME>_AUTH_TOKEN` →
+> `<NAME>_AUTHORIZATION_BEARER` → `<NAME>_API_KEY`; an `ApiKey` provider prefers `<NAME>_API_KEY` →
+> `<NAME>_AUTH_TOKEN` → `<NAME>_AUTHORIZATION_BEARER`. The off-scheme vars stay fallbacks, so a single var still
+> authenticates. The **header** the scheme sends is `Bearer` → `Authorization: Bearer`, `ApiKey` → `x-api-key`;
+> toggle it in `appsettings.json` or with `<NAME>_AUTH_SCHEME=Bearer|ApiKey`. If a provider's
+> gateway wants the credential in a non-standard header name, set `Imposter__Providers__<name>__AuthHeader`
+> (e.g. `api-key`) to relocate it.
 
 `docker-compose.yml` maps these named variables onto the name-keyed
 `Imposter__Providers__<name>__Secret` settings (or the conventional `<NAME>_API_KEY` surface) — edit the
@@ -214,8 +224,9 @@ export OPENROUTER_API_KEY="paste-the-openrouter-key-here"
 Use `AuthScheme="Bearer"` when the upstream expects `Authorization: Bearer <token>`. Use `AuthScheme="ApiKey"`
 when the upstream expects `x-api-key: <token>`.
 
-Send a routed request — with the shipped config, OpenAI `gpt-5.4` is rewritten to `kimi-k2.7` and forwarded
-to opencode-go-openai (requires the provider's `Secret`):
+Send a request — the shipped config has no model rewrites committed; configure an imposter provider in
+`appsettings.json` (or via env) to route specific inbound models to an alternate upstream. Example with
+a custom model mapping (requires the provider's `Secret`):
 
 ```bash
 curl -fsS http://localhost:5066/openai/v1/chat/completions \

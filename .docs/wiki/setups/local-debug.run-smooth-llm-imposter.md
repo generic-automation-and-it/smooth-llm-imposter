@@ -56,6 +56,11 @@ cd src/SmoothLlmImposter.Host
 
 # Upstream provider keys (keyed by provider name, order-independent)
 # AuthScheme (ApiKey|Bearer) selects the header; defaults by dialect (openai -> Bearer, anthropic -> ApiKey).
+# The conventional secret var follows the scheme — a Bearer provider prefers <NAME>_AUTH_TOKEN,
+# then <NAME>_AUTHORIZATION_BEARER, then <NAME>_API_KEY; an ApiKey provider prefers <NAME>_API_KEY,
+# then <NAME>_AUTH_TOKEN, then <NAME>_AUTHORIZATION_BEARER. Env vars override user secrets — e.g.
+# export OPENCODE_GO_API_KEY / OPENROUTER_API_KEY; see Precedence. The structured :Secret below is
+# scheme-agnostic.
 dotnet user-secrets set "Imposter:Providers:opencode-go-openai:Secret" "sk-your-opencode-key"
 dotnet user-secrets set "Imposter:Providers:opencode-go-anthropic:Secret" "sk-your-anthropic-route-key"
 dotnet user-secrets set "Imposter:Providers:openrouter-anthropic:Secret" "sk-your-openrouter-key"

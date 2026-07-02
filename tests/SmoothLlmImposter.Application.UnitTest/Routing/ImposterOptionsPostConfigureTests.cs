@@ -49,20 +49,151 @@ public class ImposterOptionsPostConfigureTests
     }
 
     [Fact]
-    public void Api_key_wins_when_both_secret_suffixes_are_set()
+    public void Auth_token_suffix_fills_secret()
     {
-        // First-present-wins: _API_KEY is canonical and applied first, so the _AUTHORIZATION_BEARER alias
-        // never clobbers it when an operator (mis)configures both for one provider.
+        // Third Secret alias, mirroring the Claude Code / Anthropic SDK ANTHROPIC_AUTH_TOKEN Bearer var:
+        // <NAME>_AUTH_TOKEN fills the same Secret slot so an operator can reuse the var they export for cc.
+        var (options, _) = Resolve(
+            new Dictionary<string, string?> { ["ANTHROPIC_AUTH_TOKEN"] = "sk-cc-bearer" },
+            "anthropic",
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.mycompany.io/claude", AuthScheme = "Bearer" });
+
+        options.Providers["anthropic"].Secret.ShouldBe("sk-cc-bearer");
+    }
+
+    [Fact]
+    public void Empty_canonical_api_key_does_not_shadow_a_populated_alias()
+    {
+        // Regression: a container injecting a blank-but-present ANTHROPIC_API_KEY (e.g. compose
+        // `ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}` with the host var unset) must NOT claim the
+        // first-present-wins Secret slot and shadow the populated ANTHROPIC_AUTH_TOKEN alias.
         var (options, _) = Resolve(
             new Dictionary<string, string?>
             {
-                ["ANTHROPIC_PERSONAL_API_KEY"] = "sk-canonical",
-                ["ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER"] = "sk-alias"
+                ["ANTHROPIC_API_KEY"] = "",
+                ["ANTHROPIC_AUTH_TOKEN"] = "sk-real-bearer"
+            },
+            "anthropic",
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.mycompany.io/claude", AuthScheme = "Bearer" });
+
+        options.Providers["anthropic"].Secret.ShouldBe("sk-real-bearer");
+    }
+
+    [Fact]
+    public void Empty_conventional_secret_does_not_blank_a_secret_bound_from_appsettings()
+    {
+        // A blank per-provider secret var must not wipe a Secret already bound from appsettings.
+        var (options, _) = Resolve(
+            new Dictionary<string, string?> { ["ANTHROPIC_API_KEY"] = "" },
+            "anthropic",
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://api.anthropic.com", Secret = "from-appsettings" });
+
+        options.Providers["anthropic"].Secret.ShouldBe("from-appsettings");
+    }
+
+    [Fact]
+    public void Bearer_scheme_prefers_auth_token_over_api_key()
+    {
+        // Naming-convention priority: a Bearer provider must send the Bearer-typed _AUTH_TOKEN, never a
+        // personal _API_KEY that happens to be exported alongside it (the MyCompany Gateway regression).
+        var (options, _) = Resolve(
+            new Dictionary<string, string?>
+            {
+                ["ANTHROPIC_API_KEY"] = "sk-personal-apikey",
+                ["ANTHROPIC_AUTH_TOKEN"] = "sk-gateway-bearer"
+            },
+            "anthropic",
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.mycompany.io/claude", AuthScheme = "Bearer" });
+
+        options.Providers["anthropic"].Secret.ShouldBe("sk-gateway-bearer");
+    }
+
+    [Fact]
+    public void Bearer_scheme_prefers_authorization_bearer_over_api_key()
+    {
+        var (options, _) = Resolve(
+            new Dictionary<string, string?>
+            {
+                ["ANTHROPIC_PERSONAL_API_KEY"] = "sk-apikey",
+                ["ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER"] = "sk-bearer"
             },
             "anthropic-personal",
             new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://api.anthropic.com", AuthScheme = "Bearer" });
 
-        options.Providers["anthropic-personal"].Secret.ShouldBe("sk-canonical");
+        options.Providers["anthropic-personal"].Secret.ShouldBe("sk-bearer");
+    }
+
+    [Fact]
+    public void ApiKey_scheme_prefers_api_key_over_auth_token()
+    {
+        // The inverse: an ApiKey provider must send _API_KEY even when a Bearer-typed _AUTH_TOKEN is set.
+        var (options, _) = Resolve(
+            new Dictionary<string, string?>
+            {
+                ["OPENAI_API_KEY"] = "sk-apikey",
+                ["OPENAI_AUTH_TOKEN"] = "sk-bearer"
+            },
+            "openai",
+            new ProviderOptions { Dialect = "openai", BaseUrl = "https://models.assistant.mycompany.io/openai", AuthScheme = "ApiKey" });
+
+        options.Providers["openai"].Secret.ShouldBe("sk-apikey");
+    }
+
+    [Fact]
+    public void Bearer_scheme_falls_back_to_api_key_when_no_bearer_token()
+    {
+        // Off-scheme suffix is still a fallback: a Bearer provider with only _API_KEY set still authenticates.
+        var (options, _) = Resolve(
+            new Dictionary<string, string?> { ["ANTHROPIC_API_KEY"] = "sk-only-apikey" },
+            "anthropic",
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.mycompany.io/claude", AuthScheme = "Bearer" });
+
+        options.Providers["anthropic"].Secret.ShouldBe("sk-only-apikey");
+    }
+
+    [Fact]
+    public void ApiKey_scheme_falls_back_to_auth_token_when_no_api_key()
+    {
+        var (options, _) = Resolve(
+            new Dictionary<string, string?> { ["OPENAI_AUTH_TOKEN"] = "sk-only-bearer" },
+            "openai",
+            new ProviderOptions { Dialect = "openai", BaseUrl = "https://models.assistant.mycompany.io/openai", AuthScheme = "ApiKey" });
+
+        options.Providers["openai"].Secret.ShouldBe("sk-only-bearer");
+    }
+
+    [Fact]
+    public void Auth_scheme_env_override_drives_secret_priority()
+    {
+        // The _AUTH_SCHEME env override (resolved before the secret) flips the priority: with the provider
+        // bound as ApiKey but overridden to Bearer, the Bearer-typed _AUTH_TOKEN wins over _API_KEY.
+        var (options, _) = Resolve(
+            new Dictionary<string, string?>
+            {
+                ["ANTHROPIC_AUTH_SCHEME"] = "Bearer",
+                ["ANTHROPIC_API_KEY"] = "sk-apikey",
+                ["ANTHROPIC_AUTH_TOKEN"] = "sk-bearer"
+            },
+            "anthropic",
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.mycompany.io/claude", AuthScheme = "ApiKey" });
+
+        options.Providers["anthropic"].Secret.ShouldBe("sk-bearer");
+    }
+
+    [Fact]
+    public void Dialect_default_scheme_drives_secret_priority_when_scheme_omitted()
+    {
+        // No AuthScheme configured → anthropic defaults to ApiKey, so _API_KEY wins over _AUTH_TOKEN.
+        var (options, _) = Resolve(
+            new Dictionary<string, string?>
+            {
+                ["ANTHROPIC_API_KEY"] = "sk-apikey",
+                ["ANTHROPIC_AUTH_TOKEN"] = "sk-bearer"
+            },
+            "anthropic",
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://api.anthropic.com" });
+
+        options.Providers["anthropic"].Secret.ShouldBe("sk-apikey");
     }
 
     [Fact]
@@ -143,6 +274,36 @@ public class ImposterOptionsPostConfigureTests
         options.Providers["openrouter-openai"].AuthScheme.ShouldBe("Bearer");
         options.Providers["openrouter-anthropic"].Secret.ShouldBe("sk-openrouter");
         options.Providers["openrouter-anthropic"].AuthScheme.ShouldBe("Bearer");
+    }
+
+    [Fact]
+    public void Per_provider_conventional_vars_resolve_to_the_correct_secret_per_scheme()
+    {
+        // The <PROVIDER>_<SUFFIX> convention for the hyphenated keys: mycompany-anthropic -> MYCOMPANY_ANTHROPIC prefix
+        // (Bearer picks _AUTH_TOKEN), mycompany-openai -> MYCOMPANY_OPENAI prefix (ApiKey picks _API_KEY). No shared
+        // base var involved — the direct per-provider var is resolved.
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["MYCOMPANY_ANTHROPIC_AUTH_TOKEN"] = "mycompany-claude-token",
+                ["MYCOMPANY_OPENAI_API_KEY"] = "mycompany-openai-key"
+            })
+            .Build();
+        var sut = new ImposterOptionsPostConfigure(configuration, new CapturingLogger());
+
+        var options = new ImposterOptions
+        {
+            Providers =
+            {
+                ["mycompany-anthropic"] = new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.mycompany.io/claude", AuthScheme = "Bearer" },
+                ["mycompany-openai"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://models.assistant.mycompany.io/openai", AuthScheme = "ApiKey" }
+            }
+        };
+
+        sut.PostConfigure(name: null, options);
+
+        options.Providers["mycompany-anthropic"].Secret.ShouldBe("mycompany-claude-token");
+        options.Providers["mycompany-openai"].Secret.ShouldBe("mycompany-openai-key");
     }
 
     [Theory]

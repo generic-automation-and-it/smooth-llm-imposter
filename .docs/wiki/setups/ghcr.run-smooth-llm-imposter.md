@@ -13,9 +13,19 @@ ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
 
 > **This is the SmoothLlmImposter image — not the Smooth Claude Proxy.** They are different services with different
 > config: this router is **stateless and key-less** (no `/data` volume, no `WORKSPACE_PATH`), uses port **5080**,
-> and keys are `<NAME>_API_KEY` (conventional) or `Imposter__Providers__<name>__Secret` (structured), where
-> `<NAME>` is the uppercased provider key — with a sibling `<NAME>_AUTH_SCHEME` / `Imposter__Providers__<name>__AuthScheme`
-> of `ApiKey`|`Bearer`, defaulting by dialect — there is no `LlmService__*` / `LOG_TOKEN_FORMAT`.
+> and keys are `<NAME>_API_KEY` / `<NAME>_AUTH_TOKEN` / `<NAME>_AUTHORIZATION_BEARER` (conventional) or `Imposter__Providers__<name>__Secret`
+> (structured), where `<NAME>` is the uppercased provider key — with a sibling `<NAME>_AUTH_SCHEME` /
+> `Imposter__Providers__<name>__AuthScheme` of `ApiKey`|`Bearer`, defaulting by dialect — there is no
+> `LlmService__*` / `LOG_TOKEN_FORMAT`.
+>
+> **Secret suffix priority follows the provider's auth scheme.** `<NAME>_API_KEY`, `<NAME>_AUTH_TOKEN`, and
+> `<NAME>_AUTHORIZATION_BEARER` all fill the same provider `Secret`, but which one wins is scheme-driven: a
+> **`Bearer`** provider prefers `<NAME>_AUTH_TOKEN` → `<NAME>_AUTHORIZATION_BEARER` → `<NAME>_API_KEY`, while an
+> **`ApiKey`** provider prefers `<NAME>_API_KEY` → `<NAME>_AUTH_TOKEN` → `<NAME>_AUTHORIZATION_BEARER`. The
+> off-scheme vars stay fallbacks so a single var still authenticates. Set the scheme explicitly per provider
+> when an upstream expects a non-default auth shape. If a provider's
+> gateway wants the credential in a non-standard header name, set `Imposter__Providers__<name>__AuthHeader`
+> (e.g. `api-key`) to relocate it.
 
 ## Prerequisites
 
@@ -37,13 +47,19 @@ docker run -d --name smooth-llm-imposter --restart unless-stopped \
 ```
 
 `-e NAME` (no `=value`) **passes the variable through from your current shell** — so `export` your keys first and
-they never appear in the command line or shell history. `AuthScheme` (`ApiKey`|`Bearer`) selects the auth header and
-defaults by dialect (openai → Bearer, anthropic → ApiKey); the shipped providers set it explicitly:
+they never appear in the command line or shell history. `AuthScheme` (`ApiKey`|`Bearer`) selects the auth header
+and defaults by dialect (openai → Bearer, anthropic → ApiKey); the matching secret var follows that scheme:
 
 ```bash
 export OPENCODE_GO_API_KEY="sk-your-opencode-key"
 export OPENROUTER_API_KEY="sk-your-openrouter-key"
 ```
+
+> To flip a provider's effective scheme, pass `-e <NAME>_AUTH_SCHEME=ApiKey|Bearer`; the conventional secret var
+> then follows it (a `Bearer` provider prefers `<NAME>_AUTH_TOKEN` → `<NAME>_AUTHORIZATION_BEARER` →
+> `<NAME>_API_KEY`, while an `ApiKey` provider prefers `<NAME>_API_KEY` → `<NAME>_AUTH_TOKEN` →
+> `<NAME>_AUTHORIZATION_BEARER`, and the off-scheme vars stay fallbacks). If a provider's gateway wants the
+> credential in a non-standard header name, set `-e Imposter__Providers__<name>__AuthHeader=api-key` to relocate it.
 
 After the container has been created once, start it again with:
 
@@ -72,6 +88,7 @@ podman run -d --name smooth-llm-imposter --restart unless-stopped \
 docker pull ghcr.io/generic-automation-and-it/smooth-llm-imposter:1.4.0
 docker run -d --name smooth-llm-imposter --restart unless-stopped -p 5080:5080 \
   -e OPENCODE_GO_API_KEY \
+  -e OPENROUTER_API_KEY \
   ghcr.io/generic-automation-and-it/smooth-llm-imposter:1.4.0
 ```
 

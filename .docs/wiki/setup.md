@@ -81,10 +81,9 @@ requires_openai_auth = true
 ```
 
 The shipped provider set lives in **[`src/SmoothLlmImposter.Host/appsettings.json`](../../src/SmoothLlmImposter.Host/appsettings.json)**
-— read it there rather than copying it here (a duplicated block drifts). It declares the catch-all
-`*-default` passthrough providers, the personal-subscription providers (`anthropic-personal` /
-`openai-personal`, see below), and the `openrouter-*` / `opencode-go-*` imposter routes. Each entry is a
-provider key → `{ Dialect, BaseUrl, Secret, AuthScheme, optional IsDefault / OpenAiUpstreamApi, Models[] }`.
+— read current provider keys and URLs there rather than copying them here. Setup docs describe the stable shape
+and conventions; duplicating the full shipped table here drifts. Each entry is a provider key →
+`{ Dialect, BaseUrl, Secret, AuthScheme, optional IsDefault / OpenAiUpstreamApi, Models[] }`.
 
 Routing rules to keep in mind:
 
@@ -92,9 +91,8 @@ Routing rules to keep in mind:
   and takes the first `Models[].From` that matches. Order providers and mappings most-specific first.
 - **`From` matching** is exact or a single trailing-`*` wildcard (`claude-haiku-*`), case-insensitive.
 - **No match → passthrough** via the dialect's `IsDefault` provider (model unchanged, no caching). **No match and
-  no default → 404.** The shipped `appsettings.json` declares catch-all `IsDefault` providers for `anthropic`
-  (`https://api.anthropic.com`) and `openai` (`https://api.openai.com`), so unmatched models pass through to the
-  real provider. Remove them for type-only impostering (unmatched → 404).
+  no default → 404.** When the active config declares catch-all `IsDefault` providers, unmatched models pass
+  through to the configured upstream. Remove the defaults for type-only impostering (unmatched → 404).
 - **Transparent proxy.** The request is relayed to the upstream unchanged — all caller headers (incl.
   `anthropic-beta`, vendor `x-*`) and the body pass through; the only mutations are caching injection on a
   matched imposter route and the auth header. **Auth** is route-dependent: an imposter route sends the
@@ -113,11 +111,21 @@ reordering. There are two equivalent paths:
 **Conventional `<NAME>_<FIELD>` surface (the friendly path).** Each provider exposes an env prefix derived
 from its key — uppercase, every run of non-alphanumeric characters collapsed to one `_`. For dialect-suffixed
 siblings, `_API_KEY` can use the shared base prefix (`opencode-go-openai` / `opencode-go-anthropic` →
-`OPENCODE_GO_API_KEY`). The secret also accepts the auth-typed alias `_AUTHORIZATION_BEARER`
-(`ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER` fills the same `Secret` as `ANTHROPIC_PERSONAL_API_KEY`;
-`_API_KEY` is canonical and wins if both are set). Other scalar overrides remain provider-specific or
-structured (`_BASE_URL`, `_AUTH_SCHEME`, `_DIALECT`, `_IS_DEFAULT`, `_OPENAI_UPSTREAM_API`,
+`OPENCODE_GO_API_KEY`). The secret is reachable via three suffixes that all fill the same `Secret` —
+`_API_KEY` (api-key-typed) plus the Bearer-typed aliases `_AUTH_TOKEN` (mirroring the Claude Code / Anthropic
+SDK `ANTHROPIC_AUTH_TOKEN`) and `_AUTHORIZATION_BEARER`. **Which suffix wins follows the provider's effective
+auth scheme:** a `Bearer` provider prefers `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` → `_API_KEY`, an `ApiKey`
+provider prefers `_API_KEY` → `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` (the off-scheme suffixes stay as
+fallbacks, so a single populated var still authenticates). This keeps a personal `ANTHROPIC_API_KEY` from being
+sent as a Bearer token, and vice versa. Other scalar overrides remain provider-specific or
+structured (`_BASE_URL`, `_AUTH_SCHEME`, `_AUTH_HEADER`, `_DIALECT`, `_IS_DEFAULT`, `_OPENAI_UPSTREAM_API`,
 `_REQUEST_NORMALIZATION`, `_ANTHROPIC_VERSION`). Matching is case-insensitive.
+
+`_AUTH_SCHEME` picks the value format **and** the default header (`Bearer` → `Authorization: Bearer <token>`,
+`ApiKey` → `x-api-key: <token>`). `_AUTH_HEADER` overrides only the **header name** — the value format still
+follows the scheme. A gateway that expects the credential in a non-standard header sets it: e.g. a provider
+with `AuthScheme: ApiKey` + `AuthHeader: api-key` (`<PREFIX>_AUTH_HEADER=api-key`) sends `api-key: <token>`
+instead of `x-api-key: <token>`.
 
 ```bash
 export OPENCODE_GO_API_KEY="sk-your-opencode-key"            # opencode-go-openai + opencode-go-anthropic secret
@@ -153,8 +161,9 @@ secret for a one-off run.
 
 ## Point your client at the router
 
-Send standard OpenAI- or Anthropic-dialect requests to the router instead of the real provider. With the shipped
-config, OpenAI model `gpt-5.4` is rewritten to `kimi-k2.7` and forwarded to opencode.
+Send standard OpenAI- or Anthropic-dialect requests to the router instead of the real provider. The shipped
+config has no model rewrites committed; configure an imposter provider in `appsettings.json` (or via env) to
+route specific inbound models to an alternate upstream.
 
 **Point the client at a dialect prefix.** The router selects the dialect from a `/openai` or `/anthropic` path
 prefix and forwards everything after it to the matching upstream verbatim — so the client's own paths
@@ -206,18 +215,18 @@ when the upstream expects `x-api-key: <token>`.
 
 ### Personal-subscription providers (`anthropic-personal` / `openai-personal`)
 
-The shipped config includes two **personal-subscription** providers for the common "company subscription
-for daily use, personal subscription for private use" split: route a specific model family to *your own*
-first-party subscription token instead of the key-less default (which forwards the caller's company
-credential). They target the real first-party endpoints (`api.anthropic.com` /
-`chatgpt.com/backend-api/codex`) with `AuthScheme: Bearer` and ship with an empty `Secret` — you supply
-your token via env. The secret accepts the auth-typed alias `_AUTHORIZATION_BEARER` so a Bearer
-subscription token reads naturally:
+The shipped config includes two **personal-subscription** provider scaffolds for the common "company
+subscription for daily use, personal subscription for private use" split. They ship inert (no `Models[]`) and
+with an empty `Secret`; add the `Models[]` mappings you want routed to your subscription at deploy time, then
+supply your token via env. Both shipped personal providers are `Bearer`, so the conventional secret var follows
+that scheme: a `Bearer` provider prefers the auth-typed `_AUTH_TOKEN` / `_AUTHORIZATION_BEARER`; `_API_KEY` is
+an accepted fallback that fills the same `Secret` (the off-scheme suffix stays a fallback so a single populated
+var still authenticates). All three suffixes fill the same `Secret`:
 
 ```bash
-export ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER="paste-your-anthropic-subscription-token"
-export OPENAI_PERSONAL_AUTHORIZATION_BEARER="paste-your-openai-subscription-token"
-# (ANTHROPIC_PERSONAL_API_KEY / OPENAI_PERSONAL_API_KEY are equivalent and canonical.)
+export ANTHROPIC_PERSONAL_AUTH_TOKEN="paste-your-anthropic-subscription-token"
+export OPENAI_PERSONAL_AUTH_TOKEN="paste-your-openai-subscription-token"
+# (_AUTHORIZATION_BEARER is equivalent; _API_KEY is a fallback.)
 ```
 
 #### Minting the tokens
@@ -232,7 +241,7 @@ claude setup-token    # prints a long-lived subscription token from that persona
 claude logout && claude login   # sign back in with your COMPANY account for day-to-day use
 ```
 
-Then paste the copied value into `ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER`.
+Then paste the copied value into `ANTHROPIC_PERSONAL_AUTH_TOKEN`.
 
 **OpenAI / Codex — no `setup-token` equivalent.** Codex CLI has no one-shot portable-token command
 ([OpenAI Codex auth docs](https://developers.openai.com/codex/auth)). The supported ways to get a
@@ -254,13 +263,8 @@ ChatGPT-subscription credential for this router:
 > personal subscription token through this proxy only where your plan permits it; a provider-issued API
 > key is the unambiguous path.
 
-- `anthropic-personal` captures `claude-opus-4-7*` and serves it as `claude-opus-4-8` on your personal
-  subscription (capture within the Opus family). It uses a glob distinct from `openrouter-anthropic`
-  (`claude-opus-4-6*`), so the two never compete. (If two same-dialect providers ever share a glob, the
-  one declared earlier in config wins — first match wins.)
-- `openai-personal` ships **inert** (no `Models`) — it is a template you activate by adding your own
-  mappings. Neither personal provider is `IsDefault` (that role belongs to `*-default`). See HLD 007
-  LADR-04.
+- `anthropic-personal` and `openai-personal` ship **inert** (no `Models`) — they are templates you activate by
+  adding your own `Models[]` entries at deploy time. (See HLD 007 LADR-04 for the personal-subscription pattern.)
 
 ```bash
 # OpenAI dialect — prefix /openai, client appends /v1/chat/completions (also /v1/responses, GET /v1/models)

@@ -34,7 +34,7 @@ podman build -t smooth-llm-imposter:local .
 
 Pass configuration via environment variables using the standard double-underscore path syntax. Map the
 container's `5080` to a host port. The example below assumes your shell already exports
-`$OPENCODE_GO_API_KEY` and `$OPENROUTER_API_KEY`:
+`$OPENCODE_GO_API_KEY` / `$OPENROUTER_API_KEY`:
 
 ```bash
 # Remove any existing container with the same name first.
@@ -48,7 +48,13 @@ docker run -d --name smooth-llm-imposter \
 ```
 
 `AuthScheme` (`ApiKey`|`Bearer`) selects the auth header and defaults by dialect when omitted (openai → Bearer,
-anthropic → ApiKey); the shipped providers set it explicitly.
+anthropic → ApiKey). The conventional secret var **follows that scheme**: `<NAME>_API_KEY`,
+`<NAME>_AUTH_TOKEN`, and `<NAME>_AUTHORIZATION_BEARER` all fill the provider `Secret`, but a `Bearer` provider
+prefers `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` → `_API_KEY`, while an `ApiKey` provider prefers `_API_KEY` →
+`_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` (the off-scheme vars stay fallbacks) — flip the effective scheme for a
+provider with `-e <NAME>_AUTH_SCHEME=ApiKey|Bearer`. If a provider's gateway wants the credential in a
+non-standard header name, set `AuthHeader` (e.g.
+`-e Imposter__Providers__<name>__AuthHeader=api-key`) to relocate it.
 
 Podman is identical (`podman run -d --name … -p 5080:5080 -e … smooth-llm-imposter:local`).
 
@@ -82,8 +88,9 @@ Podman is identical (`podman run -d --name … -p 5080:5080 -e … smooth-llm-im
 curl -fsS http://localhost:5080/health        # {"status":"ok"}
 ```
 
-Send a routed request — with the shipped config, OpenAI `gpt-5.4` is rewritten to `kimi-k2.7` and forwarded to
-opencode-go-openai (requires `OPENCODE_GO_API_KEY`, or the structured `Imposter__Providers__opencode-go-openai__Secret`):
+Send a request — the shipped config has no model rewrites committed; configure an imposter provider in
+`appsettings.json` (or via env) to route specific inbound models to an alternate upstream. Example
+(requires `OPENCODE_GO_API_KEY`, or the structured `Imposter__Providers__opencode-go-openai__Secret`):
 
 ```bash
 curl -fsS http://localhost:5080/v1/chat/completions \

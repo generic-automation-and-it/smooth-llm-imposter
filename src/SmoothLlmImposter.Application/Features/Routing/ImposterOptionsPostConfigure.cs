@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SmoothLlmImposter.Domain.Credentials;
+using SmoothLlmImposter.Domain.Routing;
 
 namespace SmoothLlmImposter.Application.Features.Routing;
 
@@ -8,10 +10,19 @@ namespace SmoothLlmImposter.Application.Features.Routing;
 /// Layers the conventional per-provider environment surface (HLD 007, LADR-02/03) onto the bound
 /// <see cref="ImposterOptions"/>. For a provider keyed <c>opencode-go</c> the env prefix is
 /// <c>OPENCODE_GO_</c>, and conventional suffixes map onto the provider's scalar fields
-/// (<c>OPENCODE_GO_API_KEY</c> → <see cref="ProviderOptions.Secret"/>, etc.). The secret accepts a second,
-/// auth-typed spelling — <c>_AUTHORIZATION_BEARER</c> (e.g. <c>ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER</c>
-/// for a Bearer subscription token) — that also fills <see cref="ProviderOptions.Secret"/>; <c>_API_KEY</c>
-/// is canonical and wins if both are set. Dialect-suffixed sibling
+/// (<c>OPENCODE_GO_API_KEY</c> → <see cref="ProviderOptions.Secret"/>, etc.). The secret is reachable via
+/// three suffixes — <c>_API_KEY</c> (api-key-typed), and the Bearer-typed aliases
+/// <c>_AUTHORIZATION_BEARER</c> (e.g. <c>ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER</c> for a Bearer
+/// subscription token) and <c>_AUTH_TOKEN</c> (mirroring the Claude Code / Anthropic SDK
+/// <c>ANTHROPIC_AUTH_TOKEN</c> Bearer variable) — all filling <see cref="ProviderOptions.Secret"/>.
+/// <b>Which suffix wins follows the provider's effective auth scheme</b> (naming-convention priority):
+/// a <c>Bearer</c> provider prefers <c>_AUTH_TOKEN</c> → <c>_AUTHORIZATION_BEARER</c> → <c>_API_KEY</c>,
+/// an <c>ApiKey</c> provider prefers <c>_API_KEY</c> → <c>_AUTH_TOKEN</c> → <c>_AUTHORIZATION_BEARER</c>.
+/// The off-scheme suffixes remain as fallbacks so a single populated var still authenticates. This keeps
+/// a personal <c>ANTHROPIC_API_KEY</c> from being sent as a Bearer token (and vice versa) when both a
+/// key and a token are exported. The effective scheme is resolved from the conventional
+/// <c>_AUTH_SCHEME</c> env override, then the bound <see cref="ProviderOptions.AuthScheme"/>, then the
+/// dialect default (openai → Bearer, anthropic → ApiKey). Dialect-suffixed sibling
 /// providers can share the base provider's secret convention when both are configured
 /// (<c>openrouter-openai</c> and <c>openrouter-anthropic</c> may use <c>OPENROUTER_API_KEY</c>, while
 /// retaining their own bound <c>AuthScheme</c>).
@@ -44,14 +55,22 @@ internal sealed class ImposterOptionsPostConfigure(
     /// </summary>
     internal static readonly IReadOnlyList<ConventionalField> Fields =
     [
+        // Three suffixes fill the same Secret slot; the winner is chosen by the effective auth scheme
+        // (see ResolveEffectiveScheme / ApplyConventionalSecret), not by their order here. _API_KEY is the
+        // api-key-typed spelling; _AUTHORIZATION_BEARER and _AUTH_TOKEN are Bearer-typed. A Bearer
+        // provider prefers the Bearer-typed vars; an ApiKey provider prefers _API_KEY.
         new("_API_KEY", nameof(ProviderOptions.Secret), static (p, v) => p.Secret = v),
-        // Auth-typed alias for the same Secret slot: a Bearer subscription token (e.g. from
-        // `claude setup-token` on a personal provider) reads more naturally as
-        // <NAME>_AUTHORIZATION_BEARER than as <NAME>_API_KEY. Both suffixes target Secret; _API_KEY is
-        // canonical and wins if both are set for one provider (first-present-wins guard in PostConfigure).
+        // Bearer-typed alias: a Bearer subscription token (e.g. from `claude setup-token` on a personal
+        // provider) reads more naturally as <NAME>_AUTHORIZATION_BEARER than as <NAME>_API_KEY.
         new("_AUTHORIZATION_BEARER", nameof(ProviderOptions.Secret), static (p, v) => p.Secret = v),
+        // Bearer-typed alias mirroring the Claude Code / Anthropic SDK <NAME>_AUTH_TOKEN Bearer-token
+        // variable (e.g. ANTHROPIC_AUTH_TOKEN) so an operator can reuse the exact env var they export for cc.
+        new("_AUTH_TOKEN", nameof(ProviderOptions.Secret), static (p, v) => p.Secret = v),
         new("_BASE_URL", nameof(ProviderOptions.BaseUrl), static (p, v) => p.BaseUrl = v),
         new("_AUTH_SCHEME", nameof(ProviderOptions.AuthScheme), static (p, v) => p.AuthScheme = v),
+        // Overrides only the header NAME the credential is written into (value format follows _AUTH_SCHEME);
+        // e.g. OPENAI_AUTH_HEADER=api-key for the MyCompany Gateway.
+        new("_AUTH_HEADER", nameof(ProviderOptions.AuthHeader), static (p, v) => p.AuthHeader = v),
         new("_DIALECT", nameof(ProviderOptions.Dialect), static (p, v) => p.Dialect = v),
         // Booleans have no-op Apply delegates: PostConfigure handles them inline because applying them
         // requires bool.TryParse plus a Warning on an unparseable value, which
@@ -63,6 +82,19 @@ internal sealed class ImposterOptionsPostConfigure(
         new("_ANTHROPIC_VERSION", nameof(ProviderOptions.AnthropicVersion), static (p, v) => p.AnthropicVersion = v),
     ];
 
+    // Naming-convention priority for the Secret slot, keyed by effective auth scheme. The scheme-matching
+    // suffix is tried first; the off-scheme suffixes stay as fallbacks so a single populated var still
+    // authenticates. Every entry maps to a Secret-typed suffix in Fields.
+    private static readonly string[] BearerSecretSuffixOrder = ["_AUTH_TOKEN", "_AUTHORIZATION_BEARER", "_API_KEY"];
+    private static readonly string[] ApiKeySecretSuffixOrder = ["_API_KEY", "_AUTH_TOKEN", "_AUTHORIZATION_BEARER"];
+
+    /// <summary>The Secret-typed <see cref="ConventionalField"/> entries indexed by their suffix, so the
+    /// scheme-ordered secret resolution can reuse a single field definition (and its shared-provider
+    /// fallback) per suffix.</summary>
+    private static readonly IReadOnlyDictionary<string, ConventionalField> SecretFieldsBySuffix =
+        Fields.Where(f => f.PropertyName == nameof(ProviderOptions.Secret))
+              .ToDictionary(f => f.Suffix, StringComparer.Ordinal);
+
     public void PostConfigure(string? name, ImposterOptions options)
     {
         foreach ((string key, ProviderOptions provider) in options.Providers)
@@ -73,27 +105,27 @@ internal sealed class ImposterOptionsPostConfigure(
                 continue;
             }
 
-            // Secret is reachable via two suffixes (_API_KEY canonical, _AUTHORIZATION_BEARER alias).
-            // Apply the first present in Fields order and ignore the rest, so the canonical var always
-            // wins over the alias when an operator (mis)configures both for one provider.
-            bool secretApplied = false;
+            // Secret is reachable via three suffixes whose winner follows the effective auth scheme
+            // (Bearer → _AUTH_TOKEN/_AUTHORIZATION_BEARER first; ApiKey → _API_KEY first). Resolved
+            // separately so the loop below only handles the non-secret fields.
+            ApplyConventionalSecret(key, options, provider, prefix);
 
             foreach (ConventionalField field in Fields)
             {
-                (string variable, string? value) = ResolveConventionalValue(key, options, field, prefix);
-                if (value is null)
+                // Secret suffixes are handled by ApplyConventionalSecret (scheme-driven priority).
+                if (field.PropertyName == nameof(ProviderOptions.Secret))
                 {
                     continue;
                 }
 
-                if (field.PropertyName == nameof(ProviderOptions.Secret))
-                {
-                    if (secretApplied)
-                    {
-                        continue;
-                    }
+                (string variable, string? value) = ResolveConventionalValue(key, options, field, prefix);
 
-                    secretApplied = true;
+                // An empty/whitespace conventional value is treated as ABSENT, not as an override (e.g. a
+                // compose `X=${X:-}` with the host var unset writes an empty-but-present var), so it never
+                // blanks a value already bound from appsettings.
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    continue;
                 }
 
                 if (field.PropertyName is nameof(ProviderOptions.IsDefault) or nameof(ProviderOptions.Enabled))
@@ -137,6 +169,65 @@ internal sealed class ImposterOptionsPostConfigure(
             variable, key, propertyName);
     }
 
+    /// <summary>
+    /// Fills <see cref="ProviderOptions.Secret"/> from the first populated secret suffix in the priority
+    /// order for the provider's effective auth scheme (Bearer prefers <c>_AUTH_TOKEN</c>/
+    /// <c>_AUTHORIZATION_BEARER</c>; ApiKey prefers <c>_API_KEY</c>), with the off-scheme suffixes as
+    /// fallbacks. A blank/whitespace value is treated as absent, so an empty-but-present var neither wins
+    /// the slot nor blanks a Secret bound from appsettings.
+    /// </summary>
+    private void ApplyConventionalSecret(string key, ImposterOptions options, ProviderOptions provider, string prefix)
+    {
+        string[] order = ResolveEffectiveScheme(provider, prefix) == CredentialAuthScheme.Bearer
+            ? BearerSecretSuffixOrder
+            : ApiKeySecretSuffixOrder;
+
+        foreach (string suffix in order)
+        {
+            ConventionalField field = SecretFieldsBySuffix[suffix];
+            (string variable, string? value) = ResolveConventionalValue(key, options, field, prefix);
+
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            provider.Secret = value;
+            LogApplied(variable, key, field.PropertyName);
+            return;
+        }
+    }
+
+    /// <summary>
+    /// Resolves the provider's effective auth scheme for secret-suffix prioritization: the conventional
+    /// <c>_AUTH_SCHEME</c> env override wins, then the bound <see cref="ProviderOptions.AuthScheme"/>, then
+    /// the dialect default (openai → Bearer, anthropic → ApiKey) computed the same way the forwarder does.
+    /// Mirrors the <c>_AUTH_SCHEME</c>/<c>_DIALECT</c> env overrides applied later in the field loop so the
+    /// secret choice matches the scheme the provider will actually authenticate with.
+    /// </summary>
+    private CredentialAuthScheme ResolveEffectiveScheme(ProviderOptions provider, string prefix)
+    {
+        string? schemeValue = configuration[prefix + "_AUTH_SCHEME"];
+        if (string.IsNullOrWhiteSpace(schemeValue))
+        {
+            schemeValue = provider.AuthScheme;
+        }
+
+        if (CredentialAuthSchemeParser.TryParse(schemeValue, out CredentialAuthScheme? scheme) && scheme is not null)
+        {
+            return scheme.Value;
+        }
+
+        string? dialectValue = configuration[prefix + "_DIALECT"];
+        if (string.IsNullOrWhiteSpace(dialectValue))
+        {
+            dialectValue = provider.Dialect;
+        }
+
+        ApiDialectParser.TryParse(dialectValue, out ApiDialect dialect);
+        return UpstreamAuthResolver.DefaultSchemeFor(dialect);
+    }
+
     private (string Variable, string? Value) ResolveConventionalValue(
         string key,
         ImposterOptions options,
@@ -148,7 +239,10 @@ internal sealed class ImposterOptionsPostConfigure(
         // IConfiguration already includes environment variables and matches keys
         // case-insensitively, so OPENCODE_GO_API_KEY (any casing) resolves here.
         string? value = configuration[variable];
-        if (value is not null || field.PropertyName != nameof(ProviderOptions.Secret))
+
+        // Treat a blank direct value as absent so an empty-but-present per-provider secret var still
+        // falls through to a populated shared base var (the caller also skips blank values entirely).
+        if (!string.IsNullOrWhiteSpace(value) || field.PropertyName != nameof(ProviderOptions.Secret))
         {
             return (variable, value);
         }

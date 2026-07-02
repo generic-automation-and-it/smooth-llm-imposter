@@ -81,6 +81,13 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
                 failures.Add($"{prefix}:AuthScheme '{provider.AuthScheme}' is invalid (expected 'ApiKey' or 'Bearer').");
             }
 
+            // AuthHeader is an optional request-header-name override. null = omitted (use the scheme's default);
+            // present-but-blank, malformed, and transport-owned names are errors.
+            if (!AuthHeaderNameValidator.IsValid(provider.AuthHeader))
+            {
+                failures.Add(AuthHeaderNameValidator.FailureMessage(prefix));
+            }
+
             if (!RequestNormalizationParser.TryParse(provider.RequestNormalization, out RequestNormalization normalization))
             {
                 failures.Add($"{prefix}:RequestNormalization '{provider.RequestNormalization}' is invalid (expected 'none' or 'codex_to_openai_sdk').");

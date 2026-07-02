@@ -40,12 +40,34 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   resolver so the log can't drift from the wire behavior. So an `openai`-dialect upstream (e.g. opencode) can
   authenticate with `x-api-key` via `AuthScheme: ApiKey` without changing its wire dialect. There is no `ApiKey`
   config alias — `Secret`/`AuthScheme` is a breaking rename.
+- **`AuthHeader` overrides the header *name* only; the *value* still follows `AuthScheme`.** A gateway that
+  wants the credential in a non-standard header (the MyCompany Gateway expects `api-key`, not the ApiKey
+  scheme's default `x-api-key`) sets `AuthHeader`. `UpstreamAuthResolver.DefaultHeaderNameFor(scheme)` is the
+  fallback (`Bearer` → `Authorization`, `ApiKey` → `x-api-key`); the forwarder writes into
+  `provider.AuthHeader ?? DefaultHeaderNameFor(scheme)`. Value format is unchanged by the override — `Bearer`
+  keeps its `Bearer ` prefix (idempotent: a secret already starting with `Bearer ` is not double-prefixed),
+  `ApiKey` stays the raw token. So `AuthScheme: ApiKey` + `AuthHeader: api-key` → `api-key: <token>`, while
+  `AuthScheme: Bearer` + `AuthHeader: api-key` → `api-key: Bearer <token>`. A relayed caller header of the same
+  name is dropped before the managed value is written, and the value is masked in the Debug outbound dump.
+  Conventional env override: `<PREFIX>_AUTH_HEADER`. Validation rejects blank/malformed names and transport-owned
+  names such as `Content-*`, `Host`, and `Transfer-Encoding`; use a custom request header like `api-key`.
 - **`AuthScheme` is inert without a `Secret`, and imposter routes never borrow the caller's credential.** A
   matched imposter route authenticates **only** with the provider's configured `Secret`; if that is empty, the
   forwarder sends **no** auth header at all (the caller's `Authorization`/`x-api-key` is forwarded only on
   passthrough), so the upstream 401s. `AuthScheme` merely picks the header for a *non-empty* secret. The routing
   log surfaces this as `auth=none` (imposter, no secret), `auth=Bearer`/`auth=ApiKey` (secret present), or
   `auth=caller-passthrough` (caller's own credential relayed) — `auth=none` on a 401 means a missing `Secret`.
+- **Conventional secret env vars follow the auth scheme (naming-convention priority).** A provider's
+  `Secret` is reachable via three conventional suffixes on its env prefix: `<PREFIX>_API_KEY` (api-key-typed)
+  and the Bearer-typed `<PREFIX>_AUTH_TOKEN` / `<PREFIX>_AUTHORIZATION_BEARER`. When more than one is
+  exported, the winner follows the provider's **effective** `AuthScheme`: `Bearer` prefers
+  `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` → `_API_KEY`; `ApiKey` prefers `_API_KEY` → `_AUTH_TOKEN` →
+  `_AUTHORIZATION_BEARER`. The off-scheme suffixes stay as fallbacks so one populated var still
+  authenticates. This keeps a personal `ANTHROPIC_API_KEY` from being sent as a Bearer token (and vice
+  versa) when both a key and a token are on the machine. `ImposterOptionsPostConfigure` resolves the
+  effective scheme (`_AUTH_SCHEME` env → bound `AuthScheme` → dialect default) *before* choosing the
+  secret, mirroring `UpstreamAuthResolver`, so the chosen var matches the header actually written. A
+  blank/whitespace var is treated as absent (never wins the slot, never blanks an appsettings `Secret`).
 - **Same-dialect only.** Do not add OpenAI⇄Anthropic body translation here. An `openai` provider serves
   openai requests; an `anthropic` provider serves anthropic requests.
 - **OpenAI Responses→Chat compatibility is explicit per provider.** `OpenAiUpstreamApi` defaults to
@@ -100,6 +122,10 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 - **First match wins, in configuration order.** The resolver scans the dialect's providers top-to-bottom and
   returns the first `Models[].From` that matches; order providers/mappings from most to least specific.
 - **`From` matching** is exact or single trailing-`*` wildcard (`claude-haiku-*`), case-insensitive (`ModelMatcher`).
+- **`To` rewriting** is a literal replacement, except the token `{model}` expands to the full inbound model
+  name (`ModelMapping.ResolveTarget`). This enables prefix rewrites that keep the caller's version suffix —
+  e.g. `To: "anthropic.{model}"` turns `claude-opus-4-1` into `anthropic.claude-opus-4-1`. Use a literal `To`
+  (no token) to pin a family to one fixed upstream id (e.g. `gpt-5.4-*` → `gpt-5.4-2026-03-05`).
 - **No match → default passthrough** (model unchanged, no caching) via the dialect's `IsDefault` provider.
   No match **and** no default → `RoutingException(404)`. At most one `IsDefault` per dialect (startup-validated).
   The shipped `appsettings.json` declares **catch-all key-less defaults** for `anthropic` (`api.anthropic.com`)
@@ -284,3 +310,7 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-21 | Implemented HLD 008 Phase 1 runtime provider-config CRUD: `IProviderRegistry` seeds from resolved config/env once, `IOptionsSnapshot` overlays runtime state per request scope, catalog/resolver/model responders are scoped, `/admin/providers` is secret-free CRUD plus enable/disable, and disabled providers are excluded from imposter/default resolution. | #49 |
 | 2026-06-21 | HLD 008 Phase 1 review (#51): disabled providers are now also excluded from the local `/v1/models` catalogue (`ProviderCatalog.ProvidersFor` filters in one place); `DeleteProvider` validates the post-delete registry (can't delete the last provider); `IProviderRegistry.TryGet` returns a nullable `out` with `[NotNullWhen(true)]`, `IsSeeded` is `volatile`, unused `TrySetEnabled` removed; `ProviderRoute.Enabled` moved to an optional trailing constructor param. | #51 |
 | 2026-06-21 | HLD 008 Phase 2 provider-keyed credentials: `InMemoryCredentialStore` replaces no-DB no-op storage, EF adds `ProviderName`, active lookup keys by stable provider key, and authorization override routes accept `/routing/{dialect}/{provider}/override-authorization` with dialect-only → default. | #50 |
+| 2026-07-02 | `ModelMapping.To` now supports the `{model}` template token (`ResolveTarget`), which expands to the full inbound model name so a mapping can prepend a prefix while keeping the caller's version suffix (`To: "anthropic.{model}"` → `anthropic.claude-opus-4-1`). Literal `To` values are unchanged. Test coverage exercises the MyCompany Gateway scenario with `To: "anthropic.{model}"` to keep the caller's version suffix. | — |
+| 2026-07-02 | Conventional secret env vars now follow the effective auth scheme (naming-convention priority): a `Bearer` provider prefers `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` → `_API_KEY`, an `ApiKey` provider prefers `_API_KEY` → `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER`, with off-scheme suffixes retained as fallbacks. `ImposterOptionsPostConfigure` resolves the scheme (`_AUTH_SCHEME` env → bound `AuthScheme` → dialect default) before picking the secret. Replaces the previous fixed "`_API_KEY` always canonical" order, which sent a personal `ANTHROPIC_API_KEY` as a Bearer token when both a key and `ANTHROPIC_AUTH_TOKEN` were exported. | — |
+| 2026-07-02 | Added optional `AuthHeader` (provider option + `ProviderRoute` + `<PREFIX>_AUTH_HEADER` env surface + runtime CRUD body/response) overriding only the header **name** the credential is written into; value format still follows `AuthScheme` (`UpstreamAuthResolver.DefaultHeaderNameFor` is the fallback). Forwarder writes `provider.AuthHeader ?? DefaultHeaderNameFor(scheme)`, drops a relayed caller header of that name, and masks the custom header in the Debug dump. Bearer value formatting is now idempotent (no double `Bearer ` prefix). The `AuthHeader` override is exercised in `AuthHeaderOverrideIntegrationTests` (test-only `mycompany-openai` config with `AuthHeader: api-key`). | — |
+| 2026-07-02 | Hardened `AuthHeader` validation across startup config and `/admin/providers`: blank/malformed names and transport-owned headers (`Content-*`, `Host`, `Transfer-Encoding`) are rejected before the forwarder can try to write credentials into non-request headers. | #53 review |

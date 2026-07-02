@@ -33,6 +33,22 @@ public class RouteResolverTests
     }
 
     [Fact]
+    public void Model_token_in_To_expands_to_the_inbound_model_preserving_the_suffix()
+    {
+        // Prefix rewrite via the {model} template: the gateway wants "anthropic."-prefixed ids while
+        // keeping whatever version suffix the caller sent (claude-opus-4-1 → anthropic.claude-opus-4-1).
+        RouteResolver resolver = Build(
+            Anthropic("anthropic", models: new ModelMappingOptions { From = "claude-opus-*", To = "anthropic.{model}" }),
+            Anthropic("anthropic-default", isDefault: true));
+
+        RouteDecision decision = resolver.Resolve(ApiDialect.Anthropic, "claude-opus-4-1-20250805");
+
+        decision.IsImposter.ShouldBeTrue();
+        decision.Provider.Name.ShouldBe("anthropic");
+        decision.TargetModel.ShouldBe("anthropic.claude-opus-4-1-20250805");
+    }
+
+    [Fact]
     public void Unmatched_model_falls_back_to_default_provider_unchanged()
     {
         RouteResolver resolver = Build(

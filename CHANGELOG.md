@@ -5,16 +5,34 @@ All notable changes to SmoothLlmImposter are documented here.
 ## [Unreleased]
 
 ### Added
-- **Personal-subscription providers (HLD 007 LADR-04).** Added two named providers to `appsettings.json` for
-  the "company subscription for daily use, personal for private use" split: `anthropic-personal` captures
-  `claude-opus-4-7*` and serves it as `claude-opus-4-8` on the operator's own Anthropic subscription token
-  (`AuthScheme: Bearer`, committed `Secret` empty — supplied via env), and `openai-personal` is an inert
-  codex passthrough template (no `Models` until the operator adds them). Neither is `IsDefault`.
-  `openrouter-anthropic`'s glob narrowed to `claude-opus-4-6*` so the Opus globs stay distinct.
+- **`AuthHeader` — override the header name the credential is written into.** Some gateways expect the
+  credential in a header literally named `api-key`, not the `ApiKey` scheme's default `x-api-key`. Providers
+  gain an optional `AuthHeader` (config, `<PREFIX>_AUTH_HEADER` env surface, and the runtime
+  `/admin/providers` CRUD body/response) that relocates only the header **name**; the value format still
+  follows `AuthScheme` — `Bearer` keeps its `Bearer ` prefix (now idempotent: a secret already starting with
+  `Bearer ` is not double-prefixed), `ApiKey` stays the raw token. So `AuthScheme: ApiKey` +
+  `AuthHeader: api-key` → `api-key: <token>`, while `AuthScheme: Bearer` + `AuthHeader: api-key` →
+  `api-key: Bearer <token>`. The forwarder drops a relayed caller header of the same name before writing the
+  managed value and masks the custom header in the Debug outbound dump; `UpstreamAuthResolver.DefaultHeaderNameFor`
+  is the fallback.
+- **`{model}` model-rewrite token.** The model-mapping `To` field now supports the literal token
+  **`{model}`** (`ModelMapping.ResolveTarget`), which expands to the full inbound model name — enabling prefix
+  rewrites that keep the caller's version suffix (`To: "anthropic.{model}"` → `anthropic.claude-opus-4-1`).
+  Literal `To` values are unchanged.
+- **Conventional `_AUTH_TOKEN` env-var alias for Bearer providers.** The conventional env surface gains a third
+  Secret alias **`_AUTH_TOKEN`** (→ `Secret`), mirroring the Claude Code / Anthropic SDK
+  `ANTHROPIC_AUTH_TOKEN` Bearer variable, so an operator can reuse the exact env var it exports. One of three
+  `Secret` suffixes alongside `_API_KEY` and `_AUTHORIZATION_BEARER`; which one wins follows the provider's auth
+  scheme (see the scheme-driven priority under **Fixed**).
+- **Personal-subscription providers (HLD 007 LADR-04).** Two named providers (`anthropic-personal`,
+  `openai-personal`) live in `appsettings.json` for the "company subscription for daily use, personal
+  for private use" split; both are `Bearer` and ship inert (no `Models`) so operators add their own
+  `Models[]` at deploy time. Neither is `IsDefault`. Non-default imposter mappings were also emptied in this
+  release — the integration suite sets them per-test.
   - The conventional env surface gains an auth-typed secret alias **`_AUTHORIZATION_BEARER`** (→ `Secret`),
     so a Bearer subscription token reads as `ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER` /
-    `OPENAI_PERSONAL_AUTHORIZATION_BEARER`. It is an alias of `_API_KEY`; `_API_KEY` is canonical and wins
-    if both are set for one provider (first-present-wins).
+    `OPENAI_PERSONAL_AUTHORIZATION_BEARER`. A Bearer-typed alias of `Secret`; on a `Bearer` provider it is
+    preferred over `_API_KEY` (see the scheme-driven priority under **Fixed**).
 - **Codex → OpenAI-SDK request normalization (HLD 004).** New per-provider `RequestNormalization` config
   (`codex_to_openai_sdk` / `none`) adds a proxy-side, **request-only** normalization seam on matched OpenAI
   imposter routes so vanilla Codex clients work against strict OpenAI-compatible upstreams (e.g.
@@ -39,6 +57,23 @@ All notable changes to SmoothLlmImposter are documented here.
   now defines the L3 tier.
 
 ### Fixed
+- **Blank conventional secret var no longer shadows a populated alias (or wipes an appsettings secret).**
+  `ImposterOptionsPostConfigure` treated an empty-but-present env var as a real override, so a blank
+  canonical `<NAME>_API_KEY` (e.g. compose `ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}` with the host var
+  unset) claimed the first-present-wins `Secret` slot and shadowed a populated `<NAME>_AUTH_TOKEN` /
+  `<NAME>_AUTHORIZATION_BEARER` alias — surfacing as `auth=none` on a matched imposter route. Empty/whitespace
+  conventional values are now treated as absent (both for the first-present-wins ordering and the shared
+  base-secret fallback), so the populated alias wins and an appsettings-bound `Secret` isn't blanked.
+- **Conventional secret env vars now follow the auth scheme instead of a fixed `_API_KEY`-wins order.**
+  When both a key and a token are exported (e.g. a personal `ANTHROPIC_API_KEY` alongside the gateway's
+  `ANTHROPIC_AUTH_TOKEN`), the previous fixed precedence sent the api-key-typed `_API_KEY` even on a
+  `Bearer` provider — so the wrong credential was presented and the upstream rejected it (403). The winning
+  secret suffix now follows the provider's **effective** `AuthScheme` (naming-convention priority): `Bearer`
+  prefers `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` → `_API_KEY`; `ApiKey` prefers `_API_KEY` → `_AUTH_TOKEN`
+  → `_AUTHORIZATION_BEARER`. Off-scheme suffixes remain as fallbacks so a single populated var still
+  authenticates. `ImposterOptionsPostConfigure` resolves the scheme (`_AUTH_SCHEME` env → bound `AuthScheme`
+  → dialect default, via `UpstreamAuthResolver`) before choosing the secret, so the chosen var matches the
+  header actually written. Applies to every provider.
 - **Docker build restore path.** Renamed the build-stage `WORKDIR` so the image still mirrors the repo-root
   `src/SmoothLlmImposter.*` layout while Docker restore/publish output no longer shows a doubled `src/src/`
   path.
@@ -106,9 +141,8 @@ All notable changes to SmoothLlmImposter are documented here.
   set — so `anthropic-beta` (and beta body fields like `context_management`), vendor `x-*` headers, and the
   caller's own `anthropic-version` reach the provider instead of being dropped. The only managed header is
   auth: an unmatched model routed to a key-less `IsDefault` provider forwards the caller's own
-  `Authorization`/`x-api-key` (so the shipped `api.anthropic.com` / `api.openai.com` defaults authenticate with
-  the caller's credential), imposter routes use the provider's configured key, and the HLD-003 override forces
-  the active stored Bearer.
+  `Authorization`/`x-api-key` to that configured upstream, imposter routes use the provider's configured key,
+  and the HLD-003 override forces the active stored Bearer.
 - **Opt-in persistence with an in-memory default.** `AddInfrastructure` registers EF Core + the
   PostgreSQL-backed `CredentialStore` only when `ConnectionStrings:ImposterDb` is set; otherwise an in-memory
   `InMemoryCredentialStore` is registered so the stateless/key-less default boots with no database and
@@ -129,11 +163,10 @@ All notable changes to SmoothLlmImposter are documented here.
 - Split HLD 001 into a `README.md` index plus `diagrams/`, `nfrs/`, and `ladrs/` subfolders (one file
   per diagram, NFR, and LADR) instead of a single monolithic document.
 - Removed redundant `.gitkeep` files from folders that now contain code (`Features/`, `Endpoints/`).
-- Default `appsettings.json` providers reworked: `opencode-go` → `https://opencode.ai/zen/go` with
-  `gpt5.4` → `kimi-k2.7`; added `openrouter` (openai) and `opencode-anthropic` (`claude-haiku-*` →
-  `minimax-m3`). Catch-all `IsDefault` passthrough providers for `anthropic` (`https://api.anthropic.com`)
-  and `openai` (`https://api.openai.com`) lead the array (no key — they forward the caller's credential), so
-  unmatched models pass through to the real provider. Remove them for type-only impostering (unmatched → 404).
+- Default provider config reworked to include catch-all key-less passthrough defaults and named imposter-provider
+  scaffolds. Current provider keys, URLs, and model mappings are intentionally read from
+  `src/SmoothLlmImposter.Host/appsettings.json`; unmatched models pass through when an `IsDefault` provider is
+  configured, or 404 when defaults are removed.
 - Fixed an EF Core model-build crash on the passthrough credential lookup: the TPH discriminator shadow
   column collided with the ignored CLR `ProviderDialect` property (NRE in `HasDiscriminator`). Renamed the
   discriminator/column to `Dialect` in the configuration, store queries, and the initial migration.

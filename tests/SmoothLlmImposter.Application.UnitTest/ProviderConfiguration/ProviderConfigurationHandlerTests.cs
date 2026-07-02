@@ -26,6 +26,7 @@ public class ProviderConfigurationHandlerTests
                     Dialect: "openai",
                     BaseUrl: "https://new.example",
                     AuthScheme: "ApiKey",
+                    AuthHeader: "api-key",
                     IsDefault: false,
                     Enabled: true,
                     AnthropicVersion: null,
@@ -36,8 +37,11 @@ public class ProviderConfigurationHandlerTests
             TestContext.Current.CancellationToken);
 
         response.BaseUrl.ShouldBe("https://new.example");
+        // AuthHeader is a new field — assert it round-trips through both the response and stored config.
+        response.AuthHeader.ShouldBe("api-key");
         registry.TryGet("opencode", out ProviderOptions? stored).ShouldBeTrue();
         stored!.Secret.ShouldBe("sk-existing");
+        stored.AuthHeader.ShouldBe("api-key");
         stored.Models.Single().To.ShouldBe("grok-code");
     }
 
@@ -60,6 +64,7 @@ public class ProviderConfigurationHandlerTests
                     Dialect: "openai",
                     BaseUrl: "https://second.example",
                     AuthScheme: null,
+                    AuthHeader: null,
                     IsDefault: true,
                     Enabled: true,
                     AnthropicVersion: null,

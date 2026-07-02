@@ -133,6 +133,36 @@ public class ImposterOptionsValidatorTests
         _validator.Validate(null, Options(("a", provider))).Succeeded.ShouldBeTrue();
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("api-key")]
+    [InlineData("x-custom_auth")]
+    public void Known_or_omitted_auth_header_succeeds(string? authHeader)
+    {
+        var provider = new ProviderOptions { Dialect = "openai", BaseUrl = "https://a.example", AuthHeader = authHeader };
+        _validator.Validate(null, Options(("a", provider))).Succeeded.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("Content-Type")]
+    [InlineData("content-length")]
+    [InlineData("Host")]
+    [InlineData("Transfer-Encoding")]
+    [InlineData("api key")]
+    [InlineData("api:key")]
+    [InlineData("api\r\nkey")]
+    public void Invalid_auth_header_fails(string authHeader)
+    {
+        var provider = new ProviderOptions { Dialect = "openai", BaseUrl = "https://a.example", AuthHeader = authHeader };
+
+        var result = _validator.Validate(null, Options(("a", provider)));
+
+        result.Failed.ShouldBeTrue();
+        result.Failures.ShouldContain(f => f.Contains("AuthHeader must be omitted or a custom request-header name"));
+    }
+
     [Fact]
     public void Invalid_request_normalization_fails()
     {
