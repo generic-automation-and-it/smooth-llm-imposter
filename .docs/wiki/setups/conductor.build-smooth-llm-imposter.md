@@ -24,13 +24,15 @@ unless a provider sets `"IsDefault": true` (passthrough).
 
 ## Prerequisites / knobs
 
-- **`<NAME>_API_KEY`** (conventional) or **`Imposter__Providers__<name>__Secret`** (structured) — the upstream key
-  for the named provider, where `<NAME>` is the uppercased provider key (e.g. the LEGO-gateway imposters
-  `anthropic` → `ANTHROPIC_API_KEY`, `openai` → `OPENAI_API_KEY`) or the shared base prefix for dialect-suffixed
-  siblings (`opencode-go-openai` / `opencode-go-anthropic` → `OPENCODE_GO_API_KEY`). Identity is the name, so it is
-  order-independent. The sibling provider-specific **`<NAME>_AUTH_SCHEME`** /
-  **`Imposter__Providers__<name>__AuthScheme`** (`ApiKey`|`Bearer`, case-insensitive) selects the auth header and
-  defaults by dialect when omitted (openai → Bearer, anthropic → ApiKey).
+- **`<NAME>_API_KEY`** / **`<NAME>_AUTH_TOKEN`** (conventional) or **`Imposter__Providers__<name>__Secret`**
+  (structured) — the upstream key for the named provider, where `<NAME>` is the uppercased provider key (e.g. the
+  LEGO-gateway imposters `anthropic` → `ANTHROPIC_AUTH_TOKEN`, `openai` → `OPENAI_API_KEY`) or the shared base
+  prefix for dialect-suffixed siblings (`opencode-go-openai` / `opencode-go-anthropic` → `OPENCODE_GO_API_KEY`).
+  Identity is the name, so it is order-independent. `_API_KEY` and `_AUTH_TOKEN` fill the **same** provider
+  `Secret`; which one wins **follows the effective auth scheme** — a `Bearer` provider prefers `_AUTH_TOKEN`, an
+  `ApiKey` provider prefers `_API_KEY` (the off-scheme var stays a fallback). The sibling provider-specific
+  **`<NAME>_AUTH_SCHEME`** / **`Imposter__Providers__<name>__AuthScheme`** (`ApiKey`|`Bearer`, case-insensitive)
+  selects the auth header and defaults by dialect when omitted (openai → Bearer, anthropic → ApiKey).
   **`export` it in your shell before running** — do **not** paste a real key into the script block below, because
   this file is tracked in the repo and a committed key would leak. The Host starts without keys, but any routed
   request to that provider fails upstream. Keys are written only to `~/.config/smooth-llm-imposter/imposter.env`
@@ -91,7 +93,7 @@ mkdir -p "$CONF_DIR" "$STATE_DIR"
 umask 077
 {
   echo "ASPNETCORE_URLS=$ASPNETCORE_URLS"
-  for var in $(compgen -e | grep -E '^(Imposter__|Admin__|ConnectionStrings__)|^[A-Z0-9_]+_(API_KEY|AUTHORIZATION_BEARER|AUTH_SCHEME|BASE_URL|DIALECT|IS_DEFAULT|OPENAI_UPSTREAM_API|REQUEST_NORMALIZATION|ANTHROPIC_VERSION)$'); do
+  for var in $(compgen -e | grep -E '^(Imposter__|Admin__|ConnectionStrings__)|^[A-Z0-9_]+_(API_KEY|AUTH_TOKEN|AUTHORIZATION_BEARER|AUTH_SCHEME|BASE_URL|DIALECT|IS_DEFAULT|OPENAI_UPSTREAM_API|REQUEST_NORMALIZATION|ANTHROPIC_VERSION)$'); do
     printf '%s=%s\n' "$var" "${!var}"
   done
 } > "$ENV_FILE"

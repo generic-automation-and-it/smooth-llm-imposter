@@ -7,10 +7,10 @@ is **dual-mode**: `build: .` builds the image from the local [`Dockerfile`](../.
 points at the published GHCR tag — so you can either build locally or `pull`. `restart: unless-stopped` keeps it
 running across reboots. Works with **`docker compose`** (v2) and **`podman-compose`**.
 
-> SmoothLlmImposter is **stateless and key-less** — no `/data` volume, port **5066**, keys are `<NAME>_API_KEY`
-> (conventional) or `Imposter__Providers__<name>__Secret` (structured) plus the matching `<NAME>_AUTH_SCHEME` /
-> `Imposter__Providers__<name>__AuthScheme`, where `<NAME>` is the uppercased provider key. (The Smooth Claude
-> Proxy's compose, with `WORKSPACE_PATH`/`LlmService__*`, is a different service.)
+> SmoothLlmImposter is **stateless and key-less** — no `/data` volume, port **5066**, keys are `<NAME>_API_KEY` /
+> `<NAME>_AUTH_TOKEN` (conventional) or `Imposter__Providers__<name>__Secret` (structured) plus the matching
+> `<NAME>_AUTH_SCHEME` / `Imposter__Providers__<name>__AuthScheme`, where `<NAME>` is the uppercased provider key.
+> (The Smooth Claude Proxy's compose, with `WORKSPACE_PATH`/`LlmService__*`, is a different service.)
 
 ## Supply keys
 
@@ -21,14 +21,16 @@ variables. Create `.env` next to `docker-compose.yml`:
 # .env  (never committed — *.env is gitignored)
 OPENCODE_GO_API_KEY=sk-your-opencode-key              # feeds opencode-go-openai and opencode-go-anthropic
 OPENROUTER_API_KEY=sk-your-openrouter-key             # feeds openrouter-openai and openrouter-anthropic
-ANTHROPIC_AUTH_TOKEN=sk-your-lego-token               # `anthropic` imposter secret (Bearer-flavoured var name)
-ANTHROPIC_API_KEY=sk-your-lego-token                  # same `anthropic` secret via the ApiKey-flavoured name
-OPENAI_API_KEY=sk-your-lego-token                     # feeds the `openai` LEGO-gateway imposter (/openai)
+ANTHROPIC_AUTH_TOKEN=sk-your-lego-token               # `anthropic` imposter secret — Bearer scheme prefers this
+OPENAI_API_KEY=sk-your-lego-token                     # `openai` LEGO-gateway imposter (/openai) — ApiKey scheme
 ```
 
-> `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY` fill the **same** `anthropic` provider secret — set whichever
-> you have (`_API_KEY` wins if both are set). Which **header** is sent is the provider's `AuthScheme`, not the
-> var name: `Bearer` → `Authorization: Bearer`, `ApiKey` → `x-api-key`. Toggle it in `appsettings.json` or with
+> `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY` fill the **same** `anthropic` provider secret, but which one wins
+> **follows the provider's auth scheme**: the shipped `anthropic` imposter is `Bearer`, so `ANTHROPIC_AUTH_TOKEN`
+> is preferred and `ANTHROPIC_API_KEY` is ignored while the token is present (an `ApiKey` provider is the
+> reverse). This keeps a personal `ANTHROPIC_API_KEY` from being sent as a Bearer token to the gateway. The
+> off-scheme var stays a fallback, so a single var still authenticates. The **header** the scheme sends is
+> `Bearer` → `Authorization: Bearer`, `ApiKey` → `x-api-key`; toggle it in `appsettings.json` or with
 > `ANTHROPIC_AUTH_SCHEME=Bearer|ApiKey`.
 
 `docker-compose.yml` maps these named variables onto the name-keyed
@@ -63,7 +65,6 @@ cat > .env <<EOF
 OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY:-}
 OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
 ANTHROPIC_AUTH_TOKEN=${ANTHROPIC_AUTH_TOKEN:-}
-ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
 OPENAI_API_KEY=${OPENAI_API_KEY:-}
 EOF
 

@@ -46,6 +46,17 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   passthrough), so the upstream 401s. `AuthScheme` merely picks the header for a *non-empty* secret. The routing
   log surfaces this as `auth=none` (imposter, no secret), `auth=Bearer`/`auth=ApiKey` (secret present), or
   `auth=caller-passthrough` (caller's own credential relayed) — `auth=none` on a 401 means a missing `Secret`.
+- **Conventional secret env vars follow the auth scheme (naming-convention priority).** A provider's
+  `Secret` is reachable via three conventional suffixes on its env prefix: `<PREFIX>_API_KEY` (api-key-typed)
+  and the Bearer-typed `<PREFIX>_AUTH_TOKEN` / `<PREFIX>_AUTHORIZATION_BEARER`. When more than one is
+  exported, the winner follows the provider's **effective** `AuthScheme`: `Bearer` prefers
+  `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` → `_API_KEY`; `ApiKey` prefers `_API_KEY` → `_AUTH_TOKEN` →
+  `_AUTHORIZATION_BEARER`. The off-scheme suffixes stay as fallbacks so one populated var still
+  authenticates. This keeps a personal `ANTHROPIC_API_KEY` from being sent as a Bearer token (and vice
+  versa) when both a key and a token are on the machine. `ImposterOptionsPostConfigure` resolves the
+  effective scheme (`_AUTH_SCHEME` env → bound `AuthScheme` → dialect default) *before* choosing the
+  secret, mirroring `UpstreamAuthResolver`, so the chosen var matches the header actually written. A
+  blank/whitespace var is treated as absent (never wins the slot, never blanks an appsettings `Secret`).
 - **Same-dialect only.** Do not add OpenAI⇄Anthropic body translation here. An `openai` provider serves
   openai requests; an `anthropic` provider serves anthropic requests.
 - **OpenAI Responses→Chat compatibility is explicit per provider.** `OpenAiUpstreamApi` defaults to
@@ -289,3 +300,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-06-21 | HLD 008 Phase 1 review (#51): disabled providers are now also excluded from the local `/v1/models` catalogue (`ProviderCatalog.ProvidersFor` filters in one place); `DeleteProvider` validates the post-delete registry (can't delete the last provider); `IProviderRegistry.TryGet` returns a nullable `out` with `[NotNullWhen(true)]`, `IsSeeded` is `volatile`, unused `TrySetEnabled` removed; `ProviderRoute.Enabled` moved to an optional trailing constructor param. | #51 |
 | 2026-06-21 | HLD 008 Phase 2 provider-keyed credentials: `InMemoryCredentialStore` replaces no-DB no-op storage, EF adds `ProviderName`, active lookup keys by stable provider key, and authorization override routes accept `/routing/{dialect}/{provider}/override-authorization` with dialect-only → default. | #50 |
 | 2026-07-02 | `ModelMapping.To` now supports the `{model}` template token (`ResolveTarget`), which expands to the full inbound model name so a mapping can prepend a prefix while keeping the caller's version suffix (`To: "anthropic.{model}"` → `anthropic.claude-opus-4-1`). Literal `To` values are unchanged. Added shipped `anthropic`/`openai` providers routing to the LEGO gateway (`models.assistant.legogroup.io/claude` and `/openai`); provider keys chosen so the conventional secret env vars are `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`. | — |
+| 2026-07-02 | Conventional secret env vars now follow the effective auth scheme (naming-convention priority): a `Bearer` provider prefers `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` → `_API_KEY`, an `ApiKey` provider prefers `_API_KEY` → `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER`, with off-scheme suffixes retained as fallbacks. `ImposterOptionsPostConfigure` resolves the scheme (`_AUTH_SCHEME` env → bound `AuthScheme` → dialect default) before picking the secret. Replaces the previous fixed "`_API_KEY` always canonical" order, which sent a personal `ANTHROPIC_API_KEY` as a Bearer token when both a key and `ANTHROPIC_AUTH_TOKEN` were exported. | — |

@@ -92,20 +92,108 @@ public class ImposterOptionsPostConfigureTests
     }
 
     [Fact]
-    public void Api_key_wins_when_both_secret_suffixes_are_set()
+    public void Bearer_scheme_prefers_auth_token_over_api_key()
     {
-        // First-present-wins: _API_KEY is canonical and applied first, so the _AUTHORIZATION_BEARER alias
-        // never clobbers it when an operator (mis)configures both for one provider.
+        // Naming-convention priority: a Bearer provider must send the Bearer-typed _AUTH_TOKEN, never a
+        // personal _API_KEY that happens to be exported alongside it (the LEGO gateway regression).
         var (options, _) = Resolve(
             new Dictionary<string, string?>
             {
-                ["ANTHROPIC_PERSONAL_API_KEY"] = "sk-canonical",
-                ["ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER"] = "sk-alias"
+                ["ANTHROPIC_API_KEY"] = "sk-personal-apikey",
+                ["ANTHROPIC_AUTH_TOKEN"] = "sk-gateway-bearer"
+            },
+            "anthropic",
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.legogroup.io/claude", AuthScheme = "Bearer" });
+
+        options.Providers["anthropic"].Secret.ShouldBe("sk-gateway-bearer");
+    }
+
+    [Fact]
+    public void Bearer_scheme_prefers_authorization_bearer_over_api_key()
+    {
+        var (options, _) = Resolve(
+            new Dictionary<string, string?>
+            {
+                ["ANTHROPIC_PERSONAL_API_KEY"] = "sk-apikey",
+                ["ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER"] = "sk-bearer"
             },
             "anthropic-personal",
             new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://api.anthropic.com", AuthScheme = "Bearer" });
 
-        options.Providers["anthropic-personal"].Secret.ShouldBe("sk-canonical");
+        options.Providers["anthropic-personal"].Secret.ShouldBe("sk-bearer");
+    }
+
+    [Fact]
+    public void ApiKey_scheme_prefers_api_key_over_auth_token()
+    {
+        // The inverse: an ApiKey provider must send _API_KEY even when a Bearer-typed _AUTH_TOKEN is set.
+        var (options, _) = Resolve(
+            new Dictionary<string, string?>
+            {
+                ["OPENAI_API_KEY"] = "sk-apikey",
+                ["OPENAI_AUTH_TOKEN"] = "sk-bearer"
+            },
+            "openai",
+            new ProviderOptions { Dialect = "openai", BaseUrl = "https://models.assistant.legogroup.io/openai", AuthScheme = "ApiKey" });
+
+        options.Providers["openai"].Secret.ShouldBe("sk-apikey");
+    }
+
+    [Fact]
+    public void Bearer_scheme_falls_back_to_api_key_when_no_bearer_token()
+    {
+        // Off-scheme suffix is still a fallback: a Bearer provider with only _API_KEY set still authenticates.
+        var (options, _) = Resolve(
+            new Dictionary<string, string?> { ["ANTHROPIC_API_KEY"] = "sk-only-apikey" },
+            "anthropic",
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.legogroup.io/claude", AuthScheme = "Bearer" });
+
+        options.Providers["anthropic"].Secret.ShouldBe("sk-only-apikey");
+    }
+
+    [Fact]
+    public void ApiKey_scheme_falls_back_to_auth_token_when_no_api_key()
+    {
+        var (options, _) = Resolve(
+            new Dictionary<string, string?> { ["OPENAI_AUTH_TOKEN"] = "sk-only-bearer" },
+            "openai",
+            new ProviderOptions { Dialect = "openai", BaseUrl = "https://models.assistant.legogroup.io/openai", AuthScheme = "ApiKey" });
+
+        options.Providers["openai"].Secret.ShouldBe("sk-only-bearer");
+    }
+
+    [Fact]
+    public void Auth_scheme_env_override_drives_secret_priority()
+    {
+        // The _AUTH_SCHEME env override (resolved before the secret) flips the priority: with the provider
+        // bound as ApiKey but overridden to Bearer, the Bearer-typed _AUTH_TOKEN wins over _API_KEY.
+        var (options, _) = Resolve(
+            new Dictionary<string, string?>
+            {
+                ["ANTHROPIC_AUTH_SCHEME"] = "Bearer",
+                ["ANTHROPIC_API_KEY"] = "sk-apikey",
+                ["ANTHROPIC_AUTH_TOKEN"] = "sk-bearer"
+            },
+            "anthropic",
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.legogroup.io/claude", AuthScheme = "ApiKey" });
+
+        options.Providers["anthropic"].Secret.ShouldBe("sk-bearer");
+    }
+
+    [Fact]
+    public void Dialect_default_scheme_drives_secret_priority_when_scheme_omitted()
+    {
+        // No AuthScheme configured → anthropic defaults to ApiKey, so _API_KEY wins over _AUTH_TOKEN.
+        var (options, _) = Resolve(
+            new Dictionary<string, string?>
+            {
+                ["ANTHROPIC_API_KEY"] = "sk-apikey",
+                ["ANTHROPIC_AUTH_TOKEN"] = "sk-bearer"
+            },
+            "anthropic",
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://api.anthropic.com" });
+
+        options.Providers["anthropic"].Secret.ShouldBe("sk-apikey");
     }
 
     [Fact]

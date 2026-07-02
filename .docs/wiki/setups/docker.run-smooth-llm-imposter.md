@@ -34,7 +34,7 @@ podman build -t smooth-llm-imposter:local .
 
 Pass configuration via environment variables using the standard double-underscore path syntax. Map the
 container's `5080` to a host port. The example below assumes your shell already exports
-`$ANTHROPIC_API_KEY` / `$OPENAI_API_KEY` (the LEGO-gateway `anthropic` / `openai` imposters) and
+`$ANTHROPIC_AUTH_TOKEN` / `$OPENAI_API_KEY` (the LEGO-gateway `anthropic` / `openai` imposters) and
 `$OPENCODE_GO_API_KEY` / `$OPENROUTER_API_KEY`:
 
 ```bash
@@ -43,7 +43,7 @@ docker rm -f smooth-llm-imposter 2>/dev/null || true
 
 docker run -d --name smooth-llm-imposter \
   -p 5080:5080 \
-  -e ANTHROPIC_API_KEY \
+  -e ANTHROPIC_AUTH_TOKEN \
   -e OPENAI_API_KEY \
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \
@@ -51,7 +51,11 @@ docker run -d --name smooth-llm-imposter \
 ```
 
 `AuthScheme` (`ApiKey`|`Bearer`) selects the auth header and defaults by dialect when omitted (openai → Bearer,
-anthropic → ApiKey); the shipped providers set it explicitly.
+anthropic → ApiKey); the shipped providers set it explicitly. The conventional secret var **follows that scheme**:
+both `<NAME>_API_KEY` and `<NAME>_AUTH_TOKEN` fill the provider `Secret`, but a `Bearer` provider prefers
+`_AUTH_TOKEN` and an `ApiKey` provider prefers `_API_KEY` (the other stays a fallback). So the shipped `Bearer`
+`anthropic` imposter takes `ANTHROPIC_AUTH_TOKEN` and the `ApiKey` `openai` imposter takes `OPENAI_API_KEY` —
+export `ANTHROPIC_API_KEY` instead only if you flip it with `-e ANTHROPIC_AUTH_SCHEME=ApiKey`.
 
 Podman is identical (`podman run -d --name … -p 5080:5080 -e … smooth-llm-imposter:local`).
 
@@ -109,7 +113,7 @@ docker rm -f smooth-llm-imposter
 docker build -t smooth-llm-imposter:local .
 docker run -d --name smooth-llm-imposter \
   -p 5080:5080 \
-  -e ANTHROPIC_API_KEY \
+  -e ANTHROPIC_AUTH_TOKEN \
   -e OPENAI_API_KEY \
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \

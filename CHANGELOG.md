@@ -12,6 +12,16 @@ All notable changes to SmoothLlmImposter are documented here.
   `<NAME>_AUTHORIZATION_BEARER` alias — surfacing as `auth=none` on a matched imposter route. Empty/whitespace
   conventional values are now treated as absent (both for the first-present-wins ordering and the shared
   base-secret fallback), so the populated alias wins and an appsettings-bound `Secret` isn't blanked.
+- **Conventional secret env vars now follow the auth scheme instead of a fixed `_API_KEY`-wins order.**
+  When both a key and a token are exported (e.g. a personal `ANTHROPIC_API_KEY` alongside the gateway's
+  `ANTHROPIC_AUTH_TOKEN`), the previous fixed precedence sent the api-key-typed `_API_KEY` even on a
+  `Bearer` provider — so the wrong credential was presented and the upstream rejected it (403). The winning
+  secret suffix now follows the provider's **effective** `AuthScheme` (naming-convention priority): `Bearer`
+  prefers `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` → `_API_KEY`; `ApiKey` prefers `_API_KEY` → `_AUTH_TOKEN`
+  → `_AUTHORIZATION_BEARER`. Off-scheme suffixes remain as fallbacks so a single populated var still
+  authenticates. `ImposterOptionsPostConfigure` resolves the scheme (`_AUTH_SCHEME` env → bound `AuthScheme`
+  → dialect default, via `UpstreamAuthResolver`) before choosing the secret, so the chosen var matches the
+  header actually written. Applies to every provider.
 
 ### Added
 - **LEGO gateway providers + `{model}` model-rewrite token.** `appsettings.json` gains two imposter
@@ -26,7 +36,8 @@ All notable changes to SmoothLlmImposter are documented here.
     suffix (`To: "anthropic.{model}"` → `anthropic.claude-opus-4-1`). Literal `To` values are unchanged.
   - The conventional env surface gains a third Secret alias **`_AUTH_TOKEN`** (→ `Secret`), mirroring the
     Claude Code / Anthropic SDK `ANTHROPIC_AUTH_TOKEN` Bearer variable, so an operator can reuse the exact
-    env var cc exports. Alias of `_API_KEY` (canonical) alongside `_AUTHORIZATION_BEARER`.
+    env var cc exports. One of three `Secret` suffixes alongside `_API_KEY` and `_AUTHORIZATION_BEARER`;
+    which one wins follows the provider's auth scheme (see the scheme-driven priority under **Fixed**).
 - **Personal-subscription providers (HLD 007 LADR-04).** Added two named providers to `appsettings.json` for
   the "company subscription for daily use, personal for private use" split: `anthropic-personal` captures
   `claude-opus-4-7*` and serves it as `claude-opus-4-8` on the operator's own Anthropic subscription token
@@ -35,8 +46,8 @@ All notable changes to SmoothLlmImposter are documented here.
   `openrouter-anthropic`'s glob narrowed to `claude-opus-4-6*` so the Opus globs stay distinct.
   - The conventional env surface gains an auth-typed secret alias **`_AUTHORIZATION_BEARER`** (→ `Secret`),
     so a Bearer subscription token reads as `ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER` /
-    `OPENAI_PERSONAL_AUTHORIZATION_BEARER`. It is an alias of `_API_KEY`; `_API_KEY` is canonical and wins
-    if both are set for one provider (first-present-wins).
+    `OPENAI_PERSONAL_AUTHORIZATION_BEARER`. A Bearer-typed alias of `Secret`; on a `Bearer` provider it is
+    preferred over `_API_KEY` (see the scheme-driven priority under **Fixed**).
 - **Codex → OpenAI-SDK request normalization (HLD 004).** New per-provider `RequestNormalization` config
   (`codex_to_openai_sdk` / `none`) adds a proxy-side, **request-only** normalization seam on matched OpenAI
   imposter routes so vanilla Codex clients work against strict OpenAI-compatible upstreams (e.g.

@@ -113,9 +113,13 @@ reordering. There are two equivalent paths:
 **Conventional `<NAME>_<FIELD>` surface (the friendly path).** Each provider exposes an env prefix derived
 from its key — uppercase, every run of non-alphanumeric characters collapsed to one `_`. For dialect-suffixed
 siblings, `_API_KEY` can use the shared base prefix (`opencode-go-openai` / `opencode-go-anthropic` →
-`OPENCODE_GO_API_KEY`). The secret also accepts the auth-typed alias `_AUTHORIZATION_BEARER`
-(`ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER` fills the same `Secret` as `ANTHROPIC_PERSONAL_API_KEY`;
-`_API_KEY` is canonical and wins if both are set). Other scalar overrides remain provider-specific or
+`OPENCODE_GO_API_KEY`). The secret is reachable via three suffixes that all fill the same `Secret` —
+`_API_KEY` (api-key-typed) plus the Bearer-typed aliases `_AUTH_TOKEN` (mirroring the Claude Code / Anthropic
+SDK `ANTHROPIC_AUTH_TOKEN`) and `_AUTHORIZATION_BEARER`. **Which suffix wins follows the provider's effective
+auth scheme:** a `Bearer` provider prefers `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` → `_API_KEY`, an `ApiKey`
+provider prefers `_API_KEY` → `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` (the off-scheme suffixes stay as
+fallbacks, so a single populated var still authenticates). This keeps a personal `ANTHROPIC_API_KEY` from being
+sent as a Bearer token, and vice versa. Other scalar overrides remain provider-specific or
 structured (`_BASE_URL`, `_AUTH_SCHEME`, `_DIALECT`, `_IS_DEFAULT`, `_OPENAI_UPSTREAM_API`,
 `_REQUEST_NORMALIZATION`, `_ANTHROPIC_VERSION`). Matching is case-insensitive.
 
@@ -210,14 +214,16 @@ The shipped config includes two **personal-subscription** providers for the comm
 for daily use, personal subscription for private use" split: route a specific model family to *your own*
 first-party subscription token instead of the key-less default (which forwards the caller's company
 credential). They target the real first-party endpoints (`api.anthropic.com` /
-`chatgpt.com/backend-api/codex`) with `AuthScheme: Bearer` and ship with an empty `Secret` — you supply
-your token via env. The secret accepts the auth-typed alias `_AUTHORIZATION_BEARER` so a Bearer
-subscription token reads naturally:
+`chatgpt.com/backend-api/codex`) and ship with an empty `Secret` — you supply your token via env. The
+shipped schemes differ (`anthropic-personal` is `ApiKey`, `openai-personal` is `Bearer`), and the
+conventional secret var follows that scheme: a `Bearer` provider prefers the auth-typed
+`_AUTHORIZATION_BEARER` / `_AUTH_TOKEN`, an `ApiKey` provider prefers `_API_KEY`. All three suffixes fill
+the same `Secret`, so either spelling works — the scheme just decides which wins if you set more than one:
 
 ```bash
-export ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER="paste-your-anthropic-subscription-token"
-export OPENAI_PERSONAL_AUTHORIZATION_BEARER="paste-your-openai-subscription-token"
-# (ANTHROPIC_PERSONAL_API_KEY / OPENAI_PERSONAL_API_KEY are equivalent and canonical.)
+export ANTHROPIC_PERSONAL_API_KEY="paste-your-anthropic-subscription-token"          # anthropic-personal is ApiKey
+export OPENAI_PERSONAL_AUTHORIZATION_BEARER="paste-your-openai-subscription-token"   # openai-personal is Bearer
+# (_AUTH_TOKEN is an accepted Bearer-typed alias of _AUTHORIZATION_BEARER for either provider.)
 ```
 
 #### Minting the tokens
