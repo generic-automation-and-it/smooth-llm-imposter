@@ -222,6 +222,7 @@ public sealed class ProviderConfigAdminIntegrationTests
         Dialect: "openai",
         BaseUrl: baseUrl,
         AuthScheme: authScheme,
+        AuthHeader: null,
         IsDefault: false,
         Enabled: true,
         AnthropicVersion: null,

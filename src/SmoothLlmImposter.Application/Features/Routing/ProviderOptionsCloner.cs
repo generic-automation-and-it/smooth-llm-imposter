@@ -9,6 +9,7 @@ internal static class ProviderOptionsCloner
         BaseUrl = source.BaseUrl,
         Secret = source.Secret,
         AuthScheme = source.AuthScheme,
+        AuthHeader = source.AuthHeader,
         IsDefault = source.IsDefault,
         Enabled = source.Enabled,
         AnthropicVersion = source.AnthropicVersion,

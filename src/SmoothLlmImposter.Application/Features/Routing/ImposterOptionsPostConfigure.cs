@@ -68,6 +68,9 @@ internal sealed class ImposterOptionsPostConfigure(
         new("_AUTH_TOKEN", nameof(ProviderOptions.Secret), static (p, v) => p.Secret = v),
         new("_BASE_URL", nameof(ProviderOptions.BaseUrl), static (p, v) => p.BaseUrl = v),
         new("_AUTH_SCHEME", nameof(ProviderOptions.AuthScheme), static (p, v) => p.AuthScheme = v),
+        // Overrides only the header NAME the credential is written into (value format follows _AUTH_SCHEME);
+        // e.g. OPENAI_AUTH_HEADER=api-key for the LEGO codex gateway.
+        new("_AUTH_HEADER", nameof(ProviderOptions.AuthHeader), static (p, v) => p.AuthHeader = v),
         new("_DIALECT", nameof(ProviderOptions.Dialect), static (p, v) => p.Dialect = v),
         // Booleans have no-op Apply delegates: PostConfigure handles them inline because applying them
         // requires bool.TryParse plus a Warning on an unparseable value, which

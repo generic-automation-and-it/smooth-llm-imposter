@@ -8,6 +8,10 @@ namespace SmoothLlmImposter.Domain.Routing;
 /// dialect's <see cref="IsDefault"/> provider receives the request unchanged (real-provider passthrough).
 /// <see cref="AuthScheme"/> is independent of <see cref="Dialect"/>: <c>null</c> means "use the dialect
 /// default" (OpenAI → Bearer, Anthropic → ApiKey), resolved by the forwarder.
+/// <see cref="AuthHeader"/> overrides only the <b>header name</b> the credential is written into
+/// (<c>null</c> = the scheme's default, <c>Authorization</c>/<c>x-api-key</c>); the value format still
+/// follows <see cref="AuthScheme"/>. A gateway that wants the credential in a non-standard header — e.g. the
+/// LEGO codex gateway's <c>api-key</c> — sets it.
 /// <see cref="RequestNormalization"/> opts the provider into a proxy-side request-normalization profile
 /// (HLD 004); <see cref="RequestNormalization.None"/> (default) forwards the body unchanged.
 /// </summary>
@@ -23,7 +27,8 @@ public sealed record ProviderRoute(
     CredentialAuthScheme? AuthScheme = null,
     RequestNormalization RequestNormalization = RequestNormalization.None,
     bool Enabled = true,
-    string? ProviderKey = null)
+    string? ProviderKey = null,
+    string? AuthHeader = null)
 {
     /// <summary>
     /// The stable identity used to key credentials and the authorization override — the provider's

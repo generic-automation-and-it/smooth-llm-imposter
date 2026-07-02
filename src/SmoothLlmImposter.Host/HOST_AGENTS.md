@@ -35,7 +35,8 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   `ReadFrom.Configuration` last, so the `Serilog` section in `appsettings.json` / env vars overrides it (the old
   `Logging` section was dead config — Serilog never read it). `RoutingEndpoints` logs a **Debug** full-inbound-request
   dump (method, path, query, all headers, raw body) under the `SmoothLlmImposter.Routing` category, guarded by
-  `IsEnabled(Debug)` so it is free when off. `Authorization`/`x-api-key` values are masked (scheme + last 4). Enable
+  `IsEnabled(Debug)` so it is free when off. `Authorization`/`x-api-key` (and any provider-specific `AuthHeader`,
+  e.g. `api-key`) values are masked (scheme + last 4) in both the inbound dump and the forwarder's outbound dump. Enable
   with `Serilog__MinimumLevel__Override__SmoothLlmImposter.Routing=Debug`. See
   `.docs/wiki/setups/logging.debug-smooth-llm-imposter.md`.
 - **Providers are name-keyed, not positional (HLD 007).** `ImposterOptions.Providers` is a
@@ -64,3 +65,4 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 | 2026-06-20 | HLD 007: providers are now name-keyed (`Dictionary<string, ProviderOptions>`); supersedes the positional `__N__` sparse-index note — overrides are name-addressed (`Imposter__Providers__<name>__*`) or conventional (`<NAME>_API_KEY`, precedence-winning), and a legacy array/numeric-key shape fails fast at startup. | HLD 007 |
 | 2026-06-20 | Default config uses dialect-suffixed provider keys: `opencode-go-openai` / `opencode-go-anthropic` share `OPENCODE_GO_API_KEY`, and `openrouter-openai` / `openrouter-anthropic` share `OPENROUTER_API_KEY`; OpenRouter routes use Bearer auth even on the Anthropic-compatible surface. | — |
 | 2026-06-21 | Added `/admin/providers` runtime provider-config CRUD plus enable/disable. Host maps the secret-free admin surface and delegates all behavior to Mediator/Application. | #49 |
+| 2026-07-02 | Documented the optional `AuthHeader` override (relocates the credential to a non-standard header, e.g. the LEGO codex gateway's `api-key`; value format still follows `AuthScheme`) and that the custom auth header is masked in both the inbound and forwarder outbound Debug dumps. | — |

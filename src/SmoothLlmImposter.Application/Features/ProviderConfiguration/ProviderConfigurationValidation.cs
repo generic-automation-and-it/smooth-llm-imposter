@@ -38,6 +38,7 @@ internal static class ProviderConfigurationValidation
             RuleFor(x => x.Dialect).Must(static x => ApiDialectParser.TryParse(x, out _)).WithMessage("Dialect must be 'openai' or 'anthropic'.");
             RuleFor(x => x.BaseUrl).Must(BeAbsoluteUrlRoot).WithMessage("BaseUrl must be an absolute URL without query or fragment.");
             RuleFor(x => x.AuthScheme).Must(static x => CredentialAuthSchemeParser.TryParse(x, out _)).WithMessage("AuthScheme must be 'ApiKey' or 'Bearer'.");
+            RuleFor(x => x.AuthHeader).Must(static x => x is null || !string.IsNullOrWhiteSpace(x)).WithMessage("AuthHeader must be omitted or a non-blank header name.");
             RuleFor(x => x.OpenAiUpstreamApi).Must(static x => OpenAiUpstreamApiParser.TryParse(x, out _)).WithMessage("OpenAiUpstreamApi must be 'responses' or 'chat_completions'.");
             RuleFor(x => x.RequestNormalization).Must(static x => RequestNormalizationParser.TryParse(x, out _)).WithMessage("RequestNormalization must be 'none' or 'codex_to_openai_sdk'.");
             RuleFor(x => x.Models).NotNull();

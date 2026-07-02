@@ -276,6 +276,32 @@ public class ImposterOptionsPostConfigureTests
         options.Providers["openrouter-anthropic"].AuthScheme.ShouldBe("Bearer");
     }
 
+    [Fact]
+    public void Lego_providers_share_a_single_auth_token_across_schemes()
+    {
+        // The shipped `lego-anthropic` (Bearer) / `lego-openai` (ApiKey) providers share the `lego` base, so a
+        // single LEGO_AUTH_TOKEN feeds both: Bearer prefers _AUTH_TOKEN directly, and ApiKey falls back to it
+        // (its _API_KEY/_AUTHORIZATION_BEARER are unset). One gateway token, two auth surfaces.
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["LEGO_AUTH_TOKEN"] = "lego-gateway-token" })
+            .Build();
+        var sut = new ImposterOptionsPostConfigure(configuration, new CapturingLogger());
+
+        var options = new ImposterOptions
+        {
+            Providers =
+            {
+                ["lego-anthropic"] = new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://models.assistant.legogroup.io/claude", AuthScheme = "Bearer" },
+                ["lego-openai"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://models.assistant.legogroup.io/openai", AuthScheme = "ApiKey" }
+            }
+        };
+
+        sut.PostConfigure(name: null, options);
+
+        options.Providers["lego-anthropic"].Secret.ShouldBe("lego-gateway-token");
+        options.Providers["lego-openai"].Secret.ShouldBe("lego-gateway-token");
+    }
+
     [Theory]
     [InlineData("yes", true)]
     [InlineData("1", true)]

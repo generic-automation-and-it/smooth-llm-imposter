@@ -38,6 +38,23 @@ public class ProviderCatalogTests
             .ShouldBe(RequestNormalization.None);
 
     [Fact]
+    public void Auth_header_flows_to_the_route_and_blank_is_normalized_to_null()
+    {
+        var catalog = new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
+        {
+            Providers =
+            {
+                ["set"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://s.example", AuthHeader = "api-key" },
+                ["blank"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://b.example", AuthHeader = "   " }
+            }
+        }));
+
+        IReadOnlyList<ProviderRoute> routes = catalog.ProvidersFor(ApiDialect.OpenAi);
+        routes.Single(r => r.Name == "set").AuthHeader.ShouldBe("api-key");
+        routes.Single(r => r.Name == "blank").AuthHeader.ShouldBeNull();
+    }
+
+    [Fact]
     public void Route_name_uses_key_when_name_unset()
     {
         var catalog = new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions

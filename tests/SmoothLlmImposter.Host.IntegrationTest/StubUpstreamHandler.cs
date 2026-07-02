@@ -21,6 +21,12 @@ public sealed class StubUpstreamHandler : HttpMessageHandler
     public string? LastAnthropicVersion { get; private set; }
     public string? LastAnthropicBeta { get; private set; }
 
+    /// <summary>Snapshot of every request header (comma-joined values), so a test can assert a non-standard
+    /// auth header such as the LEGO codex gateway's <c>api-key</c>. Snapshotted because the request is
+    /// disposed once the send completes.</summary>
+    public IReadOnlyDictionary<string, string> LastHeaders { get; private set; } =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
     public Func<HttpResponseMessage> ResponseFactory { get; set; } = () => new HttpResponseMessage(HttpStatusCode.OK)
     {
         Content = new StringContent("""{"ok":true}""", System.Text.Encoding.UTF8, "application/json")
@@ -36,6 +42,7 @@ public sealed class StubUpstreamHandler : HttpMessageHandler
         LastApiKey = request.Headers.TryGetValues("x-api-key", out IEnumerable<string>? key) ? string.Join(",", key) : null;
         LastAnthropicVersion = request.Headers.TryGetValues("anthropic-version", out IEnumerable<string>? ver) ? string.Join(",", ver) : null;
         LastAnthropicBeta = request.Headers.TryGetValues("anthropic-beta", out IEnumerable<string>? beta) ? string.Join(",", beta) : null;
+        LastHeaders = request.Headers.ToDictionary(h => h.Key, h => string.Join(",", h.Value), StringComparer.OrdinalIgnoreCase);
 
         return ResponseFactory();
     }

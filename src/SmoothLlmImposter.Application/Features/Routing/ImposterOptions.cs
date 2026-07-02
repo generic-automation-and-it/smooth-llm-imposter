@@ -48,6 +48,17 @@ public sealed class ProviderOptions
     /// </summary>
     public string? AuthScheme { get; set; }
 
+    /// <summary>
+    /// Optional override of the <b>header name</b> the credential is written into. When omitted (<c>null</c>)
+    /// the scheme's default header is used (<c>Bearer</c> → <c>Authorization</c>, <c>ApiKey</c> →
+    /// <c>x-api-key</c>). The value format still follows <see cref="AuthScheme"/> — a <c>Bearer</c> provider
+    /// keeps the <c>Bearer </c> prefix, an <c>ApiKey</c> provider stays the raw token. Set it for a gateway
+    /// that expects a non-standard header, e.g. the LEGO codex gateway's <c>api-key</c>
+    /// (<c>AuthScheme=ApiKey</c> + <c>AuthHeader=api-key</c> → <c>api-key: &lt;token&gt;</c>). A
+    /// present-but-blank value is rejected by the validator (omit it instead).
+    /// </summary>
+    public string? AuthHeader { get; set; }
+
     /// <summary>When no model mapping matches, the dialect's default provider receives the request unchanged.</summary>
     public bool IsDefault { get; set; }
 
