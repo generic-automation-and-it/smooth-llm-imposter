@@ -221,15 +221,15 @@ for daily use, personal subscription for private use" split: route a specific mo
 first-party subscription token instead of the key-less default (which forwards the caller's company
 credential). They target the real first-party endpoints (`api.anthropic.com` /
 `chatgpt.com/backend-api/codex`) and ship with an empty `Secret` — you supply your token via env. The
-shipped schemes differ (`anthropic-personal` is `ApiKey`, `openai-personal` is `Bearer`), and the
-conventional secret var follows that scheme: a `Bearer` provider prefers the auth-typed
-`_AUTHORIZATION_BEARER` / `_AUTH_TOKEN`, an `ApiKey` provider prefers `_API_KEY`. All three suffixes fill
-the same `Secret`, so either spelling works — the scheme just decides which wins if you set more than one:
+Both shipped personal providers are `Bearer`, so the conventional secret var follows that scheme: a
+`Bearer` provider prefers the auth-typed `_AUTH_TOKEN` / `_AUTHORIZATION_BEARER`; `_API_KEY` is an
+accepted fallback that fills the same `Secret` (the off-scheme suffix stays a fallback so a single
+populated var still authenticates). All three suffixes fill the same `Secret`:
 
 ```bash
-export ANTHROPIC_PERSONAL_API_KEY="paste-your-anthropic-subscription-token"          # anthropic-personal is ApiKey
-export OPENAI_PERSONAL_AUTHORIZATION_BEARER="paste-your-openai-subscription-token"   # openai-personal is Bearer
-# (_AUTH_TOKEN is an accepted Bearer-typed alias of _AUTHORIZATION_BEARER for either provider.)
+export ANTHROPIC_PERSONAL_AUTH_TOKEN="paste-your-anthropic-subscription-token"
+export OPENAI_PERSONAL_AUTH_TOKEN="paste-your-openai-subscription-token"
+# (_AUTHORIZATION_BEARER is equivalent; _API_KEY is a fallback.)
 ```
 
 #### Minting the tokens
@@ -244,7 +244,7 @@ claude setup-token    # prints a long-lived subscription token from that persona
 claude logout && claude login   # sign back in with your COMPANY account for day-to-day use
 ```
 
-Then paste the copied value into `ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER`.
+Then paste the copied value into `ANTHROPIC_PERSONAL_AUTH_TOKEN`.
 
 **OpenAI / Codex — no `setup-token` equivalent.** Codex CLI has no one-shot portable-token command
 ([OpenAI Codex auth docs](https://developers.openai.com/codex/auth)). The supported ways to get a
@@ -266,13 +266,9 @@ ChatGPT-subscription credential for this router:
 > personal subscription token through this proxy only where your plan permits it; a provider-issued API
 > key is the unambiguous path.
 
-- `anthropic-personal` captures `claude-opus-4-7*` and serves it as `claude-opus-4-8` on your personal
-  subscription (capture within the Opus family). It uses a glob distinct from `openrouter-anthropic`
-  (`claude-opus-4-6*`), so the two never compete. (If two same-dialect providers ever share a glob, the
-  one declared earlier in config wins — first match wins.)
-- `openai-personal` ships **inert** (no `Models`) — it is a template you activate by adding your own
-  mappings. Neither personal provider is `IsDefault` (that role belongs to `*-default`). See HLD 007
-  LADR-04.
+- `anthropic-personal` and `openai-personal` ship **inert** (no `Models`) — they are templates you
+  activate by adding your own `Models[]` entries. The shipped `appsettings.json` has no `Models` for
+  either; you add them at deploy time. (See HLD 007 LADR-04 for the personal-subscription pattern.)
 
 ```bash
 # OpenAI dialect — prefix /openai, client appends /v1/chat/completions (also /v1/responses, GET /v1/models)

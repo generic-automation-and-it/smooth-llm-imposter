@@ -42,12 +42,11 @@ All notable changes to SmoothLlmImposter are documented here.
     Claude Code / Anthropic SDK `ANTHROPIC_AUTH_TOKEN` Bearer variable, so an operator can reuse the exact
     env var cc exports. One of three `Secret` suffixes alongside `_API_KEY` and `_AUTHORIZATION_BEARER`;
     which one wins follows the provider's auth scheme (see the scheme-driven priority under **Fixed**).
-- **Personal-subscription providers (HLD 007 LADR-04).** Added two named providers to `appsettings.json` for
-  the "company subscription for daily use, personal for private use" split: `anthropic-personal` captures
-  `claude-opus-4-7*` and serves it as `claude-opus-4-8` on the operator's own Anthropic subscription token
-  (`AuthScheme: Bearer`, committed `Secret` empty — supplied via env), and `openai-personal` is an inert
-  codex passthrough template (no `Models` until the operator adds them). Neither is `IsDefault`.
-  `openrouter-anthropic`'s glob narrowed to `claude-opus-4-6*` so the Opus globs stay distinct.
+- **Personal-subscription providers (HLD 007 LADR-04).** Two named providers (`anthropic-personal`,
+  `openai-personal`) live in `appsettings.json` for the "company subscription for daily use, personal
+  for private use" split; both are `Bearer` and ship inert (no `Models`) so operators add their own
+  `Models[]` at deploy time. Neither is `IsDefault`. (Imposter `Models` for the four non-personal,
+  non-default providers were also emptied in this release — the integration suite sets them per-test.)
   - The conventional env surface gains an auth-typed secret alias **`_AUTHORIZATION_BEARER`** (→ `Secret`),
     so a Bearer subscription token reads as `ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER` /
     `OPENAI_PERSONAL_AUTHORIZATION_BEARER`. A Bearer-typed alias of `Secret`; on a `Bearer` provider it is

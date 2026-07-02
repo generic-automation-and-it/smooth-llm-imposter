@@ -10,10 +10,7 @@ the shipped `appsettings.json`:
 
 | Inbound dialect / model | Rewritten to | Upstream provider |
 |:------------------------|:-------------|:------------------|
-| OpenAI `gpt-5.4`        | `kimi-k2.7-code`  | opencode-go-openai (`https://opencode.ai/zen/go`) |
-| Anthropic `claude-opus-4-7*` | `claude-opus-4-8` | anthropic-personal (`https://api.anthropic.com`, personal Bearer token) |
-| Anthropic `claude-opus-4-6*` | `z-ai/glm-5.2` | openrouter-anthropic (`https://openrouter.ai/api`) |
-| Anthropic `claude-haiku-*` | `minimax-m3` | opencode-go-anthropic (`https://opencode.ai/zen/go`) |
+| (none — add your own) | (n/a) | The shipped `appsettings.json` has no `Models[]` for any non-default provider. Unmatched models pass through to the dialect's default (`anthropic-default` → `api.anthropic.com`, `openai-default` → `chatgpt.com/backend-api/codex`) or 404 if no default is configured. Add `Models[]` to `anthropic-personal`, `openai-personal`, `openrouter-*`, or `opencode-go-*` to enable imposter routing. |
 
 The router is **stateless and key-less**: it does not capture or persist the caller's auth, and it does not run
 as a container. Each provider's upstream key comes from the environment (`<NAME>_API_KEY` conventional, or the
@@ -202,9 +199,7 @@ After setup, from the sandbox:
 curl -fsS localhost:5080/health        # {"status":"ok"}
 ```
 
-Send a routed OpenAI-dialect request — with the shipped config, `gpt-5.4` is rewritten to `kimi-k2.7-code` and
-forwarded to opencode-go-openai (requires `OPENCODE_GO_API_KEY`, or the structured `Imposter__Providers__opencode-go-openai__Secret`,
-to be set, or the upstream returns an auth error):
+Send an OpenAI-dialect request — with the shipped config, `gpt-5.4` is unmatched (no `Models[]` configured) and passes through to the `openai-default` provider (requires its `Secret` to be set, or the upstream returns an auth error). To enable rewriting, add a `Models[]` entry to e.g. `opencode-go-openai`:
 
 ```bash
 curl -fsS localhost:5080/v1/chat/completions \
