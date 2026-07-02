@@ -277,13 +277,17 @@ public class ImposterOptionsPostConfigureTests
     }
 
     [Fact]
-    public void Lego_providers_share_a_single_auth_token_across_schemes()
+    public void Lego_providers_pick_up_the_per_provider_conventional_vars()
     {
-        // The shipped `lego-anthropic` (Bearer) / `lego-openai` (ApiKey) providers share the `lego` base, so a
-        // single LEGO_AUTH_TOKEN feeds both: Bearer prefers _AUTH_TOKEN directly, and ApiKey falls back to it
-        // (its _API_KEY/_AUTHORIZATION_BEARER are unset). One gateway token, two auth surfaces.
+        // The <PROVIDER>_<SUFFIX> convention for the hyphenated keys: lego-anthropic -> LEGO_ANTHROPIC prefix
+        // (Bearer picks _AUTH_TOKEN), lego-openai -> LEGO_OPENAI prefix (ApiKey picks _API_KEY). No shared
+        // base var involved — the direct per-provider var is resolved.
         IConfiguration configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["LEGO_AUTH_TOKEN"] = "lego-gateway-token" })
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["LEGO_ANTHROPIC_AUTH_TOKEN"] = "lego-claude-token",
+                ["LEGO_OPENAI_API_KEY"] = "lego-openai-key"
+            })
             .Build();
         var sut = new ImposterOptionsPostConfigure(configuration, new CapturingLogger());
 
@@ -298,8 +302,8 @@ public class ImposterOptionsPostConfigureTests
 
         sut.PostConfigure(name: null, options);
 
-        options.Providers["lego-anthropic"].Secret.ShouldBe("lego-gateway-token");
-        options.Providers["lego-openai"].Secret.ShouldBe("lego-gateway-token");
+        options.Providers["lego-anthropic"].Secret.ShouldBe("lego-claude-token");
+        options.Providers["lego-openai"].Secret.ShouldBe("lego-openai-key");
     }
 
     [Theory]
