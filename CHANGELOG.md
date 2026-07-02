@@ -19,15 +19,16 @@ All notable changes to SmoothLlmImposter are documented here.
   **`{model}`** (`ModelMapping.ResolveTarget`), which expands to the full inbound model name — enabling prefix
   rewrites that keep the caller's version suffix (`To: "anthropic.{model}"` → `anthropic.claude-opus-4-1`).
   Literal `To` values are unchanged.
-  - The conventional env surface gains a third Secret alias **`_AUTH_TOKEN`** (→ `Secret`), mirroring the
-    Claude Code / Anthropic SDK `ANTHROPIC_AUTH_TOKEN` Bearer variable, so an operator can reuse the exact
-    env var cc exports. One of three `Secret` suffixes alongside `_API_KEY` and `_AUTHORIZATION_BEARER`;
-    which one wins follows the provider's auth scheme (see the scheme-driven priority under **Fixed**).
+- **Conventional `_AUTH_TOKEN` env-var alias for Bearer providers.** The conventional env surface gains a third
+  Secret alias **`_AUTH_TOKEN`** (→ `Secret`), mirroring the Claude Code / Anthropic SDK
+  `ANTHROPIC_AUTH_TOKEN` Bearer variable, so an operator can reuse the exact env var it exports. One of three
+  `Secret` suffixes alongside `_API_KEY` and `_AUTHORIZATION_BEARER`; which one wins follows the provider's auth
+  scheme (see the scheme-driven priority under **Fixed**).
 - **Personal-subscription providers (HLD 007 LADR-04).** Two named providers (`anthropic-personal`,
   `openai-personal`) live in `appsettings.json` for the "company subscription for daily use, personal
   for private use" split; both are `Bearer` and ship inert (no `Models`) so operators add their own
-  `Models[]` at deploy time. Neither is `IsDefault`. (Imposter `Models` for the four non-personal,
-  non-default providers were also emptied in this release — the integration suite sets them per-test.)
+  `Models[]` at deploy time. Neither is `IsDefault`. Non-default imposter mappings were also emptied in this
+  release — the integration suite sets them per-test.
   - The conventional env surface gains an auth-typed secret alias **`_AUTHORIZATION_BEARER`** (→ `Secret`),
     so a Bearer subscription token reads as `ANTHROPIC_PERSONAL_AUTHORIZATION_BEARER` /
     `OPENAI_PERSONAL_AUTHORIZATION_BEARER`. A Bearer-typed alias of `Secret`; on a `Bearer` provider it is
@@ -140,9 +141,8 @@ All notable changes to SmoothLlmImposter are documented here.
   set — so `anthropic-beta` (and beta body fields like `context_management`), vendor `x-*` headers, and the
   caller's own `anthropic-version` reach the provider instead of being dropped. The only managed header is
   auth: an unmatched model routed to a key-less `IsDefault` provider forwards the caller's own
-  `Authorization`/`x-api-key` (so the shipped `api.anthropic.com` / `api.openai.com` defaults authenticate with
-  the caller's credential), imposter routes use the provider's configured key, and the HLD-003 override forces
-  the active stored Bearer.
+  `Authorization`/`x-api-key` to that configured upstream, imposter routes use the provider's configured key,
+  and the HLD-003 override forces the active stored Bearer.
 - **Opt-in persistence with an in-memory default.** `AddInfrastructure` registers EF Core + the
   PostgreSQL-backed `CredentialStore` only when `ConnectionStrings:ImposterDb` is set; otherwise an in-memory
   `InMemoryCredentialStore` is registered so the stateless/key-less default boots with no database and
@@ -163,11 +163,10 @@ All notable changes to SmoothLlmImposter are documented here.
 - Split HLD 001 into a `README.md` index plus `diagrams/`, `nfrs/`, and `ladrs/` subfolders (one file
   per diagram, NFR, and LADR) instead of a single monolithic document.
 - Removed redundant `.gitkeep` files from folders that now contain code (`Features/`, `Endpoints/`).
-- Default `appsettings.json` providers reworked: `opencode-go` → `https://opencode.ai/zen/go` with
-  `gpt5.4` → `kimi-k2.7`; added `openrouter` (openai) and `opencode-anthropic` (`claude-haiku-*` →
-  `minimax-m3`). Catch-all `IsDefault` passthrough providers for `anthropic` (`https://api.anthropic.com`)
-  and `openai` (`https://api.openai.com`) lead the array (no key — they forward the caller's credential), so
-  unmatched models pass through to the real provider. Remove them for type-only impostering (unmatched → 404).
+- Default provider config reworked to include catch-all key-less passthrough defaults and named imposter-provider
+  scaffolds. Current provider keys, URLs, and model mappings are intentionally read from
+  `src/SmoothLlmImposter.Host/appsettings.json`; unmatched models pass through when an `IsDefault` provider is
+  configured, or 404 when defaults are removed.
 - Fixed an EF Core model-build crash on the passthrough credential lookup: the TPH discriminator shadow
   column collided with the ignored CLR `ProviderDialect` property (NRE in `HasDiscriminator`). Renamed the
   discriminator/column to `Dialect` in the configuration, store queries, and the initial migration.

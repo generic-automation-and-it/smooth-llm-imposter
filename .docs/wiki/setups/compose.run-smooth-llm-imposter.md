@@ -8,7 +8,8 @@ points at the published GHCR tag — so you can either build locally or `pull`. 
 running across reboots. Works with **`docker compose`** (v2) and **`podman-compose`**.
 
 > SmoothLlmImposter is **stateless and key-less** — no `/data` volume, port **5066**, keys are `<NAME>_API_KEY` /
-> `<NAME>_AUTH_TOKEN` (conventional) or `Imposter__Providers__<name>__Secret` (structured) plus the matching
+> `<NAME>_AUTH_TOKEN` / `<NAME>_AUTHORIZATION_BEARER` (conventional) or
+> `Imposter__Providers__<name>__Secret` (structured) plus the matching
 > `<NAME>_AUTH_SCHEME` / `Imposter__Providers__<name>__AuthScheme`, where `<NAME>` is the uppercased provider key.
 > (The Smooth Claude Proxy's compose, with `WORKSPACE_PATH`/`LlmService__*`, is a different service.)
 
@@ -23,11 +24,12 @@ OPENCODE_GO_API_KEY=sk-your-opencode-key              # feeds opencode-go-openai
 OPENROUTER_API_KEY=sk-your-openrouter-key             # feeds openrouter-openai and openrouter-anthropic
 ```
 
-> `<NAME>_AUTH_TOKEN` and `<NAME>_API_KEY` fill the **same** provider secret, but which one wins **follows the
-> provider's auth scheme**: a `Bearer` provider prefers `<NAME>_AUTH_TOKEN`, an `ApiKey` provider prefers
-> `<NAME>_API_KEY` (the shipped providers set the scheme explicitly). The off-scheme var stays a fallback, so a
-> single var still authenticates. The **header** the scheme sends is `Bearer` → `Authorization: Bearer`, `ApiKey`
-> → `x-api-key`; toggle it in `appsettings.json` or with `<NAME>_AUTH_SCHEME=Bearer|ApiKey`. If a provider's
+> `<NAME>_AUTH_TOKEN`, `<NAME>_AUTHORIZATION_BEARER`, and `<NAME>_API_KEY` fill the **same** provider secret, but
+> which one wins **follows the provider's auth scheme**: a `Bearer` provider prefers `<NAME>_AUTH_TOKEN` →
+> `<NAME>_AUTHORIZATION_BEARER` → `<NAME>_API_KEY`; an `ApiKey` provider prefers `<NAME>_API_KEY` →
+> `<NAME>_AUTH_TOKEN` → `<NAME>_AUTHORIZATION_BEARER`. The off-scheme vars stay fallbacks, so a single var still
+> authenticates. The **header** the scheme sends is `Bearer` → `Authorization: Bearer`, `ApiKey` → `x-api-key`;
+> toggle it in `appsettings.json` or with `<NAME>_AUTH_SCHEME=Bearer|ApiKey`. If a provider's
 > gateway wants the credential in a non-standard header name, set `Imposter__Providers__<name>__AuthHeader`
 > (e.g. `api-key`) to relocate it.
 

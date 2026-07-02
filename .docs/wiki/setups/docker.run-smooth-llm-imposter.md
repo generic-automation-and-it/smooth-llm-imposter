@@ -48,12 +48,13 @@ docker run -d --name smooth-llm-imposter \
 ```
 
 `AuthScheme` (`ApiKey`|`Bearer`) selects the auth header and defaults by dialect when omitted (openai → Bearer,
-anthropic → ApiKey); the shipped providers set it explicitly. The conventional secret var **follows that scheme**:
-both `<NAME>_API_KEY` and `<NAME>_AUTH_TOKEN` fill the provider `Secret`, but a `Bearer` provider prefers
-`_AUTH_TOKEN` and an `ApiKey` provider prefers `_API_KEY` (the other stays a fallback) — flip the effective scheme
-for a provider with `-e <NAME>_AUTH_SCHEME=ApiKey|Bearer`. If a provider's gateway wants the credential in a
-non-standard header name, set `AuthHeader` (e.g. `-e Imposter__Providers__<name>__AuthHeader=api-key`) to relocate
-it.
+anthropic → ApiKey). The conventional secret var **follows that scheme**: `<NAME>_API_KEY`,
+`<NAME>_AUTH_TOKEN`, and `<NAME>_AUTHORIZATION_BEARER` all fill the provider `Secret`, but a `Bearer` provider
+prefers `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` → `_API_KEY`, while an `ApiKey` provider prefers `_API_KEY` →
+`_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` (the off-scheme vars stay fallbacks) — flip the effective scheme for a
+provider with `-e <NAME>_AUTH_SCHEME=ApiKey|Bearer`. If a provider's gateway wants the credential in a
+non-standard header name, set `AuthHeader` (e.g.
+`-e Imposter__Providers__<name>__AuthHeader=api-key`) to relocate it.
 
 Podman is identical (`podman run -d --name … -p 5080:5080 -e … smooth-llm-imposter:local`).
 

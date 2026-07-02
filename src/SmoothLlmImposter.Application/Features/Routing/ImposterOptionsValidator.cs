@@ -81,11 +81,11 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
                 failures.Add($"{prefix}:AuthScheme '{provider.AuthScheme}' is invalid (expected 'ApiKey' or 'Bearer').");
             }
 
-            // AuthHeader is an optional header-name override. null = omitted (use the scheme's default header);
-            // a present-but-blank value is an error — omit it rather than blanking it.
-            if (provider.AuthHeader is not null && string.IsNullOrWhiteSpace(provider.AuthHeader))
+            // AuthHeader is an optional request-header-name override. null = omitted (use the scheme's default);
+            // present-but-blank, malformed, and transport-owned names are errors.
+            if (!AuthHeaderNameValidator.IsValid(provider.AuthHeader))
             {
-                failures.Add($"{prefix}:AuthHeader override is blank; omit it to use the scheme's default header, or set a non-blank header name.");
+                failures.Add(AuthHeaderNameValidator.FailureMessage(prefix));
             }
 
             if (!RequestNormalizationParser.TryParse(provider.RequestNormalization, out RequestNormalization normalization))

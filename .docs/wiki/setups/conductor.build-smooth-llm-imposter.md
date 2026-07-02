@@ -5,43 +5,37 @@
 Running this script in a fresh Conductor sandbox **builds SmoothLlmImposter from source and runs it on
 `localhost:5080`**. It installs the .NET 10 SDK, publishes the Host, and starts it behind a single idempotent
 helper (`imposter-up.sh`). Point any OpenAI- or Anthropic-dialect client's base URL at `http://localhost:5080`
-and the router rewrites the inbound `model` to a configured upstream per the **`Imposter`** config section. With
-the shipped `appsettings.json`:
-
-| Inbound dialect / model | Rewritten to | Upstream provider |
-|:------------------------|:-------------|:------------------|
-| OpenAI `gpt-5.4` | `kimi-k2.7-code` | opencode-go-openai (`https://opencode.ai/zen/go`) — *example only; add a `Models[]` entry, not committed* |
-| Anthropic `claude-haiku-*` | `minimax-m3` | opencode-go-anthropic (`https://opencode.ai/zen/go`) — *example only; add a `Models[]` entry, not committed* |
-
-> **Shipped `appsettings.json` has no `Models[]` for any non-default provider.** The rows above are illustrative templates — copy and add them to `opencode-go-openai`/`opencode-go-anthropic` (or any other non-default provider) to enable imposter routing. Unmatched models pass through to the dialect's default (`anthropic-default` → `api.anthropic.com`, `openai-default` → `chatgpt.com/backend-api/codex`) or 404 if no default is configured.
+and the router rewrites the inbound `model` only when a non-default provider has a matching `Models[]` entry in
+the **`Imposter`** config section. Read the current shipped provider keys, URLs, and defaults in
+[`src/SmoothLlmImposter.Host/appsettings.json`](../../../src/SmoothLlmImposter.Host/appsettings.json); this setup
+page intentionally avoids duplicating that table. With no matching model mapping, routing falls through to the
+dialect default when one is configured, or returns a dialect-shaped 404 when no default exists.
 
 The router is **stateless and key-less**: it does not capture or persist the caller's auth, and it does not run
-as a container. Each provider's upstream key comes from the environment (`<NAME>_API_KEY` conventional, or the
-structured `Imposter__Providers__<name>__Secret`, with a sibling `<NAME>_AUTH_SCHEME` /
-`Imposter__Providers__<name>__AuthScheme` of `ApiKey`|`Bearer` selecting the header, defaulting by dialect); the
-inbound `Authorization` / `x-api-key` is replaced by the provider's configured key. Unmatched models return 404
-unless a provider sets `"IsDefault": true` (passthrough).
+as a container. Each provider's upstream key comes from the environment; on a matched imposter route the inbound
+`Authorization` / `x-api-key` is replaced by the provider's configured key.
 
 ## Prerequisites / knobs
 
-- **`<NAME>_API_KEY`** / **`<NAME>_AUTH_TOKEN`** (conventional) or **`Imposter__Providers__<name>__Secret`**
-  (structured) — the upstream key for the named provider, where `<NAME>` is the uppercased provider key (or the
-  shared base prefix for dialect-suffixed siblings, e.g. `opencode-go-openai` / `opencode-go-anthropic` →
-  `OPENCODE_GO_API_KEY`, `openrouter-openai` / `openrouter-anthropic` → `OPENROUTER_API_KEY`).
-  Identity is the name, so it is order-independent. `_API_KEY` and `_AUTH_TOKEN` fill the **same** provider
-  `Secret`; which one wins **follows the effective auth scheme** — a `Bearer` provider prefers `_AUTH_TOKEN`, an
-  `ApiKey` provider prefers `_API_KEY` (the off-scheme var stays a fallback). The sibling provider-specific
-  **`<NAME>_AUTH_SCHEME`** / **`Imposter__Providers__<name>__AuthScheme`** (`ApiKey`|`Bearer`, case-insensitive)
-  selects the auth header and defaults by dialect when omitted (openai → Bearer, anthropic → ApiKey).
+- **`<NAME>_API_KEY`** / **`<NAME>_AUTH_TOKEN`** / **`<NAME>_AUTHORIZATION_BEARER`** (conventional) or
+  **`Imposter__Providers__<name>__Secret`** (structured) — the upstream key for the named provider, where
+  `<NAME>` is the uppercased provider key. Identity is the name, so it is order-independent. The conventional
+  suffixes fill the **same** provider `Secret`; which one wins **follows the effective auth scheme** — a `Bearer`
+  provider prefers `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` → `_API_KEY`, an `ApiKey` provider prefers `_API_KEY`
+  → `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` (the off-scheme vars stay fallbacks). The sibling
+  provider-specific **`<NAME>_AUTH_SCHEME`** / **`Imposter__Providers__<name>__AuthScheme`**
+  (`ApiKey`|`Bearer`, case-insensitive) selects the auth header and defaults by dialect when omitted (openai →
+  Bearer, anthropic → ApiKey). If a gateway expects a non-standard credential header, set
+  **`<NAME>_AUTH_HEADER`** / **`Imposter__Providers__<name>__AuthHeader`** (for example `api-key`) to relocate
+  the header name while keeping the same value format.
   **`export` it in your shell before running** — do **not** paste a real key into the script block below, because
   this file is tracked in the repo and a committed key would leak. The Host starts without keys, but any routed
   request to that provider fails upstream. Keys are written only to `~/.config/smooth-llm-imposter/imposter.env`
   (mode 600, outside the repo) — never to a tracked file and never printed to the console.
 - **`ASPNETCORE_URLS`** — optional. Bind address; the script defaults to `http://+:5080`.
-- **`Imposter__Providers__<name>__BaseUrl` / `__To` / `__Caching`** — optional per-provider overrides of the
-  shipped `appsettings.json` routing table, keyed by provider name. `BaseUrl` is the server root **without** a `/v1`
-  path (the inbound path is
-  appended verbatim; adding `/v1` double-prefixes).
+- **`Imposter__Providers__<name>__BaseUrl` / `__To` / `__Caching`** — optional per-provider overrides, keyed by
+  provider name. `BaseUrl` is the server root **without** a `/v1` path (the inbound path is appended verbatim;
+  adding `/v1` double-prefixes).
 - **`Admin__ApiKey` / `Admin__OperatorApiKey`** — only needed to use the `/admin/credentials` API. The admin key
   grants the `CredentialAdmin` role (all mutations); the operator key authenticates without it.
 - **`ConnectionStrings__ImposterDb`** — only needed when credential-admin data should persist in PostgreSQL.
@@ -84,8 +78,8 @@ LOG_FILE="$STATE_DIR/imposter.log"
 
 mkdir -p "$CONF_DIR" "$STATE_DIR"
 
-# Prefer `export OPENCODE_GO_API_KEY=...` for opencode-go-* (etc.) in your shell before
-# running. Do NOT commit real keys here — this file is tracked in the repo.
+# Prefer exporting provider keys in your shell before running.
+# Do NOT commit real keys here — this file is tracked in the repo.
 : "${ASPNETCORE_URLS:=http://+:$PORT}"
 
 # ── Write the env file (mode 600) from whatever is exported. Empty values are
@@ -93,7 +87,7 @@ mkdir -p "$CONF_DIR" "$STATE_DIR"
 umask 077
 {
   echo "ASPNETCORE_URLS=$ASPNETCORE_URLS"
-  for var in $(compgen -e | grep -E '^(Imposter__|Admin__|ConnectionStrings__)|^[A-Z0-9_]+_(API_KEY|AUTH_TOKEN|AUTHORIZATION_BEARER|AUTH_SCHEME|BASE_URL|DIALECT|IS_DEFAULT|OPENAI_UPSTREAM_API|REQUEST_NORMALIZATION|ANTHROPIC_VERSION)$'); do
+  for var in $(compgen -e | grep -E '^(Imposter__|Admin__|ConnectionStrings__)|^[A-Z0-9_]+_(API_KEY|AUTH_TOKEN|AUTHORIZATION_BEARER|AUTH_SCHEME|AUTH_HEADER|BASE_URL|DIALECT|IS_DEFAULT|OPENAI_UPSTREAM_API|REQUEST_NORMALIZATION|ANTHROPIC_VERSION)$'); do
     printf '%s=%s\n' "$var" "${!var}"
   done
 } > "$ENV_FILE"
@@ -202,7 +196,8 @@ After setup, from the sandbox:
 curl -fsS localhost:5080/health        # {"status":"ok"}
 ```
 
-Send an OpenAI-dialect request — with the shipped config, `gpt-5.4` is unmatched (no `Models[]` configured) and passes through to the `openai-default` provider (requires its `Secret` to be set, or the upstream returns an auth error). To enable rewriting, add a `Models[]` entry to e.g. `opencode-go-openai`:
+Send an OpenAI-dialect request. If the model matches no configured `Models[]` entry, it uses the dialect default
+when configured; to enable rewriting, add a `Models[]` entry to a non-default provider:
 
 ```bash
 curl -fsS localhost:5080/v1/chat/completions \
@@ -216,5 +211,5 @@ Watch the Host log for the model swap and upstream forward:
 tail -f ~/.local/state/smooth-llm-imposter/imposter.log
 ```
 
-A model that matches no mapping (and with no `IsDefault` provider) returns a dialect-shaped 404 — that is the
-type-only impostering behavior of the shipped config, not a failure.
+A model that matches no mapping and has no configured `IsDefault` provider returns a dialect-shaped 404; that is
+type-only impostering behavior, not a proxy failure.
