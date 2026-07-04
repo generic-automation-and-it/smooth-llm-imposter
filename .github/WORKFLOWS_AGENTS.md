@@ -1,20 +1,51 @@
 # GitHub Workflows Context
 
-## Scope
+## TL;DR
 
-Applies to workflow files under `.github/workflows/`.
+GitHub workflow changes must preserve publishable CI behavior; container image tags must stay multi-architecture for both `linux/amd64` and `linux/arm64`.
 
-## Container Publishing
+## Non-Negotiables
 
-- `publish-image.yml` publishes `ghcr.io/generic-automation-and-it/smooth-llm-imposter` from the repo-root `Dockerfile`.
-- Keep the published image multi-architecture for local developer machines and servers: at minimum `linux/amd64` and `linux/arm64`.
-- Keep QEMU configured before Buildx because the Dockerfile runs `dotnet restore` and `dotnet publish` during each
-  target-platform build.
-- The `sha-*`, `latest`, and semver tags should all point at the same multi-platform manifest list for a given workflow run.
-- If the Dockerfile base images change, confirm the upstream .NET SDK/runtime images support every platform listed in the workflow.
+- Do not remove QEMU from `publish-image.yml` while the Dockerfile runs `dotnet restore` or `dotnet publish` during target-platform builds.
+- Do not narrow published GHCR tags to a single platform unless the setup docs and Docker/Podman guidance are updated in the same PR.
+- Do not change the image owner/name away from `ghcr.io/generic-automation-and-it/smooth-llm-imposter` unless the repository remote or package ownership changes.
 
-## Change Log
+## System Context
 
-| Date | Change | Issue |
-|---|---|---|
-| 2026-07-04 | Documented GHCR image publishing expectations, including required `linux/amd64` and `linux/arm64` platforms. | - |
+The workflow publisher turns the repo-root Dockerfile into the GHCR package used by Docker and Podman setup docs. GitHub Actions runs the build on an amd64 runner, Buildx creates the multi-platform manifest, and QEMU enables the arm64 build steps that execute inside the SDK image.
+
+```mermaid
+C4Context
+    title System Context - Container Image Publishing
+
+    System(repo, "SmoothLlmImposter repository", "Dockerfile and workflow configuration")
+    System(actions, "GitHub Actions", "Runs publish-image.yml")
+    System_Ext(ghcr, "GitHub Container Registry", "Hosts smooth-llm-imposter image tags")
+    System_Ext(users, "Docker and Podman clients", "Pull amd64 or arm64 images")
+
+    Rel(repo, actions, "Triggers image build")
+    Rel(actions, ghcr, "Pushes multi-platform manifest")
+    Rel(users, ghcr, "Pulls platform-specific image")
+```
+
+## Architecture Decisions
+
+### LADR-001: Publish GHCR Tags as Multi-Platform Manifests
+
+- **Date**: 2026-07-04
+- **Status**: Accepted
+- **Context**: GitHub's hosted Linux runner is amd64, so a default Buildx publish creates an amd64-only image. Apple Silicon Docker and Podman clients request `linux/arm64/v8` by default and fail when a tag lacks an arm64 manifest.
+- **Decision**: `publish-image.yml` must set up QEMU before Buildx and publish at least `linux/amd64,linux/arm64` for GHCR tags.
+- **Consequences**: Container publishes may take longer, but one `latest`, semver, or `sha-*` tag works across x64 Linux hosts and Apple Silicon machines.
+
+## Key Behaviors
+
+- `sha-*`, `latest`, and semver tags should point at a manifest list that includes both required platforms for the same workflow run.
+- Existing GHCR tags published before the multi-platform workflow change may remain amd64-only unless they are republished.
+- If .NET SDK or ASP.NET runtime base images change, verify their manifests still include every platform requested by `publish-image.yml`.
+
+## Changelog
+
+| Date | Change | Ref |
+|:-----|:-------|:----|
+| 2026-07-04 | Created workflow context for multi-architecture GHCR publishing and QEMU/Buildx requirements. | #58 |
