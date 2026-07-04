@@ -85,6 +85,32 @@ The shipped provider set lives in **[`src/SmoothLlmImposter.Host/appsettings.jso
 and conventions; duplicating the full shipped table here drifts. Each entry is a provider key →
 `{ Dialect, BaseUrl, Secret, AuthScheme, optional IsDefault / OpenAiUpstreamApi, Models[] }`.
 
+**The shipped providers ship with an empty `Models[]` (clean config).** You add the mappings you want at deploy
+time — in `appsettings.json`, via a structured env override (`Imposter__Providers__<name>__Models__0__From` …),
+or through the `/admin/providers` API. A mapping is `{ "From": <inbound pattern>, "To": <upstream model>,
+"Caching": <bool> }`; the literal token `{model}` in `To` expands to the full inbound model name. For example,
+to point the OpenAI-dialect `opencode-go-openai` provider at two upstream ids (one with prompt caching on):
+
+```jsonc
+"opencode-go-openai": {
+  "Dialect": "openai",
+  "BaseUrl": "https://opencode.ai/zen/go",
+  "AuthScheme": "Bearer",
+  "OpenAiUpstreamApi": "chat_completions",
+  "Models": [
+    { "From": "gpt-5.4",  "To": "kimi-k2.7-code", "Caching": true },  // exact rename
+    { "From": "gpt-4o-*", "To": "gpt-4o" }                            // trailing-* wildcard, no caching
+  ]
+}
+```
+
+The `{model}` token keeps the caller's version suffix while prepending a gateway prefix (dialect must match the
+provider) — e.g. on an anthropic-dialect provider:
+
+```jsonc
+{ "From": "claude-opus-*", "To": "anthropic.{model}" }   // claude-opus-4-1 → anthropic.claude-opus-4-1
+```
+
 Routing rules to keep in mind:
 
 - **First match wins, in configuration order.** The resolver scans the request dialect's providers top-to-bottom
