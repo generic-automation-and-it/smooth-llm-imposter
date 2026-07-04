@@ -31,7 +31,9 @@ ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
 
 - **Docker** or **Podman**.
 - A `linux/amd64` or `linux/arm64` host. Published GHCR tags are expected to include both platforms so Apple
-  Silicon and x64 Linux hosts can pull the same tag without `--platform` / `--arch` overrides.
+  Silicon and x64 Linux hosts can pull the same tag without `--platform` / `--arch` overrides. (Tags published
+  *before* the multi-architecture workflow change may still be amd64-only — re-pull after a fresh publish, or
+  pass `--platform linux/amd64`, if an older tag fails to pull on Apple Silicon.)
 - The package must be **public** (or you must `docker login ghcr.io` with a token that can read it). See
   [Make the package public](#make-the-package-public-one-time) — a one-time step after the first publish.
 
