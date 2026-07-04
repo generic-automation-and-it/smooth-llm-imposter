@@ -1,0 +1,5 @@
+interface:
+  display_name: "AI Analyse"
+  short_description: "Autonomously fix low/medium AI review findings"
+  default_prompt: "Apply safe low/medium AI review fixes and print a FIX/SKIP summary."
+  model: gpt-5.4
