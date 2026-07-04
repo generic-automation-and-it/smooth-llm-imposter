@@ -15,8 +15,11 @@ WORKDIR /build
 COPY SmoothLlmImposter.slnx Directory.Build.props Directory.Packages.props NuGet.Config ./
 COPY src/ src/
 
-RUN dotnet restore src/SmoothLlmImposter.Host/SmoothLlmImposter.Host.csproj
-RUN dotnet publish src/SmoothLlmImposter.Host/SmoothLlmImposter.Host.csproj \
+RUN --mount=type=cache,target=/root/.nuget/packages \
+    dotnet restore src/SmoothLlmImposter.Host/SmoothLlmImposter.Host.csproj
+RUN --mount=type=cache,target=/root/.nuget/packages \
+    --mount=type=cache,target=/tmp/NuGetScratch \
+    dotnet publish src/SmoothLlmImposter.Host/SmoothLlmImposter.Host.csproj \
       -c Release -o /app --no-restore
 
 # ── Runtime stage ─────────────────────────────────────────────────────────

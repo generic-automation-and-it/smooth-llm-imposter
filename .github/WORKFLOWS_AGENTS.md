@@ -43,9 +43,11 @@ C4Context
 - `sha-*`, `latest`, and semver tags should point at a manifest list that includes both required platforms for the same workflow run.
 - Existing GHCR tags published before the multi-platform workflow change may remain amd64-only unless they are republished.
 - If .NET SDK or ASP.NET runtime base images change, verify their manifests still include every platform requested by `publish-image.yml`.
+- The generous job `timeout-minutes`, the BuildKit NuGet `--mount=type=cache` mounts in the Dockerfile, and the per-workflow/per-ref GHA cache `scope=` all exist to keep the QEMU-emulated `arm64` `dotnet restore`/`publish` (~5–10× slower than native) inside a green build — do not tighten or remove them without re-measuring an emulated cold-cache run.
 
 ## Changelog
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
 | 2026-07-04 | Created workflow context for multi-architecture GHCR publishing and QEMU/Buildx requirements. | #58 |
+| 2026-07-04 | Recorded why the QEMU build's job timeout, Dockerfile NuGet cache mounts, and scoped GHA cache exist; bumped `setup-qemu-action` to v4. | #58 |
