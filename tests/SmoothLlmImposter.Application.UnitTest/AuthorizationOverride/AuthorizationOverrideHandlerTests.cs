@@ -84,14 +84,11 @@ public class AuthorizationOverrideHandlerTests
     }
 
     private static IProviderCatalog Catalog() =>
-        new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
+        ProviderCatalogTestFactory.SeededCatalog(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
         {
-            Providers =
-            {
-                ["openai-official"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://api.openai.test", IsDefault = true },
-                ["anthropic-official"] = new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://api.anthropic.test", IsDefault = true }
-            }
-        }));
+            ["openai-official"] = new() { Dialect = "openai", BaseUrl = "https://api.openai.test", IsDefault = true },
+            ["anthropic-official"] = new() { Dialect = "anthropic", BaseUrl = "https://api.anthropic.test", IsDefault = true }
+        });
 
     private sealed class StubCredentialStore : ICredentialStore
     {

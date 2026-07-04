@@ -5,10 +5,10 @@
 | **Status** | Completed |
 | **Owner** | @generic-automation-and-it/project |
 | **Tracker** | [#48 — All configurations must be insert, update, get and deletable to change on the fly](https://github.com/generic-automation-and-it/smooth-devex-template/issues/48) |
-| **Last updated** | 2026-06-21 |
+| **Last updated** | 2026-07-04 |
 
 > **Completed.** Both phases are implemented and shipped — Phase 1 (runtime provider-config CRUD,
-> `Enabled` flag, `IOptionsSnapshot` consumption; #49) and Phase 2 (provider-keyed, settings-backed
+> `Enabled` flag, scoped registry consumption; #49) and Phase 2 (provider-keyed, settings-backed
 > credentials and provider-addressable authorization-override; #50). All LADRs and NFRs are Accepted.
 > This document delivers **intent + spec** — what was built and why, the decisions behind it, and the
 > quality bar it meets; execution (phasing, sub-issues) was tracked in the issue/work tracker.
@@ -69,9 +69,10 @@ configuration.
 
 ### 3. Mutations take effect on the live routing path
 
-Configuration is consumed through `IOptionsSnapshot` rather than a once-built singleton, so each inbound
-request observes the current registry. A successful admin write is reflected on the **next** request — there
-is no caching window an operator must wait out, and no redeploy.
+Configuration is consumed through a scoped catalog that reads the current `IProviderRegistry` snapshot
+rather than a once-built singleton, so each inbound request observes the current registry. A successful admin
+write is reflected on the **next** request — there is no caching window an operator must wait out, and no
+redeploy.
 
 **Acceptance criteria / DoD**
 
@@ -150,13 +151,13 @@ horizontal concern spanning this HLD. See [`./ladrs/`](./ladrs/).
 
 | LADR | Decision | Status |
 |------|----------|--------|
-| [LADR-01](./ladrs/LADR-01-runtime-mutable-registry.md) | Runtime-mutable provider registry over `IOptionsSnapshot`, in-memory and not persisted | Accepted |
+| [LADR-01](./ladrs/LADR-01-runtime-mutable-registry.md) | Runtime-mutable provider registry read by scoped catalog consumers, in-memory and not persisted | Accepted |
 | [LADR-02](./ladrs/LADR-02-config-secret-boundaries.md) | Two boundaries over the registry — routing config (secret-free) vs credentials (secret-only) | Accepted |
 | [LADR-03](./ladrs/LADR-03-enabled-flag.md) | `Enabled` flag per provider; disabled providers are excluded from resolution | Accepted |
 | [LADR-04](./ladrs/LADR-04-runtime-wins-over-env.md) | Runtime CRUD wins; environment overrides only seed the registry at startup | Accepted |
 | [LADR-05](./ladrs/LADR-05-settings-backed-provider-keyed-credentials.md) | Credentials settings-backed and provider-keyed; database backend optional | Accepted |
 | [LADR-06](./ladrs/LADR-06-provider-addressable-override.md) | Provider-addressable authorization-override and activation; dialect-only → default | Accepted |
-| [LADR-07](./ladrs/LADR-07-snapshot-consumption-lifetime.md) | Consume options via `IOptionsSnapshot` (scoped); rebuild the catalog per request scope | Accepted |
+| [LADR-07](./ladrs/LADR-07-snapshot-consumption-lifetime.md) | Read `IProviderRegistry` from a scoped catalog; rebuild the catalog per request scope | Accepted |
 
 ## Non-Functional Requirements
 

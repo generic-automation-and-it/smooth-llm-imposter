@@ -1,6 +1,6 @@
 # AGENTS.md - Runtime Config CRUD & Provider-Addressable Credentials
 
-AI Context: HLD for Runtime Config CRUD & Provider-Addressable Credentials. Updated: 2026-06-21
+AI Context: HLD for Runtime Config CRUD & Provider-Addressable Credentials. Updated: 2026-07-04
 
 > AI-coder context for this HLD. Architecture diagrams live in [`./diagrams/`](./diagrams/),
 > decisions in [`./ladrs/`](./ladrs/), quality spec in [`./nfrs/`](./nfrs/). This file is
@@ -18,7 +18,8 @@ Makes the named-provider registry (HLD 007) runtime-mutable via an admin API and
   (secret-only) are deliberately split ([LADR-02](./ladrs/LADR-02-config-secret-boundaries.md)). A
   provider-config `GET` must round-trip into `PUT` with no secret field.
 - Do **not** keep the catalog/resolver as process-lifetime singletons — runtime mutations must be visible on
-  the next request via `IOptionsSnapshot` ([LADR-01](./ladrs/LADR-01-runtime-mutable-registry.md),
+  the next request via a scoped catalog reading the current `IProviderRegistry` snapshot directly
+  ([LADR-01](./ladrs/LADR-01-runtime-mutable-registry.md),
   [LADR-07](./ladrs/LADR-07-snapshot-consumption-lifetime.md)).
 - Do **not** persist the runtime provider registry; restart reseeds from config + env
   ([NFR-04](./nfrs/NFR-04-ephemerality.md)). Only the opt-in credential DB persists.
@@ -35,13 +36,13 @@ Only decisions whose violation produces wrong code. Full records in [`./ladrs/`]
 
 | LADR | Decision | Why it matters |
 |------|----------|----------------|
-| LADR-01 | Runtime-mutable in-memory registry over `IOptionsSnapshot` | A once-built singleton can never see a mutation |
+| LADR-01 | Runtime-mutable in-memory registry read by scoped catalog consumers | A once-built singleton can never see a mutation |
 | LADR-02 | Routing-config vs credential boundaries | Putting the secret on the config boundary leaks it |
 | LADR-03 | `Enabled` flag; disabled providers excluded from resolution | Forgetting it in default-selection re-enables a parked route |
 | LADR-04 | Runtime CRUD wins; env seeds only at startup | A per-request env post-configure would revert runtime edits |
 | LADR-05 | Settings-backed, provider-keyed credentials; DB optional | Dialect keying can't disambiguate multiple providers; DB must not be required |
 | LADR-06 | Provider-addressable override/activation; dialect-only → default | Dialect-only keying can't target one of several providers |
-| LADR-07 | Consume `IOptionsSnapshot` (scoped); rebuild catalog per scope | Capturing the snapshot in a singleton breaks visibility |
+| LADR-07 | Read `IProviderRegistry` from a scoped catalog; rebuild catalog per scope | Capturing a route catalog in a singleton breaks visibility |
 
 ## Key Behaviors
 
@@ -74,3 +75,4 @@ Measurable NFRs live in [`./nfrs/`](./nfrs/). Constraints that change how code i
 | 2026-06-21 | HLD scaffolded | #48 |
 | 2026-06-21 | Phase 2 provider-keyed credentials and provider-addressable override implemented; LADR-05/06 accepted. | #50 |
 | 2026-06-21 | HLD Completed: both phases shipped; all LADRs (01–07) and NFRs (01–05) Accepted. | #50 |
+| 2026-07-04 | Amended LADR-01/07 implementation detail: scoped catalog reads `IProviderRegistry` directly instead of per-request options binding. | — |

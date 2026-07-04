@@ -180,7 +180,7 @@ public sealed class ProviderConfigAdminIntegrationTests
     public async Task Runtime_upsert_wins_over_environment_override_and_env_does_not_reassert()
     {
         // Conventional env surface (HLD 007) seeds the registry at startup; HLD 008 LADR-04 requires that a
-        // later runtime PUT win over it AND that env not re-assert on the per-request IOptionsSnapshot.
+        // later runtime PUT win over it AND that env not re-assert after startup.
         using var fixture = new ProviderConfigAppFixture(new Dictionary<string, string?>
         {
             ["OPENCODE_GO_BASE_URL"] = "https://env-opencode.test"
