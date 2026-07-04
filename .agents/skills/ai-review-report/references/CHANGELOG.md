@@ -8,6 +8,9 @@
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-07-04 | `pipeline-ai-analyse.yml` now prefers the optional `OPENCODE_ANALYSE_GH_TOKEN` Secret for the auto-fix push and falls back to `GITHUB_TOKEN` only when the PAT is unset. | LADR-043 |
+| 2026-07-04 | Hardened privileged triggers: only `OWNER`/`MEMBER`/`COLLABORATOR` `/ai-review` comments can start a run; fork PRs force pinned `.smooth-ai-review-tools`; analyse disables persisted checkout credentials and pushes with an explicit masked-token remote. | LADR-043 |
+| 2026-07-04 | Added independent analyse provider/model selection: `pipeline-ai-analyse.yml` now reads `OPENCODE_ANALYSE_PROVIDER`, `OPENCODE_ANALYSE_MODEL`, and optional `OPENCODE_ANALYSE_MODEL_FALLBACK`, aliases them into the shared provider resolver for the edit-only agent, and no longer falls back through review-report models implicitly. | LADR-042 |
 | 2026-07-03 | Added a `workflow_dispatch` manual entry path to `pipeline-ai-analyse.yml` (`pr_number` required, `max_incremental` optional cap override). Guard `if:` now also allows the dispatch event, derives the PR from the input, and the concurrency group keys on `inputs.pr_number` too. | LADR-042 |
 | 2026-07-03 | Follow-up from PR #57 review: normalized `OPENCODE_REVIEW_REPORT_DISABLE_AGENTS_MD_CHECK` matching to be case-insensitive, documented that behavior, aligned the caller-template description with the main workflow, and added a focused validator disable test. | PR #57 review 4626304325 |
 | 2026-07-03 | Added `OPENCODE_REVIEW_REPORT_DISABLE_AGENTS_MD_CHECK` and `disable_agents_md_check` workflow/caller inputs to globally bypass the full-review AGENTS.md / README.md / SKILL.md documentation validation when explicitly set. Default remains enabled. | NO-TICKET |

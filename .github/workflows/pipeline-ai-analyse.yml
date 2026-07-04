@@ -222,7 +222,9 @@ jobs:
       OPENCODE_REVIEW_REPORT_MODEL_PRIMARY: ${{ vars.OPENCODE_REVIEW_REPORT_MODEL_PRIMARY || 'gemini-3.1-pro-preview' }}
       OPENCODE_REVIEW_REPORT_MODEL_SECONDARY: ${{ vars.OPENCODE_REVIEW_REPORT_MODEL_SECONDARY || 'gemini-2.5-pro' }}
       OPENCODE_REVIEW_REPORT_MODEL_ORCHESTRATOR: ${{ vars.OPENCODE_REVIEW_REPORT_MODEL_ORCHESTRATOR || 'gemini-3-flash-preview' }}
+      OPENCODE_ANALYSE_PROVIDER: ${{ vars.OPENCODE_ANALYSE_PROVIDER || vars.OPENCODE_REVIEW_REPORT_PROVIDER || 'GEMINI' }}
       OPENCODE_ANALYSE_MODEL: ${{ vars.OPENCODE_ANALYSE_MODEL || vars.OPENCODE_REVIEW_REPORT_MODEL_PRIMARY || 'gemini-3.1-pro-preview' }}
+      OPENCODE_ANALYSE_MODEL_FALLBACK: ${{ vars.OPENCODE_ANALYSE_MODEL_FALLBACK || '' }}
       OPENCODE_REVIEW_REPORT_GEMINI_URL: ${{ vars.OPENCODE_REVIEW_REPORT_GEMINI_URL }}
       OPENCODE_REVIEW_REPORT_COPILOT_URL: ${{ vars.OPENCODE_REVIEW_REPORT_COPILOT_URL }}
       OPENCODE_REVIEW_REPORT_OPENAI_URL: ${{ vars.OPENCODE_REVIEW_REPORT_OPENAI_URL }}
@@ -258,21 +260,28 @@ jobs:
           fetch-depth: 0
           ref: ${{ steps.pr.outputs.head_ref }}
           repository: ${{ steps.pr.outputs.head_repo }}
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Locate analyse tooling
         id: locate_tooling
+        env:
+          HEAD_REPO: ${{ steps.pr.outputs.head_repo }}
         run: |
           set -euo pipefail
-          if [ -f ".agents/skills/ai-review-report/scripts/lib/opencode-with-fallback.sh" ] && \
-             [ -f ".agents/skills/ai-analyse/SKILL.md" ] && \
-             [ -f ".agents/skills/ai-review/scripts/copilot-review.sh" ]; then
+          if [ "$HEAD_REPO" != "${{ github.repository }}" ]; then
+            echo "fetch_tools=true" >> "$GITHUB_OUTPUT"
+            echo "Fork PR or reusable caller detected — using pinned review tooling instead of scripts from the PR head"
+          elif [ -f ".agents/skills/ai-analyse/SKILL.md" ] && \
+               [ -f ".agents/skills/ai-review-report/scripts/lib/opencode-with-fallback.sh" ] && \
+               [ -f ".agents/skills/ai-review/scripts/copilot-review.sh" ]; then
             echo "REVIEW_SKILL_DIR=.agents/skills/ai-review-report" >> "$GITHUB_ENV"
             echo "ANALYSE_SKILL_DIR=.agents/skills/ai-analyse" >> "$GITHUB_ENV"
             echo "AI_REVIEW_DIR=.agents/skills/ai-review" >> "$GITHUB_ENV"
             echo "fetch_tools=false" >> "$GITHUB_OUTPUT"
+            echo "✓ Using analyse skill from the repository under review"
           else
             echo "fetch_tools=true" >> "$GITHUB_OUTPUT"
+            echo "Analyse skill not present in this repository — fetching tooling repo"
           fi
 
       - name: Fetch analyse tooling
@@ -306,6 +315,14 @@ jobs:
           bash "${REVIEW_SKILL_DIR}/scripts/lib/setup-opencode-config.sh"
           opencode stats >/dev/null || true
           bash "${REVIEW_SKILL_DIR}/scripts/lib/opencode-health.sh" || true
+
+          # The analyse loop may intentionally use a different provider/model
+          # from the review report gate. Reuse the shared resolver by aliasing
+          # the analyse contract into its existing OPENCODE_REVIEW_REPORT_* inputs.
+          export OPENCODE_REVIEW_REPORT_PROVIDER="${OPENCODE_ANALYSE_PROVIDER}"
+          export OPENCODE_REVIEW_REPORT_MODEL_PRIMARY="${OPENCODE_ANALYSE_MODEL}"
+          export OPENCODE_REVIEW_REPORT_MODEL_SECONDARY="${OPENCODE_ANALYSE_MODEL_FALLBACK:-$OPENCODE_ANALYSE_MODEL}"
+          export OPENCODE_REVIEW_REPORT_MODEL_ORCHESTRATOR="${OPENCODE_ANALYSE_MODEL}"
           bash "${REVIEW_SKILL_DIR}/scripts/lib/resolve-provider.sh"
 
       - name: Build analyse prompt
@@ -344,12 +361,17 @@ jobs:
           export OPENCODE_MIN_OUTPUT_BYTES=1
           bash "${REVIEW_SKILL_DIR}/scripts/lib/opencode-with-fallback.sh" \
             "${OPENCODE_ANALYSE_MODEL}" \
-            "${OPENCODE_REVIEW_REPORT_MODEL_PRIMARY}" \
-            "${OPENCODE_REVIEW_REPORT_MODEL_SECONDARY}" \
+            "${OPENCODE_ANALYSE_MODEL_FALLBACK}" \
+            "" \
             -- ci_temp/analyse_prompt.md | tee ci_temp/analyse_out.md
 
       - name: Commit fixes
         id: commit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_ANALYSE_GH_TOKEN: ${{ secrets.OPENCODE_ANALYSE_GH_TOKEN }}
+          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
+          HEAD_REPO: ${{ steps.pr.outputs.head_repo }}
         run: |
           set -euo pipefail
           if [ -z "$(git status --porcelain)" ]; then
@@ -361,7 +383,17 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "fix: apply AI review low/medium auto-fixes [ai-analyse]"
-          git push
+          # Prefer a user PAT when available so the follow-up PR update is not
+          # pushed with the repository GITHUB_TOKEN.
+          push_token="${OPENCODE_ANALYSE_GH_TOKEN:-}"
+          if [ -n "$push_token" ]; then
+            echo "Using OPENCODE_ANALYSE_GH_TOKEN for ai-analyse push."
+          else
+            push_token="${GITHUB_TOKEN}"
+            echo "Using GITHUB_TOKEN for ai-analyse push."
+          fi
+          echo "::add-mask::${push_token}"
+          git push "https://x-access-token:${push_token}@github.com/${HEAD_REPO}.git" "HEAD:${HEAD_REF}"
           echo "changed=true" >> "$GITHUB_OUTPUT"
           echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
