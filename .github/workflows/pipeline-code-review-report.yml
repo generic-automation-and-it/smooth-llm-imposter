@@ -1,24 +1,35 @@
-# Thin caller for the smooth-ai-report-review reusable workflow (minimal install).
+# Thin caller for the smooth-ai-report-review reusable workflow.
 #
-# Only this file lives here — the review job, its scripts, and its config are
-# fetched from generic-automation-and-it/smooth-ai-report-review at the ref pinned
-# in `uses:` below. The local repo copies only the `/ai-review` consumer skill
-# (.agents/skills/ai-review/); the report *generator* stays remote.
+# Copy this file into your repo as .github/workflows/pipeline-code-review-report.yml
+# (any name works). It is the only workflow file you need — the review job, its
+# scripts, and its config are fetched from generic-automation-and-it/smooth-ai-report-review
+# at the ref you pin below.
 #
-# Pinned at @main: the upstream repo publishes no tags yet (no @v1), so this
-# tracks the upstream default branch. Swap to an exact tag/SHA for stricter
-# supply-chain control once upstream cuts a release.
+# Configuration (set in YOUR repo/org):
+#   Secrets   — the selected provider's API key, canonical names:
+#               OPENCODE_GEMINI_API_KEY / OPENCODE_COPILOT_API_KEY /
+#               OPENCODE_OPENAI_API_KEY / OPENCODE_ANTHROPIC_API_KEY /
+#               OPENCODE_GO_OPENAI_API_KEY / OPENCODE_GO_ANTHROPIC_API_KEY /
+#               OPENCODE_OPENROUTER_API_KEY.
+#               The explicit `secrets:` mapping below works whether your repo is in
+#               the SAME org as the gate or a DIFFERENT one. `secrets: inherit` is a
+#               shortcut but only works SAME-org/enterprise — cross-org callers MUST
+#               map the keys explicitly (GitHub rejects cross-org inherit at startup).
+#   Variables — OPENCODE_REVIEW_REPORT_PROVIDER, OPENCODE_REVIEW_REPORT_<P>_URL,
+#               OPENCODE_REVIEW_REPORT_MODEL_{PRIMARY,SECONDARY,ORCHESTRATOR}, etc.
+#               These resolve against the CALLER repo/org automatically.
 #
-# Required configuration in THIS repo/org (provider = OpenAI):
-#   Secret   — OPENCODE_OPENAI_API_KEY                      (your OpenAI API key; passed via secrets: inherit)
-#   Variables — OPENCODE_REVIEW_REPORT_PROVIDER             = OPENAI
-#               OPENCODE_REVIEW_REPORT_OPENAI_URL           = https://api.openai.com/v1   (must be non-empty)
-#               OPENCODE_REVIEW_REPORT_MODEL_PRIMARY        = gpt-5.5
-#               OPENCODE_REVIEW_REPORT_MODEL_SECONDARY      = gpt-5.4
-#               OPENCODE_REVIEW_REPORT_MODEL_ORCHESTRATOR   = gpt-5.4-mini
-#   These resolve against the CALLER repo/org automatically.
+# Versioning: pin @v1 (floating major) or an exact tag/SHA for stricter supply-chain
+# control. The review scripts are fetched at the same ref as the workflow by default.
+#
+# Optional autonomous low/medium fixing: copy
+# .github/workflows/pipeline-ai-analyse.yml into the consuming repo too. It cannot be
+# a reusable workflow caller because workflow_run must live in the repo whose gate
+# run it observes. The workflow name-couples to "OpenCode Review Report" and always
+# reads the OPENCODE_ANALYSE_MODEL / OPENCODE_ANALYSE_MAX_INCREMENTAL Variables,
+# falling back to literal defaults (gemini-3.1-pro-preview / 3) when they are unset.
 
-name: PR Code Review Report
+name: OpenCode Review Report
 
 on:
   pull_request:
@@ -46,6 +57,9 @@ on:
         default: '(repository default)'
         options:
           - '(repository default)'
+          - 'Anthropic Claude Opus 4.8'
+          - 'Anthropic Claude Sonnet 4.6'
+          - 'Anthropic Claude Haiku 4.5'
           - 'OpenAI GPT-5.5'
           - 'OpenCode DeepSeek V4 Pro'
           - 'OpenCode GLM-5.1'
@@ -55,6 +69,22 @@ on:
           - 'OpenRouter Qwen3.7 Plus'
           - 'OpenRouter GLM-5.1'
           - 'OpenRouter MiniMax M3'
+      disable_claude_code:
+        description: 'Disable Claude Code (.claude) support (1=disabled, 0=enabled). Avoids conflicts between opencode and Claude Code directories.'
+        required: false
+        type: choice
+        default: '1'
+        options:
+          - '1'
+          - '0'
+      disable_agents_md_check:
+        description: 'Disable AGENTS.md documentation validation (1=disabled, 0=enabled). Default: 0.'
+        required: false
+        type: choice
+        default: '0'
+        options:
+          - '0'
+          - '1'
 
 # The caller's permissions bound the GITHUB_TOKEN the called workflow receives.
 permissions:
@@ -62,10 +92,11 @@ permissions:
   contents: read
   issues: write
 
-# NOTE: no top-level `concurrency:` here. The reusable workflow defines its own
-# `ai-review-<pr>` concurrency group; duplicating the same group in this caller
-# makes GitHub detect a caller/callee deadlock and fail the run. Let the callee
-# own concurrency.
+# Same selective concurrency as the callee: shared group per PR for pull_request
+# events (latest commit wins), unique group for manual/comment triggers.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('ai-review-{0}', github.event.pull_request.number) || format('{0}-{1}', github.run_id, github.run_attempt) }}
+  cancel-in-progress: true
 
 jobs:
   review:
@@ -73,19 +104,28 @@ jobs:
       (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '/ai-review')) ||
       (github.event_name == 'workflow_dispatch')
-    uses: generic-automation-and-it/smooth-ai-report-review/.github/workflows/pipeline-code-review-report.yml@main
+    uses: generic-automation-and-it/smooth-ai-report-review/.github/workflows/pipeline-code-review-report.yml@v1
     with:
       pr_number: ${{ inputs.pr_number || '' }}
       model: ${{ inputs.model || '' }}
       model_preset: ${{ inputs.model_preset || '(repository default)' }}
-      # tools_ref MUST be set when calling cross-repo: the callee's default resolves
-      # `github.workflow_sha`, which on a pull_request call is THIS repo's commit SHA
-      # (`not our ref` in the upstream tooling repo) — so the review-script checkout
-      # fails. Pin it to a ref that exists upstream; `main` matches the @main call above.
-      tools_ref: main
+      disable_claude_code: ${{ inputs.disable_claude_code || '1' }}
+      disable_agents_md_check: ${{ inputs.disable_agents_md_check || vars.OPENCODE_REVIEW_REPORT_DISABLE_AGENTS_MD_CHECK || '0' }}
       # runner: self-hosted          # uncomment for private-network gateways
+      # tools_ref: main              # override which ref the review scripts come from
       # mandatory_context_files: >-  # override the context files resolved in YOUR repo
       #   AGENTS.md
-      #   .docs/wiki/ci.md
+      #   .docs/nfr/PROJECT_SETUP_AGENTS.md
       # agents_md_exempt_paths: '.docs/release-notes'
-    secrets: inherit
+    # Explicit mapping works for same-org AND cross-org callers. Only the selected
+    # provider's key needs to exist in your repo/org; unset ones resolve empty and
+    # are never used. (Same-org callers may replace this whole block with
+    # `secrets: inherit` — but that fails at startup if the gate is in another org.)
+    secrets:
+      OPENCODE_GEMINI_API_KEY: ${{ secrets.OPENCODE_GEMINI_API_KEY }}
+      OPENCODE_COPILOT_API_KEY: ${{ secrets.OPENCODE_COPILOT_API_KEY }}
+      OPENCODE_OPENAI_API_KEY: ${{ secrets.OPENCODE_OPENAI_API_KEY }}
+      OPENCODE_ANTHROPIC_API_KEY: ${{ secrets.OPENCODE_ANTHROPIC_API_KEY }}
+      OPENCODE_GO_OPENAI_API_KEY: ${{ secrets.OPENCODE_GO_OPENAI_API_KEY }}
+      OPENCODE_GO_ANTHROPIC_API_KEY: ${{ secrets.OPENCODE_GO_ANTHROPIC_API_KEY }}
+      OPENCODE_OPENROUTER_API_KEY: ${{ secrets.OPENCODE_OPENROUTER_API_KEY }}
