@@ -16,12 +16,16 @@ Vendored copy of the `/ai-review` consumer skill from `generic-automation-and-it
 C4Context
   System(consumer, "ai-review (this skill)", "Parses a posted review; applies fix/skip; routes results")
   System_Ext(gha, "pipeline-code-review-report.yml@main", "Remote reusable GHA that GENERATES the review on a PR")
+  System_Ext(analyse, "pipeline-ai-analyse.yml", "Companion low/medium self-fix loop")
   System_Ext(gh, "GitHub PR", "Review threads / PR description / comments")
   Rel(gha, gh, "posts AI review")
+  Rel(analyse, gh, "reads latest gate review, pushes safe fixes, posts summary")
   Rel(consumer, gh, "reads review, replies/resolves threads or appends AI Review Notes")
 ```
 
 Two halves, deliberately split: the remote GHA produces the review report on a PR; this local skill consumes it. The user drives the consumer with `/ai-review <pr>` (analyse) then `/ai-review <pr> 1=fix 2=skip` (execute).
+
+The companion `.github/workflows/pipeline-ai-analyse.yml` runs after `PR Code Review Report` completes. Its guard reads the latest gate-authored review, extracts only 🟡 Medium and 🔵 Low findings, invokes fetched upstream `ai-analyse` tooling, pushes any safe auto-fixes, and posts an `ai-analyse auto-fix summary`. The loop is bounded by `OPENCODE_ANALYSE_MAX_INCREMENTAL` so repeated incremental reviews cannot run forever.
 
 ## Key Behaviors
 
@@ -34,3 +38,4 @@ Two halves, deliberately split: the remote GHA produces the review report on a P
 | Date | Change | Ref |
 |:-----|:-------|:----|
 | 2026-06-20 | Vendored `/ai-review` consumer skill from smooth-ai-report-review; generator kept remote via thin caller workflow. | |
+| 2026-07-05 | Documented the companion self-fix workflow that consumes low/medium review findings and posts an auto-fix summary. | |

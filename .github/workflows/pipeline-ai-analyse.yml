@@ -1,0 +1,406 @@
+name: PR AI Analyse (Self-Fix)
+
+on:
+  workflow_run:
+    workflows: ["PR Code Review Report"]
+    types: [completed]
+  # Manual entry point: run the autonomous low/medium auto-fix on demand for a
+  # specific PR (e.g. to re-run after fixing quota, or to push past the cycle cap).
+  # The guard treats a manual dispatch as an explicit human override — it still
+  # skips forks and requires an existing gate review, but derives the PR from the
+  # input instead of the workflow_run payload.
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to auto-fix. Must be an open, same-repo (non-fork) PR that already has an OpenCode Review Report review with 🟡 Medium / 🔵 Low findings.'
+        required: true
+        type: string
+      max_incremental:
+        description: 'Override the incremental-cycle cap for this run (blank → OPENCODE_ANALYSE_MAX_INCREMENTAL Variable / default 3). Set higher to intentionally run past the cap.'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  # Serialize per-PR so a gate completion and a manual dispatch (or two gate
+  # completions) can't drive overlapping analyse runs that race on `git push`
+  # (non-fast-forward). Same-repo PR events populate pull_requests[0]; manual
+  # dispatch uses the pr_number input; run-id is the last-resort fallback.
+  group: ai-analyse-${{ github.event.workflow_run.pull_requests[0].number || inputs.pr_number || github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    # workflow_run path: only act on a gate run that completed successfully. A run
+    # cancelled by the gate's own concurrency (newer synchronize) or a failed run
+    # never posted a fresh review, so acting on it would operate on stale scope. A
+    # request_changes review is still a successful job, so the critical/high-present
+    # case is unaffected. workflow_dispatch is an explicit human override and always
+    # runs the guard (it still enforces fork / gate-review / cap checks below).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    outputs:
+      act: ${{ steps.guard.outputs.act }}
+      pr_number: ${{ steps.guard.outputs.pr_number }}
+      medium_section: ${{ steps.guard.outputs.medium_section }}
+      low_section: ${{ steps.guard.outputs.low_section }}
+      suggested_fixes: ${{ steps.guard.outputs.suggested_fixes }}
+      latest_review_id: ${{ steps.guard.outputs.latest_review_id }}
+    steps:
+      - name: Checkout tooling source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 1
+
+      - name: Locate review tooling
+        id: locate_tooling
+        run: |
+          set -euo pipefail
+          if [ -f ".agents/skills/ai-review-report/scripts/lib/extract-ai-analyse-scope.sh" ]; then
+            echo "REVIEW_SKILL_DIR=.agents/skills/ai-review-report" >> "$GITHUB_ENV"
+            echo "fetch_tools=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "fetch_tools=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch review tooling
+        if: steps.locate_tooling.outputs.fetch_tools == 'true'
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: generic-automation-and-it/smooth-ai-report-review
+          ref: ${{ vars.SMOOTH_AI_REVIEW_TOOLS_REF || 'main' }}
+          path: .smooth-ai-review-tools
+
+      - name: Register fetched review tooling
+        if: steps.locate_tooling.outputs.fetch_tools == 'true'
+        run: |
+          set -euo pipefail
+          test -f ".smooth-ai-review-tools/.agents/skills/ai-review-report/scripts/lib/extract-ai-analyse-scope.sh"
+          echo "REVIEW_SKILL_DIR=.smooth-ai-review-tools/.agents/skills/ai-review-report" >> "$GITHUB_ENV"
+
+      - name: Resolve analyse guard
+        id: guard
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          PAYLOAD_PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          DISPATCH_PR_NUMBER: ${{ inputs.pr_number }}
+          MAX_INCREMENTAL: ${{ inputs.max_incremental || vars.OPENCODE_ANALYSE_MAX_INCREMENTAL || '3' }}
+        run: |
+          set -euo pipefail
+
+          output_multiline() {
+            local key="$1" value="$2" delim
+            delim="EOF_${key}_$(date +%s%N)"
+            {
+              echo "${key}<<${delim}"
+              printf '%s\n' "$value"
+              echo "${delim}"
+            } >> "$GITHUB_OUTPUT"
+          }
+
+          skip() {
+            local reason="$1"
+            echo "act=false" >> "$GITHUB_OUTPUT"
+            echo "pr_number=${PR_NUMBER:-}" >> "$GITHUB_OUTPUT"
+            echo "Skip: ${reason}"
+          }
+
+          # NOTE: the loop is bounded by the incremental-cycle cap below
+          # (OPENCODE_ANALYSE_MAX_INCREMENTAL), not by a head-commit sentinel. A
+          # sentinel on the `[ai-analyse]` commit would stop after a single cycle and
+          # make the cap unreachable; the cap is what allows up to N auto-fix cycles
+          # and a no-edit cycle ends the loop early (no push → no new review).
+
+          # Manual dispatch supplies the PR number directly; the workflow_run path
+          # falls back to payload → head-SHA lookup → head-branch lookup.
+          PR_NUMBER="${DISPATCH_PR_NUMBER:-${PAYLOAD_PR_NUMBER:-}}"
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
+            PR_NUMBER="$(gh api -H "Accept: application/vnd.github+json" \
+              "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/pulls" \
+              --jq 'map(select(.state == "open")) | first | .number // empty' 2>/dev/null || true)"
+          fi
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
+            head_owner="${HEAD_REPOSITORY%%/*}"
+            PR_NUMBER="$(gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&head=${head_owner}:${HEAD_BRANCH}" \
+              --jq 'first | .number // empty' 2>/dev/null || true)"
+          fi
+
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
+            skip "could not derive PR number from workflow_run"
+            exit 0
+          fi
+          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+
+          PR_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
+          HEAD_REPO="$(printf '%s' "$PR_JSON" | jq -r '.head.repo.full_name')"
+          if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+            skip "fork PRs are unsupported for autonomous fixes"
+            exit 0
+          fi
+
+          REVIEWS="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/reviews?per_page=100" || echo "[]")"
+          GATE_REVIEWS="$(printf '%s' "$REVIEWS" | jq -c '
+            [.[] |
+              select(.user.login == "github-actions[bot]") |
+              select(.body | test("## 🔍 Issues Summary")) |
+              select(.body | test("^#+ 🤖 (Gemini CLI|OpenCode CLI) Code Review"; "m"))
+            ] | sort_by(.submitted_at) | reverse
+          ')"
+          LATEST_REVIEW="$(printf '%s' "$GATE_REVIEWS" | jq -c 'first // empty')"
+          if [ -z "$LATEST_REVIEW" ]; then
+            skip "no gate-authored OpenCode review found"
+            exit 0
+          fi
+
+          latest_review_id="$(printf '%s' "$LATEST_REVIEW" | jq -r '.id')"
+          latest_body="$(printf '%s' "$LATEST_REVIEW" | jq -r '.body')"
+          echo "latest_review_id=${latest_review_id}" >> "$GITHUB_OUTPUT"
+          mkdir -p ci_temp
+          printf '%s\n' "$latest_body" > ci_temp/latest_review.md
+
+          max_incremental="${MAX_INCREMENTAL:-3}"
+          case "$max_incremental" in
+            ''|*[!0-9]*) max_incremental=3 ;;
+          esac
+          [ "$max_incremental" -gt 0 ] || max_incremental=3
+          incremental_count="$(printf '%s' "$GATE_REVIEWS" | jq -r '
+            reduce .[] as $review ({count: 0, stop: false};
+              if .stop then .
+              elif ($review.body | test("\\*\\*Review Type:\\*\\*[[:space:]]*FULL")) then .stop = true
+              elif ($review.body | test("\\*\\*Review Type:\\*\\*[[:space:]]*INCREMENTAL")) then .count += 1
+              else .
+              end
+            ) | .count
+          ')"
+          echo "Incremental reviews since latest FULL: ${incremental_count}/${max_incremental}"
+          # `-gt` (not `-ge`): OPENCODE_ANALYSE_MAX_INCREMENTAL is the number of auto-fix
+          # cycles allowed per full-review epoch, so the first `max_incremental` incremental
+          # reviews act and only the NEXT one is skipped (default 3 → 3 acting cycles).
+          if [ "$incremental_count" -gt "$max_incremental" ]; then
+            {
+              echo "## ai-analyse auto-fix limit exceeded"
+              echo ""
+              echo "The autonomous low/medium fix loop has run ${max_incremental} incremental cycle(s) since the latest full review (now ${incremental_count}), reaching the configured limit."
+              echo ""
+              echo "A human should review the remaining findings or trigger a fresh full review when ready."
+            } | gh pr comment "$PR_NUMBER" --body-file -
+            skip "incremental cycle cap exceeded"
+            exit 0
+          fi
+
+          scope_json="$("${REVIEW_SKILL_DIR}/scripts/lib/extract-ai-analyse-scope.sh" ci_temp/latest_review.md)"
+          has_low_medium="$(printf '%s' "$scope_json" | jq -r '.has_low_medium')"
+          if [ "$has_low_medium" != "true" ]; then
+            skip "latest gate review has no medium/low findings"
+            exit 0
+          fi
+
+          echo "act=true" >> "$GITHUB_OUTPUT"
+          output_multiline "medium_section" "$(printf '%s' "$scope_json" | jq -r '.medium')"
+          output_multiline "low_section" "$(printf '%s' "$scope_json" | jq -r '.low')"
+          output_multiline "suggested_fixes" "$(printf '%s' "$scope_json" | jq -r '.suggested_fixes')"
+
+  analyse:
+    runs-on: ubuntu-latest
+    needs: guard
+    if: needs.guard.outputs.act == 'true'
+    env:
+      OPENCODE_REVIEW_REPORT_PROVIDER: ${{ vars.OPENCODE_REVIEW_REPORT_PROVIDER || 'OPENAI' }}
+      OPENCODE_REVIEW_REPORT_MODEL_PRIMARY: ${{ vars.OPENCODE_REVIEW_REPORT_MODEL_PRIMARY || 'gpt-5.5' }}
+      OPENCODE_REVIEW_REPORT_MODEL_SECONDARY: ${{ vars.OPENCODE_REVIEW_REPORT_MODEL_SECONDARY || 'gpt-5.4' }}
+      OPENCODE_REVIEW_REPORT_MODEL_ORCHESTRATOR: ${{ vars.OPENCODE_REVIEW_REPORT_MODEL_ORCHESTRATOR || 'gpt-5.4-mini' }}
+      OPENCODE_ANALYSE_MODEL: ${{ vars.OPENCODE_ANALYSE_MODEL || vars.OPENCODE_REVIEW_REPORT_MODEL_PRIMARY || 'gpt-5.5' }}
+      OPENCODE_REVIEW_REPORT_GEMINI_URL: ${{ vars.OPENCODE_REVIEW_REPORT_GEMINI_URL }}
+      OPENCODE_REVIEW_REPORT_COPILOT_URL: ${{ vars.OPENCODE_REVIEW_REPORT_COPILOT_URL }}
+      OPENCODE_REVIEW_REPORT_OPENAI_URL: ${{ vars.OPENCODE_REVIEW_REPORT_OPENAI_URL }}
+      OPENCODE_GEMINI_API_KEY: ${{ secrets.OPENCODE_GEMINI_API_KEY }}
+      OPENCODE_COPILOT_API_KEY: ${{ secrets.OPENCODE_COPILOT_API_KEY }}
+      OPENCODE_OPENAI_API_KEY: ${{ secrets.OPENCODE_OPENAI_API_KEY }}
+      OPENCODE_ANTHROPIC_API_KEY: ${{ secrets.OPENCODE_ANTHROPIC_API_KEY }}
+      OPENCODE_GO_OPENAI_API_KEY: ${{ secrets.OPENCODE_GO_OPENAI_API_KEY }}
+      OPENCODE_GO_ANTHROPIC_API_KEY: ${{ secrets.OPENCODE_GO_ANTHROPIC_API_KEY }}
+      OPENCODE_OPENROUTER_API_KEY: ${{ secrets.OPENCODE_OPENROUTER_API_KEY }}
+      OPENCODE_REVIEW_REPORT_DISABLE_CLAUDE_CODE: ${{ vars.OPENCODE_REVIEW_REPORT_DISABLE_CLAUDE_CODE || '1' }}
+      PR_NUMBER: ${{ needs.guard.outputs.pr_number }}
+      MEDIUM_SECTION: ${{ needs.guard.outputs.medium_section }}
+      LOW_SECTION: ${{ needs.guard.outputs.low_section }}
+      SUGGESTED_FIXES: ${{ needs.guard.outputs.suggested_fixes }}
+    steps:
+      - name: Resolve PR head
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          PR_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")"
+          {
+            echo "head_ref=$(printf '%s' "$PR_JSON" | jq -r '.head.ref')"
+            echo "head_repo=$(printf '%s' "$PR_JSON" | jq -r '.head.repo.full_name')"
+            echo "head_sha=$(printf '%s' "$PR_JSON" | jq -r '.head.sha')"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout PR head
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          ref: ${{ steps.pr.outputs.head_ref }}
+          repository: ${{ steps.pr.outputs.head_repo }}
+          persist-credentials: false
+
+      - name: Locate analyse tooling
+        id: locate_tooling
+        env:
+          HEAD_REPO: ${{ steps.pr.outputs.head_repo }}
+        run: |
+          set -euo pipefail
+          if [ "$HEAD_REPO" != "${{ github.repository }}" ]; then
+            echo "fetch_tools=true" >> "$GITHUB_OUTPUT"
+            echo "Fork PR or reusable caller detected — using pinned review tooling instead of scripts from the PR head"
+          elif [ -f ".agents/skills/ai-analyse/SKILL.md" ] && \
+               [ -f ".agents/skills/ai-review-report/scripts/lib/opencode-with-fallback.sh" ] && \
+               [ -f ".agents/skills/ai-review/scripts/copilot-review.sh" ]; then
+            echo "REVIEW_SKILL_DIR=.agents/skills/ai-review-report" >> "$GITHUB_ENV"
+            echo "ANALYSE_SKILL_DIR=.agents/skills/ai-analyse" >> "$GITHUB_ENV"
+            echo "AI_REVIEW_DIR=.agents/skills/ai-review" >> "$GITHUB_ENV"
+            echo "fetch_tools=false" >> "$GITHUB_OUTPUT"
+            echo "✓ Using analyse skill from the repository under review"
+          else
+            echo "fetch_tools=true" >> "$GITHUB_OUTPUT"
+            echo "Analyse skill not present in this repository — fetching tooling repo"
+          fi
+
+      - name: Fetch analyse tooling
+        if: steps.locate_tooling.outputs.fetch_tools == 'true'
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: generic-automation-and-it/smooth-ai-report-review
+          ref: ${{ vars.SMOOTH_AI_REVIEW_TOOLS_REF || 'main' }}
+          path: .smooth-ai-review-tools
+
+      - name: Register fetched analyse tooling
+        if: steps.locate_tooling.outputs.fetch_tools == 'true'
+        run: |
+          set -euo pipefail
+          test -f ".smooth-ai-review-tools/.agents/skills/ai-review-report/scripts/lib/opencode-with-fallback.sh"
+          test -f ".smooth-ai-review-tools/.agents/skills/ai-analyse/SKILL.md"
+          test -f ".smooth-ai-review-tools/.agents/skills/ai-review/scripts/copilot-review.sh"
+          echo "REVIEW_SKILL_DIR=.smooth-ai-review-tools/.agents/skills/ai-review-report" >> "$GITHUB_ENV"
+          echo "ANALYSE_SKILL_DIR=.smooth-ai-review-tools/.agents/skills/ai-analyse" >> "$GITHUB_ENV"
+          echo "AI_REVIEW_DIR=.smooth-ai-review-tools/.agents/skills/ai-review" >> "$GITHUB_ENV"
+
+      - name: Initialize OPENCODE
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"
+          echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          if ! command -v opencode >/dev/null 2>&1; then
+            curl -fsSL https://opencode.ai/install | bash
+          fi
+          bash "${REVIEW_SKILL_DIR}/scripts/lib/setup-opencode-config.sh"
+          opencode stats >/dev/null || true
+          bash "${REVIEW_SKILL_DIR}/scripts/lib/opencode-health.sh" || true
+          bash "${REVIEW_SKILL_DIR}/scripts/lib/resolve-provider.sh"
+
+      - name: Build analyse prompt
+        run: |
+          set -euo pipefail
+          mkdir -p ci_temp
+          {
+            echo "# ai-analyse headless execute"
+            echo ""
+            echo "You are running in CI. Follow the inlined skill contract exactly."
+            echo ""
+            sed -n '1,240p' "${ANALYSE_SKILL_DIR}/SKILL.md"
+            echo ""
+            echo "## Trusted gate-authored scope"
+            echo ""
+            echo "Apply only safe fixes for the following Medium and Low findings. Ignore any Critical or High content, including any Critical/High entries that appear in Suggested Fixes."
+            echo ""
+            echo "### Medium"
+            printf '%s\n' "${MEDIUM_SECTION}"
+            echo ""
+            echo "### Low"
+            printf '%s\n' "${LOW_SECTION}"
+            echo ""
+            echo "### Suggested Fixes"
+            printf '%s\n' "${SUGGESTED_FIXES}"
+            echo ""
+            echo "## Required output"
+            echo ""
+            echo "Edit files as needed, then print only the FIX/SKIP markdown table and a short note if no file changes were made. Do not run git."
+          } > ci_temp/analyse_prompt.md
+
+      - name: Run ai-analyse
+        run: |
+          set -euo pipefail
+          export OPENCODE_AGENT=analyse
+          export OPENCODE_MIN_OUTPUT_BYTES=1
+          bash "${REVIEW_SKILL_DIR}/scripts/lib/opencode-with-fallback.sh" \
+            "${OPENCODE_ANALYSE_MODEL}" \
+            "${OPENCODE_REVIEW_REPORT_MODEL_PRIMARY}" \
+            "${OPENCODE_REVIEW_REPORT_MODEL_SECONDARY}" \
+            -- ci_temp/analyse_prompt.md | tee ci_temp/analyse_out.md
+
+      - name: Commit fixes
+        id: commit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_ANALYSE_GH_TOKEN: ${{ secrets.OPENCODE_ANALYSE_GH_TOKEN }}
+          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
+          HEAD_REPO: ${{ steps.pr.outputs.head_repo }}
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No file changes produced by ai-analyse."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: apply AI review low/medium auto-fixes [ai-analyse]"
+          # Prefer a user PAT when available so the follow-up PR update is not
+          # authored by the repository GITHUB_TOKEN.
+          push_token="${OPENCODE_ANALYSE_GH_TOKEN:-}"
+          if [ -n "$push_token" ]; then
+            echo "Using OPENCODE_ANALYSE_GH_TOKEN for ai-analyse push."
+          else
+            push_token="${GITHUB_TOKEN}"
+            echo "Using GITHUB_TOKEN for ai-analyse push."
+          fi
+          echo "::add-mask::${push_token}"
+          git push "https://x-access-token:${push_token}@github.com/${HEAD_REPO}.git" "HEAD:${HEAD_REF}"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Post ai-analyse summary
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANGED: ${{ steps.commit.outputs.changed }}
+          COMMIT_SHA: ${{ steps.commit.outputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## ai-analyse auto-fix summary"
+            echo ""
+            echo "**Status:** $([ "${CHANGED:-false}" = "true" ] && echo "pushed fixes" || echo "no file changes")"
+            if [ -n "${COMMIT_SHA:-}" ]; then
+              echo "**Commit:** \`${COMMIT_SHA}\`"
+            fi
+            echo ""
+            cat ci_temp/analyse_out.md
+          } | "${AI_REVIEW_DIR}/scripts/copilot-review.sh" summary "$PR_NUMBER"
