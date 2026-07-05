@@ -48,6 +48,16 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   keys (`"0"`,`"1"`,…); the validator rejects that (and case-only-duplicate keys) at startup with a message
   naming the `Providers: { "<name>": { ... } }` shape, so an un-migrated config fails fast rather than binding
   silently. The conventional resolver runs as an `IPostConfigureOptions` in Application (Host only binds).
+- **Config split: base ships passthrough-only; dev/imposter config is Development-scoped.** `appsettings.json`
+  (the file baked into the Release/Docker image) carries **only** the two keyless default passthrough providers
+  (`anthropic-default`, `openai-default`) — no secrets, no model rewrites. The secret-bearing imposter providers
+  (`*-personal`, `openrouter-*`, `opencode-go-*`) live in `appsettings.Development.json`, which the container never
+  loads (it runs with no `ASPNETCORE_ENVIRONMENT` → Production). The csproj sets
+  `<Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />` so that file is excluded from
+  the publish output entirely — no dev/imposter config ships in the image. Consequences: the base config still
+  satisfies `ValidateOnStart` (≥1 provider) so the container boots; in Production, imposter providers must be
+  supplied via env vars (`Imposter__Providers__<name>__*`) or the `/admin/providers` runtime CRUD API. Do **not**
+  reintroduce secrets or per-model rewrites into `appsettings.json`.
 - **Runtime provider-config admin endpoints (HLD 008 Phase 1).** `Endpoints/ProviderConfigurationEndpoints.cs`
   maps `/admin/providers` and requires the existing `CredentialAdmin` policy. Endpoints are thin HTTP-to-Mediator
   adapters only; the Application slices own validation, registry mutation, secret preservation, and enable/disable
@@ -68,3 +78,4 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 | 2026-06-20 | Default config uses dialect-suffixed provider keys: `opencode-go-openai` / `opencode-go-anthropic` share `OPENCODE_GO_API_KEY`, and `openrouter-openai` / `openrouter-anthropic` share `OPENROUTER_API_KEY`; OpenRouter routes use Bearer auth even on the Anthropic-compatible surface. | — |
 | 2026-06-21 | Added `/admin/providers` runtime provider-config CRUD plus enable/disable. Host maps the secret-free admin surface and delegates all behavior to Mediator/Application. | #49 |
 | 2026-07-02 | Documented the optional `AuthHeader` override (relocates the credential to a non-standard header, e.g. an `api-key` gateway; value format still follows `AuthScheme`). The custom header is masked only in the forwarder's **outbound** Debug dump; the inbound dump masks just `Authorization`/`x-api-key` (routing hasn't resolved the provider yet) — a known Debug-only gap for callers sending a non-standard auth header inbound. | — |
+| 2026-07-04 | Moved secret-bearing imposter providers (`*-personal`, `openrouter-*`, `opencode-go-*`) from `appsettings.json` to `appsettings.Development.json`; base ships only the two keyless default passthrough providers. Excluded `appsettings.Development.json` from publish output (`CopyToPublishDirectory=Never`) so the Release/Docker image carries no dev/imposter config. Stops residual model rewrites (e.g. `claude-opus-4-6 → claude-opus-4-8`) shipping in the container. | — |

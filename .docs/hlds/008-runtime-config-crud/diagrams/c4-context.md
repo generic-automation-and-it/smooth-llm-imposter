@@ -33,9 +33,9 @@ C4Context
 
 ## Sequence — Runtime mutation becomes visible
 
-A successful admin write mutates the in-memory registry; the next proxied request reads the current registry
-through `IOptionsSnapshot` (re-evaluated per request scope) and resolves against the new configuration —
-no restart, no cache-invalidation step.
+A successful admin write mutates the in-memory registry; the next proxied request's scoped catalog reads the
+current registry snapshot and resolves against the new configuration — no restart, no cache-invalidation
+step.
 
 ```mermaid
 sequenceDiagram
@@ -51,7 +51,7 @@ sequenceDiagram
     Admin-->>Operator: 200 OK
 
     Note over Registry,Router: Next inbound request opens a new scope
-    Router->>Registry: Read current providers (IOptionsSnapshot)
+    Router->>Registry: Read current providers snapshot
     Router->>Router: Resolve route (skip disabled)
     Router->>Upstream: Forward per new configuration
     Upstream-->>Router: Response
@@ -73,7 +73,7 @@ C4Container
         Container(providerAdmin, "Provider-Config Admin", "Minimal API + Mediator", "CRUD routing config; secret-free.")
         Container(credAdmin, "Credential Admin", "Minimal API + Mediator", "CRUD secrets; provider-keyed.")
         Container(overrideAdmin, "Override Control", "Minimal API + Mediator", "Provider-addressable authorization override.")
-        Container(registry, "Runtime Registry", "In-memory, IOptionsSnapshot", "Mutable provider config; seeded from config + env.")
+        Container(registry, "Runtime Registry", "In-memory", "Mutable provider config; seeded from config + env.")
         Container(resolver, "Routing Resolver", "Per-request scope", "Resolves dialect+model to a route; skips disabled.")
         Container(forwarder, "Upstream Forwarder", "IHttpClientFactory", "Streams the rewritten request upstream.")
         Container(credStore, "Credential Store", "In-memory default or EF Core opt-in", "Provider-keyed secrets.")

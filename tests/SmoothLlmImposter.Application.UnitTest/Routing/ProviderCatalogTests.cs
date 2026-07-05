@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Domain.Routing;
 
@@ -7,17 +8,16 @@ public class ProviderCatalogTests
 {
     private static ProviderRoute BuildOpenAi(string? upstreamApi, string? normalization)
     {
-        var catalog = new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
+        ProviderCatalog catalog = ProviderCatalogTestFactory.SeededCatalog(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
         {
-            Providers =
+            ["p"] = new()
             {
-                ["p"] = new ProviderOptions
-                {
-                    Dialect = "openai", BaseUrl = "https://p.example",
-                    OpenAiUpstreamApi = upstreamApi, RequestNormalization = normalization
-                }
+                Dialect = "openai",
+                BaseUrl = "https://p.example",
+                OpenAiUpstreamApi = upstreamApi,
+                RequestNormalization = normalization
             }
-        }));
+        });
 
         return catalog.ProvidersFor(ApiDialect.OpenAi).Single();
     }
@@ -40,14 +40,11 @@ public class ProviderCatalogTests
     [Fact]
     public void Auth_header_flows_to_the_route_and_blank_is_normalized_to_null()
     {
-        var catalog = new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
+        ProviderCatalog catalog = ProviderCatalogTestFactory.SeededCatalog(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
         {
-            Providers =
-            {
-                ["set"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://s.example", AuthHeader = "api-key" },
-                ["blank"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://b.example", AuthHeader = "   " }
-            }
-        }));
+            ["set"] = new() { Dialect = "openai", BaseUrl = "https://s.example", AuthHeader = "api-key" },
+            ["blank"] = new() { Dialect = "openai", BaseUrl = "https://b.example", AuthHeader = "   " }
+        });
 
         IReadOnlyList<ProviderRoute> routes = catalog.ProvidersFor(ApiDialect.OpenAi);
         routes.Single(r => r.Name == "set").AuthHeader.ShouldBe("api-key");
@@ -57,10 +54,10 @@ public class ProviderCatalogTests
     [Fact]
     public void Route_name_uses_key_when_name_unset()
     {
-        var catalog = new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
+        ProviderCatalog catalog = ProviderCatalogTestFactory.SeededCatalog(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
         {
-            Providers = { ["opencode-go"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://o.example" } }
-        }));
+            ["opencode-go"] = new() { Dialect = "openai", BaseUrl = "https://o.example" }
+        });
 
         catalog.ProvidersFor(ApiDialect.OpenAi).Single().Name.ShouldBe("opencode-go");
     }
@@ -68,14 +65,42 @@ public class ProviderCatalogTests
     [Fact]
     public void Route_name_uses_explicit_name_override_over_key()
     {
-        var catalog = new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
+        ProviderCatalog catalog = ProviderCatalogTestFactory.SeededCatalog(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
         {
-            Providers = { ["opencode-go"] = new ProviderOptions { Name = "display", Dialect = "openai", BaseUrl = "https://o.example" } }
-        }));
+            ["opencode-go"] = new() { Name = "display", Dialect = "openai", BaseUrl = "https://o.example" }
+        });
 
         ProviderRoute route = catalog.ProvidersFor(ApiDialect.OpenAi).Single();
         route.Name.ShouldBe("display");
         route.CredentialProviderName.ShouldBe("opencode-go");
+    }
+
+    [Fact]
+    public void Seeded_registry_is_the_catalog_source_without_touching_options_value()
+    {
+        var registry = new InMemoryProviderRegistry();
+        registry.Seed(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
+        {
+            ["runtime"] = new() { Dialect = "openai", BaseUrl = "https://runtime.example" }
+        });
+
+        var catalog = new ProviderCatalog(registry, new ThrowingOptions());
+
+        catalog.ProvidersFor(ApiDialect.OpenAi).Single().BaseUrl.ShouldBe(new Uri("https://runtime.example"));
+    }
+
+    [Fact]
+    public void Unseeded_registry_falls_back_to_cached_options()
+    {
+        ProviderCatalog catalog = ProviderCatalogTestFactory.UnseededCatalog(new ImposterOptions
+        {
+            Providers =
+            {
+                ["bound"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://bound.example" }
+            }
+        });
+
+        catalog.ProvidersFor(ApiDialect.OpenAi).Single().BaseUrl.ShouldBe(new Uri("https://bound.example"));
     }
 
     [Fact]
@@ -85,14 +110,16 @@ public class ProviderCatalogTests
         static ProviderOptions P(string url, bool isDefault = false) =>
             new() { Dialect = "openai", BaseUrl = url, IsDefault = isDefault, AuthScheme = "Bearer" };
 
-        var first = new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
+        ProviderCatalog first = ProviderCatalogTestFactory.SeededCatalog(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
         {
-            Providers = { ["a"] = P("https://a.example", isDefault: true), ["b"] = P("https://b.example") }
-        }));
-        var second = new ProviderCatalog(new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
+            ["a"] = P("https://a.example", isDefault: true),
+            ["b"] = P("https://b.example")
+        });
+        ProviderCatalog second = ProviderCatalogTestFactory.SeededCatalog(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
         {
-            Providers = { ["b"] = P("https://b.example"), ["a"] = P("https://a.example", isDefault: true) }
-        }));
+            ["b"] = P("https://b.example"),
+            ["a"] = P("https://a.example", isDefault: true)
+        });
 
         // Compare the scalar identity projection (record equality can't compare the Models array by value).
         static object Identity(ProviderRoute r) =>
@@ -103,5 +130,11 @@ public class ProviderCatalogTests
 
         Identity(Named(first, "a")).ShouldBe(Identity(Named(second, "a")));
         Identity(Named(first, "b")).ShouldBe(Identity(Named(second, "b")));
+    }
+
+    private sealed class ThrowingOptions : IOptions<ImposterOptions>
+    {
+        public ImposterOptions Value =>
+            throw new InvalidOperationException("Options value should not be evaluated when the registry is seeded.");
     }
 }

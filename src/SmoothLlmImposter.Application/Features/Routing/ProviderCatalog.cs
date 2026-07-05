@@ -13,9 +13,13 @@ internal sealed class ProviderCatalog : IProviderCatalog
 {
     private readonly Dictionary<ApiDialect, List<ProviderRoute>> _byDialect = new();
 
-    public ProviderCatalog(IOptionsSnapshot<ImposterOptions> options)
+    public ProviderCatalog(IProviderRegistry registry, IOptions<ImposterOptions> fallbackOptions)
     {
-        foreach ((string key, ProviderOptions provider) in options.Value.Providers)
+        IReadOnlyDictionary<string, ProviderOptions> providers = registry.IsSeeded
+            ? registry.Snapshot()
+            : fallbackOptions.Value.Providers;
+
+        foreach ((string key, ProviderOptions provider) in providers)
         {
             ApiDialect dialect = ApiDialectParser.Parse(provider.Dialect);
             CredentialAuthSchemeParser.TryParse(provider.AuthScheme, out CredentialAuthScheme? authScheme);

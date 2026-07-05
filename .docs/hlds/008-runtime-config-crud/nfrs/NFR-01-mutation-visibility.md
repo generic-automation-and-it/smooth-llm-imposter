@@ -23,5 +23,5 @@ the **new** route — within the same running process, no restart.
 
 ## Applies To
 
-Goals 1–3; the routing-resolution path (catalog/resolver) consuming `IOptionsSnapshot`
+Goals 1–3; the routing-resolution path (catalog/resolver) consuming the current `IProviderRegistry`
 ([LADR-01](../ladrs/LADR-01-runtime-mutable-registry.md), [LADR-07](../ladrs/LADR-07-snapshot-consumption-lifetime.md)).

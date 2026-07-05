@@ -21,4 +21,11 @@
     <InternalsVisibleTo Include="SmoothLlmImposter.Host.IntegrationTest" />
   </ItemGroup>
 
+  <!-- The Development overrides carry the local-only imposter/provider config and are never loaded in
+       Production (the container runs with no ASPNETCORE_ENVIRONMENT). Keep the file in build output for
+       `dotnet run`, but keep it OUT of the published Release image so no dev config ships in the container. -->
+  <ItemGroup>
+    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
 </Project>

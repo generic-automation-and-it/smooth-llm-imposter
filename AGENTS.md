@@ -95,6 +95,8 @@ The [`README.md` → How it works](README.md#how-it-works) **HLD table is the hu
 
 PR gate — `.github/workflows/pr-gate.yml` (triggers: `pull_request` → `main`, `push` → `main`, `workflow_dispatch`): restore → build (Release) → test with coverage via the local action `.github/actions/test-with-coverage`, then publish + upload the coverage report. The job declares one WireMock service container (`127.0.0.1:19091`) as its only external dependency — no PostgreSQL/Redis/Aspire. Full step list, service ports, and local .NET tools: `.docs/wiki/ci.md`.
 
+Container image publishing — `.github/workflows/publish-image.yml` pushes `ghcr.io/generic-automation-and-it/smooth-llm-imposter` from the repo-root `Dockerfile`. Keep published tags multi-architecture for both `linux/amd64` and `linux/arm64`; QEMU must be configured before Buildx because the Dockerfile runs `dotnet restore` and `dotnet publish` during target-platform builds.
+
 ## Git Constraints
 
 This repository is hosted on **GitHub** at `https://github.com/generic-automation-and-it/smooth-llm-imposter`.

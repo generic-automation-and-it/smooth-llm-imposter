@@ -66,9 +66,11 @@ Podman is identical (`podman run -d --name … -p 5080:5080 -e … smooth-llm-im
 
 - **`-e ASPNETCORE_URLS`** — override the bind address (default in the image: `http://+:5080`). If you change it,
   adjust the `-p` mapping to match.
-- **`-e Imposter__Providers__<name>__BaseUrl` / `__To` / `__Caching`** — override the shipped `appsettings.json`
-  routing table per provider, keyed by provider name (e.g. `opencode-go-openai`, `openrouter-openai`). `BaseUrl` is the server
-  root **without** a `/v1` path.
+- **`-e Imposter__Providers__<name>__Dialect` / `__BaseUrl` / `__To` / `__Caching`** — define or extend the
+  routing table per provider, keyed by provider name (e.g. `opencode-go-openai`, `openrouter-openai`). In the
+  container only `anthropic-default` / `openai-default` are shipped, so these vars **create** imposter providers
+  rather than overriding shipped ones — supply at least `Dialect` and `BaseUrl` (the server root **without** a
+  `/v1` path) for a new provider.
 - **`-e Admin__ApiKey` / `-e Admin__OperatorApiKey` / `-e ConnectionStrings__ImposterDb`** — admin keys enable
   `/admin/credentials`; `ConnectionStrings__ImposterDb` is only needed for PostgreSQL persistence (reach it from
   the container, e.g. `Host=host.docker.internal;Port=5432;…`). Pure imposter routing needs no database; when
@@ -88,9 +90,13 @@ Podman is identical (`podman run -d --name … -p 5080:5080 -e … smooth-llm-im
 curl -fsS http://localhost:5080/health        # {"status":"ok"}
 ```
 
-Send a request — the shipped config has no model rewrites committed; configure an imposter provider in
-`appsettings.json` (or via env) to route specific inbound models to an alternate upstream. Example
-(requires `OPENCODE_GO_API_KEY`, or the structured `Imposter__Providers__opencode-go-openai__Secret`):
+Send a request — the shipped image carries **only** the two keyless default passthrough providers
+(`anthropic-default`, `openai-default`) and no model rewrites; the secret-bearing imposter providers live in
+`appsettings.Development.json`, which is **not** shipped in the image (excluded from publish, and Production never
+loads it). To route specific inbound models to an alternate upstream in the container, define the imposter
+provider via env (`Imposter__Providers__<name>__*`) or the `/admin/providers` runtime CRUD API. Example — creating
+the `opencode-go-openai` provider from env (requires `OPENCODE_GO_API_KEY`, or the structured
+`Imposter__Providers__opencode-go-openai__Secret`, plus its `Dialect`/`BaseUrl`):
 
 ```bash
 curl -fsS http://localhost:5080/v1/chat/completions \

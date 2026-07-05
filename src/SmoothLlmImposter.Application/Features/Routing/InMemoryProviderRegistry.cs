@@ -11,8 +11,8 @@ internal sealed class InMemoryProviderRegistry : IProviderRegistry
     private readonly object _gate = new();
     private readonly Dictionary<string, ProviderOptions> _providers = new(StringComparer.Ordinal);
 
-    // volatile: read by ProviderRegistryOptionsPostConfigure outside the _gate lock, so the write in Seed()
-    // must publish with release semantics or a weakly-ordered CPU could observe a stale false.
+    // volatile: read before acquiring the snapshot lock on request scopes, so the write in Seed() must
+    // publish with release semantics or a weakly-ordered CPU could observe a stale false.
     private volatile bool _isSeeded;
 
     public bool IsSeeded => _isSeeded;

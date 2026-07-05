@@ -111,8 +111,9 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   configuration at startup (`ImposterOptionsValidator`), not on requests (HLD LADR-001).
 - **Provider configuration is runtime-mutable (HLD 008 Phase 1).** The startup config/env baseline seeds
   `IProviderRegistry` once; after that `/admin/providers` is authoritative until restart. The routing catalog,
-  resolver, and local model responders are scoped and consume `IOptionsSnapshot<ImposterOptions>`, whose final
-  post-configure overlays the registry. Do not reintroduce singleton catalog/resolver capture of options.
+  resolver, and local model responders are scoped and the catalog reads the current `IProviderRegistry`
+  snapshot directly. Do not reintroduce per-request `IOptionsSnapshot<ImposterOptions>` binding or singleton
+  catalog/resolver capture of options.
 - **Provider-config CRUD is secret-free.** `/admin/providers` can list/get/upsert/delete/enable/disable routing
   config, but neither accepts nor returns `Secret`. A provider-config `PUT` preserves the existing secret for
   that provider key; new runtime providers start with no secret until the credential boundary owns one.
@@ -314,3 +315,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-07-02 | Conventional secret env vars now follow the effective auth scheme (naming-convention priority): a `Bearer` provider prefers `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` → `_API_KEY`, an `ApiKey` provider prefers `_API_KEY` → `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER`, with off-scheme suffixes retained as fallbacks. `ImposterOptionsPostConfigure` resolves the scheme (`_AUTH_SCHEME` env → bound `AuthScheme` → dialect default) before picking the secret. Replaces the previous fixed "`_API_KEY` always canonical" order, which sent a personal `ANTHROPIC_API_KEY` as a Bearer token when both a key and `ANTHROPIC_AUTH_TOKEN` were exported. | — |
 | 2026-07-02 | Added optional `AuthHeader` (provider option + `ProviderRoute` + `<PREFIX>_AUTH_HEADER` env surface + runtime CRUD body/response) overriding only the header **name** the credential is written into; value format still follows `AuthScheme` (`UpstreamAuthResolver.DefaultHeaderNameFor` is the fallback). Forwarder writes `provider.AuthHeader ?? DefaultHeaderNameFor(scheme)`, drops a relayed caller header of that name, and masks the custom header in the Debug dump. Bearer value formatting is now idempotent (no double `Bearer ` prefix). The `AuthHeader` override is exercised in `AuthHeaderOverrideIntegrationTests` (test-only `mycompany-openai` config with `AuthHeader: api-key`). | — |
 | 2026-07-02 | Hardened `AuthHeader` validation across startup config and `/admin/providers`: blank/malformed names and transport-owned headers (`Content-*`, `Host`, `Transfer-Encoding`) are rejected before the forwarder can try to write credentials into non-request headers. | #53 review |
+| 2026-07-04 | Amended HLD 008 runtime consumption: `ProviderCatalog` now reads the already-seeded `IProviderRegistry` directly in each scoped catalog instead of forcing per-request `IOptionsSnapshot<ImposterOptions>` binding. This preserves next-request mutation visibility while removing the reflection configuration binder from the request path. | — |
