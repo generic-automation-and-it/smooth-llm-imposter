@@ -1,0 +1,5 @@
+interface:
+  display_name: "Git Commit, Review-Trigger, and Push"
+  short_description: "Commit changes with the /ai-review trigger and push to remote repository"
+  default_prompt: "Commit current changes with conventional commits format, append the /ai-review full-review trigger to the final commit message, and push to the remote repository. Optionally rename the branch to match the issue number."
+  model: gpt-5.4
