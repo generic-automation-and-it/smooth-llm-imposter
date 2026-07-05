@@ -13,20 +13,18 @@ public class ImposterRouterTests
         ICredentialStore? credentialStore = null,
         IAuthorizationOverrideSwitch? overrideSwitch = null)
     {
-        var options = new StaticOptionsSnapshot<ImposterOptions>(new ImposterOptions
+        ProviderCatalog catalog = ProviderCatalogTestFactory.SeededCatalog(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
         {
-            Providers =
+            ["opencode"] = new()
             {
-                ["opencode"] = new ProviderOptions
-                {
-                    Dialect = "openai", BaseUrl = "https://opencode.example",
-                    Models = [new ModelMappingOptions { From = "gpt5.4", To = "grok-code", Caching = true }]
-                },
-                ["openai-official"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://api.openai.com", IsDefault = true }
-            }
+                Dialect = "openai",
+                BaseUrl = "https://opencode.example",
+                Models = [new ModelMappingOptions { From = "gpt5.4", To = "grok-code", Caching = true }]
+            },
+            ["openai-official"] = new() { Dialect = "openai", BaseUrl = "https://api.openai.com", IsDefault = true }
         });
 
-        var resolver = new RouteResolver(new ProviderCatalog(options));
+        var resolver = new RouteResolver(catalog);
         IRequestTransformer[] transformers = [new OpenAiRequestTransformer([]), new AnthropicRequestTransformer()];
         return new ImposterRouter(
             resolver,
