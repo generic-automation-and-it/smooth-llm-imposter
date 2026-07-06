@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http.Resilience;
 using Polly;
 using Polly.Retry;
+using Polly.Timeout;
 using System.Net;
 using SmoothLlmImposter.Application.Common.Persistence;
 using SmoothLlmImposter.Domain.Routing;
@@ -53,16 +54,56 @@ public class DependencyInjectionTests
     }
 
     [Fact]
+    public void Upstream_timeout_options_use_increasing_attempt_timeouts()
+    {
+        var options = DependencyInjection.CreateUpstreamTimeoutOptions();
+
+        options.TimeoutGenerator.ShouldNotBeNull();
+        DependencyInjection.GetUpstreamAttemptTimeout(0).ShouldBe(TimeSpan.FromSeconds(60));
+        DependencyInjection.GetUpstreamAttemptTimeout(1).ShouldBe(TimeSpan.FromSeconds(120));
+        DependencyInjection.GetUpstreamAttemptTimeout(2).ShouldBe(TimeSpan.FromSeconds(300));
+        DependencyInjection.GetUpstreamAttemptTimeout(3).ShouldBe(TimeSpan.FromSeconds(600));
+        DependencyInjection.GetUpstreamAttemptTimeout(4).ShouldBeNull();
+    }
+
+    [Fact]
     public async Task Upstream_retry_options_only_handle_transport_exceptions()
     {
         var options = DependencyInjection.CreateUpstreamRetryOptions();
 
         (await ShouldHandleAsync(options, Outcome.FromException<HttpResponseMessage>(new HttpRequestException("boom"))))
             .ShouldBeTrue();
+        (await ShouldHandleAsync(options, Outcome.FromException<HttpResponseMessage>(new TimeoutRejectedException())))
+            .ShouldBeTrue();
         (await ShouldHandleAsync(options, Outcome.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError))))
             .ShouldBeFalse();
         (await ShouldHandleAsync(options, Outcome.FromResult(new HttpResponseMessage(HttpStatusCode.OK))))
             .ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Upstream_retry_marks_the_next_attempt_timeout_bucket()
+    {
+        var options = DependencyInjection.CreateUpstreamRetryOptions();
+        ResilienceContext context = ResilienceContextPool.Shared.Get(Ct);
+
+        try
+        {
+            DependencyInjection.GetUpstreamAttemptNumber(context).ShouldBe(0);
+
+            await options.OnRetry!(new OnRetryArguments<HttpResponseMessage>(
+                context,
+                Outcome.FromException<HttpResponseMessage>(new TimeoutRejectedException()),
+                0,
+                TimeSpan.FromSeconds(1),
+                TimeSpan.FromSeconds(60)));
+
+            DependencyInjection.GetUpstreamAttemptNumber(context).ShouldBe(1);
+        }
+        finally
+        {
+            ResilienceContextPool.Shared.Return(context);
+        }
     }
 
     private static ServiceProvider BuildProvider(string? connectionString)

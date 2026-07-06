@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using SmoothLlmImposter.Domain.Routing;
 
@@ -16,7 +15,7 @@ internal sealed class AnthropicRequestTransformer : IRequestTransformer
 
     public string Transform(string requestBody, RouteDecision decision, string inboundModel)
     {
-        JsonObject root = ParseObject(requestBody);
+        JsonObject root = JsonNodeMaterializer.ParseObject(requestBody);
 
         root["model"] = decision.TargetModel;
 
@@ -95,17 +94,4 @@ internal sealed class AnthropicRequestTransformer : IRequestTransformer
     };
 
     private static JsonObject EphemeralCacheControl() => new() { ["type"] = "ephemeral" };
-
-    private static JsonObject ParseObject(string body)
-    {
-        try
-        {
-            return JsonNode.Parse(body) as JsonObject
-                ?? throw new RoutingException("Request body must be a JSON object.");
-        }
-        catch (JsonException ex)
-        {
-            throw new RoutingException($"Request body is not valid JSON: {ex.Message}");
-        }
-    }
 }

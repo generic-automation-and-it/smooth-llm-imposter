@@ -109,6 +109,9 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   billable (see HLD LADR-003).
 - **All body work stays string-in/string-out in Application; HTTP I/O stays in Host.** Infrastructure is
   `System.Net.Http` only — don't leak `HttpContext` into Application/Infrastructure.
+- **Request transformers materialize detached JSON nodes before mutation.** Parse request bodies through the
+  routing-local materializer rather than directly using `JsonNode.Parse` in transformers; this keeps serialized
+  output independent of `JsonDocument`/`JsonElement` pooled-buffer ownership after nested body rewrites.
 - **No Mediator / FluentValidation request pipeline here** (opaque proxy bodies). Validation is on
   configuration at startup (`ImposterOptionsValidator`), not on requests (HLD LADR-001).
 - **Provider configuration is runtime-mutable (HLD 008 Phase 1).** The startup config/env baseline seeds

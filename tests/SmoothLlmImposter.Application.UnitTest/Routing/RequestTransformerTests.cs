@@ -662,6 +662,30 @@ public class RequestTransformerTests
     }
 
     [Fact]
+    public void Anthropic_nested_body_serializes_after_rewrite_and_cache_injection()
+    {
+        var transformer = new AnthropicRequestTransformer();
+        string body = """
+        {"model":"claude-x","max_tokens":1024,"temperature":0.7,
+         "system":[{"type":"text","text":"sys"}],
+         "messages":[
+           {"role":"user","content":[
+             {"type":"text","text":"hi","metadata":{"score":1.25,"flags":[true,false,null]}}
+           ]}
+         ]}
+        """;
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, Decision("target", caching: true), "claude-x"))!.AsObject();
+
+        result["model"]!.GetValue<string>().ShouldBe("target");
+        result["max_tokens"]!.GetValue<int>().ShouldBe(1024);
+        result["temperature"]!.GetValue<decimal>().ShouldBe(0.7m);
+        JsonObject content = result["messages"]!.AsArray()[0]!["content"]!.AsArray()[0]!.AsObject();
+        content["metadata"]!["flags"]!.AsArray().Count.ShouldBe(3);
+        content["cache_control"]!["type"]!.GetValue<string>().ShouldBe("ephemeral");
+    }
+
+    [Fact]
     public void Invalid_json_throws_routing_exception()
     {
         var transformer = OpenAi();
