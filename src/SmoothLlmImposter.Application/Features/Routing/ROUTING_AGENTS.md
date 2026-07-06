@@ -102,11 +102,16 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   nests its OpenAI surface under `/api/v1`, so its `BaseUrl` is `https://openrouter.ai/api`.) For dialect-
   prefixed inbound routes the Host strips the `/openai` or `/anthropic` prefix first, so the forwarder still
   receives a clean upstream path (`/v1/...`).
-- **Do not add a standard resilience handler to the `imposter-upstream` client.** SSE streams outlive its
-  timeouts and a half-streamed POST can't be replayed; the client uses an infinite timeout bounded by the
-  caller's `CancellationToken` (see HLD LADR-003).
+- **`imposter-upstream` uses a targeted retry handler, not the standard resilience stack.** SSE streams outlive
+  standard timeouts, so the client keeps an infinite timeout bounded by the caller's `CancellationToken`. It
+  retries pre-response outbound transport failures (`HttpRequestException`) three times with fixed 1s, 2s, and
+  5s delays. It does not retry upstream 5xx responses from LLM POSTs, because those may already be processed and
+  billable (see HLD LADR-003).
 - **All body work stays string-in/string-out in Application; HTTP I/O stays in Host.** Infrastructure is
   `System.Net.Http` only — don't leak `HttpContext` into Application/Infrastructure.
+- **Request transformers materialize detached JSON nodes before mutation.** Parse request bodies through the
+  routing-local materializer rather than directly using `JsonNode.Parse` in transformers; this keeps serialized
+  output independent of `JsonDocument`/`JsonElement` pooled-buffer ownership after nested body rewrites.
 - **No Mediator / FluentValidation request pipeline here** (opaque proxy bodies). Validation is on
   configuration at startup (`ImposterOptionsValidator`), not on requests (HLD LADR-001).
 - **Provider configuration is runtime-mutable (HLD 008 Phase 1).** The startup config/env baseline seeds

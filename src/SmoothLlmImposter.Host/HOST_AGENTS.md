@@ -41,6 +41,13 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   credential in a non-standard inbound header is not masked here — a known Debug-only gap. Enable
   with `Serilog__MinimumLevel__Override__SmoothLlmImposter.Routing=Debug`. See
   `.docs/wiki/setups/logging.debug-smooth-llm-imposter.md`.
+- **Process-level last-resort crash logging is wired in `Program.cs`.** The Host subscribes to
+  `AppDomain.CurrentDomain.UnhandledException` and `TaskScheduler.UnobservedTaskException` after `builder.Build()`
+  so faults that escape request execution still get logged through DI-backed `ILogger` before process teardown.
+  The unhandled-exception callback flushes Serilog synchronously with `Log.CloseAndFlush()` because the runtime
+  terminates immediately afterward; the unobserved-task callback logs and calls `SetObserved()` so survivable
+  background task faults do not escalate later. Keep these hooks in Host startup, and keep their logging free of
+  request/business logic.
 - **Providers are name-keyed, not positional (HLD 007).** `ImposterOptions.Providers` is a
   `Dictionary<string, ProviderOptions>`, so an override is addressed by provider name
   (`Imposter__Providers__opencode-go-openai__Secret`) or the conventional surface (`OPENCODE_GO_API_KEY`, which wins)
@@ -79,3 +86,4 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 | 2026-06-21 | Added `/admin/providers` runtime provider-config CRUD plus enable/disable. Host maps the secret-free admin surface and delegates all behavior to Mediator/Application. | #49 |
 | 2026-07-02 | Documented the optional `AuthHeader` override (relocates the credential to a non-standard header, e.g. an `api-key` gateway; value format still follows `AuthScheme`). The custom header is masked only in the forwarder's **outbound** Debug dump; the inbound dump masks just `Authorization`/`x-api-key` (routing hasn't resolved the provider yet) — a known Debug-only gap for callers sending a non-standard auth header inbound. | — |
 | 2026-07-04 | Moved secret-bearing imposter providers (`*-personal`, `openrouter-*`, `opencode-go-*`) from `appsettings.json` to `appsettings.Development.json`; base ships only the two keyless default passthrough providers. Excluded `appsettings.Development.json` from publish output (`CopyToPublishDirectory=Never`) so the Release/Docker image carries no dev/imposter config. Stops residual model rewrites (e.g. `claude-opus-4-6 → claude-opus-4-8`) shipping in the container. | — |
+| 2026-07-06 | Documented the startup-level `UnhandledException` / `UnobservedTaskException` hooks that log last-resort process faults and flush Serilog before termination, closing the observability gap for crashes outside the request pipeline. | — |
