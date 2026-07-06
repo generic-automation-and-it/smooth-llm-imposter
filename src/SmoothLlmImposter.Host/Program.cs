@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Serilog;
 using SmoothLlmImposter.Application;
 using SmoothLlmImposter.Application.Features.Routing;
@@ -42,6 +44,37 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
 
 WebApplication app = builder.Build();
+
+// Process-level last-resort exception logging. The request pipeline (UseExceptionHandler below, plus the
+// per-forward try/catch in RoutingEndpoints) only sees exceptions that stay on a request's execution path.
+// An exception that escapes on a background/thread-pool thread — e.g. inside the HttpClient connection
+// pool's async machinery while building or reusing an upstream handler — bypasses ALL request middleware
+// and terminates the process via Environment.FailFast with an opaque "InvokeStub_..ctor" stack that hides
+// the real fault. These hooks capture the actual exception before teardown (so the root cause is
+// diagnosable) and observe unobserved Task faults, which is the one crash class the process can survive.
+var processLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("SmoothLlmImposter.Process");
+
+AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+{
+    if (e.ExceptionObject is Exception ex)
+    {
+        processLogger.LogCritical(ex, "Unhandled exception escaped to the process (terminating={Terminating})", e.IsTerminating);
+    }
+    else
+    {
+        processLogger.LogCritical(
+            "Non-exception fault escaped to the process (terminating={Terminating}): {Fault}", e.IsTerminating, e.ExceptionObject);
+    }
+
+    // Flush Serilog synchronously — the runtime tears the process down immediately after this callback.
+    Log.CloseAndFlush();
+};
+
+TaskScheduler.UnobservedTaskException += (_, e) =>
+{
+    processLogger.LogError(e.Exception, "Unobserved task exception observed and suppressed");
+    e.SetObserved();
+};
 
 app.UseExceptionHandler();
 app.UseSerilogRequestLogging();
