@@ -102,11 +102,12 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   nests its OpenAI surface under `/api/v1`, so its `BaseUrl` is `https://openrouter.ai/api`.) For dialect-
   prefixed inbound routes the Host strips the `/openai` or `/anthropic` prefix first, so the forwarder still
   receives a clean upstream path (`/v1/...`).
-- **`imposter-upstream` uses a targeted retry handler, not the standard resilience stack.** SSE streams outlive
-  standard timeouts, so the client keeps an infinite timeout bounded by the caller's `CancellationToken`. It
-  retries pre-response outbound transport failures (`HttpRequestException`) three times with fixed 1s, 2s, and
-  5s delays. It does not retry upstream 5xx responses from LLM POSTs, because those may already be processed and
-  billable (see HLD LADR-003).
+- **`imposter-upstream` uses targeted forwarder retries, not the standard resilience stack.** SSE streams outlive
+  standard timeouts, so the named client keeps an infinite timeout bounded by the caller's `CancellationToken`.
+  `UpstreamForwarder` rebuilds the request per attempt and retries only pre-response outbound transport failures
+  (`HttpRequestException`) and response-header timeouts. It uses fixed 1s, 2s, and 5s delays with progressively
+  longer header timeouts (60s, 120s, 300s, 600s). It does not retry upstream 5xx responses from LLM POSTs,
+  because those may already be processed and billable (see HLD LADR-003).
 - **All body work stays string-in/string-out in Application; HTTP I/O stays in Host.** Infrastructure is
   `System.Net.Http` only — don't leak `HttpContext` into Application/Infrastructure.
 - **Request transformers materialize detached JSON nodes before mutation.** Parse request bodies through the

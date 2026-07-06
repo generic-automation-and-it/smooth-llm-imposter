@@ -42,12 +42,13 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   with `Serilog__MinimumLevel__Override__SmoothLlmImposter.Routing=Debug`. See
   `.docs/wiki/setups/logging.debug-smooth-llm-imposter.md`.
 - **Process-level last-resort crash logging is wired in `Program.cs`.** The Host subscribes to
-  `AppDomain.CurrentDomain.UnhandledException` and `TaskScheduler.UnobservedTaskException` after `builder.Build()`
-  so faults that escape request execution still get logged through DI-backed `ILogger` before process teardown.
-  The unhandled-exception callback flushes Serilog synchronously with `Log.CloseAndFlush()` because the runtime
-  terminates immediately afterward; the unobserved-task callback logs and calls `SetObserved()` so survivable
-  background task faults do not escalate later. Keep these hooks in Host startup, and keep their logging free of
-  request/business logic.
+  `AppDomain.CurrentDomain.UnhandledException` and `TaskScheduler.UnobservedTaskException` before host build, with
+  a Serilog bootstrap logger plus direct `Console.Error` output. Fail-fast paths can terminate before normal
+  structured logs flush, so do not rely on `ILogger` alone for these diagnostics. The unhandled-exception callback
+  flushes stderr/stdout and closes Serilog because the runtime terminates immediately afterward; the
+  unobserved-task callback writes stderr, logs, and calls `SetObserved()` so survivable background task faults do
+  not escalate later. `IMPOSTER_DIAGNOSTIC_FIRST_CHANCE=true` temporarily enables scoped first-chance exception
+  stderr diagnostics for HTTP/DI/router namespaces.
 - **Providers are name-keyed, not positional (HLD 007).** `ImposterOptions.Providers` is a
   `Dictionary<string, ProviderOptions>`, so an override is addressed by provider name
   (`Imposter__Providers__opencode-go-openai__Secret`) or the conventional surface (`OPENCODE_GO_API_KEY`, which wins)
@@ -87,3 +88,4 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 | 2026-07-02 | Documented the optional `AuthHeader` override (relocates the credential to a non-standard header, e.g. an `api-key` gateway; value format still follows `AuthScheme`). The custom header is masked only in the forwarder's **outbound** Debug dump; the inbound dump masks just `Authorization`/`x-api-key` (routing hasn't resolved the provider yet) — a known Debug-only gap for callers sending a non-standard auth header inbound. | — |
 | 2026-07-04 | Moved secret-bearing imposter providers (`*-personal`, `openrouter-*`, `opencode-go-*`) from `appsettings.json` to `appsettings.Development.json`; base ships only the two keyless default passthrough providers. Excluded `appsettings.Development.json` from publish output (`CopyToPublishDirectory=Never`) so the Release/Docker image carries no dev/imposter config. Stops residual model rewrites (e.g. `claude-opus-4-6 → claude-opus-4-8`) shipping in the container. | — |
 | 2026-07-06 | Documented the startup-level `UnhandledException` / `UnobservedTaskException` hooks that log last-resort process faults and flush Serilog before termination, closing the observability gap for crashes outside the request pipeline. | — |
+| 2026-07-06 | Hardened process diagnostics: hooks register before host build, use direct stderr output before structured logging, and can enable scoped first-chance diagnostics with `IMPOSTER_DIAGNOSTIC_FIRST_CHANCE=true`. | — |

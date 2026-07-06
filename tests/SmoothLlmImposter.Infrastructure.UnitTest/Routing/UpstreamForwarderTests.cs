@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Net;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Domain.Credentials;
 using SmoothLlmImposter.Domain.Routing;
@@ -330,7 +332,114 @@ public class UpstreamForwarderTests
         capture.HadContent.ShouldBeFalse();
     }
 
-    private static Task Send(
+    [Fact]
+    public async Task Retries_http_request_exception_before_response_headers()
+    {
+        var handler = new SequenceHandler(
+            _ => throw new HttpRequestException("first"),
+            request => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = new StringContent("ok"),
+            });
+        UpstreamForwarder forwarder = Build(handler, retryDelays: [TimeSpan.Zero], attemptTimeouts: [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1)]);
+
+        HttpResponseMessage response = await Send(forwarder, Decision(ApiDialect.OpenAi), credentialOverride: null, ApiDialect.OpenAi, CallerHeaders.None);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        handler.Requests.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Retries_header_timeout_before_response_headers()
+    {
+        var handler = new TimeoutThenSuccessHandler();
+        UpstreamForwarder forwarder = Build(handler, retryDelays: [TimeSpan.Zero], attemptTimeouts: [TimeSpan.FromMilliseconds(10), TimeSpan.FromSeconds(1)]);
+
+        HttpResponseMessage response = await Send(forwarder, Decision(ApiDialect.OpenAi), credentialOverride: null, ApiDialect.OpenAi, CallerHeaders.None);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        handler.Requests.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Throws_timeout_exception_after_final_header_timeout()
+    {
+        var handler = new AlwaysTimeoutHandler();
+        UpstreamForwarder forwarder = Build(handler, retryDelays: [TimeSpan.Zero], attemptTimeouts: [TimeSpan.FromMilliseconds(10), TimeSpan.FromMilliseconds(10)]);
+
+        TimeoutException ex = await Should.ThrowAsync<TimeoutException>(() =>
+            Send(forwarder, Decision(ApiDialect.OpenAi), credentialOverride: null, ApiDialect.OpenAi, CallerHeaders.None));
+
+        ex.Message.ShouldContain("did not return response headers");
+        handler.Requests.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Does_not_retry_http_error_responses()
+    {
+        var handler = new SequenceHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
+        UpstreamForwarder forwarder = Build(handler, retryDelays: [TimeSpan.Zero], attemptTimeouts: [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1)]);
+
+        HttpResponseMessage response = await Send(forwarder, Decision(ApiDialect.OpenAi), credentialOverride: null, ApiDialect.OpenAi, CallerHeaders.None);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.InternalServerError);
+        handler.Requests.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Does_not_retry_when_caller_cancellation_is_requested()
+    {
+        var handler = new AlwaysTimeoutHandler();
+        using var cts = new CancellationTokenSource();
+        UpstreamForwarder forwarder = Build(handler, retryDelays: [TimeSpan.Zero], attemptTimeouts: [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1)]);
+        cts.Cancel();
+
+        await Should.ThrowAsync<OperationCanceledException>(() =>
+            forwarder.SendAsync(
+                Decision(ApiDialect.OpenAi),
+                credentialOverride: null,
+                ApiDialect.OpenAi,
+                HttpMethod.Post,
+                "{}",
+                "/v1/chat/completions",
+                queryString: null,
+                CallerHeaders.None,
+                cts.Token));
+
+        handler.Requests.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Builds_a_fresh_request_for_each_attempt()
+    {
+        var handler = new SequenceHandler(
+            _ => throw new HttpRequestException("first"),
+            _ => new HttpResponseMessage(HttpStatusCode.OK));
+        UpstreamForwarder forwarder = Build(handler, retryDelays: [TimeSpan.Zero], attemptTimeouts: [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1)]);
+
+        await Send(forwarder, Decision(ApiDialect.OpenAi), credentialOverride: null, ApiDialect.OpenAi, CallerHeaders.None);
+
+        handler.Requests.Count.ShouldBe(2);
+        handler.Requests[0].ShouldNotBeSameAs(handler.Requests[1]);
+    }
+
+    [Fact]
+    public async Task Create_client_exception_is_logged_and_propagated()
+    {
+        var logger = new CapturingLogger<UpstreamForwarder>();
+        UpstreamForwarder forwarder = new(new ThrowingHttpClientFactory(), logger, [TimeSpan.Zero], [TimeSpan.FromSeconds(1)]);
+
+        InvalidOperationException ex = await Should.ThrowAsync<InvalidOperationException>(() =>
+            Send(forwarder, Decision(ApiDialect.OpenAi), credentialOverride: null, ApiDialect.OpenAi, CallerHeaders.None));
+
+        ex.Message.ShouldBe("factory failed");
+        logger.Entries.ShouldContain(entry =>
+            entry.Level == LogLevel.Error &&
+            entry.Message.Contains("Failed to create upstream HTTP client", StringComparison.Ordinal));
+    }
+
+    private static Task<HttpResponseMessage> Send(
         UpstreamForwarder forwarder,
         RouteDecision decision,
         RouteCredentialOverride? credentialOverride,
@@ -341,8 +450,12 @@ public class UpstreamForwarderTests
     private static CallerHeaders Headers(params (string Name, string Value)[] headers) =>
         new(headers.Select(h => new KeyValuePair<string, IReadOnlyList<string>>(h.Name, [h.Value])).ToArray());
 
-    private static UpstreamForwarder Build(CapturingHandler handler) =>
-        new(new StubHttpClientFactory(handler), NullLogger<UpstreamForwarder>.Instance);
+    private static UpstreamForwarder Build(HttpMessageHandler handler, TimeSpan[]? retryDelays = null, TimeSpan[]? attemptTimeouts = null) =>
+        new(
+            new StubHttpClientFactory(handler),
+            NullLogger<UpstreamForwarder>.Instance,
+            retryDelays ?? [TimeSpan.Zero],
+            attemptTimeouts ?? [TimeSpan.FromSeconds(1)]);
 
     private static RouteDecision Decision(
         ApiDialect dialect,
@@ -379,8 +492,75 @@ public class UpstreamForwarderTests
         }
     }
 
+    private sealed class SequenceHandler(params Func<HttpRequestMessage, HttpResponseMessage>[] outcomes) : HttpMessageHandler
+    {
+        private int _index;
+
+        public List<HttpRequestMessage> Requests { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            Func<HttpRequestMessage, HttpResponseMessage> outcome = outcomes[Math.Min(_index, outcomes.Length - 1)];
+            _index++;
+            return Task.FromResult(outcome(request));
+        }
+    }
+
+    private sealed class TimeoutThenSuccessHandler : HttpMessageHandler
+    {
+        public List<HttpRequestMessage> Requests { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            if (Requests.Count == 1)
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }
+    }
+
+    private sealed class AlwaysTimeoutHandler : HttpMessageHandler
+    {
+        public List<HttpRequestMessage> Requests { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }
+    }
+
     private sealed class StubHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
+    }
+
+    private sealed class ThrowingHttpClientFactory : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => throw new InvalidOperationException("factory failed");
+    }
+
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Entries.Add((logLevel, formatter(state, exception)));
+        }
     }
 }
