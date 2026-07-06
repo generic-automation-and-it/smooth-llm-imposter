@@ -23,7 +23,7 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
 
     public string Transform(string requestBody, RouteDecision decision, string inboundModel)
     {
-        JsonObject root = ParseObject(requestBody);
+        JsonObject root = JsonNodeMaterializer.ParseObject(requestBody);
 
         // Normalize before the Responses→Chat conversion: a flattened namespace yields flat function
         // tools that ConvertTools then nests for chat upstreams, while responses upstreams keep them flat.
@@ -596,17 +596,4 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
 
     private static string ScalarToString(JsonNode? value) =>
         value is null ? string.Empty : value.GetValueKind() == JsonValueKind.String ? value.GetValue<string>() : value.ToJsonString();
-
-    private static JsonObject ParseObject(string body)
-    {
-        try
-        {
-            return JsonNode.Parse(body) as JsonObject
-                ?? throw new RoutingException("Request body must be a JSON object.");
-        }
-        catch (JsonException ex)
-        {
-            throw new RoutingException($"Request body is not valid JSON: {ex.Message}");
-        }
-    }
 }
