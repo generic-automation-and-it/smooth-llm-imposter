@@ -37,3 +37,4 @@ sequenceDiagram
 |:-----|:-------|:----|
 | 2026-07-05 | Reordered sections to match the AGENTS.md hook and quality-rule requirement: `Non-Negotiables` now appears before `System Context`. | |
 | 2026-07-05 | Vendored `git-commit-review-push` from smooth-ai-report-review and documented its `/ai-review` full-review trigger relationship. | |
+| 2026-07-06 | Re-vendored from upstream: added step 4 (verify `/ai-review` is the last non-empty line of the final commit body and amend if missing, with merge-commit and trailer-safe handling) and `Bash(git log:*)` to the allowed tools. | |

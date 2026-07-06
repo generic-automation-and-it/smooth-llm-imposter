@@ -16,6 +16,7 @@
 #               OPENCODE_REVIEW_REPORT_MODEL_PRIMARY        = gpt-5.5
 #               OPENCODE_REVIEW_REPORT_MODEL_SECONDARY      = gpt-5.4
 #               OPENCODE_REVIEW_REPORT_MODEL_ORCHESTRATOR   = gpt-5.4-mini
+#               OPENCODE_REVIEW_REPORT_DISABLE_CLAUDE_CODE  = 1                            (Claude Code support is off by default)
 #   These resolve against the CALLER repo/org automatically.
 
 name: PR Code Review Report
@@ -56,7 +57,7 @@ on:
           - 'OpenRouter GLM-5.1'
           - 'OpenRouter MiniMax M3'
       disable_claude_code:
-        description: 'Disable Claude Code analysis in the reusable workflow'
+        description: 'Disable Claude Code (.claude) support (1=disabled, 0=enabled). Avoids conflicts between opencode and Claude Code directories. Dispatch always supplies 1 or 0 (the OPENCODE_REVIEW_REPORT_DISABLE_CLAUDE_CODE Variable is unreachable on dispatch); the reusable-call input defaults to blank and falls through to the Variable.'
         required: false
         type: choice
         default: '1'
@@ -64,7 +65,7 @@ on:
           - '1'
           - '0'
       disable_agents_md_check:
-        description: 'Disable AGENTS.md context validation in the reusable workflow'
+        description: 'Disable AGENTS.md documentation validation (1=disabled, 0=enabled). Default: 0.'
         required: false
         type: choice
         default: '0'

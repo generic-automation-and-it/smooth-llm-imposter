@@ -4,6 +4,7 @@ description: Commit current changes with conventional commits format, append the
 allowed-tools:
   - Bash(git add:*)
   - Bash(git commit:*)
+  - Bash(git log:*)
   - Bash(git push:*)
 models:
   claude: sonnet      # medium-complexity; branch rename logic and upstream tracking require broader reasoning
@@ -30,10 +31,32 @@ Commit current changes using conventional commits format, embed the `/ai-review`
    ```
 
    Earlier chunk commits must NOT carry the trigger — only the final one.
-4. If there are no changes to commit, skip to step 5
-5. **If `--issue <number>` was passed** — rename the local branch before pushing (see Branch Rename below)
-6. Push to remote repository using `git push` (use `git push --set-upstream origin <new-branch>` if the branch was renamed)
-7. If there's nothing to commit or push, report this to the user and continue gracefully (this is not an error)
+4. If a commit was made in step 2, verify the trigger is the final non-empty line of the
+   commit body before pushing. Skip this check for merge commits — detect them via
+   `git log -1 --format=%P | wc -w` > 1 (more than one parent) or by a `Merge` subject
+   prefix — because `git log -1 --format=%b` returns the merged-branches list, not a
+   usable commit body. The outer "If a commit was made in step 2" guard already excludes
+   the no-commit path. The regex tolerates trailing whitespace / CRLF, unlike a strict string compare:
+
+   ```bash
+    git log -1 --format='%b' | awk 'NF { last=$0 } END { exit (last ~ "^[[:space:]]*/ai-review[[:space:]]*$") ? 0 : 1 }'
+   ```
+
+   If the check fails, echo the full commit message (helps diagnose missing-vs-misplaced trigger — the check passes only when `/ai-review` is the last non-empty line, optionally followed by trailing whitespace):
+
+   ```bash
+   git log -1 --format='%B'
+   ```
+
+   then amend the final commit to add the trigger. Reuse the **full** existing message (`%B` — subject, body, and any `Co-authored-by:` / `Signed-off-by:` / `Refs:` trailers) and append the trigger as a new paragraph; do **not** rebuild from `%s`, which would drop the body and every trailer. The check above only fails when `/ai-review` is absent from the final line, so appending is safe:
+
+   ```bash
+   git commit --amend -m "$(git log -1 --format='%B')" -m "/ai-review"
+   ```
+5. If there are no changes to commit, skip to step 6
+6. **If `--issue <number>` was passed** — rename the local branch before pushing (see Branch Rename below)
+7. Push to remote repository using `git push` (use `git push --set-upstream origin <new-branch>` if the branch was renamed)
+8. If there's nothing to commit or push, report this to the user and continue gracefully (this is not an error)
 
 **Note**: This command ONLY commits and pushes. It does not create or update PRs.
 
