@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
+using Polly;
 using SmoothLlmImposter.Application.Common.Persistence;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Infrastructure.Persistence;
@@ -11,14 +13,25 @@ namespace SmoothLlmImposter.Infrastructure;
 
 public static class DependencyInjection
 {
+    private static readonly TimeSpan[] UpstreamRetryDelays =
+    [
+        TimeSpan.FromSeconds(1),
+        TimeSpan.FromSeconds(2),
+        TimeSpan.FromSeconds(5),
+    ];
+
     /// <summary>
-    /// Registers the outbound HTTP forwarder and credential persistence. The named client uses an
-    /// infinite timeout so SSE streams are bounded only by the caller's cancellation token.
+    /// Registers the outbound HTTP forwarder and credential persistence. The named client keeps an
+    /// infinite timeout for SSE streams and retries pre-response outbound transport failures with fixed delays.
     /// </summary>
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddHttpClient(UpstreamForwarder.HttpClientName, client =>
-            client.Timeout = Timeout.InfiniteTimeSpan);
+            client.Timeout = Timeout.InfiniteTimeSpan)
+            .AddResilienceHandler("upstream-retry", builder =>
+            {
+                builder.AddRetry(CreateUpstreamRetryOptions());
+            });
 
         services.AddDataProtection();
         services.AddSingleton<IUpstreamForwarder, UpstreamForwarder>();
@@ -39,4 +52,18 @@ public static class DependencyInjection
 
         return services;
     }
+
+    internal static HttpRetryStrategyOptions CreateUpstreamRetryOptions() =>
+        new()
+        {
+            ShouldHandle = args => new ValueTask<bool>(args.Outcome.Exception is HttpRequestException),
+            MaxRetryAttempts = UpstreamRetryDelays.Length,
+            ShouldRetryAfterHeader = false,
+            DelayGenerator = args => new ValueTask<TimeSpan?>(GetUpstreamRetryDelay(args.AttemptNumber)),
+        };
+
+    internal static TimeSpan? GetUpstreamRetryDelay(int attemptNumber) =>
+        attemptNumber >= 0 && attemptNumber < UpstreamRetryDelays.Length
+            ? UpstreamRetryDelays[attemptNumber]
+            : null;
 }
