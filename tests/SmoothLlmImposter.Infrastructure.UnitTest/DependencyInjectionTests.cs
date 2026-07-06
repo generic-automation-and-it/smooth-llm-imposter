@@ -35,6 +35,19 @@ public class DependencyInjectionTests
         store.ShouldBeOfType<CredentialStore>();
     }
 
+    [Fact]
+    public void Upstream_retry_options_use_three_fixed_delays()
+    {
+        var options = DependencyInjection.CreateUpstreamRetryOptions();
+
+        options.MaxRetryAttempts.ShouldBe(3);
+        options.ShouldRetryAfterHeader.ShouldBeFalse();
+        DependencyInjection.GetUpstreamRetryDelay(0).ShouldBe(TimeSpan.FromSeconds(1));
+        DependencyInjection.GetUpstreamRetryDelay(1).ShouldBe(TimeSpan.FromSeconds(2));
+        DependencyInjection.GetUpstreamRetryDelay(2).ShouldBe(TimeSpan.FromSeconds(5));
+        DependencyInjection.GetUpstreamRetryDelay(3).ShouldBeNull();
+    }
+
     private static ServiceProvider BuildProvider(string? connectionString)
     {
         Dictionary<string, string?> settings = [];

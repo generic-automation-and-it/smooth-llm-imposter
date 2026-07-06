@@ -82,7 +82,7 @@ pure string-in/string-out in Application; all HTTP I/O is in Host; Infrastructur
 
 - [LADR-001 — No Mediator / no FluentValidation request pipeline](ladrs/LADR-001-no-mediator-no-fluentvalidation.md)
 - [LADR-002 — Stateless, no EF Core / PostgreSQL](ladrs/LADR-002-stateless-no-ef-postgresql.md)
-- [LADR-003 — Infinite client timeout, no resilience handler](ladrs/LADR-003-infinite-timeout-no-resilience-handler.md)
+- [LADR-003 — Infinite client timeout, targeted retry handler](ladrs/LADR-003-infinite-timeout-no-resilience-handler.md)
 - [LADR-004 — Integration tests stub the outbound transport in-process](ladrs/LADR-004-in-process-transport-stub.md)
 - [LADR-005 — Type-only impostering, no default passthrough configured](ladrs/LADR-005-no-default-passthrough-type-only.md)
 - [LADR-006 — No in-proxy tool-name sanitization; preserve the transparent proxy](ladrs/LADR-006-no-in-proxy-tool-name-sanitization.md) — _superseded by HLD 004 LADR-01_

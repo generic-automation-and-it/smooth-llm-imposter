@@ -16,8 +16,8 @@ namespace SmoothLlmImposter.Infrastructure.Routing;
 /// </summary>
 /// <remarks>
 /// The named client uses an infinite <see cref="HttpClient.Timeout"/> and relies on the caller's
-/// <see cref="CancellationToken"/>: SSE streams routinely outlive the standard resilience timeouts, and
-/// a half-streamed POST cannot be safely retried, so no standard resilience handler is attached.
+/// <see cref="CancellationToken"/>: SSE streams routinely outlive the standard resilience timeouts. A targeted
+/// retry handler covers transient outbound failures.
 /// </remarks>
 internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, ILogger<UpstreamForwarder> logger)
     : IUpstreamForwarder
