@@ -22,7 +22,7 @@ public static class DependencyInjection
 
     /// <summary>
     /// Registers the outbound HTTP forwarder and credential persistence. The named client keeps an
-    /// infinite timeout for SSE streams and retries transient outbound failures with fixed delays.
+    /// infinite timeout for SSE streams and retries pre-response outbound transport failures with fixed delays.
     /// </summary>
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
@@ -56,6 +56,7 @@ public static class DependencyInjection
     internal static HttpRetryStrategyOptions CreateUpstreamRetryOptions() =>
         new()
         {
+            ShouldHandle = args => new ValueTask<bool>(args.Outcome.Exception is HttpRequestException),
             MaxRetryAttempts = UpstreamRetryDelays.Length,
             ShouldRetryAfterHeader = false,
             DelayGenerator = args => new ValueTask<TimeSpan?>(GetUpstreamRetryDelay(args.AttemptNumber)),

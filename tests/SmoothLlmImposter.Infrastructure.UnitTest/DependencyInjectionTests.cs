@@ -1,5 +1,9 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
+using Polly;
+using Polly.Retry;
+using System.Net;
 using SmoothLlmImposter.Application.Common.Persistence;
 using SmoothLlmImposter.Domain.Routing;
 using SmoothLlmImposter.Infrastructure.Persistence.Stores;
@@ -48,6 +52,19 @@ public class DependencyInjectionTests
         DependencyInjection.GetUpstreamRetryDelay(3).ShouldBeNull();
     }
 
+    [Fact]
+    public async Task Upstream_retry_options_only_handle_transport_exceptions()
+    {
+        var options = DependencyInjection.CreateUpstreamRetryOptions();
+
+        (await ShouldHandleAsync(options, Outcome.FromException<HttpResponseMessage>(new HttpRequestException("boom"))))
+            .ShouldBeTrue();
+        (await ShouldHandleAsync(options, Outcome.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError))))
+            .ShouldBeFalse();
+        (await ShouldHandleAsync(options, Outcome.FromResult(new HttpResponseMessage(HttpStatusCode.OK))))
+            .ShouldBeFalse();
+    }
+
     private static ServiceProvider BuildProvider(string? connectionString)
     {
         Dictionary<string, string?> settings = [];
@@ -62,5 +79,20 @@ public class DependencyInjectionTests
             .AddLogging()
             .AddInfrastructure(configuration)
             .BuildServiceProvider();
+    }
+
+    private static async ValueTask<bool> ShouldHandleAsync(
+        HttpRetryStrategyOptions options,
+        Outcome<HttpResponseMessage> outcome)
+    {
+        ResilienceContext context = ResilienceContextPool.Shared.Get();
+        try
+        {
+            return await options.ShouldHandle(new RetryPredicateArguments<HttpResponseMessage>(context, outcome, 0));
+        }
+        finally
+        {
+            ResilienceContextPool.Shared.Return(context);
+        }
     }
 }

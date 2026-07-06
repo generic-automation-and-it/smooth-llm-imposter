@@ -17,7 +17,7 @@ namespace SmoothLlmImposter.Infrastructure.Routing;
 /// <remarks>
 /// The named client uses an infinite <see cref="HttpClient.Timeout"/> and relies on the caller's
 /// <see cref="CancellationToken"/>: SSE streams routinely outlive the standard resilience timeouts. A targeted
-/// retry handler covers transient outbound failures.
+/// retry handler covers pre-response outbound transport failures.
 /// </remarks>
 internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, ILogger<UpstreamForwarder> logger)
     : IUpstreamForwarder
@@ -56,6 +56,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         LogOutboundRequest(request, target, body, managedAuthHeader);
 
         HttpClient client = httpClientFactory.CreateClient(HttpClientName);
+        // Headers-read completion keeps body-stream failures outside the retry scope, avoiding partial replay.
         return await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
     }
 
