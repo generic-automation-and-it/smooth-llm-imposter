@@ -18,6 +18,7 @@ Skills live **flat**, one directory per skill directly under `.agents/skills/`. 
 | **git-commit** | Commit with conventional format | `/git-commit [--mansplain]` |
 | **git-commit-push** | Commit and push to remote | `/git-commit-push [--mansplain]` |
 | **git-commit-push-pr** | Commit, push, and create/update PR | `/git-commit-push-pr [--mansplain]` |
+| **git-commit-review-push** | Commit, append `/ai-review`, and push | `/git-commit-review-push [--issue <number>]` |
 | **git-sync** | Sync with main (optionally auto-resolve conflicts) | `/git-sync` |
 | **manage-rule-system** | Create/update rule files in `.agents/rules/` | `/manage-rule-system` |
 
@@ -48,6 +49,14 @@ The `--mansplain` switch suppresses all interactive questions across the entire 
 
 `--mansplain` is forwarded automatically through the skill chain: `git-commit-push-pr` → `git-commit-push` → `git-commit`.
 
+### git-commit-review-push switches
+
+`git-commit-review-push` is a sibling push skill that adds `/ai-review` to the final commit body instead of opening a PR.
+
+| Switch | Effect |
+|--------|--------|
+| `--issue <number>` | Rename the local branch to the configured issue-number convention before pushing when needed |
+
 ## Model Selection
 
 Skills are classified by complexity tier. Each SKILL.md carries a `models` frontmatter block with the recommended model per tool. When a skill is invoked as a sub-agent, use the model from its `models` block.
@@ -68,6 +77,7 @@ Skills are classified by complexity tier. Each SKILL.md carries a `models` front
 | **git-sync** | low | Fetch + merge; straightforward git operations |
 | **git-commit-push** | medium | Branch rename logic + upstream tracking |
 | **git-commit-push-pr** | medium | PR template authoring + state management |
+| **git-commit-review-push** | medium | Conventional chunking, optional branch rename, and full-review trigger |
 | **agile-github-task-from-diff** | medium | Diff classification + issue authoring |
 | **manage-rule-system** | medium | Cross-tool frontmatter authoring |
 | **ai-mansplain** | low | Single-turn reply reformatting; no tools or deep reasoning |
@@ -81,6 +91,7 @@ When a skill invokes another skill as a sub-agent, use the sub-skill's model tie
 
 - **git-commit-push** → invokes **git-commit** (low): use `haiku` / `gpt-5.4-mini` / `gpt-5.4-mini`
 - **git-commit-push-pr** → invokes **git-commit-push** (medium): use `sonnet` / `auto` / `gpt-5.4`
+- **git-commit-review-push** → performs commit and push itself (medium): use `sonnet` / `auto` / `gpt-5.4`
 
 ## Naming & Ordering
 
@@ -91,7 +102,7 @@ Skills are flat under `.agents/skills/`; the category lives in the folder-name p
 | `agile-` | `agile-github-task-from-diff` |
 | `ai-` | `ai-brain-dump`, `ai-mansplain`, `ai-review`, `ai-template-sync` |
 | `context-` | `context-load-agents-context`, `context-load-context` |
-| `git-` | `git-commit`, `git-commit-push`, `git-commit-push-pr`, `git-sync` |
+| `git-` | `git-commit`, `git-commit-push`, `git-commit-push-pr`, `git-commit-review-push`, `git-sync` |
 | _(none)_ | `manage-rule-system` |
 
 A skill's folder name MUST equal its `name:` frontmatter (this is the slash-command name). When adding a skill, pick the prefix of its category and keep the folder one level under `.agents/skills/`.

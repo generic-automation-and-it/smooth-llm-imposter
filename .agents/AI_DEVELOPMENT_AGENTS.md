@@ -37,6 +37,7 @@ This is a unified AI development experience folder that centralizes skills, prom
 | `.agents/skills/git-commit/` | Commit with conventional format |
 | `.agents/skills/git-commit-push/` | Commit and push to remote |
 | `.agents/skills/git-commit-push-pr/` | Commit, push, and create/update PRs |
+| `.agents/skills/git-commit-review-push/` | Commit, append `/ai-review` to the final commit, and push |
 | `.agents/skills/git-sync/` | Sync with main (optionally auto-resolve conflicts) |
 | `.agents/skills/manage-rule-system/` | Create/update rule files in `.agents/rules/` |
 | `.agents/templates/` | Document templates (AGENTS.md, README.md, work task promote templates) |
@@ -138,3 +139,4 @@ ls -la | grep -E '(\.claude|\.codex|\.cursor)'
 | 2026-05-30 | Initial version. | |
 | 2026-06-10 | Registered orphaned `UserPromptSubmit` hooks (`worktask-create.sh`, `agentmd-create-update.sh`, `knowledge-rule-enforce.sh`) in `settings.json` — they existed on disk but never fired. | #32 |
 | 2026-06-20 | Vendored `/ai-review` consumer skill (minimal install); added thin caller `.github/workflows/pipeline-code-review-report.yml` (uses upstream `@main`, provider OpenAI); permitted skill + script in `settings.json`. | |
+| 2026-07-05 | Added the companion PR AI Analyse self-fix workflow and vendored `git-commit-review-push` so pushed PRs can force a full `/ai-review` cycle. | |

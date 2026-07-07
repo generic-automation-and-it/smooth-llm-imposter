@@ -16,6 +16,7 @@
 #               OPENCODE_REVIEW_REPORT_MODEL_PRIMARY        = gpt-5.5
 #               OPENCODE_REVIEW_REPORT_MODEL_SECONDARY      = gpt-5.4
 #               OPENCODE_REVIEW_REPORT_MODEL_ORCHESTRATOR   = gpt-5.4-mini
+#               OPENCODE_REVIEW_REPORT_DISABLE_CLAUDE_CODE  = 1                            (Claude Code support is off by default)
 #   These resolve against the CALLER repo/org automatically.
 
 name: PR Code Review Report
@@ -55,6 +56,22 @@ on:
           - 'OpenRouter Qwen3.7 Plus'
           - 'OpenRouter GLM-5.1'
           - 'OpenRouter MiniMax M3'
+      disable_claude_code:
+        description: 'Disable Claude Code (.claude) support (1=disabled, 0=enabled). Avoids conflicts between opencode and Claude Code directories. Dispatch always supplies 1 or 0 (the OPENCODE_REVIEW_REPORT_DISABLE_CLAUDE_CODE Variable is unreachable on dispatch); the reusable-call input defaults to blank and falls through to the Variable.'
+        required: false
+        type: choice
+        default: '1'
+        options:
+          - '1'
+          - '0'
+      disable_agents_md_check:
+        description: 'Disable AGENTS.md documentation validation (1=disabled, 0=enabled). Default: 0.'
+        required: false
+        type: choice
+        default: '0'
+        options:
+          - '0'
+          - '1'
 
 # The caller's permissions bound the GITHUB_TOKEN the called workflow receives.
 permissions:
@@ -83,6 +100,11 @@ jobs:
       # (`not our ref` in the upstream tooling repo) — so the review-script checkout
       # fails. Pin it to a ref that exists upstream; `main` matches the @main call above.
       tools_ref: main
+      # UPSTREAM CONTRACT: disable_claude_code and disable_agents_md_check must be declared
+      # as inputs in the upstream reusable workflow (smooth-ai-report-review@main). If the
+      # upstream has not been updated in lockstep, dispatch will fail with "Unexpected input".
+      disable_claude_code: ${{ inputs.disable_claude_code || '' }}
+      disable_agents_md_check: ${{ inputs.disable_agents_md_check || '' }}
       # runner: self-hosted          # uncomment for private-network gateways
       # mandatory_context_files: >-  # override the context files resolved in YOUR repo
       #   AGENTS.md

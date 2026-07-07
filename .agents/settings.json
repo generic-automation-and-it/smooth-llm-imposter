@@ -44,6 +44,7 @@
       "Skill(git-commit)",
       "Skill(git-commit-push)",
       "Skill(git-commit-push-pr)",
+      "Skill(git-commit-review-push)",
       "Skill(git-sync)",
       "Skill(manage-rule-system)",
       "Bash(node:*)",
