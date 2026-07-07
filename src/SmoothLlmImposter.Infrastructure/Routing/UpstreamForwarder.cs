@@ -16,14 +16,49 @@ namespace SmoothLlmImposter.Infrastructure.Routing;
 /// </summary>
 /// <remarks>
 /// The named client uses an infinite <see cref="HttpClient.Timeout"/> and relies on the caller's
-/// <see cref="CancellationToken"/>: SSE streams routinely outlive the standard resilience timeouts. A targeted
-/// retry handler covers pre-response outbound transport failures.
+/// <see cref="CancellationToken"/>: SSE streams routinely outlive standard HTTP timeouts. This forwarder
+/// retries only pre-response transport failures/header timeouts, before any response body can be replayed.
 /// </remarks>
-internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, ILogger<UpstreamForwarder> logger)
-    : IUpstreamForwarder
+internal sealed class UpstreamForwarder : IUpstreamForwarder
 {
     internal const string HttpClientName = "imposter-upstream";
     private const string DefaultAnthropicVersion = "2023-06-01";
+    private static readonly TimeSpan[] DefaultRetryDelays =
+    [
+        TimeSpan.FromSeconds(1),
+        TimeSpan.FromSeconds(2),
+        TimeSpan.FromSeconds(5),
+    ];
+
+    private static readonly TimeSpan[] DefaultAttemptHeaderTimeouts =
+    [
+        TimeSpan.FromSeconds(60),
+        TimeSpan.FromSeconds(120),
+        TimeSpan.FromSeconds(300),
+        TimeSpan.FromSeconds(600),
+    ];
+
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ILogger<UpstreamForwarder> _logger;
+    private readonly IReadOnlyList<TimeSpan> _retryDelays;
+    private readonly IReadOnlyList<TimeSpan> _attemptHeaderTimeouts;
+
+    public UpstreamForwarder(IHttpClientFactory httpClientFactory, ILogger<UpstreamForwarder> logger)
+        : this(httpClientFactory, logger, DefaultRetryDelays, DefaultAttemptHeaderTimeouts)
+    {
+    }
+
+    internal UpstreamForwarder(
+        IHttpClientFactory httpClientFactory,
+        ILogger<UpstreamForwarder> logger,
+        IReadOnlyList<TimeSpan> retryDelays,
+        IReadOnlyList<TimeSpan> attemptHeaderTimeouts)
+    {
+        _httpClientFactory = httpClientFactory;
+        _logger = logger;
+        _retryDelays = retryDelays;
+        _attemptHeaderTimeouts = attemptHeaderTimeouts.Count > 0 ? attemptHeaderTimeouts : DefaultAttemptHeaderTimeouts;
+    }
 
     public async Task<HttpResponseMessage> SendAsync(
         RouteDecision decision,
@@ -38,8 +73,116 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
     {
         Uri baseUrl = credentialOverride?.BaseUrlOverride ?? decision.Provider.BaseUrl;
         string target = baseUrl.AbsoluteUri.TrimEnd('/') + path + (queryString ?? string.Empty);
+        int maxAttempts = Math.Max(1, _attemptHeaderTimeouts.Count);
 
-        using var request = new HttpRequestMessage(method, target);
+        _logger.LogDebug("Creating upstream HTTP client {HttpClientName} for provider {Provider}", HttpClientName, decision.Provider.Name);
+        HttpClient client;
+        try
+        {
+            client = _httpClientFactory.CreateClient(HttpClientName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to create upstream HTTP client {HttpClientName} for provider {Provider} at {Target}",
+                HttpClientName,
+                decision.Provider.Name,
+                target);
+            throw;
+        }
+
+        _logger.LogDebug("Created upstream HTTP client {HttpClientName} for provider {Provider}", HttpClientName, decision.Provider.Name);
+
+        for (int attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            using var request = BuildRequest(
+                decision,
+                credentialOverride,
+                dialect,
+                method,
+                body,
+                target,
+                callerHeaders,
+                out string? managedAuthHeader);
+
+            _logger.LogDebug("Forwarding to {Provider} at {Target}", decision.Provider.Name, target);
+            LogOutboundRequest(request, target, body, managedAuthHeader);
+
+            TimeSpan timeout = _attemptHeaderTimeouts[attempt];
+            using CancellationTokenSource attemptTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            attemptTimeout.CancelAfter(timeout);
+
+            try
+            {
+                _logger.LogDebug(
+                    "Sending upstream attempt {Attempt}/{MaxAttempts} to provider {Provider} with header timeout {Timeout}",
+                    attempt + 1,
+                    maxAttempts,
+                    decision.Provider.Name,
+                    timeout);
+
+                // Headers-read completion keeps body-stream failures outside the retry scope, avoiding partial replay.
+                HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, attemptTimeout.Token);
+
+                _logger.LogDebug(
+                    "Upstream attempt {Attempt}/{MaxAttempts} to provider {Provider} received response headers with status {StatusCode}",
+                    attempt + 1,
+                    maxAttempts,
+                    decision.Provider.Name,
+                    (int)response.StatusCode);
+
+                return response;
+            }
+            catch (HttpRequestException ex) when (attempt < maxAttempts - 1 && !cancellationToken.IsCancellationRequested)
+            {
+                await DelayBeforeRetryAsync(ex, attempt, maxAttempts, decision.Provider.Name, target, cancellationToken);
+            }
+            catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && attemptTimeout.IsCancellationRequested)
+            {
+                var timeoutException = new TimeoutException(
+                    $"Upstream provider '{decision.Provider.Name}' did not return response headers within {timeout}.",
+                    ex);
+
+                if (attempt >= maxAttempts - 1)
+                {
+                    _logger.LogError(
+                        timeoutException,
+                        "Upstream attempt {Attempt}/{MaxAttempts} to provider {Provider} timed out before response headers and no retries remain",
+                        attempt + 1,
+                        maxAttempts,
+                        decision.Provider.Name);
+                    throw timeoutException;
+                }
+
+                await DelayBeforeRetryAsync(timeoutException, attempt, maxAttempts, decision.Provider.Name, target, cancellationToken);
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Upstream attempt {Attempt}/{MaxAttempts} to provider {Provider} failed before response headers and no retries remain",
+                    attempt + 1,
+                    maxAttempts,
+                    decision.Provider.Name);
+                throw;
+            }
+        }
+
+        throw new InvalidOperationException("No upstream send attempts were configured.");
+    }
+
+    private static HttpRequestMessage BuildRequest(
+        RouteDecision decision,
+        RouteCredentialOverride? credentialOverride,
+        ApiDialect dialect,
+        HttpMethod method,
+        string? body,
+        string target,
+        CallerHeaders callerHeaders,
+        out string? managedAuthHeader)
+    {
+        var request = new HttpRequestMessage(method, target);
 
         // Body-less requests (e.g. GET /v1/models discovery probes) carry no content.
         if (!string.IsNullOrEmpty(body))
@@ -49,15 +192,35 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
 
         // Proxy the caller's headers through unchanged (minus hop-by-hop/content/auth), then manage auth only.
         ForwardCallerHeaders(request, callerHeaders);
-        string? managedAuthHeader = ApplyAuthentication(request, decision, credentialOverride, dialect, callerHeaders);
+        managedAuthHeader = ApplyAuthentication(request, decision, credentialOverride, dialect, callerHeaders);
         EnsureAnthropicVersion(request, decision, credentialOverride, dialect);
 
-        logger.LogDebug("Forwarding to {Provider} at {Target}", decision.Provider.Name, target);
-        LogOutboundRequest(request, target, body, managedAuthHeader);
+        return request;
+    }
 
-        HttpClient client = httpClientFactory.CreateClient(HttpClientName);
-        // Headers-read completion keeps body-stream failures outside the retry scope, avoiding partial replay.
-        return await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+    private async Task DelayBeforeRetryAsync(
+        Exception exception,
+        int attempt,
+        int maxAttempts,
+        string provider,
+        string target,
+        CancellationToken cancellationToken)
+    {
+        TimeSpan delay = _retryDelays.Count > attempt ? _retryDelays[attempt] : TimeSpan.Zero;
+
+        _logger.LogWarning(
+            exception,
+            "Upstream attempt {Attempt}/{MaxAttempts} to provider {Provider} at {Target} failed before response headers; retrying after {Delay}",
+            attempt + 1,
+            maxAttempts,
+            provider,
+            target,
+            delay);
+
+        if (delay > TimeSpan.Zero)
+        {
+            await Task.Delay(delay, cancellationToken);
+        }
     }
 
     // Headers the transport owns or that are unsafe to relay verbatim. Auth headers are excluded here and
@@ -182,7 +345,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
     // IsEnabled guard keeps it free when disabled. Auth secrets are masked (scheme + last 4 chars only).
     private void LogOutboundRequest(HttpRequestMessage request, string target, string? body, string? managedAuthHeader)
     {
-        if (!logger.IsEnabled(LogLevel.Debug))
+        if (!_logger.IsEnabled(LogLevel.Debug))
         {
             return;
         }
@@ -211,7 +374,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         // Body is the exact post-transform payload sent to the upstream (Responses→Chat conversion already
         // applied). Logged in full at Debug to diagnose tool-shape/name rejections; no secrets live in the
         // body (auth is header-only, masked above). Temporary diagnostic — remove or gate further if noisy.
-        logger.LogDebug(
+        _logger.LogDebug(
             "Outbound {Method} {Target}\nHeaders:{Headers}\nBody: {Body}",
             request.Method, target, headers.ToString(), body ?? "(none)");
     }
