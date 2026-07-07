@@ -100,6 +100,9 @@ jobs:
       # (`not our ref` in the upstream tooling repo) — so the review-script checkout
       # fails. Pin it to a ref that exists upstream; `main` matches the @main call above.
       tools_ref: main
+      # UPSTREAM CONTRACT: disable_claude_code and disable_agents_md_check must be declared
+      # as inputs in the upstream reusable workflow (smooth-ai-report-review@main). If the
+      # upstream has not been updated in lockstep, dispatch will fail with "Unexpected input".
       disable_claude_code: ${{ inputs.disable_claude_code || '' }}
       disable_agents_md_check: ${{ inputs.disable_agents_md_check || '' }}
       # runner: self-hosted          # uncomment for private-network gateways
