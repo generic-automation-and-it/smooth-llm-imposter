@@ -121,3 +121,26 @@ The first push creates a **private** GHCR package. To allow `docker pull` withou
 it public once: GitHub → the repo's org → **Packages** → `smooth-llm-imposter` → **Package settings** → **Change
 visibility → Public**. (Alternatively keep it private and `docker login ghcr.io -u <user>` with a PAT that has
 `read:packages`.)
+
+## Example scripts — company proxy setup
+
+Ready-to-copy scripts for running the router with a specialised company gateway (custom provider names, non-standard
+auth header, model rewrites supplied entirely via env vars):
+
+| Script | Purpose |
+|--------|---------|
+| [`scripts/run-smooth-llm-imposter.sh`](scripts/run-smooth-llm-imposter.sh) | Docker run command with two company providers (`mycompany-anthropic` / `mycompany-openai`) pre-wired |
+| [`scripts/configure-codex-smooth-llm.sh`](scripts/configure-codex-smooth-llm.sh) | Idempotent script that adds the `smooth-llm-proxy` provider entry to `~/.codex/config.toml` |
+
+Substitute `mycompany` with your actual provider key prefix and update `BaseUrl` values before use. Then copy both
+scripts to `~/.local/bin/`, make them executable, and run them:
+
+```bash
+cp scripts/run-smooth-llm-imposter.sh scripts/configure-codex-smooth-llm.sh ~/.local/bin/
+chmod +x ~/.local/bin/run-smooth-llm-imposter.sh ~/.local/bin/configure-codex-smooth-llm.sh
+
+configure-codex-smooth-llm.sh   # registers smooth-llm-proxy in ~/.codex/config.toml
+run-smooth-llm-imposter.sh      # pulls and starts the container on localhost:5080
+```
+
+Both scripts are idempotent — safe to re-run after an image update or config change.
