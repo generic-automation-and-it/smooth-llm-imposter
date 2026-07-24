@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Accepted |
-| **Owner** | Routing feature (@generik0) |
+| **Owner** | Routing feature (@generic-automation-and-it/project) |
 | **Tracker** | [Issue #72 — Forward session identity to opencode-go](https://github.com/generic-automation-and-it/smooth-llm-imposter/issues/72) |
 | **Last updated** | 2026-07-24 |
 
@@ -70,6 +70,13 @@ prefers the session identity over the inbound model name.
 
 `ProviderOptions.SessionForwarding` is startup-validated (`none` / `opencode-go`) and exposed on
 the conventional env surface as `<PREFIX>_SESSION_FORWARDING`, plus runtime admin CRUD.
+
+**Acceptance criteria / DoD**
+
+- Startup validator rejects unknown values with a fail-fast message that names the provider key.
+- `<PREFIX>_SESSION_FORWARDING` overrides the bound value via the existing `ImposterOptionsPostConfigure`
+  surface; blank values are treated as absent.
+- `/admin/providers` accepts and returns `SessionForwarding`; the field round-trips through `GET`→`PUT`.
 
 ## Core Separation of Concerns
 

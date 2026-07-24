@@ -48,6 +48,9 @@ internal sealed class ImposterRouter : IImposterRouter
 
         // Resolve once per request; only stamp on matched imposter routes to an opted-in provider.
         // Passthrough stays byte-transparent (session=none in the log, no header/body write).
+        // Note: this is the second JsonDocument.Parse of the request body (after ExtractModel above).
+        // Bodies are small and the cost is negligible; for high-volume deployments consider threading a
+        // single parsed JsonObject from the model-extraction stage instead of re-parsing here.
         SessionIdentity sessionIdentity = SessionForwardingPolicy.IsOptedIn(decision)
             ? SessionIdentityResolver.Resolve(callerHeaders, requestBody)
             : SessionIdentity.None;

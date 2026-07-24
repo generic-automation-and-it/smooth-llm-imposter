@@ -202,7 +202,9 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
     // Debug-only dump of the exact request leaving the forwarder (method, target, every header that opencode/the
     // upstream will actually receive). Mirrors the Host's inbound dump so you can diff what the caller sent vs what
     // is forwarded — the suspect is a relayed caller header the upstream rejects. Off by default (Information); the
-    // IsEnabled guard keeps it free when disabled. Auth secrets are masked (scheme + last 4 chars only).
+    // IsEnabled guard keeps it free when disabled. Auth secrets and resolved session-identity values are masked via
+    // SensitiveHeaderNames (shared with the Host's inbound dump so the two cannot drift). Off by default
+    // (Information); the IsEnabled guard keeps it free when disabled.
     private void LogOutboundRequest(HttpRequestMessage request, string target, string? body, string? managedAuthHeader)
     {
         if (!logger.IsEnabled(LogLevel.Debug))

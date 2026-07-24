@@ -37,8 +37,10 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   `ReadFrom.Configuration` last, so the `Serilog` section in `appsettings.json` / env vars overrides it (the old
   `Logging` section was dead config — Serilog never read it). `RoutingEndpoints` logs a **Debug** full-inbound-request
   dump (method, path, query, all headers, raw body) under the `SmoothLlmImposter.Routing` category, guarded by
-  `IsEnabled(Debug)` so it is free when off. The inbound dump masks only the standard `Authorization`/`x-api-key`
-  headers (routing — and therefore the resolved provider's `AuthHeader` — has not happened yet); a provider-specific
+  `IsEnabled(Debug)` so it is free when off. The inbound dump masks Authorization/x-api-key plus all session-identity capture
+  headers (session_id, x-opencode-session, x-session-id, conversation_id) via the
+  shared SensitiveHeaderNames set — the same set the outbound dump uses in
+  UpstreamForwarder, so the two cannot drift. A provider-specific
   `AuthHeader` (e.g. `api-key`) is masked only in the **forwarder's outbound** dump. So a caller that sends its
   credential in a non-standard inbound header is not masked here — a known Debug-only gap. Enable
   with `Serilog__MinimumLevel__Override__SmoothLlmImposter.Routing=Debug`. See
@@ -66,7 +68,10 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   the publish output entirely — no dev/imposter config ships in the image. Consequences: the base config still
   satisfies `ValidateOnStart` (≥1 provider) so the container boots; in Production, imposter providers must be
   supplied via env vars (`Imposter__Providers__<name>__*`) or the `/admin/providers` runtime CRUD API. Do **not**
-  reintroduce secrets or per-model rewrites into `appsettings.json`.
+  reintroduce secrets or per-model rewrites into `appsettings.json`. Note: the dev `opencode-go-*` providers
+  declare `SessionForwarding=opencode-go` but `Models: []`, so no imposter route ever matches them and the
+  `SessionForwarding` field is currently inert there — a reminder that the opt-in is only meaningful alongside a
+  populated `Models` array.
 - **Runtime provider-config admin endpoints (HLD 008 Phase 1).** `Endpoints/ProviderConfigurationEndpoints.cs`
   maps `/admin/providers` and requires the existing `CredentialAdmin` policy. Endpoints are thin HTTP-to-Mediator
   adapters only; the Application slices own validation, registry mutation, secret preservation, and enable/disable
@@ -76,7 +81,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
-| 2026-07-24 | `CaptureCallerHeaders` is shared with `PlanAsync` so HLD 009 session identity can be resolved without leaking `HttpContext` downstream. | #72 |
+| 2026-07-24 | `CaptureCallerHeaders` is shared with `PlanAsync` so HLD 009 session identity can be resolved without leaking `HttpContext` downstream. The local SensitiveHeaders set was removed; the inbound dump now consults the shared SensitiveHeaderNames set so the inbound/outbound masks cannot drift. | #72 |
 | 2026-05-30 | Created — minimal runnable Host (`Program.cs`, `appsettings(.Development).json`, `Properties/launchSettings.json`) with empty `Configuration/`, `Endpoints/`, `HealthChecks/`, `Workers/`. | — |
 | 2026-06-19 | Documented the dialect-prefixed routing endpoints (`/openai/**`, `/anthropic/**`, any method) + retained legacy `POST /v1/*`; corrected stale "bare bootstrap" note. | — |
 | 2026-06-20 | Documented that compose/runbook `Imposter__Providers__N__*` env vars must not reference sparse provider indexes because they create empty providers during binding. | — |
