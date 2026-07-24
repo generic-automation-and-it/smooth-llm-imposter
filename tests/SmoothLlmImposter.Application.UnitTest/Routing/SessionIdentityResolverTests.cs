@@ -158,17 +158,23 @@ public class SessionIdentityResolverTests
     }
 
     [Theory]
-    [InlineData("x-api-key", "key-1")]
-    [InlineData("openai-organization", "org-1")]
-    [InlineData("openai-project", "proj-1")]
-    public void Each_fingerprint_header_is_a_derivation_input(string headerName, string headerValue)
+    [InlineData("chatgpt-account-id", "acct-1", "acct-2")]
+    [InlineData("x-api-key", "key-1", "key-2")]
+    [InlineData("openai-organization", "org-1", "org-2")]
+    [InlineData("openai-project", "proj-1", "proj-2")]
+    [InlineData("authorization", "Bearer a", "Bearer b")]
+    public void Each_fingerprint_header_is_a_derivation_input(string headerName, string valueA, string valueB)
     {
-        // Pin that every individual fingerprint header changes the derived hash, so a future
-        // refactor that drops one of them from FingerprintHeaderNames breaks this test.
-        SessionIdentity identity = SessionIdentityResolver.Resolve(Headers((headerName, headerValue)), "{}");
+        // Pin that every individual fingerprint header (all five in FingerprintHeaderNames) is an
+        // input to the derived hash: it produces a derived identity, and changing only that header's
+        // value diverges the hash. Pairwise compare so a refactor that drops one from the hash input
+        // (but still resolves "derived-") breaks this test, not just one that drops it from the set.
+        SessionIdentity a = SessionIdentityResolver.Resolve(Headers((headerName, valueA)), "{}");
+        SessionIdentity b = SessionIdentityResolver.Resolve(Headers((headerName, valueB)), "{}");
 
-        identity.Source.ShouldBe(SessionIdentitySource.Derived);
-        identity.Value!.StartsWith("derived-").ShouldBeTrue();
+        a.Source.ShouldBe(SessionIdentitySource.Derived);
+        a.Value!.StartsWith("derived-").ShouldBeTrue();
+        b.Value.ShouldNotBe(a.Value);
     }
 
     [Fact]

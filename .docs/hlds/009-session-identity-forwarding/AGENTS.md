@@ -24,12 +24,30 @@ never log raw values.
 - **Body stamp is not gated on Responses caching.** opencode-go uses `chat_completions`; `session_id` must still be written.
 - **Header write is drop-then-write once** (`x-opencode-session`), mirroring managed auth.
 
+## Architecture Decisions
+
+Only decisions whose violation produces wrong code. Full records in [./ladrs/](./ladrs/).
+
+| LADR | Decision | Why it matters |
+|------|----------|----------------|
+| LADR-01 | Session forwarding is a fourth sanctioned request-rewrite class — opt-in, matched-imposter only | Stamping on a passthrough/opt-out route leaks caller identity upstream and breaks the "disabled ⇒ byte-identical" invariant (NFR-02) |
+| LADR-02 | Dual-stamp `x-opencode-session` header + `session_id` body on OpenAI; header-only on Anthropic; `session_id` rides the `ToChatCompletions` allowlist | Single-channel was rejected — the live opencode-go probe authed but rejected the model id, so the sufficient signal is unconfirmed; body-only is impossible on Anthropic. Gating the body stamp on Responses caching would drop it for `chat_completions` |
+| LADR-03 | Stateless resolve precedence: headers → body → SHA-256 fingerprint of stable caller material → none; never a random id | An in-memory per-caller bucket would violate NFR-01; wrong precedence buckets distinct callers together and leaks identity into the upstream cache key |
+
 ## Key Behaviors
 
 - Config: `ProviderOptions.SessionForwarding` + `<PREFIX>_SESSION_FORWARDING` + admin CRUD field.
 - Resolver order: headers `session_id` → `x-opencode-session` → `x-session-id` → `conversation_id`; body `prompt_cache_key` → `metadata.user_id`; else fingerprint of stable caller material.
 - Caching interaction: when Responses caching is on and a session was resolved, `prompt_cache_key` uses the session identity; otherwise inbound model name (unchanged).
 - Live diag probe against opencode-go was blocked on model availability in the implementation workspace — treat dual-stamp as research-backed with follow-up validation noted in the HLD README.
+
+## Quality Constraints
+
+Measurable NFRs live in [./nfrs/](./nfrs/). Constraints that change how code is written:
+
+- **No persistence** — resolution is a pure function of the current request; no new storage types/tables (NFR-01).
+- **Disabled ⇒ byte-identical** — with `SessionForwarding` unset, forwarded body and header bytes equal the inbound bytes on both imposter and passthrough routes (NFR-02).
+- **Log token only** — `SessionIdentity.LogToken` emits `captured|derived|none`; raw session values and fingerprint inputs never reach a log sink, and all four capture headers are masked in both inbound and outbound Debug dumps via `SensitiveHeaderNames` (NFR-03).
 
 ## Changelog
 
