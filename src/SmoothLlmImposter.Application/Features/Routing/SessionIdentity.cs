@@ -17,15 +17,19 @@ public sealed record SessionIdentity(string? Value, SessionIdentitySource Source
     public bool HasValue => !string.IsNullOrWhiteSpace(Value);
 
     /// <summary>Safe log surface: <c>captured</c>, <c>derived</c>, or <c>none</c> — never the raw value.
-    /// Cached at construction because <see cref="Source"/> is fixed for the lifetime of a record instance
-    /// (positional record parameters are init-only); the throw branch is reachable only if a future enum
-    /// value is added without updating the switch.</summary>
-    public string LogToken { get; } = Source switch
+    /// Cached at construction because <see cref="Source"/> is fixed for the lifetime of a record instance.
+    /// Routed through the static <see cref="LogTokenFor(SessionIdentitySource)"/> helper so the dependency
+    /// on <see cref="Source"/> is explicit and not implicit on positional-record parameter initialization
+    /// order; the throw branch is reachable only if a future enum value is added without updating the
+    /// switch.</summary>
+    public string LogToken { get; } = LogTokenFor(Source);
+
+    private static string LogTokenFor(SessionIdentitySource source) => source switch
     {
         SessionIdentitySource.None => "none",
         SessionIdentitySource.Captured => "captured",
         SessionIdentitySource.Derived => "derived",
-        _ => throw new UnreachableException($"Unknown SessionIdentitySource value: {Source}."),
+        _ => throw new UnreachableException($"Unknown SessionIdentitySource value: {source}."),
     };
 }
 

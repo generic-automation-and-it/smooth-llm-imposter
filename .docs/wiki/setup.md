@@ -136,8 +136,9 @@ or the Anthropic dialect. Omit or set `none` to keep byte-transparent behaviour.
 
 ```bash
 export OPENCODE_GO_SESSION_FORWARDING="opencode-go"
-# equivalent structured form:
+# equivalent structured form (per-provider, since the conventional prefix is what opts both siblings in):
 export Imposter__Providers__opencode-go-openai__SessionForwarding="opencode-go"
+export Imposter__Providers__opencode-go-anthropic__SessionForwarding="opencode-go"
 ```
 
 ```bash

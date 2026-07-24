@@ -62,7 +62,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 - **Config split: base ships passthrough defaults + inert imposter templates; secret-bearing imposter config is Development-scoped.** `appsettings.json`
   (the file baked into the Release/Docker image) carries the two keyless default passthrough providers
   (`anthropic-default`, `openai-default`) **plus inert imposter-provider templates** (e.g. `opencode-go-*` —
-  no `Secret`, no `Models`) so Production env vars can fill them in without an extra config file. The
+   no populated `Secret`, no `Models`) so Production env vars can fill them in without an extra config file. The
   secret-bearing imposter providers (`*-personal`, `openrouter-*`, plus the Development-only `opencode-go-*`
   overrides that supply a real `Secret`) live in `appsettings.Development.json`, which the container never
   loads (it runs with no `ASPNETCORE_ENVIRONMENT` → Production). The csproj sets
@@ -71,8 +71,10 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   satisfies `ValidateOnStart` (≥1 provider) so the container boots; in Production, imposter providers must be
   supplied via env vars (`Imposter__Providers__<name>__*`) or the `/admin/providers` runtime CRUD API. Do **not**
   populate `Secret` or `Models` on the shipped `opencode-go-*` templates — the shipped entries must stay inert;
-  fill them in via env vars or in `appsettings.Development.json` only. Note: the dev `opencode-go-*` providers
-  declare `SessionForwarding=opencode-go` but `Models: []`, so no imposter route ever matches them and the
+  fill them in via env vars or in `appsettings.Development.json` only. The same `Models: []` inertness applies to
+  the base `opencode-go-*` templates in `appsettings.json` — so no imposter route matches them in Production until
+  the operator populates `Models` via env vars, mirroring the dev-template behaviour. Note: the dev `opencode-go-*`
+  providers declare `SessionForwarding=opencode-go` but `Models: []`, so no imposter route ever matches them and the
   `SessionForwarding` field is currently inert there — a reminder that the opt-in is only meaningful alongside a
   populated `Models` array.
 - **Runtime provider-config admin endpoints (HLD 008 Phase 1).** `Endpoints/ProviderConfigurationEndpoints.cs`
@@ -97,5 +99,5 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 | 2026-06-21 | Added `/admin/providers` runtime provider-config CRUD plus enable/disable. Host maps the secret-free admin surface and delegates all behavior to Mediator/Application. | #49 |
 | 2026-07-02 | Documented the optional `AuthHeader` override (relocates the credential to a non-standard header, e.g. an `api-key` gateway; value format still follows `AuthScheme`). The custom header is masked only in the forwarder's **outbound** Debug dump; the inbound dump masks just `Authorization`/`x-api-key` (routing hasn't resolved the provider yet) — a known Debug-only gap for callers sending a non-standard auth header inbound. | — |
 | 2026-07-04 | Moved secret-bearing imposter providers (`*-personal`, `openrouter-*`, `opencode-go-*`) from `appsettings.json` to `appsettings.Development.json`; base ships only the two keyless default passthrough providers. Excluded `appsettings.Development.json` from publish output (`CopyToPublishDirectory=Never`) so the Release/Docker image carries no dev/imposter config. Stops residual model rewrites (e.g. `claude-opus-4-6 → claude-opus-4-8`) shipping in the container. | — |
-| 2026-07-24 | Re-introduced `opencode-go-*` imposter templates into `appsettings.json` as **inert** entries (no `Secret`, no `Models`) so Production env vars can fill them without shipping a second config file. `appsettings.Development.json` keeps the Development-only overrides that supply a real `Secret`. Base config still ships no `Secret` and no populated `Models`, so the 2026-07-04 invariant (no secrets, no model rewrites in the Release/Docker image) is preserved. | — |
+| 2026-07-24 | Re-introduced `opencode-go-*` imposter templates into `appsettings.json` as **inert** entries (no populated `Secret`, no `Models`) so Production env vars can fill them without shipping a second config file. `appsettings.Development.json` keeps the Development-only overrides that supply a real `Secret`. Base config still ships no populated `Secret` and no populated `Models`, so the 2026-07-04 invariant (no secrets, no model rewrites in the Release/Docker image) is preserved. | — |
 | 2026-07-06 | Documented the startup-level `UnhandledException` / `UnobservedTaskException` hooks that log last-resort process faults and flush Serilog before termination, closing the observability gap for crashes outside the request pipeline. | — |

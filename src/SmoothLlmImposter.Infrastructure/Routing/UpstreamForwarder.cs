@@ -65,8 +65,10 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
     // Headers the transport owns or that are unsafe to relay verbatim. Auth headers are excluded here and
     // handled by ApplyAuthentication; content headers belong on HttpContent and the body may be rewritten.
     // session_id/x-opencode-session are passthrough-transparent (HLD 009): on default routes the caller's
-    // own values reach the upstream verbatim; on an opted-in imposter route ApplySessionIdentity drops
-    // them and writes the resolved identity.
+    // own values reach the upstream verbatim; on an opted-in imposter route with a resolved identity,
+    // ApplySessionIdentity drops them and writes the resolved identity; when the resolver returns
+    // SessionIdentity.None (e.g. no headers, no body marker, no stable fingerprint), caller headers are
+    // forwarded verbatim to keep the route byte-transparent.
     private static readonly HashSet<string> NonForwardableHeaders = new(StringComparer.OrdinalIgnoreCase)
     {
         "Host", "Authorization", "x-api-key",
