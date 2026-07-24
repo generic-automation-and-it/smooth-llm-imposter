@@ -6,9 +6,10 @@ This page contains exactly two Conductor scripts for an Amazon Linux 2023 cloud 
 
 1. The **snapshot script** installs the general CLI tooling and native Docker Engine + Compose; persists
    `DOCKER_HOST`, `OPENAI_BASE_URL`, and `ANTHROPIC_BASE_URL`; configures Codex; pulls the published
-   SmoothLlmImposter image; and creates the fully configured `smooth-llm-imposter` container.
-2. The **workspace setup script** restarts the Docker daemon after snapshot restoration, verifies that the
-   container metadata survived, starts the existing container, and waits for the router health endpoint.
+   SmoothLlmImposter image; and does not require provider credentials.
+2. The **workspace setup script** restarts the Docker daemon after snapshot restoration, reads
+   `OPENCODE_API_KEY` from the workspace environment, creates the configured container from the already-pulled
+   image, and waits for the router health endpoint.
 
 The setup works from any repository because it uses the published multi-platform image:
 
@@ -24,21 +25,16 @@ It configures these OpenCode Go mappings:
 | OpenAI | `gpt-5.4` | `kimi-k2.7-code` |
 | OpenAI | `gpt-5.5` | `kimi-k3` |
 
-> **Snapshot-secret warning:** creating the container during snapshot construction stores its upstream secret
-> in Docker container metadata inside the snapshot. Supply `OPENCODE_API_KEY` through the private Conductor
-> snapshot environment—never paste it into this tracked script—and only share the snapshot with people who are
-> allowed to use that credential. Rotate the credential and rebuild the snapshot if either is exposed.
-
-## Snapshot script (install, configure, and create the container)
+## Snapshot script (install, configure, and pull the image)
 
 Use this as the Conductor snapshot lifecycle script. Conductor lifecycle logs identify the image as Amazon
 Linux 2023 (for example, `/home/vercel-sandbox`), so it uses DNF4 and native Docker rather than Homebrew,
 Linuxbrew, or Colima.
 
-Before building the snapshot, set `OPENCODE_API_KEY` in its private environment. The script aliases it to the
-shared `OPENCODE_GO_API_KEY` name that SmoothLlmImposter resolves for both dialect-suffixed providers. The
-literal value is not written into the tracked script or shell startup files, but Docker stores it in the
-created container's environment metadata.
+Provider credentials are intentionally absent from snapshot construction: Conductor makes
+`OPENCODE_API_KEY` available only to the later workspace lifecycle. The snapshot therefore performs every
+credential-independent operation—including Codex configuration and the image pull—but does not create the
+container.
 
 The environment setup also persists these client endpoints in both `~/.bashrc` and `~/.zshrc`:
 
@@ -57,13 +53,7 @@ set -euo pipefail
 
 PORT="${PORT:-5080}"
 IMAGE="${SMOOTH_LLM_IMAGE:-ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest}"
-CONTAINER_NAME="smooth-llm-imposter"
 CODEX_CONFIG="$HOME/.codex/config.toml"
-
-# Fail before installing anything if the private snapshot environment does not
-# contain the upstream key. Do not replace this with a literal credential.
-: "${OPENCODE_API_KEY:?Set OPENCODE_API_KEY in the private snapshot environment.}"
-export OPENCODE_GO_API_KEY="${OPENCODE_GO_API_KEY:-$OPENCODE_API_KEY}"
 
 echo "--- [1] Installing system and Docker packages ---"
 sudo dnf install -y \
@@ -225,9 +215,71 @@ else:
 config_path.write_text(text)
 PY
 
-echo "--- [7] Creating the configured container ---"
-sudo docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
-sudo --preserve-env=OPENCODE_GO_API_KEY docker run -d \
+# Container creation belongs to the later credential-aware workspace lifecycle.
+# Keep only the image in the snapshot.
+sudo docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
+```
+
+Rebuild the snapshot when `:latest` should advance. Provider mappings and credentials are bound later when the
+workspace creates the container, so they can change without rebuilding the snapshot.
+
+## Workspace setup script (create and start the container)
+
+Use this as the Conductor workspace lifecycle. It does not reconfigure Codex or pull the image because those
+credential-independent steps are complete in the snapshot. It restarts `dockerd`, requires the workspace-only
+`OPENCODE_API_KEY`, and supplies the provider mappings and secret while creating the container.
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+PORT="${PORT:-5080}"
+IMAGE="${SMOOTH_LLM_IMAGE:-ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest}"
+CONTAINER_NAME="smooth-llm-imposter"
+export DOCKER_HOST="${DOCKER_HOST:-unix:///var/run/docker.sock}"
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Docker is missing. Build this workspace from the documented snapshot." >&2
+  exit 1
+fi
+
+# Background daemons do not survive snapshot restoration.
+if ! sudo docker info >/dev/null 2>&1; then
+  sudo nohup dockerd </dev/null >/tmp/dockerd.log 2>&1 &
+
+  for _ in $(seq 1 30); do
+    sudo docker info >/dev/null 2>&1 && break
+    sleep 1
+  done
+fi
+
+sudo docker info >/dev/null 2>&1 || {
+  echo "Docker failed to start; inspect /tmp/dockerd.log." >&2
+  exit 1
+}
+
+# Conductor injects this only into the workspace lifecycle, not snapshot
+# construction. Alias it to the shared prefix resolved by both OpenCode Go
+# dialect providers.
+export OPENCODE_GO_API_KEY="${OPENCODE_GO_API_KEY:-${OPENCODE_API_KEY:-}}"
+: "${OPENCODE_GO_API_KEY:?Set OPENCODE_API_KEY in the workspace environment.}"
+
+# Prefer unprivileged Docker when the snapshot's docker-group membership is
+# active. Otherwise preserve the secret through sudo so `-e NAME` remains a
+# name-only pass-through and the value does not appear in the command line.
+if docker info >/dev/null 2>&1; then
+  DOCKER=(docker)
+elif sudo docker info >/dev/null 2>&1; then
+  DOCKER=(sudo --preserve-env=OPENCODE_GO_API_KEY docker)
+else
+  echo "Docker failed to start; inspect /tmp/dockerd.log." >&2
+  exit 1
+fi
+
+# Create the container only now, after the workspace secret exists. The image
+# was pulled into the snapshot, so do not contact GHCR during workspace setup.
+"${DOCKER[@]}" rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+"${DOCKER[@]}" run -d \
   --name "$CONTAINER_NAME" \
   --restart unless-stopped \
   --pull=never \
@@ -254,62 +306,6 @@ sudo --preserve-env=OPENCODE_GO_API_KEY docker run -d \
 
 for _ in $(seq 1 30); do
   if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
-    echo "SmoothLlmImposter is healthy and stored in the snapshot"
-    exit 0
-  fi
-  sleep 1
-done
-
-echo "SmoothLlmImposter did not become healthy." >&2
-sudo docker logs "$CONTAINER_NAME" >&2
-exit 1
-```
-
-Rebuild the snapshot when `:latest`, the provider mappings, or the upstream credential should change. Because
-the container already exists in the snapshot, changing `OPENCODE_API_KEY` only in a workspace does not update
-its stored environment; recreate the snapshot or recreate the container to apply a new key.
-
-## Workspace setup script (start the preserved container)
-
-Use this minimal script as the Conductor workspace lifecycle. It does not need to reconfigure Codex, re-pull
-the image, or repeat provider settings because those files and Docker container metadata are stored in the
-snapshot. Background processes do not survive snapshot restoration, so it must start `dockerd` again.
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-export DOCKER_HOST="unix:///var/run/docker.sock"
-CONTAINER_NAME="smooth-llm-imposter"
-PORT="${PORT:-5080}"
-
-# Background daemons do not survive snapshot restoration.
-if ! sudo docker info >/dev/null 2>&1; then
-  sudo nohup dockerd </dev/null >/tmp/dockerd.log 2>&1 &
-
-  for _ in $(seq 1 30); do
-    sudo docker info >/dev/null 2>&1 && break
-    sleep 1
-  done
-fi
-
-sudo docker info >/dev/null 2>&1 || {
-  echo "Docker failed to start; inspect /tmp/dockerd.log." >&2
-  exit 1
-}
-
-# Fail clearly if the snapshot did not retain /var/lib/docker and the
-# configured container metadata.
-sudo docker inspect "$CONTAINER_NAME" >/dev/null 2>&1 || {
-  echo "$CONTAINER_NAME was not preserved in the snapshot." >&2
-  exit 1
-}
-
-# The restart policy may already have started it when dockerd came up.
-sudo docker start "$CONTAINER_NAME" >/dev/null
-
-for _ in $(seq 1 30); do
-  if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
     echo "SmoothLlmImposter is ready on http://127.0.0.1:$PORT"
     exit 0
   fi
@@ -317,10 +313,10 @@ for _ in $(seq 1 30); do
 done
 
 echo "SmoothLlmImposter did not become healthy." >&2
-sudo docker logs "$CONTAINER_NAME" >&2
+"${DOCKER[@]}" logs "$CONTAINER_NAME" >&2
 exit 1
 ```
 
-If the container-inspection step fails, the snapshot did not preserve Docker's `/var/lib/docker` state; use
-the longer create-on-workspace flow instead. With the working snapshot described above, the only expected
-runtime work is restarting Docker and starting the preserved container.
+The workspace must expose `OPENCODE_API_KEY`; no provider secret is required or expected while constructing
+the snapshot. Re-running the workspace script recreates the container so current provider settings and the
+current workspace secret always take effect.
