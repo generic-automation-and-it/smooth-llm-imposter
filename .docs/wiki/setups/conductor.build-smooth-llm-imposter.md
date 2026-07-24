@@ -25,6 +25,13 @@ It configures these OpenCode Go mappings:
 | OpenAI | `gpt-5.4` | `kimi-k2.7-code` |
 | OpenAI | `gpt-5.5` | `kimi-k3` |
 
+These are setup-specific mappings chosen for this Conductor environment. They intentionally differ from the
+illustrative mappings and caching choices in
+[HLD 001](../../hlds/001-llm-imposter-routing/README.md#configuration); the HLD is not the runtime source of
+truth for this script. Target model IDs are bare upstream strings with no `opencode-go/` prefix, consistent
+with the live-upstream
+[`OpencodeToolNormalizationEvalTests.cs`](../../../tests/SmoothLlmImposter.Upstream.EvalTest/OpencodeToolNormalizationEvalTests.cs).
+
 ## Snapshot script (install, configure, and pull the image)
 
 Use this as the Conductor snapshot lifecycle script. Conductor lifecycle logs identify the image as Amazon
@@ -46,6 +53,16 @@ The environment setup also persists these client endpoints in both `~/.bashrc` a
 
 The OpenAI base includes `/v1` because OpenAI-compatible SDKs append paths such as `/responses` and
 `/chat/completions`. The Anthropic base omits `/v1` because Anthropic clients append `/v1/messages`.
+
+If adding a Claude personal-subscription provider, `claude setup-token` can mint the subscription token to
+supply explicitly as that provider's `Secret` with the matching `AuthScheme`. See
+[`setup.md` → Minting the tokens](../setup.md#minting-the-tokens).
+
+> **Codex configuration behavior.** The snapshot replaces the top-level `model_provider` value and the complete
+> `[model_providers.smooth-llm-proxy]` table so Codex reliably selects this router after RTK configuration.
+> Unrelated settings—including MCP servers, RTK configuration, and other provider tables—are preserved. Before
+> replacement, the script writes the previous file to `~/.codex/config.toml.bak`; snapshot rebuilds replace that
+> backup with the configuration present at the start of the latest rebuild.
 
 ```bash
 #!/usr/bin/env bash
@@ -220,8 +237,10 @@ PY
 sudo docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 ```
 
-Rebuild the snapshot when `:latest` should advance. Provider mappings and credentials are bound later when the
-workspace creates the container, so they can change without rebuilding the snapshot.
+> **Known limitation.** Workspace startup uses `--pull=never`, so the `:latest` image is fixed at snapshot-build
+> time. Republishing `smooth-llm-imposter:latest` to GHCR does not propagate to existing snapshots or their
+> workspaces; rebuild the snapshot to advance the image. Provider mappings and credentials are bound later when
+> the workspace creates the container, so those can change without rebuilding the snapshot.
 
 ## Workspace setup script (create and start the container)
 
