@@ -120,6 +120,5 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
-- 2026-07-24: Track draft Anthropic session-identity worktask for #75 under `.docs/work-tasks/`.
 - 2026-07-24: Note Conductor sandbox Docker CLI + Compose v2 setup-doc guidance.
 - 2026-07-24: Document credential-independent Conductor snapshot preparation and credential-aware workspace container startup.
