@@ -37,10 +37,10 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   `ReadFrom.Configuration` last, so the `Serilog` section in `appsettings.json` / env vars overrides it (the old
   `Logging` section was dead config — Serilog never read it). `RoutingEndpoints` logs a **Debug** full-inbound-request
   dump (method, path, query, all headers, raw body) under the `SmoothLlmImposter.Routing` category, guarded by
-  `IsEnabled(Debug)` so it is free when off. The inbound dump masks Authorization/x-api-key plus all session-identity capture
-  headers (session_id, x-opencode-session, x-session-id, conversation_id) via the
-  shared SensitiveHeaderNames set — the same set the outbound dump uses in
-  UpstreamForwarder, so the two cannot drift. A provider-specific
+  `IsEnabled(Debug)` so it is free when off. The inbound dump masks Authorization/x-api-key plus the session-identity capture
+  headers (session_id, x-opencode-session, x-session-id, conversation_id) and the stable-identity
+  headers (chatgpt-account-id, openai-organization, openai-project) — the full set is shared with the outbound dump via
+  SensitiveHeaderNames so the two cannot drift. A provider-specific
   `AuthHeader` (e.g. `api-key`) is masked only in the **forwarder's outbound** dump. So a caller that sends its
   credential in a non-standard inbound header is not masked here — a known Debug-only gap. Enable
   with `Serilog__MinimumLevel__Override__SmoothLlmImposter.Routing=Debug`. See

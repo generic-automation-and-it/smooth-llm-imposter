@@ -203,8 +203,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
     // upstream will actually receive). Mirrors the Host's inbound dump so you can diff what the caller sent vs what
     // is forwarded — the suspect is a relayed caller header the upstream rejects. Off by default (Information); the
     // IsEnabled guard keeps it free when disabled. Auth secrets and resolved session-identity values are masked via
-    // SensitiveHeaderNames (shared with the Host's inbound dump so the two cannot drift). Off by default
-    // (Information); the IsEnabled guard keeps it free when disabled.
+    // SensitiveHeaderNames (shared with the Host's inbound dump so the two cannot drift).
     private void LogOutboundRequest(HttpRequestMessage request, string target, string? body, string? managedAuthHeader)
     {
         if (!logger.IsEnabled(LogLevel.Debug))
