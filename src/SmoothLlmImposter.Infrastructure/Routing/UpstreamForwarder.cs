@@ -24,6 +24,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
 {
     internal const string HttpClientName = "imposter-upstream";
     private const string DefaultAnthropicVersion = "2023-06-01";
+    private const string SessionHeaderName = "x-opencode-session";
 
     public async Task<HttpResponseMessage> SendAsync(
         RouteDecision decision,
@@ -196,9 +197,8 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         }
 
         request.Headers.Remove("session_id");
-        const string headerName = "x-opencode-session";
-        request.Headers.Remove(headerName);
-        request.Headers.TryAddWithoutValidation(headerName, sessionIdentity.Value);
+        request.Headers.Remove(SessionHeaderName);
+        request.Headers.TryAddWithoutValidation(SessionHeaderName, sessionIdentity.Value);
     }
 
     // Debug-only dump of the exact request leaving the forwarder (method, target, every header that opencode/the

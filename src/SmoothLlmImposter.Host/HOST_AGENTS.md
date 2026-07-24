@@ -59,7 +59,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   keys (`"0"`,`"1"`,…); the validator rejects that (and case-only-duplicate keys) at startup with a message
   naming the `Providers: { "<name>": { ... } }` shape, so an un-migrated config fails fast rather than binding
   silently. The conventional resolver runs as an `IPostConfigureOptions` in Application (Host only binds).
-- **Config split: base ships passthrough defaults + inert imposter templates; secret-bearing imposter config is Development-scoped.** `appsettings.json`
+- **Config split: base ships passthrough defaults + inert imposter templates; secret-bearing imposter config is Development-scoped.** > **TL;DR** — Both `opencode-go-*` provider templates ship **inert** in the base file: empty `Secret` and empty `Models[]`. They are present so a Production env override (`Imposter__Providers__opencode-go__Secret=...`) or `appsettings.Production.json` fragment can opt in without touching the base file. **Note**: `Models` is structured-only — there is no conventional `Imposter__Providers__<name>__Models` scalar env suffix; use the structured form `Imposter__Providers__<name>__Models__0__From=...`, the `/admin/providers` admin CRUD API, or `appsettings.Development.json`. `appsettings.json`
   (the file baked into the Release/Docker image) carries the two keyless default passthrough providers
   (`anthropic-default`, `openai-default`) **plus inert imposter-provider templates** (e.g. `opencode-go-*` —
    no populated `Secret`, no `Models`) so Production env vars can fill them in without an extra config file. The

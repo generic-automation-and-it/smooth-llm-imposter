@@ -22,7 +22,7 @@ never log raw values.
 - **OpenAI dual stamp; Anthropic header-only.** Do not inject fields into Anthropic Messages bodies.
 - **Responses→Chat must carry `session_id`.** The `ToChatCompletions` allowlist is explicit — add new body fields there deliberately.
 - **Body stamp is not gated on Responses caching.** opencode-go uses `chat_completions`; `session_id` must still be written.
-- **Header write is drop-then-write once** (`x-opencode-session`), mirroring managed auth.
+- **Header write is drop-then-write once** — drop caller-relayed `session_id` and `x-opencode-session`, then stamp `x-opencode-session` once, mirroring managed auth.
 
 ## Architecture Decisions
 
@@ -30,7 +30,7 @@ Only decisions whose violation produces wrong code. Full records in [./ladrs/](.
 
 | LADR | Decision | Why it matters |
 |------|----------|----------------|
-| LADR-01 | Session forwarding is a fourth sanctioned request-rewrite class — opt-in, matched-imposter only | Stamping on a passthrough/opt-out route leaks caller identity upstream and breaks the "disabled ⇒ byte-identical" invariant (NFR-02) |
+| LADR-01 | Session forwarding is a fourth sanctioned request-rewrite class — opt-in, matched-imposter only | Stamping on a passthrough/opt-out route leaks caller identity upstream and breaks the "disabled ⇒ byte-identical body+header bytes" invariant (NFR-02) |
 | LADR-02 | Dual-stamp `x-opencode-session` header + `session_id` body on OpenAI; header-only on Anthropic; `session_id` rides the `ToChatCompletions` allowlist | Single-channel was rejected — the live opencode-go probe authed but rejected the model id, so the sufficient signal is unconfirmed; body-only is impossible on Anthropic. Gating the body stamp on Responses caching would drop it for `chat_completions` |
 | LADR-03 | Stateless resolve precedence: headers → body → SHA-256 fingerprint of stable caller material → none; never a random id | An in-memory per-caller bucket would violate NFR-01; wrong precedence buckets distinct callers together and leaks identity into the upstream cache key |
 

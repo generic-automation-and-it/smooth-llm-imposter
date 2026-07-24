@@ -162,6 +162,10 @@ internal sealed class ImposterRouter : IImposterRouter
     // The document is reused for both model extraction and session resolution to avoid re-parsing.
     private static JsonDocument ParseRequestObject(string requestBody)
     {
+        // `document` is declared without an initializer and assigned in the `try`; the explicit
+        // Dispose() below is required because a `using` declaration is not in scope across the
+        // throw. A future refactor to `using var` must keep the non-object branch disposing
+        // before throwing.
         JsonDocument document;
         try
         {
