@@ -16,8 +16,11 @@ public sealed record SessionIdentity(string? Value, SessionIdentitySource Source
     /// treated as absent (never stamped, never logged as a value).</summary>
     public bool HasValue => !string.IsNullOrWhiteSpace(Value);
 
-    /// <summary>Safe log surface: <c>captured</c>, <c>derived</c>, or <c>none</c> — never the raw value.</summary>
-    public string LogToken => Source switch
+    /// <summary>Safe log surface: <c>captured</c>, <c>derived</c>, or <c>none</c> — never the raw value.
+    /// Cached at construction because <see cref="Source"/> is fixed for the lifetime of a record instance
+    /// (positional record parameters are init-only); the throw branch is reachable only if a future enum
+    /// value is added without updating the switch.</summary>
+    public string LogToken { get; } = Source switch
     {
         SessionIdentitySource.None => "none",
         SessionIdentitySource.Captured => "captured",

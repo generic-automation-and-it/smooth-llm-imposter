@@ -11,5 +11,5 @@ public sealed record RoutePlan(
     RouteDecision Decision,
     string InboundModel,
     string TransformedBody,
-    RouteCredentialOverride? CredentialOverride = null,
-    SessionIdentity? SessionIdentity = null);
+    SessionIdentity SessionIdentity,
+    RouteCredentialOverride? CredentialOverride = null);

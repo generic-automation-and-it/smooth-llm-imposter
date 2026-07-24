@@ -64,11 +64,12 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
 
     // Headers the transport owns or that are unsafe to relay verbatim. Auth headers are excluded here and
     // handled by ApplyAuthentication; content headers belong on HttpContent and the body may be rewritten.
+    // session_id/x-opencode-session are passthrough-transparent (HLD 009): on default routes the caller's
+    // own values reach the upstream verbatim; on an opted-in imposter route ApplySessionIdentity drops
+    // them and writes the resolved identity.
     private static readonly HashSet<string> NonForwardableHeaders = new(StringComparer.OrdinalIgnoreCase)
     {
-        // session_id/x-opencode-session are session-identity inputs, never relayed: the resolver reads
-        // them, and ApplySessionIdentity is the sole writer of the stamped upstream signal (HLD 009).
-        "Host", "Authorization", "x-api-key", "session_id", "x-opencode-session",
+        "Host", "Authorization", "x-api-key",
         "Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization",
         "TE", "Trailer", "Transfer-Encoding", "Upgrade", "Expect", "Accept-Encoding",
         "Content-Length", "Content-Type", "Content-Encoding", "Content-Language",
@@ -174,33 +175,37 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
             credentialOverride?.AnthropicVersion ?? decision.Provider.AnthropicVersion ?? DefaultAnthropicVersion);
     }
 
-    // HLD 009: stamp x-opencode-session once on matched opted-in imposter routes. Drop any caller-relayed
-    // value first (ForwardCallerHeaders may have copied it) so the resolved identity is the sole write —
-    // mirrors the managed-auth drop-then-write pattern. The raw value is never logged at Information level;
-    // LogOutboundRequest's Debug-level dump is the only place the header value reaches the log sink, and
-    // Debug is opt-in by configuration.
+    // HLD 009: stamp x-opencode-session once on matched opted-in imposter routes. Drop caller-relayed
+    // session_id and x-opencode-session first (ForwardCallerHeaders copies them now that they are
+    // passthrough-transparent) so the resolved identity is the sole write — mirrors the managed-auth
+    // drop-then-write pattern. The raw value is never logged at Information level; LogOutboundRequest's
+    // Debug-level dump is the only place the header value reaches the log sink, and Debug is opt-in by
+    // configuration. LogOutboundRequest masks the session-identity headers via SensitiveHeaders.
     private static void ApplySessionIdentity(
         HttpRequestMessage request,
         RouteDecision decision,
         SessionIdentity? sessionIdentity)
     {
-        if (!decision.IsImposter ||
-            decision.Provider.SessionForwarding != SessionForwarding.OpencodeGo ||
+        if (!SessionForwardingPolicy.IsOptedIn(decision) ||
             sessionIdentity is null ||
             !sessionIdentity.HasValue)
         {
             return;
         }
 
+        request.Headers.Remove("session_id");
         const string headerName = "x-opencode-session";
         request.Headers.Remove(headerName);
         request.Headers.TryAddWithoutValidation(headerName, sessionIdentity.Value);
     }
 
-    // Auth headers whose secret value is masked in the Debug request dump so real keys never reach the log sink.
+    // Auth and session-identity headers whose value is masked in the Debug request dump so real keys,
+    // session tokens, and account/organization identifiers never reach the log sink in the clear. The
+    // Debug sink may still log them (operators should not enable Debug in production).
     private static readonly HashSet<string> SensitiveHeaders = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Authorization", "x-api-key",
+        "Authorization", "x-api-key", "session_id", "x-opencode-session",
+        "chatgpt-account-id", "openai-organization", "openai-project",
     };
 
     // Debug-only dump of the exact request leaving the forwarder (method, target, every header that opencode/the

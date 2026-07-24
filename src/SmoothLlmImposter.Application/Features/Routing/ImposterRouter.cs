@@ -69,7 +69,7 @@ internal sealed class ImposterRouter : IImposterRouter
             DescribeAuth(decision, dialect, credentialOverride),
             sessionIdentity.LogToken);
 
-        return new RoutePlan(decision, model, transformedBody, credentialOverride, sessionIdentity);
+        return new RoutePlan(decision, model, transformedBody, sessionIdentity, credentialOverride);
     }
 
     public async Task<RoutePlan> PlanPassthroughAsync(
@@ -92,7 +92,7 @@ internal sealed class ImposterRouter : IImposterRouter
             DescribeAuth(decision, dialect, credentialOverride),
             SessionIdentity.None.LogToken);
 
-        return new RoutePlan(decision, InboundModel: string.Empty, TransformedBody: string.Empty, credentialOverride, SessionIdentity.None);
+        return new RoutePlan(decision, InboundModel: string.Empty, TransformedBody: string.Empty, sessionIdentity: SessionIdentity.None, credentialOverride);
     }
 
     private async Task<RouteCredentialOverride?> ResolvePassthroughCredentialAsync(ApiDialect dialect, string providerName, CancellationToken cancellationToken)

@@ -177,10 +177,13 @@ internal static class RoutingEndpoints
         }
     }
 
-    // Auth headers whose secret value is masked in the Debug request dump so real keys never reach the log sink.
+    // Auth and session-identity headers whose value is masked in the Debug request dump so real keys,
+    // session tokens, and account/organization identifiers never reach the log sink in the clear. The
+    // Debug sink may still log them (operators should not enable Debug in production).
     private static readonly HashSet<string> SensitiveHeaders = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Authorization", "x-api-key",
+        "Authorization", "x-api-key", "session_id", "x-opencode-session",
+        "chatgpt-account-id", "openai-organization", "openai-project",
     };
 
     // Debug-only dump of the full inbound request (method, path, query, every header, raw body). Off by default

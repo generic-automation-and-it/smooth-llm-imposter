@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <!-- Pin transitive cryptography packages above audited vulnerable floors (NU1903). -->
+    <!-- Pin System.Security.Cryptography.Xml above its audited vulnerable floor (NU1903). -->
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <!-- App packages — Microsoft baseline -->

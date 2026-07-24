@@ -56,9 +56,10 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
 
         root["model"] = decision.TargetModel;
 
-        // Prefer a resolved session identity for prompt_cache_key (better stickiness) when caching is on
-        // for a Responses upstream; fall back to the inbound model name when no session was resolved.
-        // Body-stamping session_id itself is NOT gated on this branch — opencode-go uses chat_completions.
+        // Body session_id stamp is gated on opt-in (see stampSession above) and runs before the
+        // Responses→Chat rebuild so the allowlist can carry it through. The prompt_cache_key ternary below
+        // is the only place that re-reads stampSession: caching-without-session falls back to the inbound
+        // model (unchanged pre-HLD 009 behavior for the no-identity case).
         if (decision.CachingEnabled && decision.Provider.OpenAiUpstreamApi == OpenAiUpstreamApi.Responses)
         {
             root["prompt_cache_key"] = stampSession ? sessionIdentity.Value : inboundModel;
@@ -113,7 +114,9 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
         AddIfPresent(root, chat, "top_logprobs");
 
         // HLD 009: carry a stamped session_id through the Responses→Chat allowlist so the downgrade
-        // path does not silently drop the body field (opencode-go chat_completions stamp).
+        // path does not silently drop the body field. The inverse case — a non-opted-in imposter whose
+        // caller supplied session_id — also rides this line: the body is byte-transparent for session
+        // on that route.
         AddIfPresent(root, chat, "session_id");
 
         if (ConvertReasoningEffort(root) is { } reasoningEffort)
