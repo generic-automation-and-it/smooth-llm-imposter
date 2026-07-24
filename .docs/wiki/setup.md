@@ -129,8 +129,10 @@ instead of `x-api-key: <token>`.
 
 `_SESSION_FORWARDING` opts a provider into session-identity stamping on **matched imposter routes** (HLD 009).
 Set it to `opencode-go` for the shipped `opencode-go-*` providers so Codex/Claude traffic is grouped in
-opencode-go diag (`session_id` body field on OpenAI + `x-opencode-session` header). Omit or set `none` to keep
-byte-transparent behaviour. Example:
+opencode-go diag (`session_id` body field on OpenAI + `x-opencode-session` header). Like `_API_KEY` above, the
+conventional prefix is shared across dialect-suffixed siblings — `OPENCODE_GO_SESSION_FORWARDING` opts in **both**
+`opencode-go-openai` and `opencode-go-anthropic`, so the stamp applies whether the traffic arrives on the OpenAI
+or the Anthropic dialect. Omit or set `none` to keep byte-transparent behaviour. Example:
 
 ```bash
 export OPENCODE_GO_SESSION_FORWARDING="opencode-go"

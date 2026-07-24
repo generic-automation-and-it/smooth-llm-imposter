@@ -725,6 +725,21 @@ public class RequestTransformerTests
     }
 
     [Fact]
+    public void OpenAi_session_forwarding_overwrites_caller_supplied_session_id_when_opted_in()
+    {
+        // Overwrite contract (HLD 009 / LADR-02): on an opted-in imposter the resolved identity is
+        // canonical and wins over any caller-supplied session_id body field. Complements the two cases
+        // already covered — body has no session_id (stamp), and non-opted-in passthrough (byte-transparent).
+        var transformer = OpenAi();
+        string body = """{"model":"gpt5.4","session_id":"caller-supplied","messages":[{"role":"user","content":"hi"}]}""";
+        var session = new SessionIdentity("sess-resolved", SessionIdentitySource.Captured);
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, SessionChatDecision(isImposter: true), "gpt5.4", session))!.AsObject();
+
+        result["session_id"]!.GetValue<string>().ShouldBe("sess-resolved");
+    }
+
+    [Fact]
     public void OpenAi_session_forwarding_is_byte_transparent_without_opt_in()
     {
         var transformer = OpenAi();
