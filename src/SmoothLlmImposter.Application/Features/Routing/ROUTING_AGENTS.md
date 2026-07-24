@@ -296,6 +296,7 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | Date | Change | Ref |
 |:-----|:-------|:----|
 | 2026-07-24 | HLD 009: opt-in `SessionForwarding` (fourth request-rewrite class) stamps resolved session identity on matched imposter routes (`session_id` body + `x-opencode-session` header; Anthropic header-only). Routing log adds `session=captured|derived|none`. | #72 |
+| 2026-07-24 | HLD 009 review follow-up: `session_id`/`x-opencode-session` added to the forwarder drop set (resolver consumes them; `ApplySessionIdentity` is the sole writer); resolver single-parses the body for capture + fingerprint inputs; opt-in predicate centralized as `SessionForwardingPolicy.IsOptedIn` (Domain) consulted by router and transformers; `SessionIdentity.LogToken` is exhaustive via `UnreachableException`. | #73 |
 | 2026-06-14 | Initial routing feature: same-dialect router, config-driven imposters, per-dialect caching, SSE streaming. | — |
 | 2026-06-14 | Moved full LADRs + C4/flow/sequence diagrams to HLD 001; trimmed this file to minimal AI-coder context. | — |
 | 2026-06-15 | HLD 001 split into `README.md` index + `diagrams/`, `nfrs/`, `ladrs/` subfolders. | — |

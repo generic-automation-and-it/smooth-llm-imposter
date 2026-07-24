@@ -48,7 +48,7 @@ internal sealed class ImposterRouter : IImposterRouter
 
         // Resolve once per request; only stamp on matched imposter routes to an opted-in provider.
         // Passthrough stays byte-transparent (session=none in the log, no header/body write).
-        SessionIdentity sessionIdentity = ShouldForwardSession(decision)
+        SessionIdentity sessionIdentity = SessionForwardingPolicy.IsOptedIn(decision)
             ? SessionIdentityResolver.Resolve(callerHeaders, requestBody)
             : SessionIdentity.None;
 
@@ -94,9 +94,6 @@ internal sealed class ImposterRouter : IImposterRouter
 
         return new RoutePlan(decision, InboundModel: string.Empty, TransformedBody: string.Empty, credentialOverride, SessionIdentity.None);
     }
-
-    private static bool ShouldForwardSession(RouteDecision decision) =>
-        decision.IsImposter && decision.Provider.SessionForwarding == SessionForwarding.OpencodeGo;
 
     private async Task<RouteCredentialOverride?> ResolvePassthroughCredentialAsync(ApiDialect dialect, string providerName, CancellationToken cancellationToken)
     {

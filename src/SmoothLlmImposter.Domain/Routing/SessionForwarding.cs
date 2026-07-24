@@ -59,3 +59,15 @@ public static class SessionForwardingParser
             ? forwarding
             : throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown session forwarding.");
 }
+
+/// <summary>The single encoding of the session-forwarding opt-in gate (HLD 009 / LADR-01).</summary>
+public static class SessionForwardingPolicy
+{
+    /// <summary>
+    /// True when the route is a matched imposter to a provider whose
+    /// <see cref="ProviderRoute.SessionForwarding"/> profile is <see cref="SessionForwarding.OpencodeGo"/>.
+    /// Router (resolve gate) and transformers (stamp gate) consult this — never re-encode the predicate.
+    /// </summary>
+    public static bool IsOptedIn(RouteDecision decision) =>
+        decision.IsImposter && decision.Provider.SessionForwarding == SessionForwarding.OpencodeGo;
+}

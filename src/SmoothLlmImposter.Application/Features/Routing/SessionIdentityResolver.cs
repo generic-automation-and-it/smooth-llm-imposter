@@ -21,10 +21,8 @@ internal static class SessionIdentityResolver
     ];
 
     // Stable, non-ephemeral caller identity headers used only as fingerprint inputs when nothing was
-    // captured. Values are hashed, never logged. Authorization/x-api-key are included because a CLI
-    // session's credential is the most stable identity those clients expose; chatgpt-account-id is the
-    // Codex subscription identity; openai-organization/project pin a workspace. The sixth fingerprint
-    // input (body `user`) is read by TryDeriveFingerprint separately, see LADR-03 for the full list.
+    // captured. Values are hashed, never logged. Each entry maps to a LADR-03 fingerprint bullet; the
+    // sixth input (body `user`) comes from the same single body parse, added by Resolve.
     private static readonly string[] FingerprintHeaderNames =
     [
         "chatgpt-account-id",   // LADR-03: Codex subscription identity
@@ -44,12 +42,20 @@ internal static class SessionIdentityResolver
             }
         }
 
-        if (TryCaptureFromBody(requestBody, out string bodyCaptured))
+        // Parse the body once: capture fields and the fingerprint's body.user share a single read.
+        BodySignals body = ParseBody(requestBody);
+
+        if (body.PromptCacheKey is not null)
         {
-            return new SessionIdentity(bodyCaptured, SessionIdentitySource.Captured);
+            return new SessionIdentity(body.PromptCacheKey, SessionIdentitySource.Captured);
         }
 
-        if (TryDeriveFingerprint(callerHeaders, requestBody, out string derived))
+        if (body.MetadataUserId is not null)
+        {
+            return new SessionIdentity(body.MetadataUserId, SessionIdentitySource.Captured);
+        }
+
+        if (TryDeriveFingerprint(callerHeaders, body.User, out string derived))
         {
             return new SessionIdentity(derived, SessionIdentitySource.Derived);
         }
@@ -57,12 +63,14 @@ internal static class SessionIdentityResolver
         return SessionIdentity.None;
     }
 
-    private static bool TryCaptureFromBody(string? requestBody, out string captured)
+    /// <summary>Body fields the resolver reads, extracted from a single parse (null when absent/blank).</summary>
+    private readonly record struct BodySignals(string? PromptCacheKey, string? MetadataUserId, string? User);
+
+    private static BodySignals ParseBody(string? requestBody)
     {
-        captured = string.Empty;
         if (string.IsNullOrWhiteSpace(requestBody))
         {
-            return false;
+            return default;
         }
 
         try
@@ -70,30 +78,30 @@ internal static class SessionIdentityResolver
             using JsonDocument document = JsonDocument.Parse(requestBody);
             if (document.RootElement.ValueKind != JsonValueKind.Object)
             {
-                return false;
+                return default;
             }
 
-            if (TryReadString(document.RootElement, "prompt_cache_key", out captured))
-            {
-                return true;
-            }
-
+            string? metadataUserId = null;
             if (document.RootElement.TryGetProperty("metadata", out JsonElement metadata) &&
                 metadata.ValueKind == JsonValueKind.Object &&
-                TryReadString(metadata, "user_id", out captured))
+                TryReadString(metadata, "user_id", out string userId))
             {
-                return true;
+                metadataUserId = userId;
             }
+
+            return new BodySignals(
+                TryReadString(document.RootElement, "prompt_cache_key", out string cacheKey) ? cacheKey : null,
+                metadataUserId,
+                TryReadString(document.RootElement, "user", out string user) ? user : null);
         }
         catch (JsonException)
         {
             // Body capture is best-effort; invalid JSON is rejected later by the router/transformer.
+            return default;
         }
-
-        return false;
     }
 
-    private static bool TryDeriveFingerprint(CallerHeaders callerHeaders, string? requestBody, out string derived)
+    private static bool TryDeriveFingerprint(CallerHeaders callerHeaders, string? bodyUser, out string derived)
     {
         derived = string.Empty;
         var parts = new List<string>(FingerprintHeaderNames.Length + 1);
@@ -107,9 +115,9 @@ internal static class SessionIdentityResolver
             }
         }
 
-        if (TryReadBodyUser(requestBody, out string user))
+        if (bodyUser is not null)
         {
-            parts.Add("body.user=" + user);
+            parts.Add("body.user=" + bodyUser);
         }
 
         if (parts.Count == 0)
@@ -124,26 +132,6 @@ internal static class SessionIdentityResolver
         // Compact, URL-safe-ish id; prefix marks it as derived so diag is distinguishable from captured.
         derived = "derived-" + Convert.ToHexString(hash.AsSpan(0, 16)).ToLowerInvariant();
         return true;
-    }
-
-    private static bool TryReadBodyUser(string? requestBody, out string user)
-    {
-        user = string.Empty;
-        if (string.IsNullOrWhiteSpace(requestBody))
-        {
-            return false;
-        }
-
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(requestBody);
-            return document.RootElement.ValueKind == JsonValueKind.Object &&
-                   TryReadString(document.RootElement, "user", out user);
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
     }
 
     private static bool TryReadString(JsonElement parent, string name, out string value)

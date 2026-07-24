@@ -258,11 +258,13 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Content.Headers.ContentType!.MediaType.ShouldBe("application/json");
 
-        // The Anthropic catalogue's single `to` target is advertised; the upstream is never touched (shared
-        // fixture — assert on the request-count delta, not the cross-test LastRequestUri).
+        // Every Anthropic catalogue `to` target is advertised (imposter opus first, then haiku default
+        // — provider enumeration order);
+        // the upstream is never touched (shared fixture — assert on the request-count delta, not the
+        // cross-test LastRequestUri).
         JsonNode root = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!;
         root["data"]!.AsArray().Select(m => m!["id"]!.GetValue<string>())
-            .ShouldBe(["claude-3-5-haiku-latest"]);
+            .ShouldBe(["claude-3-opus-latest", "claude-3-5-haiku-latest"]);
         fixture.Upstream.RequestCount.ShouldBe(upstreamBefore);
     }
 
@@ -316,6 +318,10 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         fixture.Upstream.LastHeaders["x-opencode-session"].ShouldBe("codex-session-1");
+        // Contract pin (HLD 009 drop-then-write): the caller's session_id header is consumed by the
+        // resolver and must NOT be relayed verbatim — ApplySessionIdentity's stamps are the sole write.
+        fixture.Upstream.LastHeaders.ContainsKey("session_id").ShouldBeFalse(
+            "the caller session_id header must not be relayed verbatim");
         JsonNode forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!;
         forwarded["session_id"]!.GetValue<string>().ShouldBe("codex-session-1");
         forwarded["model"]!.GetValue<string>().ShouldBe("grok-code");

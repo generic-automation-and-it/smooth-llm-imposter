@@ -66,7 +66,9 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
     // handled by ApplyAuthentication; content headers belong on HttpContent and the body may be rewritten.
     private static readonly HashSet<string> NonForwardableHeaders = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Host", "Authorization", "x-api-key",
+        // session_id/x-opencode-session are session-identity inputs, never relayed: the resolver reads
+        // them, and ApplySessionIdentity is the sole writer of the stamped upstream signal (HLD 009).
+        "Host", "Authorization", "x-api-key", "session_id", "x-opencode-session",
         "Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization",
         "TE", "Trailer", "Transfer-Encoding", "Upgrade", "Expect", "Accept-Encoding",
         "Content-Length", "Content-Type", "Content-Encoding", "Content-Language",

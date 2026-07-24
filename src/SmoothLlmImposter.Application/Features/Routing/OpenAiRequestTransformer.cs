@@ -41,8 +41,7 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
 
         // Session body stamp runs before the Responses→Chat rebuild so ToChatCompletions can carry
         // session_id through its allowlist (HLD 009). Opt-in + matched-imposter only.
-        bool stampSession = decision.IsImposter &&
-            decision.Provider.SessionForwarding == SessionForwarding.OpencodeGo &&
+        bool stampSession = SessionForwardingPolicy.IsOptedIn(decision) &&
             sessionIdentity.HasValue;
 
         if (stampSession)
