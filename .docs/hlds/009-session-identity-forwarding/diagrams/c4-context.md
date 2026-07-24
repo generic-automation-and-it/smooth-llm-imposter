@@ -1,5 +1,11 @@
 # C4 Context + session-forwarding request flow
 
+This diagram shows the runtime shape of HLD 009: a stateless router that, on a matched imposter
+route where the provider has opted in to `SessionForwarding=opencode-go`, resolves a per-request
+session identity and stamps it for opencode-go's diag. The sequence diagram distinguishes the
+imposter+opt-in path (resolve, body+header stamp) from the default passthrough path
+(byte-transparent — no resolve, no stamp).
+
 ```mermaid
 C4Context
   title Session identity forwarding (HLD 009)
@@ -23,11 +29,18 @@ sequenceDiagram
 
   C->>H: Request (+ optional session headers/body)
   H->>R: PlanAsync(body, CallerHeaders)
-  R->>R: Resolve session (capture→derive→none) if imposter+opt-in
-  R->>T: Transform(body, decision, session)
-  T-->>R: Body with session_id (OpenAI only)
-  R-->>H: RoutePlan(sessionIdentity)
-  H->>F: SendAsync(..., callerHeaders, sessionIdentity)
-  F->>F: drop-then-write x-opencode-session
-  F->>U: Forward stamped request
+  alt imposter + opt-in
+    R->>R: Resolve session (capture→derive→none)
+    R->>T: Transform(body, decision, session)
+    T-->>R: Body with session_id (OpenAI only)
+    R-->>H: RoutePlan(sessionIdentity)
+    H->>F: SendAsync(..., callerHeaders, sessionIdentity)
+    F->>F: drop-then-write x-opencode-session
+    F->>U: Forward stamped request
+  else passthrough / default / opt-out
+    Note over R: byte-transparent — no resolve, no stamp
+    R-->>H: RoutePlan(sessionIdentity=null)
+    H->>F: SendAsync(..., callerHeaders, session=null)
+    F->>U: Forward original request
+  end
 ```

@@ -1,5 +1,12 @@
 # Session Identity Forwarding — Agent Guardrails
 
+<!-- AI Context: HLD 009 — session identity forwarding. Updated: 2026-07-24. -->
+
+> AI-coder context for this HLD. Architecture diagrams live in
+> [./diagrams/](./diagrams/), the full decision log in
+> [./ladrs/](./ladrs/) and [./nfrs/](./nfrs/), and the human-readable
+> narrative in [README.md](./README.md).
+
 ## TL;DR
 
 Opt-in `SessionForwarding=opencode-go` stamps a per-request session identity on matched imposter
@@ -28,4 +35,4 @@ never log raw values.
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
-| 2026-07-24 | Initial HLD 009 — session identity forwarding for opencode-go. | #72 |
+| 2026-07-24 | Initial HLD 009 — session identity forwarding for opencode-go (3 LADRs, 3 NFRs). | #72 |

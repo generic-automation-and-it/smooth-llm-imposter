@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <!-- Centralised transitive pinning (addresses NU1903; current floor target: System.Security.Cryptography.Xml >= 10.0.10). -->
+    <!-- Centralised transitive pinning (addresses NU1903; current floor target: System.Security.Cryptography.Xml >= 10.0.10). Operator responsibility: bump this floor when the security advisory that motivated NU1903 advances — the value is not a hard minimum enforced by CPM, just a baseline that overrides lower transitive requests until raised. -->
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <!-- App packages — Microsoft baseline -->
