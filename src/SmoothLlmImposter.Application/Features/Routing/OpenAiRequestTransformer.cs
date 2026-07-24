@@ -39,8 +39,11 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
             normalizer.Normalize(root);
         }
 
-        // Session body stamp runs before the Responses→Chat rebuild so ToChatCompletions can carry
-        // session_id through its allowlist (HLD 009). Opt-in + matched-imposter only.
+        // HLD 009: dual-stamp policy — body field for OpenAI, header-only for Anthropic.
+        // The resolved session identity is canonical and wins over a caller-supplied body field
+        // (HLD 009 treats the resolver output as the per-request source of truth, never a random id).
+        // The inverse case (non-opted-in imposter with caller-supplied session_id) rides through
+        // ToChatCompletions' allowlist below and is byte-transparent on that route.
         bool stampSession = SessionForwardingPolicy.IsOptedIn(decision) &&
             sessionIdentity.HasValue;
 

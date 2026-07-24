@@ -12,6 +12,7 @@ public static class SensitiveHeaderNames
     public static readonly IReadOnlySet<string> Values = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "Authorization", "x-api-key", "session_id", "x-opencode-session",
+        "x-session-id", "conversation_id",
         "chatgpt-account-id", "openai-organization", "openai-project",
     };
 }
