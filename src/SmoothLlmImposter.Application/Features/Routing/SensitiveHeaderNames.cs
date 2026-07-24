@@ -7,7 +7,7 @@ namespace SmoothLlmImposter.Application.Features.Routing;
 /// Host's inbound dump and Infrastructure's outbound dump so the two cannot drift — a drift-side
 /// value would otherwise be relayed in the clear on whichever side stopped masking it.
 /// </summary>
-internal static class SensitiveHeaderNames
+public static class SensitiveHeaderNames
 {
     public static readonly IReadOnlySet<string> Values = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
