@@ -25,7 +25,7 @@ Run this first in a fresh Conductor cloud sandbox (Amazon Linux 2023 / DNF4). It
 GitHub CLI (via GitHub's official RPM repo, since Amazon Linux 2023 ships DNF4), Docker CLI + Compose v2, starts
 and verifies the local Docker daemon, installs the .NET 10 SDK, and installs the CLI agents this repo is commonly
 driven by (`opencode`, Claude Code, Codex CLI, `pi`); wires their bins onto `PATH` with a couple of YOLO-mode
-aliases in `~/.bashrc`; then installs `rtk` (token-optimized CLI proxy — see `RTK.md`), patches it into the shell
+aliases in `~/.bashrc`; then installs `rtk` (token-optimized CLI proxy), patches it into the shell
 and Codex config non-interactively via `expect`, and disables its telemetry. It is generic to the sandbox, not to
 SmoothLlmImposter — the [Imposter setup](#imposter-setup) below is what actually clones, builds, and runs the
 SmoothLlmImposter Host as a sidecar for whichever repo the sandbox is for.
@@ -221,6 +221,7 @@ mkdir -p "$STATE_DIR"
 if ! command -v dotnet >/dev/null 2>&1 || ! dotnet --list-sdks | grep -q '^10\.'; then
   curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
   bash /tmp/dotnet-install.sh --channel 10.0 --install-dir "$HOME/.dotnet"
+  export DOTNET_ROOT="$HOME/.dotnet"
   export PATH="$HOME/.dotnet:$PATH"
 fi
 
@@ -323,11 +324,13 @@ TOML
 fi
 ```
 
-Model IDs use the bare upstream string (`kimi-k2.7-code`, `minimax-m3`, `qwen3.6-plus`, `qwen3.7-plus`,
-`kimi-k3`) — **no `opencode-go/` prefix** — matching the live-upstream eval
-(`tests/SmoothLlmImposter.Upstream.EvalTest/OpencodeToolNormalizationEvalTests.cs`) and the [HLD 001 example
-config](../../hlds/001-llm-imposter-routing/README.md#configuration), both of which have actually been run
-against the real `https://opencode.ai/zen/go` upstream.
+Model IDs use the bare upstream string with **no `opencode-go/` prefix** — the same convention as the
+live-upstream eval
+([`OpencodeToolNormalizationEvalTests.cs`](../../../tests/SmoothLlmImposter.Upstream.EvalTest/OpencodeToolNormalizationEvalTests.cs),
+target model `kimi-k2.7-code`) and the [HLD 001 example
+config](../../hlds/001-llm-imposter-routing/README.md#configuration). The example values below
+(`qwen3.6-plus`, `qwen3.7-plus`, `minimax-m3`, `kimi-k2.7-code`, `kimi-k3`) are illustrative — only
+`kimi-k2.7-code` and `minimax-m3` mirror the HLD 001 example.
 
 Export the secret in your shell first, then run the script:
 
