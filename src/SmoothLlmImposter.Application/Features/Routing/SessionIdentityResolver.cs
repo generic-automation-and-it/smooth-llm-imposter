@@ -34,17 +34,48 @@ internal static class SessionIdentityResolver
 
     public static SessionIdentity Resolve(CallerHeaders callerHeaders, string? requestBody)
     {
+        if (TryResolveCapturedHeader(callerHeaders, out SessionIdentity captured))
+        {
+            return captured;
+        }
+
+        // Parse the body once: capture fields and the fingerprint's body.user share a single read.
+        return ResolveFromBody(callerHeaders, ParseBody(requestBody));
+    }
+
+    /// <summary>
+    /// Overload for the router hot path: the request body JSON object has already been parsed (shared
+    /// with model extraction in <c>ImposterRouter.PlanAsync</c>), so the resolver reads its signals
+    /// directly instead of parsing the body a second time. Behaviour is identical to the string overload
+    /// for a well-formed object body.
+    /// </summary>
+    public static SessionIdentity Resolve(CallerHeaders callerHeaders, JsonElement bodyRoot)
+    {
+        if (TryResolveCapturedHeader(callerHeaders, out SessionIdentity captured))
+        {
+            return captured;
+        }
+
+        return ResolveFromBody(callerHeaders, ReadBodySignals(bodyRoot));
+    }
+
+    private static bool TryResolveCapturedHeader(CallerHeaders callerHeaders, out SessionIdentity identity)
+    {
         foreach (string headerName in HeaderCandidates)
         {
             if (FirstNonBlank(callerHeaders.Get(headerName)) is { } captured)
             {
-                return new SessionIdentity(captured, SessionIdentitySource.Captured);
+                identity = new SessionIdentity(captured, SessionIdentitySource.Captured);
+                return true;
             }
         }
 
-        // Parse the body once: capture fields and the fingerprint's body.user share a single read.
-        BodySignals body = ParseBody(requestBody);
+        identity = SessionIdentity.None;
+        return false;
+    }
 
+    private static SessionIdentity ResolveFromBody(CallerHeaders callerHeaders, BodySignals body)
+    {
         if (body.PromptCacheKey is not null)
         {
             return new SessionIdentity(body.PromptCacheKey, SessionIdentitySource.Captured);
@@ -76,29 +107,34 @@ internal static class SessionIdentityResolver
         try
         {
             using JsonDocument document = JsonDocument.Parse(requestBody);
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
-            {
-                return default;
-            }
-
-            string? metadataUserId = null;
-            if (document.RootElement.TryGetProperty("metadata", out JsonElement metadata) &&
-                metadata.ValueKind == JsonValueKind.Object &&
-                TryReadString(metadata, "user_id", out string userId))
-            {
-                metadataUserId = userId;
-            }
-
-            return new BodySignals(
-                TryReadString(document.RootElement, "prompt_cache_key", out string cacheKey) ? cacheKey : null,
-                metadataUserId,
-                TryReadString(document.RootElement, "user", out string user) ? user : null);
+            return ReadBodySignals(document.RootElement);
         }
         catch (JsonException)
         {
             // Body capture is best-effort; invalid JSON is rejected later by the router/transformer.
             return default;
         }
+    }
+
+    private static BodySignals ReadBodySignals(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            return default;
+        }
+
+        string? metadataUserId = null;
+        if (root.TryGetProperty("metadata", out JsonElement metadata) &&
+            metadata.ValueKind == JsonValueKind.Object &&
+            TryReadString(metadata, "user_id", out string userId))
+        {
+            metadataUserId = userId;
+        }
+
+        return new BodySignals(
+            TryReadString(root, "prompt_cache_key", out string cacheKey) ? cacheKey : null,
+            metadataUserId,
+            TryReadString(root, "user", out string user) ? user : null);
     }
 
     private static bool TryDeriveFingerprint(CallerHeaders callerHeaders, string? bodyUser, out string derived)

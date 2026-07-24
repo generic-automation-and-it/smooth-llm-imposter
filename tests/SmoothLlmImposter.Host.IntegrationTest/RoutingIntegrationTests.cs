@@ -343,7 +343,12 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
         fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://api.openai.test/v1/chat/completions");
         JsonObject forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!.AsObject();
         forwarded.ContainsKey("session_id").ShouldBeFalse();
-        // Caller header may still be relayed verbatim on passthrough; body stamp must not happen.
+        // Byte-transparent on passthrough: the caller's session_id header must be relayed verbatim (it is
+        // NOT in NonForwardableHeaders), while the body must carry no stamp. Pinning the header relay here
+        // means a regression that started dropping caller headers on passthrough would fail this test.
+        fixture.Upstream.LastHeaders.TryGetValue("session_id", out string? relayed).ShouldBeTrue(
+            "the caller's session_id header must be relayed verbatim on a passthrough route");
+        relayed.ShouldBe("should-not-stamp-body");
     }
 
     [Fact]

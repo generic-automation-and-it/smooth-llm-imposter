@@ -132,7 +132,9 @@ Set it to `opencode-go` for the shipped `opencode-go-*` providers so Codex/Claud
 opencode-go diag (`session_id` body field on OpenAI + `x-opencode-session` header). Like `_API_KEY` above, the
 conventional prefix is shared across dialect-suffixed siblings — `OPENCODE_GO_SESSION_FORWARDING` opts in **both**
 `opencode-go-openai` and `opencode-go-anthropic`, so the stamp applies whether the traffic arrives on the OpenAI
-or the Anthropic dialect. Omit or set `none` to keep byte-transparent behaviour.
+or the Anthropic dialect. The value is case-insensitive and accepts `opencode-go`, `opencode_go`, or
+`opencodego` (all equivalent); `opencode-go` is the canonical spelling. Omit or set `none` to keep
+byte-transparent behaviour.
 
 ```bash
 export OPENCODE_GO_SESSION_FORWARDING="opencode-go"

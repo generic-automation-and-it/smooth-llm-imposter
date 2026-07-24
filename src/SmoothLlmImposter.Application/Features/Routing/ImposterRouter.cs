@@ -38,22 +38,31 @@ internal sealed class ImposterRouter : IImposterRouter
         CallerHeaders callerHeaders,
         CancellationToken cancellationToken)
     {
-        string model = ExtractModel(requestBody);
-        RouteDecision decision = _resolver.Resolve(dialect, model);
+        string model;
+        RouteDecision decision;
+        IRequestTransformer transformer;
+        SessionIdentity sessionIdentity;
 
-        if (!_transformers.TryGetValue(dialect, out IRequestTransformer? transformer))
+        // Parse the request body once and share the parsed object between model extraction and the
+        // session resolver. The transformer re-parses (it materializes a mutable JsonNode graph), so an
+        // opted-in route now parses twice instead of three times; a passthrough route still parses twice.
+        using (JsonDocument document = ParseRequestObject(requestBody))
         {
-            throw new RoutingException($"No request transformer registered for dialect '{dialect}'.", statusCode: 500);
-        }
+            JsonElement root = document.RootElement;
+            model = ExtractModel(root);
+            decision = _resolver.Resolve(dialect, model);
 
-        // Resolve once per request; only stamp on matched imposter routes to an opted-in provider.
-        // Passthrough stays byte-transparent (session=none in the log, no header/body write).
-        // Note: this is the second JsonDocument.Parse of the request body (after ExtractModel above).
-        // Bodies are small and the cost is negligible; for high-volume deployments consider threading a
-        // single parsed JsonObject from the model-extraction stage instead of re-parsing here.
-        SessionIdentity sessionIdentity = SessionForwardingPolicy.IsOptedIn(decision)
-            ? SessionIdentityResolver.Resolve(callerHeaders, requestBody)
-            : SessionIdentity.None;
+            if (!_transformers.TryGetValue(dialect, out transformer!))
+            {
+                throw new RoutingException($"No request transformer registered for dialect '{dialect}'.", statusCode: 500);
+            }
+
+            // Resolve once per request; only stamp on matched imposter routes to an opted-in provider.
+            // Passthrough stays byte-transparent (session=none in the log, no header/body write).
+            sessionIdentity = SessionForwardingPolicy.IsOptedIn(decision)
+                ? SessionIdentityResolver.Resolve(callerHeaders, root)
+                : SessionIdentity.None;
+        }
 
         string transformedBody = transformer.Transform(requestBody, decision, model, sessionIdentity);
         RouteCredentialOverride? credentialOverride = decision.IsImposter
@@ -149,28 +158,37 @@ internal sealed class ImposterRouter : IImposterRouter
         return decision.IsImposter ? "none" : "caller-passthrough";
     }
 
-    private static string ExtractModel(string requestBody)
+    // Parses the request body into an owned JsonDocument (caller disposes) and enforces the object shape.
+    // The document is reused for both model extraction and session resolution to avoid re-parsing.
+    private static JsonDocument ParseRequestObject(string requestBody)
     {
+        JsonDocument document;
         try
         {
-            using JsonDocument document = JsonDocument.Parse(requestBody);
-
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
-            {
-                throw new RoutingException("Request body must be a JSON object.");
-            }
-
-            if (!document.RootElement.TryGetProperty("model", out JsonElement modelElement) ||
-                modelElement.ValueKind != JsonValueKind.String)
-            {
-                throw new RoutingException("Request is missing a string 'model' property.");
-            }
-
-            return modelElement.GetString()!;
+            document = JsonDocument.Parse(requestBody);
         }
         catch (JsonException ex)
         {
             throw new RoutingException($"Request body is not valid JSON: {ex.Message}");
         }
+
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            document.Dispose();
+            throw new RoutingException("Request body must be a JSON object.");
+        }
+
+        return document;
+    }
+
+    private static string ExtractModel(JsonElement root)
+    {
+        if (!root.TryGetProperty("model", out JsonElement modelElement) ||
+            modelElement.ValueKind != JsonValueKind.String)
+        {
+            throw new RoutingException("Request is missing a string 'model' property.");
+        }
+
+        return modelElement.GetString()!;
     }
 }
