@@ -258,11 +258,13 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Content.Headers.ContentType!.MediaType.ShouldBe("application/json");
 
-        // The Anthropic catalogue's single `to` target is advertised; the upstream is never touched (shared
-        // fixture — assert on the request-count delta, not the cross-test LastRequestUri).
+        // Every Anthropic catalogue `to` target is advertised (imposter opus first, then haiku default
+        // — provider enumeration order);
+        // the upstream is never touched (shared fixture — assert on the request-count delta, not the
+        // cross-test LastRequestUri).
         JsonNode root = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!;
         root["data"]!.AsArray().Select(m => m!["id"]!.GetValue<string>())
-            .ShouldBe(["claude-3-5-haiku-latest"]);
+            .ShouldBe(["claude-3-opus-latest", "claude-3-5-haiku-latest"]);
         fixture.Upstream.RequestCount.ShouldBe(upstreamBefore);
     }
 
@@ -300,5 +302,105 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         JsonNode error = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!;
         error["type"]!.GetValue<string>().ShouldBe("error"); // anthropic-shaped
+    }
+
+    [Fact]
+    public async Task Session_forwarding_stamps_header_and_body_on_opted_in_imposter()
+    {
+        HttpClient client = fixture.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/chat/completions")
+        {
+            Content = Json("""{"model":"gpt5.4","messages":[{"role":"user","content":"hi"}]}""")
+        };
+        request.Headers.TryAddWithoutValidation("session_id", "codex-session-1");
+
+        using HttpResponseMessage response = await client.SendAsync(request, Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        fixture.Upstream.LastHeaders["x-opencode-session"].ShouldBe("codex-session-1");
+        // Contract pin (HLD 009 drop-then-write): the caller's session_id header is consumed by the
+        // resolver and must NOT be relayed verbatim — ApplySessionIdentity's stamps are the sole write.
+        fixture.Upstream.LastHeaders.ContainsKey("session_id").ShouldBeFalse(
+            "the caller session_id header must not be relayed verbatim");
+        JsonNode forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!;
+        forwarded["session_id"]!.GetValue<string>().ShouldBe("codex-session-1");
+        forwarded["model"]!.GetValue<string>().ShouldBe("grok-code");
+    }
+
+    [Fact]
+    public async Task Session_forwarding_is_absent_on_passthrough()
+    {
+        HttpClient client = fixture.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/chat/completions")
+        {
+            Content = Json("""{"model":"gpt5.5","messages":[{"role":"user","content":"hi"}]}""")
+        };
+        request.Headers.TryAddWithoutValidation("session_id", "should-not-stamp-body");
+
+        using HttpResponseMessage response = await client.SendAsync(request, Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://api.openai.test/v1/chat/completions");
+        JsonObject forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!.AsObject();
+        forwarded.ContainsKey("session_id").ShouldBeFalse();
+        // Byte-transparent on passthrough: the caller's session_id header must be relayed verbatim (it is
+        // NOT in NonForwardableHeaders), while the body must carry no stamp. Pinning the header relay here
+        // means a regression that started dropping caller headers on passthrough would fail this test.
+        fixture.Upstream.LastHeaders.TryGetValue("session_id", out string? relayed).ShouldBeTrue(
+            "the caller's session_id header must be relayed verbatim on a passthrough route");
+        relayed.ShouldBe("should-not-stamp-body");
+    }
+
+    [Fact]
+    public async Task Session_forwarding_derives_identity_when_caller_sends_none()
+    {
+        HttpClient client = fixture.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/openai/v1/chat/completions")
+        {
+            Content = Json("""{"model":"gpt5.4","messages":[{"role":"user","content":"hi"}]}""")
+        };
+        request.Headers.TryAddWithoutValidation("Authorization", "Bearer caller-stable");
+
+        using HttpResponseMessage response = await client.SendAsync(request, Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        // TryGetValue with an explicit "did not arrive" assertion so a regression that drops the header
+        // surfaces as a clear message instead of a KeyNotFoundException at the indexer.
+        fixture.Upstream.LastHeaders.TryGetValue("x-opencode-session", out string? stamped).ShouldBeTrue(
+            "the resolved (derived) session identity must be stamped on the outbound request");
+        stamped.ShouldNotBeNull();
+        stamped.StartsWith("derived-").ShouldBeTrue();
+        JsonNode forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!;
+        forwarded["session_id"]!.GetValue<string>().ShouldBe(stamped);
+    }
+
+    [Fact]
+    public async Task Anthropic_session_forwarding_stamps_header_only()
+    {
+        // Anthropic dialect: header-only stamp (LADR-02). The Messages body must NOT gain a session_id
+        // field, only the x-opencode-session outbound header. End-to-end coverage of the forwarder +
+        // resolver + transformer wiring for the Anthropic branch (unit test covers the transformer in
+        // isolation; this exercises the real Host pipeline).
+        HttpClient client = fixture.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/messages")
+        {
+            Content = Json("""{"model":"claude-opus-3-7-sonnet","messages":[{"role":"user","content":"hi"}]}""")
+        };
+        request.Headers.TryAddWithoutValidation("session_id", "anthropic-session-1");
+
+        using HttpResponseMessage response = await client.SendAsync(request, Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://anthropic-imposter.test/v1/messages");
+        fixture.Upstream.LastHeaders.TryGetValue("x-opencode-session", out string? stamped).ShouldBeTrue(
+            "the resolved session identity must be stamped on the outbound Anthropic request");
+        stamped.ShouldBe("anthropic-session-1");
+        // Drop half of the drop-then-write contract — mirrors the OpenAI test above. ApplySessionIdentity
+        // (UpstreamForwarder.cs) is dialect-agnostic, but a regression that moved the Remove("session_id")
+        // call into an if (OpenAi) branch would slip past this test without this assertion.
+        fixture.Upstream.LastHeaders.ContainsKey("session_id").ShouldBeFalse(
+            "the caller session_id header must not be relayed verbatim on the Anthropic branch");
+        JsonObject forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!.AsObject();
+        forwarded.ContainsKey("session_id").ShouldBeFalse();
     }
 }

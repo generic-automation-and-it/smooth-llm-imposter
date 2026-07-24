@@ -15,6 +15,7 @@ internal static class ProviderOptionsCloner
         AnthropicVersion = source.AnthropicVersion,
         OpenAiUpstreamApi = source.OpenAiUpstreamApi,
         RequestNormalization = source.RequestNormalization,
+        SessionForwarding = source.SessionForwarding,
         Models = [.. source.Models.Select(Clone)]
     };
 

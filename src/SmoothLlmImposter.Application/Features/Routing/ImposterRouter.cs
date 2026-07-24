@@ -32,23 +32,45 @@ internal sealed class ImposterRouter : IImposterRouter
         _logger = logger;
     }
 
-    public async Task<RoutePlan> PlanAsync(ApiDialect dialect, string requestBody, CancellationToken cancellationToken)
+    public async Task<RoutePlan> PlanAsync(
+        ApiDialect dialect,
+        string requestBody,
+        CallerHeaders callerHeaders,
+        CancellationToken cancellationToken)
     {
-        string model = ExtractModel(requestBody);
-        RouteDecision decision = _resolver.Resolve(dialect, model);
+        string model;
+        RouteDecision decision;
+        IRequestTransformer transformer;
+        SessionIdentity sessionIdentity;
 
-        if (!_transformers.TryGetValue(dialect, out IRequestTransformer? transformer))
+        // Parse the request body once and share the parsed object between model extraction and the
+        // session resolver. The transformer re-parses (it materializes a mutable JsonNode graph), so an
+        // opted-in route now parses twice instead of three times; a passthrough route still parses twice.
+        using (JsonDocument document = ParseRequestObject(requestBody))
         {
-            throw new RoutingException($"No request transformer registered for dialect '{dialect}'.", statusCode: 500);
+            JsonElement root = document.RootElement;
+            model = ExtractModel(root);
+            decision = _resolver.Resolve(dialect, model);
+
+            if (!_transformers.TryGetValue(dialect, out transformer!))
+            {
+                throw new RoutingException($"No request transformer registered for dialect '{dialect}'.", statusCode: 500);
+            }
+
+            // Resolve once per request; only stamp on matched imposter routes to an opted-in provider.
+            // Passthrough stays byte-transparent (session=none in the log, no header/body write).
+            sessionIdentity = SessionForwardingPolicy.IsOptedIn(decision)
+                ? SessionIdentityResolver.Resolve(callerHeaders, root)
+                : SessionIdentity.None;
         }
 
-        string transformedBody = transformer.Transform(requestBody, decision, model);
+        string transformedBody = transformer.Transform(requestBody, decision, model, sessionIdentity);
         RouteCredentialOverride? credentialOverride = decision.IsImposter
             ? null
             : await ResolvePassthroughCredentialAsync(dialect, decision.Provider.CredentialProviderName, cancellationToken);
 
         _logger.LogInformation(
-            "Routed {Dialect} model '{InboundModel}' -> provider '{Provider}' as '{TargetModel}' (imposter={IsImposter}, caching={Caching}, storedCredential={StoredCredential}, auth={Auth})",
+            "Routed {Dialect} model '{InboundModel}' -> provider '{Provider}' as '{TargetModel}' (imposter={IsImposter}, caching={Caching}, storedCredential={StoredCredential}, auth={Auth}, session={Session})",
             dialect,
             model,
             decision.Provider.Name,
@@ -56,26 +78,33 @@ internal sealed class ImposterRouter : IImposterRouter
             decision.IsImposter,
             decision.CachingEnabled,
             credentialOverride is not null,
-            DescribeAuth(decision, dialect, credentialOverride));
+            DescribeAuth(decision, dialect, credentialOverride),
+            sessionIdentity.LogToken);
 
-        return new RoutePlan(decision, model, transformedBody, credentialOverride);
+        return new RoutePlan(decision, model, transformedBody, sessionIdentity, credentialOverride);
     }
 
-    public async Task<RoutePlan> PlanPassthroughAsync(ApiDialect dialect, CancellationToken cancellationToken)
+    public async Task<RoutePlan> PlanPassthroughAsync(
+        ApiDialect dialect,
+        CallerHeaders callerHeaders,
+        CancellationToken cancellationToken)
     {
         // No body, no model (e.g. GET /v1/models): passthrough to the dialect default with no transform.
         // The body forwarded upstream is empty, so the forwarder issues the request with no content.
+        // callerHeaders is accepted for interface uniformity; session forwarding never stamps passthrough.
+        _ = callerHeaders;
         RouteDecision decision = _resolver.ResolveDefault(dialect);
         RouteCredentialOverride? credentialOverride = await ResolvePassthroughCredentialAsync(dialect, decision.Provider.CredentialProviderName, cancellationToken);
 
         _logger.LogInformation(
-            "Routed {Dialect} body-less request -> provider '{Provider}' (passthrough, no model, storedCredential={StoredCredential}, auth={Auth})",
+            "Routed {Dialect} body-less request -> provider '{Provider}' (passthrough, no model, storedCredential={StoredCredential}, auth={Auth}, session={Session})",
             dialect,
             decision.Provider.Name,
             credentialOverride is not null,
-            DescribeAuth(decision, dialect, credentialOverride));
+            DescribeAuth(decision, dialect, credentialOverride),
+            SessionIdentity.None.LogToken);
 
-        return new RoutePlan(decision, InboundModel: string.Empty, TransformedBody: string.Empty, credentialOverride);
+        return new RoutePlan(decision, InboundModel: string.Empty, TransformedBody: string.Empty, SessionIdentity: SessionIdentity.None, credentialOverride);
     }
 
     private async Task<RouteCredentialOverride?> ResolvePassthroughCredentialAsync(ApiDialect dialect, string providerName, CancellationToken cancellationToken)
@@ -129,28 +158,44 @@ internal sealed class ImposterRouter : IImposterRouter
         return decision.IsImposter ? "none" : "caller-passthrough";
     }
 
-    private static string ExtractModel(string requestBody)
+    // Parses the request body into an owned JsonDocument (caller disposes) and enforces the object shape.
+    // The document is reused for both model extraction and session resolution to avoid re-parsing.
+    private static JsonDocument ParseRequestObject(string requestBody)
     {
+        // `document` is declared without an initializer and assigned in the `try`; the explicit
+        // Dispose() below is required because a `using` declaration is not in scope across the
+        // throw. A future refactor to `using var` must keep the non-object branch disposing
+        // before throwing.
+        JsonDocument document;
         try
         {
-            using JsonDocument document = JsonDocument.Parse(requestBody);
-
-            if (document.RootElement.ValueKind != JsonValueKind.Object)
-            {
-                throw new RoutingException("Request body must be a JSON object.");
-            }
-
-            if (!document.RootElement.TryGetProperty("model", out JsonElement modelElement) ||
-                modelElement.ValueKind != JsonValueKind.String)
-            {
-                throw new RoutingException("Request is missing a string 'model' property.");
-            }
-
-            return modelElement.GetString()!;
+            document = JsonDocument.Parse(requestBody);
         }
         catch (JsonException ex)
         {
             throw new RoutingException($"Request body is not valid JSON: {ex.Message}");
         }
+
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            // Explicit Dispose + throw: this branch exits the method without a `using` in scope, so
+            // the document must be released before the throw leaks the local. The success path returns
+            // the document to the caller (wrapped in a using block) and lets that frame dispose it.
+            document.Dispose();
+            throw new RoutingException("Request body must be a JSON object.");
+        }
+
+        return document;
+    }
+
+    private static string ExtractModel(JsonElement root)
+    {
+        if (!root.TryGetProperty("model", out JsonElement modelElement) ||
+            modelElement.ValueKind != JsonValueKind.String)
+        {
+            throw new RoutingException("Request is missing a string 'model' property.");
+        }
+
+        return modelElement.GetString()!;
     }
 }

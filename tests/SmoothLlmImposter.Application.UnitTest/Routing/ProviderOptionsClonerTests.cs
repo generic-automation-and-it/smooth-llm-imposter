@@ -22,7 +22,8 @@ public class ProviderOptionsClonerTests
             Enabled = false,
             AnthropicVersion = "2023-06-01",
             OpenAiUpstreamApi = "chat_completions",
-            RequestNormalization = "codex_to_openai_sdk"
+            RequestNormalization = "codex_to_openai_sdk",
+            SessionForwarding = "opencode-go"
         };
 
         ProviderOptions clone = ProviderOptionsCloner.Clone(source);

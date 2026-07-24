@@ -43,6 +43,7 @@ internal static class ProviderConfigurationValidation
                 .WithMessage("AuthHeader must be omitted or a custom request-header name; transport-owned headers (Content-*, Host, Transfer-Encoding) are not allowed.");
             RuleFor(x => x.OpenAiUpstreamApi).Must(static x => OpenAiUpstreamApiParser.TryParse(x, out _)).WithMessage("OpenAiUpstreamApi must be 'responses' or 'chat_completions'.");
             RuleFor(x => x.RequestNormalization).Must(static x => RequestNormalizationParser.TryParse(x, out _)).WithMessage("RequestNormalization must be 'none' or 'codex_to_openai_sdk'.");
+            RuleFor(x => x.SessionForwarding).Must(static x => SessionForwardingParser.TryParse(x, out _)).WithMessage("SessionForwarding must be 'none' or 'opencode-go' (also accepted: 'opencode_go', 'opencodego').");
             RuleFor(x => x.Models).NotNull();
             RuleForEach(x => x.Models).SetValidator(new ProviderModelMappingBodyValidator());
             RuleFor(x => x).Custom(static (body, context) =>

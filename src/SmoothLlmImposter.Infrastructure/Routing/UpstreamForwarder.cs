@@ -24,6 +24,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
 {
     internal const string HttpClientName = "imposter-upstream";
     private const string DefaultAnthropicVersion = "2023-06-01";
+    private const string SessionHeaderName = "x-opencode-session";
 
     public async Task<HttpResponseMessage> SendAsync(
         RouteDecision decision,
@@ -34,6 +35,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         string path,
         string? queryString,
         CallerHeaders callerHeaders,
+        SessionIdentity? sessionIdentity,
         CancellationToken cancellationToken)
     {
         Uri baseUrl = credentialOverride?.BaseUrlOverride ?? decision.Provider.BaseUrl;
@@ -51,6 +53,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         ForwardCallerHeaders(request, callerHeaders);
         string? managedAuthHeader = ApplyAuthentication(request, decision, credentialOverride, dialect, callerHeaders);
         EnsureAnthropicVersion(request, decision, credentialOverride, dialect);
+        ApplySessionIdentity(request, decision, sessionIdentity);
 
         logger.LogDebug("Forwarding to {Provider} at {Target}", decision.Provider.Name, target);
         LogOutboundRequest(request, target, body, managedAuthHeader);
@@ -62,6 +65,11 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
 
     // Headers the transport owns or that are unsafe to relay verbatim. Auth headers are excluded here and
     // handled by ApplyAuthentication; content headers belong on HttpContent and the body may be rewritten.
+    // session_id/x-opencode-session are passthrough-transparent (HLD 009): on default routes the caller's
+    // own values reach the upstream verbatim; on an opted-in imposter route with a resolved identity,
+    // ApplySessionIdentity drops them and writes the resolved identity; when the resolver returns
+    // SessionIdentity.None (e.g. no headers, no body marker, no stable fingerprint), caller headers are
+    // forwarded verbatim to keep the route byte-transparent.
     private static readonly HashSet<string> NonForwardableHeaders = new(StringComparer.OrdinalIgnoreCase)
     {
         "Host", "Authorization", "x-api-key",
@@ -170,16 +178,34 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
             credentialOverride?.AnthropicVersion ?? decision.Provider.AnthropicVersion ?? DefaultAnthropicVersion);
     }
 
-    // Auth headers whose secret value is masked in the Debug request dump so real keys never reach the log sink.
-    private static readonly HashSet<string> SensitiveHeaders = new(StringComparer.OrdinalIgnoreCase)
+    // HLD 009: stamp x-opencode-session once on matched opted-in imposter routes. Drop caller-relayed
+    // session_id and x-opencode-session first (ForwardCallerHeaders copies them now that they are
+    // passthrough-transparent) so the resolved identity is the sole write — mirrors the managed-auth
+    // drop-then-write pattern. The raw value is never logged at Information level; LogOutboundRequest's
+    // Debug-level dump is the only place the header value reaches the log sink, and Debug is opt-in by
+    // configuration. LogOutboundRequest masks the session-identity headers via SensitiveHeaderNames.
+    private static void ApplySessionIdentity(
+        HttpRequestMessage request,
+        RouteDecision decision,
+        SessionIdentity? sessionIdentity)
     {
-        "Authorization", "x-api-key",
-    };
+        if (!SessionForwardingPolicy.IsOptedIn(decision) ||
+            sessionIdentity is null ||
+            !sessionIdentity.HasValue)
+        {
+            return;
+        }
+
+        request.Headers.Remove("session_id");
+        request.Headers.Remove(SessionHeaderName);
+        request.Headers.TryAddWithoutValidation(SessionHeaderName, sessionIdentity.Value);
+    }
 
     // Debug-only dump of the exact request leaving the forwarder (method, target, every header that opencode/the
     // upstream will actually receive). Mirrors the Host's inbound dump so you can diff what the caller sent vs what
     // is forwarded — the suspect is a relayed caller header the upstream rejects. Off by default (Information); the
-    // IsEnabled guard keeps it free when disabled. Auth secrets are masked (scheme + last 4 chars only).
+    // IsEnabled guard keeps it free when disabled. Auth secrets and resolved session-identity values are masked via
+    // SensitiveHeaderNames (shared with the Host's inbound dump so the two cannot drift).
     private void LogOutboundRequest(HttpRequestMessage request, string target, string? body, string? managedAuthHeader)
     {
         if (!logger.IsEnabled(LogLevel.Debug))
@@ -192,7 +218,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         {
             // Mask the static auth headers and any provider-specific AuthHeader the managed secret was written
             // into, so a relocated credential (e.g. `api-key`) never reaches the log sink in the clear.
-            bool sensitive = SensitiveHeaders.Contains(header.Key) ||
+            bool sensitive = SensitiveHeaderNames.Values.Contains(header.Key) ||
                 (managedAuthHeader is not null && string.Equals(header.Key, managedAuthHeader, StringComparison.OrdinalIgnoreCase));
             string value = sensitive
                 ? MaskSecretHeader(string.Join(", ", header.Value))

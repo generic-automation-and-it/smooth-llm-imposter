@@ -82,6 +82,14 @@ public sealed class ProviderOptions
     /// </summary>
     public string? RequestNormalization { get; set; }
 
+    /// <summary>
+    /// Proxy-side session-identity forwarding profile (HLD 009), off by default. Set to
+    /// <c>opencode-go</c> so a matched imposter route stamps a resolved session identity
+    /// (<c>session_id</c> body field on OpenAI + <c>x-opencode-session</c> header) for upstreams
+    /// that group traffic by session. Passthrough/default routes stay byte-transparent regardless.
+    /// </summary>
+    public string? SessionForwarding { get; set; }
+
     /// <summary>From→to model mappings owned by this provider. Structured-only — not part of the
     /// conventional env surface (HLD 007 LADR-02).</summary>
     public List<ModelMappingOptions> Models { get; init; } = [];

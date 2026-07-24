@@ -119,13 +119,29 @@ provider prefers `_API_KEY` → `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` (the o
 fallbacks, so a single populated var still authenticates). This keeps a personal `ANTHROPIC_API_KEY` from being
 sent as a Bearer token, and vice versa. Other scalar overrides remain provider-specific or
 structured (`_BASE_URL`, `_AUTH_SCHEME`, `_AUTH_HEADER`, `_DIALECT`, `_IS_DEFAULT`, `_OPENAI_UPSTREAM_API`,
-`_REQUEST_NORMALIZATION`, `_ANTHROPIC_VERSION`). Matching is case-insensitive.
+`_REQUEST_NORMALIZATION`, `_SESSION_FORWARDING`, `_ANTHROPIC_VERSION`). Matching is case-insensitive.
 
 `_AUTH_SCHEME` picks the value format **and** the default header (`Bearer` → `Authorization: Bearer <token>`,
 `ApiKey` → `x-api-key: <token>`). `_AUTH_HEADER` overrides only the **header name** — the value format still
 follows the scheme. A gateway that expects the credential in a non-standard header sets it: e.g. a provider
 with `AuthScheme: ApiKey` + `AuthHeader: api-key` (`<PREFIX>_AUTH_HEADER=api-key`) sends `api-key: <token>`
 instead of `x-api-key: <token>`.
+
+`_SESSION_FORWARDING` opts a provider into session-identity stamping on **matched imposter routes** (HLD 009).
+Set it to `opencode-go` for the shipped `opencode-go-*` providers so Codex/Claude traffic is grouped in
+opencode-go diag (`session_id` body field on OpenAI + `x-opencode-session` header). Like `_API_KEY` above, the
+conventional prefix is shared across dialect-suffixed siblings — `OPENCODE_GO_SESSION_FORWARDING` opts in **both**
+`opencode-go-openai` and `opencode-go-anthropic`, so the stamp applies whether the traffic arrives on the OpenAI
+or the Anthropic dialect. The value is case-insensitive and accepts `opencode-go`, `opencode_go`, or
+`opencodego` (all equivalent); `opencode-go` is the canonical spelling. Omit or set `none` to keep
+byte-transparent behaviour.
+
+```bash
+export OPENCODE_GO_SESSION_FORWARDING="opencode-go"
+# equivalent structured form (per-provider, since the conventional prefix is what opts both siblings in):
+export Imposter__Providers__opencode-go-openai__SessionForwarding="opencode-go"
+export Imposter__Providers__opencode-go-anthropic__SessionForwarding="opencode-go"
+```
 
 ```bash
 export OPENCODE_GO_API_KEY="sk-your-opencode-key"            # opencode-go-openai + opencode-go-anthropic secret

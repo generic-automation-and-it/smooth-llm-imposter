@@ -14,6 +14,7 @@ public sealed record ProviderConfigurationResponse(
     string? AnthropicVersion,
     string? OpenAiUpstreamApi,
     string? RequestNormalization,
+    string? SessionForwarding,
     IReadOnlyList<ProviderModelMappingResponse> Models)
 {
     internal static ProviderConfigurationResponse From(string key, ProviderOptions provider) => new(
@@ -28,6 +29,7 @@ public sealed record ProviderConfigurationResponse(
         provider.AnthropicVersion,
         provider.OpenAiUpstreamApi,
         provider.RequestNormalization,
+        provider.SessionForwarding,
         provider.Models.Select(ProviderModelMappingResponse.FromOptions).ToArray());
 }
 
@@ -42,6 +44,7 @@ public sealed record ProviderConfigurationBody(
     string? AnthropicVersion,
     string? OpenAiUpstreamApi,
     string? RequestNormalization,
+    string? SessionForwarding,
     IReadOnlyList<ProviderModelMappingBody>? Models)
 {
     internal ProviderOptions ToProviderOptions(string? secret = null) => new()
@@ -57,6 +60,7 @@ public sealed record ProviderConfigurationBody(
         AnthropicVersion = AnthropicVersion,
         OpenAiUpstreamApi = OpenAiUpstreamApi,
         RequestNormalization = RequestNormalization,
+        SessionForwarding = SessionForwarding,
         Models = Models?.Select(static model => new ModelMappingOptions
         {
             From = model.From,

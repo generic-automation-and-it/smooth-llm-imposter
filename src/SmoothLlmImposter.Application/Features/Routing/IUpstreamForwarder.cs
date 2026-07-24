@@ -23,6 +23,11 @@ public interface IUpstreamForwarder
     /// credential is forwarded on key-less passthrough, or replaced by the provider key / stored credential /
     /// force-Bearer override.
     /// </param>
+    /// <param name="sessionIdentity">
+    /// Optional resolved session identity. When present on a matched imposter route whose provider opted
+    /// into <c>SessionForwarding=opencode-go</c>, the forwarder writes <c>x-opencode-session</c> once
+    /// (drop-then-write) so a caller-supplied value is not duplicated inconsistently.
+    /// </param>
     Task<HttpResponseMessage> SendAsync(
         RouteDecision decision,
         RouteCredentialOverride? credentialOverride,
@@ -32,5 +37,6 @@ public interface IUpstreamForwarder
         string path,
         string? queryString,
         CallerHeaders callerHeaders,
+        SessionIdentity? sessionIdentity,
         CancellationToken cancellationToken);
 }

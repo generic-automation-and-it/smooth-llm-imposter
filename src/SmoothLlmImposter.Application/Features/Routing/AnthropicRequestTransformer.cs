@@ -13,8 +13,18 @@ internal sealed class AnthropicRequestTransformer : IRequestTransformer
 {
     public ApiDialect Dialect => ApiDialect.Anthropic;
 
-    public string Transform(string requestBody, RouteDecision decision, string inboundModel)
+    public string Transform(
+        string requestBody,
+        RouteDecision decision,
+        string inboundModel,
+        SessionIdentity sessionIdentity)
     {
+        // Anthropic body injection is out of scope for HLD 009 (header-only stamping lives in the
+        // forwarder). sessionIdentity is accepted for interface uniformity; it is body-only unused
+        // here — the resolved identity is still propagated via RoutePlan.SessionIdentity to the
+        // forwarder for the header write.
+        _ = sessionIdentity;
+
         JsonObject root = JsonNodeMaterializer.ParseObject(requestBody);
 
         root["model"] = decision.TargetModel;

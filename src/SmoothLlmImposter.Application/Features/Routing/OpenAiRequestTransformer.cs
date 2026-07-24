@@ -21,7 +21,11 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
 
     public ApiDialect Dialect => ApiDialect.OpenAi;
 
-    public string Transform(string requestBody, RouteDecision decision, string inboundModel)
+    public string Transform(
+        string requestBody,
+        RouteDecision decision,
+        string inboundModel,
+        SessionIdentity sessionIdentity)
     {
         JsonObject root = JsonNodeMaterializer.ParseObject(requestBody);
 
@@ -35,6 +39,19 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
             normalizer.Normalize(root);
         }
 
+        // HLD 009: dual-stamp policy — body field for OpenAI, header-only for Anthropic.
+        // The resolved session identity is canonical and wins over a caller-supplied body field
+        // (HLD 009 treats the resolver output as the per-request source of truth, never a random id).
+        // The inverse case (non-opted-in imposter with caller-supplied session_id) rides through
+        // ToChatCompletions' allowlist below and is byte-transparent on that route.
+        bool stampSession = SessionForwardingPolicy.IsOptedIn(decision) &&
+            sessionIdentity.HasValue;
+
+        if (stampSession)
+        {
+            root["session_id"] = sessionIdentity.Value;
+        }
+
         if (decision.Provider.OpenAiUpstreamApi == OpenAiUpstreamApi.ChatCompletions)
         {
             root = ToChatCompletions(root);
@@ -42,9 +59,13 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
 
         root["model"] = decision.TargetModel;
 
+        // Body session_id stamp is gated on opt-in (see stampSession above) and runs before the
+        // Responses→Chat rebuild so the allowlist can carry it through. The prompt_cache_key ternary below
+        // is the only place that re-reads stampSession: caching-without-session falls back to the inbound
+        // model (unchanged pre-HLD 009 behavior for the no-identity case).
         if (decision.CachingEnabled && decision.Provider.OpenAiUpstreamApi == OpenAiUpstreamApi.Responses)
         {
-            root["prompt_cache_key"] = inboundModel;
+            root["prompt_cache_key"] = stampSession ? sessionIdentity.Value : inboundModel;
         }
 
         return root.ToJsonString();
@@ -94,6 +115,14 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
         AddIfPresent(root, chat, "logit_bias");
         AddIfPresent(root, chat, "logprobs");
         AddIfPresent(root, chat, "top_logprobs");
+
+        // HLD 009: carry a stamped session_id through the Responses→Chat allowlist so the downgrade
+        // path does not silently drop the body field. The inverse case — a non-opted-in imposter whose
+        // caller supplied session_id — also rides this line: a non-null body value is relayed as-is.
+        // AddIfPresent uses an `is { } value` pattern, so a caller-supplied "session_id": null drops
+        // the key rather than relaying null. This is consistent with the other AddIfPresent users
+        // (stream, temperature, …).
+        AddIfPresent(root, chat, "session_id");
 
         if (ConvertReasoningEffort(root) is { } reasoningEffort)
         {

@@ -43,7 +43,8 @@ internal sealed class ProviderCatalog : IProviderCatalog
                 ResolveNormalization(provider.RequestNormalization, upstreamApi),
                 provider.Enabled,
                 key,
-                string.IsNullOrWhiteSpace(provider.AuthHeader) ? null : provider.AuthHeader);
+                string.IsNullOrWhiteSpace(provider.AuthHeader) ? null : provider.AuthHeader,
+                SessionForwardingParser.Parse(provider.SessionForwarding));
 
             if (!_byDialect.TryGetValue(dialect, out List<ProviderRoute>? routes))
             {

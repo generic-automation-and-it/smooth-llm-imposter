@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmoothLlmImposter.Application.Common.Persistence;
 using SmoothLlmImposter.Application.Features.AuthorizationOverride;
@@ -11,7 +12,9 @@ public class ImposterRouterTests
 {
     private static ImposterRouter Build(
         ICredentialStore? credentialStore = null,
-        IAuthorizationOverrideSwitch? overrideSwitch = null)
+        IAuthorizationOverrideSwitch? overrideSwitch = null,
+        ILogger<ImposterRouter>? logger = null,
+        string? sessionForwarding = null)
     {
         ProviderCatalog catalog = ProviderCatalogTestFactory.SeededCatalog(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
         {
@@ -19,6 +22,7 @@ public class ImposterRouterTests
             {
                 Dialect = "openai",
                 BaseUrl = "https://opencode.example",
+                SessionForwarding = sessionForwarding,
                 Models = [new ModelMappingOptions { From = "gpt5.4", To = "grok-code", Caching = true }]
             },
             ["openai-official"] = new() { Dialect = "openai", BaseUrl = "https://api.openai.com", IsDefault = true }
@@ -32,7 +36,7 @@ public class ImposterRouterTests
             new StubSecretProtector(),
             overrideSwitch ?? new StubOverrideSwitch(),
             transformers,
-            NullLogger<ImposterRouter>.Instance);
+            logger ?? NullLogger<ImposterRouter>.Instance);
     }
 
     [Fact]
@@ -40,7 +44,7 @@ public class ImposterRouterTests
     {
         ImposterRouter router = Build();
 
-        RoutePlan plan = await router.PlanAsync(ApiDialect.OpenAi, """{"model":"gpt5.4"}""", TestContext.Current.CancellationToken);
+        RoutePlan plan = await router.PlanAsync(ApiDialect.OpenAi, """{"model":"gpt5.4"}""", CallerHeaders.None, TestContext.Current.CancellationToken);
 
         plan.InboundModel.ShouldBe("gpt5.4");
         plan.Decision.Provider.Name.ShouldBe("opencode");
@@ -58,7 +62,7 @@ public class ImposterRouterTests
         };
         ImposterRouter router = Build(store);
 
-        RoutePlan plan = await router.PlanAsync(ApiDialect.OpenAi, """{"model":"gpt5.5"}""", TestContext.Current.CancellationToken);
+        RoutePlan plan = await router.PlanAsync(ApiDialect.OpenAi, """{"model":"gpt5.5"}""", CallerHeaders.None, TestContext.Current.CancellationToken);
 
         plan.Decision.IsImposter.ShouldBeFalse();
         plan.CredentialOverride.ShouldNotBeNull();
@@ -76,7 +80,7 @@ public class ImposterRouterTests
         var overrideSwitch = new StubOverrideSwitch { Enabled = true };
         ImposterRouter router = Build(store, overrideSwitch);
 
-        RoutePlan plan = await router.PlanAsync(ApiDialect.OpenAi, """{"model":"gpt5.5"}""", TestContext.Current.CancellationToken);
+        RoutePlan plan = await router.PlanAsync(ApiDialect.OpenAi, """{"model":"gpt5.5"}""", CallerHeaders.None, TestContext.Current.CancellationToken);
 
         plan.Decision.IsImposter.ShouldBeFalse();
         plan.CredentialOverride.ShouldNotBeNull();
@@ -91,7 +95,7 @@ public class ImposterRouterTests
         ImposterRouter router = Build(new StubCredentialStore { Active = null }, overrideSwitch);
 
         RoutingException ex = await Should.ThrowAsync<RoutingException>(
-            () => router.PlanAsync(ApiDialect.OpenAi, """{"model":"gpt5.5"}""", TestContext.Current.CancellationToken));
+            () => router.PlanAsync(ApiDialect.OpenAi, """{"model":"gpt5.5"}""", CallerHeaders.None, TestContext.Current.CancellationToken));
 
         ex.StatusCode.ShouldBe(403);
     }
@@ -105,7 +109,7 @@ public class ImposterRouterTests
         };
         ImposterRouter router = Build(store, new StubOverrideSwitch { Enabled = false });
 
-        RoutePlan plan = await router.PlanAsync(ApiDialect.OpenAi, """{"model":"gpt5.5"}""", TestContext.Current.CancellationToken);
+        RoutePlan plan = await router.PlanAsync(ApiDialect.OpenAi, """{"model":"gpt5.5"}""", CallerHeaders.None, TestContext.Current.CancellationToken);
 
         plan.CredentialOverride.ShouldNotBeNull();
         plan.CredentialOverride.ForceBearer.ShouldBeFalse();
@@ -119,7 +123,7 @@ public class ImposterRouterTests
         // are never consulted. The throwing spy proves the imposter branch does not read either (LADR-003).
         ImposterRouter router = Build(new ThrowingCredentialStore(), new ThrowingOverrideSwitch());
 
-        RoutePlan plan = await router.PlanAsync(ApiDialect.OpenAi, """{"model":"gpt5.4"}""", TestContext.Current.CancellationToken);
+        RoutePlan plan = await router.PlanAsync(ApiDialect.OpenAi, """{"model":"gpt5.4"}""", CallerHeaders.None, TestContext.Current.CancellationToken);
 
         plan.Decision.IsImposter.ShouldBeTrue();
         plan.CredentialOverride.ShouldBeNull();
@@ -129,14 +133,84 @@ public class ImposterRouterTests
     public async Task Plan_throws_when_model_missing()
     {
         ImposterRouter router = Build();
-        await Should.ThrowAsync<RoutingException>(() => router.PlanAsync(ApiDialect.OpenAi, """{"messages":[]}""", TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<RoutingException>(() => router.PlanAsync(ApiDialect.OpenAi, """{"messages":[]}""", CallerHeaders.None, TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task Plan_throws_on_non_object_body()
     {
         ImposterRouter router = Build();
-        await Should.ThrowAsync<RoutingException>(() => router.PlanAsync(ApiDialect.OpenAi, "[]", TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<RoutingException>(() => router.PlanAsync(ApiDialect.OpenAi, "[]", CallerHeaders.None, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Plan_logs_session_token_without_raw_value_on_opted_in_imposter()
+    {
+        var logger = new CapturingLogger();
+        ImposterRouter router = Build(logger: logger, sessionForwarding: "opencode-go");
+        CallerHeaders headers = new([
+            new KeyValuePair<string, IReadOnlyList<string>>("session_id", ["raw-secret-session"])
+        ]);
+
+        RoutePlan plan = await router.PlanAsync(
+            ApiDialect.OpenAi,
+            """{"model":"gpt5.4","messages":[{"role":"user","content":"hi"}]}""",
+            headers,
+            TestContext.Current.CancellationToken);
+
+        plan.SessionIdentity!.Value.ShouldBe("raw-secret-session");
+        plan.TransformedBody.ShouldContain("session_id");
+        string joined = string.Join('\n', logger.Messages);
+        joined.ShouldContain("session=captured");
+        joined.ShouldNotContain("raw-secret-session");
+    }
+
+    [Fact]
+    public async Task Plan_logs_session_derived_token_without_raw_inputs_on_opted_in_imposter()
+    {
+        // Derived-path unit coverage mirrors the captured-path test above. The fingerprint is hashed so
+        // the raw inputs (Authorization/chatgpt-account-id) must never appear in the Information line;
+        // only the source token and the prefixed hash reach the log sink.
+        var logger = new CapturingLogger();
+        ImposterRouter router = Build(logger: logger, sessionForwarding: "opencode-go");
+        CallerHeaders headers = new([
+            new KeyValuePair<string, IReadOnlyList<string>>("Authorization", ["Bearer raw-credential-value"]),
+            new KeyValuePair<string, IReadOnlyList<string>>("chatgpt-account-id", ["raw-account-id"]),
+        ]);
+
+        RoutePlan plan = await router.PlanAsync(
+            ApiDialect.OpenAi,
+            """{"model":"gpt5.4","messages":[{"role":"user","content":"hi"}]}""",
+            headers,
+            TestContext.Current.CancellationToken);
+
+        plan.SessionIdentity!.Source.ShouldBe(SessionIdentitySource.Derived);
+        plan.SessionIdentity.Value!.StartsWith("derived-").ShouldBeTrue();
+        plan.TransformedBody.ShouldContain("session_id");
+        string joined = string.Join('\n', logger.Messages);
+        joined.ShouldContain("session=derived");
+        joined.ShouldNotContain("raw-credential-value");
+        joined.ShouldNotContain("raw-account-id");
+        joined.ShouldNotContain("Bearer ");
+    }
+
+    [Fact]
+    public async Task PlanPassthroughAsync_accepts_caller_headers_and_returns_none_session()
+    {
+        // L0 coverage for the PlanPassthroughAsync signature change (HLD 009): the public interface
+        // accepts CallerHeaders for parity with PlanAsync, but the parameter is intentionally unread
+        // because session forwarding never stamps passthrough (LADR-02 / NFR-02). This test pins both
+        // halves of that contract — the call is accepted, and the returned plan carries SessionIdentity.None
+        // (no captured/derived identity), so the forwarder will not stamp x-opencode-session on the wire.
+        ImposterRouter router = Build();
+        CallerHeaders headers = new([
+            new KeyValuePair<string, IReadOnlyList<string>>("x-opencode-session", ["should-not-be-read"])
+        ]);
+
+        RoutePlan plan = await router.PlanPassthroughAsync(ApiDialect.OpenAi, headers, TestContext.Current.CancellationToken);
+
+        plan.Decision.IsImposter.ShouldBeFalse();
+        plan.SessionIdentity.ShouldBe(SessionIdentity.None);
     }
 
     private sealed class StubSecretProtector : ISecretProtector
@@ -201,5 +275,15 @@ public class ImposterRouterTests
         public Task<ProviderCredential> UpdateAsync(ProviderCredential credential, CancellationToken cancellationToken) => throw new InvalidOperationException();
 
         public Task<ProviderCredential> ActivateAsync(Guid id, CancellationToken cancellationToken) => throw new InvalidOperationException();
+    }
+
+    private sealed class CapturingLogger : ILogger<ImposterRouter>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Messages.Add(formatter(state, exception));
     }
 }

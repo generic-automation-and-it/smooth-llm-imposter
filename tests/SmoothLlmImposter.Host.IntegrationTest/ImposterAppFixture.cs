@@ -32,6 +32,7 @@ public sealed class ImposterAppFixture : WebApplicationFactory<HostApp::Program>
         ["Imposter:Providers:opencode-go:Secret"] = "opencode-key",
         ["Imposter:Providers:opencode-go:AuthScheme"] = "ApiKey",
         ["Imposter:Providers:opencode-go:OpenAiUpstreamApi"] = "chat_completions",
+        ["Imposter:Providers:opencode-go:SessionForwarding"] = "opencode-go",
         ["Imposter:Providers:opencode-go:Models:0:From"] = "gpt5.4",
         ["Imposter:Providers:opencode-go:Models:0:To"] = "grok-code",
         ["Imposter:Providers:opencode-go:Models:0:Caching"] = "true",
@@ -42,7 +43,16 @@ public sealed class ImposterAppFixture : WebApplicationFactory<HostApp::Program>
         ["Imposter:Providers:anthropic-official:IsDefault"] = "true",
         ["Imposter:Providers:anthropic-official:Models:0:From"] = "claude-haiku-*",
         ["Imposter:Providers:anthropic-official:Models:0:To"] = "claude-3-5-haiku-latest",
-        ["Imposter:Providers:anthropic-official:Models:0:Caching"] = "true"
+        ["Imposter:Providers:anthropic-official:Models:0:Caching"] = "true",
+
+        ["Imposter:Providers:anthropic-imposter:Dialect"] = "anthropic",
+        ["Imposter:Providers:anthropic-imposter:BaseUrl"] = "https://anthropic-imposter.test",
+        ["Imposter:Providers:anthropic-imposter:Secret"] = "anthropic-imposter-key",
+        ["Imposter:Providers:anthropic-imposter:AuthScheme"] = "ApiKey",
+        ["Imposter:Providers:anthropic-imposter:SessionForwarding"] = "opencode-go",
+        ["Imposter:Providers:anthropic-imposter:Models:0:From"] = "claude-opus-3-*",
+        ["Imposter:Providers:anthropic-imposter:Models:0:To"] = "claude-3-opus-latest",
+        ["Imposter:Providers:anthropic-imposter:Models:0:Caching"] = "true"
     };
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
