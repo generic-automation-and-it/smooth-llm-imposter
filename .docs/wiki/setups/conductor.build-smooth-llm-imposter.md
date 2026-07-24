@@ -2,11 +2,11 @@
 
 ## TL;DR
 
-This page contains exactly two Conductor scripts for a Google macOS image:
+This page contains exactly two Conductor scripts for a Conductor cloud snapshot based on Amazon Linux 2023:
 
-1. The **snapshot script** installs the general CLI tooling, Docker CLI + Compose, and Colima; persists and loads
-   `DOCKER_HOST`; starts the Docker VM only so it can pre-pull the published SmoothLlmImposter image; and does
-   **not** create or run the imposter container.
+1. The **snapshot script** installs the general CLI tooling, Docker Engine + Compose; persists and loads
+   `DOCKER_HOST`; starts the daemon so it can pre-pull the published SmoothLlmImposter image; and does **not**
+   create or run the imposter container.
 2. The **workspace setup script** preserves unrelated Codex configuration while selecting SmoothLlmImposter as
    its model provider, then creates the container from the image already stored in the snapshot. All provider
    configuration and secrets are passed before the container starts.
@@ -31,16 +31,17 @@ The router is stateless and key-less: it does not persist the caller's authoriza
 to the container under the shared provider-secret name that SmoothLlmImposter resolves for both OpenCode Go
 dialects.
 
-## Snapshot script (Google macOS image)
+## Snapshot script (Amazon Linux 2023)
 
-Use this as the Conductor snapshot setup script. It expects a Google macOS base image and works on both Apple
-Silicon and Intel images. Docker containers need a Linux VM on macOS, so the script installs Colima alongside
-the Docker client.
+Use this as the Conductor snapshot setup script. Conductor lifecycle logs identify this image as Linux (for
+example, the home directory is `/home/vercel-sandbox`), so use the native Amazon Linux packages rather than
+Homebrew or Colima. Attempting the macOS/Homebrew path installs Linuxbrew and fails in this sandbox when the
+Homebrew installer tries to use an unavailable `/dev/fd` process-substitution path.
 
 The Docker socket is explicitly persisted in both `~/.zshrc` and `~/.bashrc` and exported in the current
-snapshot process. This avoids relying on an interactive shell or Docker context to discover Colima's socket.
-The published tag supports `linux/arm64` and `linux/amd64`, so Docker selects the native image without forcing
-the `linux/amd64` platform used by the attached example from another environment.
+snapshot process. This makes the non-interactive lifecycle and later workspace shell use the native
+`/var/run/docker.sock` consistently. The published tag supports `linux/arm64` and `linux/amd64`, so Docker
+selects the native image without forcing a platform.
 
 The final `docker pull` warms the snapshot. There is intentionally no `docker run` in this stage.
 
@@ -50,30 +51,34 @@ set -euo pipefail
 
 IMAGE="${SMOOTH_LLM_IMAGE:-ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest}"
 
-echo "--- [1] Installing Homebrew when missing ---"
-if ! command -v brew >/dev/null 2>&1; then
-  NONINTERACTIVE=1 /bin/bash -c \
-    "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-fi
+echo "--- [1] Installing system and Docker packages ---"
+sudo dnf install -y \
+  git \
+  python3 \
+  python3-pip \
+  expect \
+  'dnf-command(config-manager)' \
+  docker
 
-if [ -x /opt/homebrew/bin/brew ]; then
-  eval "$(/opt/homebrew/bin/brew shellenv)"
-elif [ -x /usr/local/bin/brew ]; then
-  eval "$(/usr/local/bin/brew shellenv)"
-else
-  echo "Homebrew was installed but could not be found." >&2
-  exit 1
-fi
+# Amazon Linux 2023 uses DNF4, so add GitHub's official RPM repository.
+sudo dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
+sudo dnf install -y gh
 
-echo "--- [2] Installing general and Docker tooling ---"
-brew install gh python expect docker docker-compose colima
+# Amazon Linux 2023 does not package the Compose v2 plugin in its default
+# repository. Install the official plugin for the snapshot architecture.
+case "$(uname -m)" in
+  x86_64) docker_compose_arch="x86_64" ;;
+  aarch64|arm64) docker_compose_arch="aarch64" ;;
+  *) echo "Unsupported Docker Compose architecture: $(uname -m)" >&2; exit 1 ;;
+esac
 
-# Expose Compose as a Docker CLI plugin regardless of the Homebrew prefix.
-mkdir -p "$HOME/.docker/cli-plugins"
-ln -sfn \
-  "$(brew --prefix)/opt/docker-compose/bin/docker-compose" \
-  "$HOME/.docker/cli-plugins/docker-compose"
+sudo install -d -m 0755 /usr/local/lib/docker/cli-plugins
+sudo curl -fsSL \
+  "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$docker_compose_arch" \
+  -o /usr/local/lib/docker/cli-plugins/docker-compose
+sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
+echo "--- [2] Installing general CLI tooling ---"
 curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0
 curl -fsSL https://opencode.ai/install | bash
 curl -fsSL https://claude.ai/install.sh | bash
@@ -82,8 +87,7 @@ curl -fsSL https://pi.dev/install.sh | sh
 curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh
 
 echo "--- [3] Persisting and loading the environment ---"
-BREW_PREFIX="$(brew --prefix)"
-DOCKER_HOST_VALUE="unix://$HOME/.colima/default/docker.sock"
+DOCKER_HOST_VALUE="unix:///var/run/docker.sock"
 
 for shell_rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
   touch "$shell_rc"
@@ -97,15 +101,12 @@ for shell_rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
     echo 'export PATH="$HOME/.dotnet:$HOME/.dotnet/tools:$PATH"' >>"$shell_rc"
   grep -Fqx 'export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"' "$shell_rc" ||
     echo 'export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"' >>"$shell_rc"
-  grep -Fqx "export PATH=\"$BREW_PREFIX/bin:$BREW_PREFIX/sbin:\$PATH\"" "$shell_rc" ||
-    echo "export PATH=\"$BREW_PREFIX/bin:$BREW_PREFIX/sbin:\$PATH\"" >>"$shell_rc"
-  grep -Fqx 'export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"' "$shell_rc" ||
-    echo 'export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"' >>"$shell_rc"
+  grep -Fqx 'export DOCKER_HOST="unix:///var/run/docker.sock"' "$shell_rc" ||
+    echo 'export DOCKER_HOST="unix:///var/run/docker.sock"' >>"$shell_rc"
 done
 
 export DOTNET_ROOT="$HOME/.dotnet"
 export PATH="$HOME/.dotnet:$HOME/.dotnet/tools:$HOME/.opencode/bin:$HOME/.local/bin:$PATH"
-export PATH="$BREW_PREFIX/bin:$BREW_PREFIX/sbin:$PATH"
 export DOCKER_HOST="$DOCKER_HOST_VALUE"
 
 echo "--- [4] Configuring RTK ---"
@@ -119,18 +120,40 @@ sudo HOME="$HOME" rtk init -g --codex
 rtk telemetry disable
 
 echo "--- [5] Starting Docker and pre-pulling SmoothLlmImposter ---"
-if ! docker info >/dev/null 2>&1; then
-  colima start --runtime docker
+if command -v systemctl >/dev/null 2>&1; then
+  sudo systemctl enable --now docker || true
+else
+  sudo service docker start || true
 fi
 
-docker info >/dev/null
-docker compose version
-docker pull "$IMAGE"
+# The lifecycle environment might not use systemd as PID 1. Fall back to a
+# directly-started daemon and wait for its socket when the service command did
+# not make Docker available.
+if ! sudo docker info >/dev/null 2>&1; then
+  sudo nohup dockerd </dev/null >/tmp/dockerd.log 2>&1 &
+  for _ in $(seq 1 30); do
+    sudo docker info >/dev/null 2>&1 && break
+    sleep 1
+  done
+fi
+
+if ! sudo docker info >/dev/null 2>&1; then
+  echo "Docker daemon did not become ready; inspect /tmp/dockerd.log." >&2
+  exit 1
+fi
+
+# New workspace processes should receive this supplementary group. Snapshot
+# commands continue to use sudo because the current shell does not gain new
+# group membership after usermod.
+sudo usermod -aG docker "$USER" || true
+sudo docker --version
+sudo docker compose version
+sudo docker pull "$IMAGE"
 
 # Do not create or run the container while building the snapshot. The
 # workspace setup script owns runtime configuration and container startup.
 # Remove a stale container if this script is re-used to refresh a snapshot.
-docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
+sudo docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 ```
 
 Rebuild the snapshot when `:latest` should advance. The workspace script deliberately uses `--pull=never`, so
@@ -143,7 +166,8 @@ than embedding it here.
 
 The script performs these actions in order:
 
-1. Loads the persisted Colima socket and starts Colima if its Docker daemon is not already available.
+1. Loads the persisted native Docker socket and starts the Docker daemon if snapshot restoration did not keep
+   it running.
 2. Updates only Codex's top-level `model_provider` and
    `[model_providers.smooth-llm-proxy]` table. It backs up the existing file and preserves all unrelated
    settings, including MCP servers and RTK configuration.
@@ -162,24 +186,50 @@ CONTAINER_NAME="smooth-llm-imposter"
 CODEX_CONFIG="$HOME/.codex/config.toml"
 
 # Conductor setup shells are not guaranteed to be interactive, so load the
-# Docker socket explicitly even though the snapshot persisted it in shell rc files.
-export DOCKER_HOST="${DOCKER_HOST:-unix://$HOME/.colima/default/docker.sock}"
+# native Docker socket explicitly even though the snapshot persisted it in
+# shell rc files.
+export DOCKER_HOST="${DOCKER_HOST:-unix:///var/run/docker.sock}"
 
-if ! command -v docker >/dev/null 2>&1 || ! command -v colima >/dev/null 2>&1; then
-  echo "Docker/Colima is missing. Build this workspace from the documented snapshot." >&2
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Docker is missing. Build this workspace from the documented snapshot." >&2
   exit 1
 fi
 
-if ! docker info >/dev/null 2>&1; then
-  colima start --runtime docker
+# Snapshot restoration does not guarantee that background processes remain
+# alive. Restart the native daemon when neither the user nor sudo can reach it.
+if ! docker info >/dev/null 2>&1 && ! sudo docker info >/dev/null 2>&1; then
+  if command -v systemctl >/dev/null 2>&1; then
+    sudo systemctl start docker || true
+  else
+    sudo service docker start || true
+  fi
 fi
-docker info >/dev/null
+
+if ! docker info >/dev/null 2>&1 && ! sudo docker info >/dev/null 2>&1; then
+  sudo nohup dockerd </dev/null >/tmp/dockerd.log 2>&1 &
+  for _ in $(seq 1 30); do
+    sudo docker info >/dev/null 2>&1 && break
+    sleep 1
+  done
+fi
 
 # OPENCODE_API_KEY is the user-facing workspace variable. SmoothLlmImposter
 # resolves the two dialect-suffixed providers through their shared
 # OPENCODE_GO_API_KEY prefix.
 export OPENCODE_GO_API_KEY="${OPENCODE_GO_API_KEY:-${OPENCODE_API_KEY:-}}"
 : "${OPENCODE_GO_API_KEY:?Set OPENCODE_API_KEY in the Conductor workspace environment.}"
+
+# Prefer unprivileged Docker after snapshot user/group restoration. If the
+# current process does not yet have the docker group, preserve the secret
+# through sudo so `-e OPENCODE_GO_API_KEY` remains a name-only pass-through.
+if docker info >/dev/null 2>&1; then
+  DOCKER=(docker)
+elif sudo docker info >/dev/null 2>&1; then
+  DOCKER=(sudo --preserve-env=OPENCODE_GO_API_KEY docker)
+else
+  echo "Docker daemon did not become ready; inspect /tmp/dockerd.log." >&2
+  exit 1
+fi
 
 # Configure Codex first. Replace only the selected provider and its own table;
 # preserve every unrelated option already present in config.toml.
@@ -237,8 +287,8 @@ PY
 # Recreate the container so provider settings are present before the Host binds
 # configuration. The API key is passed by variable name, not expanded into the
 # command line.
-docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
-docker run -d \
+"${DOCKER[@]}" rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+"${DOCKER[@]}" run -d \
   --name "$CONTAINER_NAME" \
   --restart unless-stopped \
   --pull=never \
@@ -272,7 +322,7 @@ for _ in $(seq 1 30); do
 done
 
 echo "SmoothLlmImposter did not become healthy." >&2
-docker logs "$CONTAINER_NAME" >&2
+"${DOCKER[@]}" logs "$CONTAINER_NAME" >&2
 exit 1
 ```
 
@@ -281,6 +331,6 @@ OpenAI dialect from the `/openai` prefix, rewrites the configured model, convert
 provider uses `chat_completions`, and forwards it to OpenCode Go.
 
 To inspect the running service, use `curl -fsS http://127.0.0.1:5080/health` or
-`docker logs -f smooth-llm-imposter`. A missing `OPENCODE_API_KEY`, missing snapshotted image, unavailable Docker
-daemon, or failed health check makes the workspace setup fail instead of leaving Codex pointed at a silently
-broken router.
+`docker logs -f smooth-llm-imposter` (`sudo docker ...` if the current shell has not acquired the snapshot's
+Docker group). A missing `OPENCODE_API_KEY`, missing snapshotted image, unavailable Docker daemon, or failed
+health check makes the workspace setup fail instead of leaving Codex pointed at a silently broken router.
