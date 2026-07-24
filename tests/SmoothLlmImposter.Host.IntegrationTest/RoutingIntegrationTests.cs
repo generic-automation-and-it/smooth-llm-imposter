@@ -301,4 +301,61 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
         JsonNode error = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!;
         error["type"]!.GetValue<string>().ShouldBe("error"); // anthropic-shaped
     }
+
+    [Fact]
+    public async Task Session_forwarding_stamps_header_and_body_on_opted_in_imposter()
+    {
+        HttpClient client = fixture.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/chat/completions")
+        {
+            Content = Json("""{"model":"gpt5.4","messages":[{"role":"user","content":"hi"}]}""")
+        };
+        request.Headers.TryAddWithoutValidation("session_id", "codex-session-1");
+
+        using HttpResponseMessage response = await client.SendAsync(request, Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        fixture.Upstream.LastHeaders["x-opencode-session"].ShouldBe("codex-session-1");
+        JsonNode forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!;
+        forwarded["session_id"]!.GetValue<string>().ShouldBe("codex-session-1");
+        forwarded["model"]!.GetValue<string>().ShouldBe("grok-code");
+    }
+
+    [Fact]
+    public async Task Session_forwarding_is_absent_on_passthrough()
+    {
+        HttpClient client = fixture.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/chat/completions")
+        {
+            Content = Json("""{"model":"gpt5.5","messages":[{"role":"user","content":"hi"}]}""")
+        };
+        request.Headers.TryAddWithoutValidation("session_id", "should-not-stamp-body");
+
+        using HttpResponseMessage response = await client.SendAsync(request, Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://api.openai.test/v1/chat/completions");
+        JsonObject forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!.AsObject();
+        forwarded.ContainsKey("session_id").ShouldBeFalse();
+        // Caller header may still be relayed verbatim on passthrough; body stamp must not happen.
+    }
+
+    [Fact]
+    public async Task Session_forwarding_derives_identity_when_caller_sends_none()
+    {
+        HttpClient client = fixture.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/openai/v1/chat/completions")
+        {
+            Content = Json("""{"model":"gpt5.4","messages":[{"role":"user","content":"hi"}]}""")
+        };
+        request.Headers.TryAddWithoutValidation("Authorization", "Bearer caller-stable");
+
+        using HttpResponseMessage response = await client.SendAsync(request, Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        string stamped = fixture.Upstream.LastHeaders["x-opencode-session"];
+        stamped.StartsWith("derived-").ShouldBeTrue();
+        JsonNode forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!;
+        forwarded["session_id"]!.GetValue<string>().ShouldBe(stamped);
+    }
 }

@@ -10,6 +10,8 @@ public class RequestTransformerTests
 {
     private static OpenAiRequestTransformer OpenAi() => new([new CodexToOpenAiSdkNormalizer()]);
 
+    private static readonly SessionIdentity NoSession = SessionIdentity.None;
+
     private static RouteDecision Decision(string targetModel, bool caching) =>
         new(
             new ProviderRoute("p", ApiDialect.OpenAi, new Uri("https://p.example"), null, false, null, []),
@@ -39,7 +41,7 @@ public class RequestTransformerTests
         var transformer = OpenAi();
         string body = """{"model":"gpt5.4","messages":[{"role":"user","content":"hi"}]}""";
 
-        JsonNode result = JsonNode.Parse(transformer.Transform(body, Decision("grok-code", caching: true), "gpt5.4"))!;
+        JsonNode result = JsonNode.Parse(transformer.Transform(body, Decision("grok-code", caching: true), "gpt5.4", NoSession))!;
 
         result["model"]!.GetValue<string>().ShouldBe("grok-code");
         result["prompt_cache_key"]!.GetValue<string>().ShouldBe("gpt5.4");
@@ -51,7 +53,7 @@ public class RequestTransformerTests
         var transformer = OpenAi();
         string body = """{"model":"gpt5.5"}""";
 
-        JsonNode result = JsonNode.Parse(transformer.Transform(body, Decision("gpt5.5", caching: false), "gpt5.5"))!;
+        JsonNode result = JsonNode.Parse(transformer.Transform(body, Decision("gpt5.5", caching: false), "gpt5.5", NoSession))!;
 
         result["model"]!.GetValue<string>().ShouldBe("gpt5.5");
         result.AsObject().ContainsKey("prompt_cache_key").ShouldBeFalse();
@@ -72,7 +74,7 @@ public class RequestTransformerTests
          ]}
         """;
 
-        JsonObject result = JsonNode.Parse(transformer.Transform(body, NormalizingChatDecision(isImposter: true), "gpt5.4"))!.AsObject();
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, NormalizingChatDecision(isImposter: true), "gpt5.4", NoSession))!.AsObject();
 
         string[] names = [.. result["tools"]!.AsArray().Select(t => t!["function"]!["name"]!.GetValue<string>())];
         names.ShouldBe(["_search_issues", "exec_command"]);
@@ -86,7 +88,7 @@ public class RequestTransformerTests
         string body = """{"model":"gpt5.4","tools":[{"type":"web_search"}]}""";
 
         // Default ChatDecision provider has RequestNormalization = None ⇒ tools forwarded unchanged.
-        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!.AsObject();
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!.AsObject();
 
         result["tools"]!.AsArray()[0]!["type"]!.GetValue<string>().ShouldBe("web_search");
     }
@@ -98,7 +100,7 @@ public class RequestTransformerTests
         string body = """{"model":"gpt5.4","tools":[{"type":"web_search"}]}""";
 
         // IsImposter:false ⇒ normalization must not run (scope: matched imposter routes only).
-        JsonObject result = JsonNode.Parse(transformer.Transform(body, NormalizingChatDecision(isImposter: false), "gpt5.4"))!.AsObject();
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, NormalizingChatDecision(isImposter: false), "gpt5.4", NoSession))!.AsObject();
 
         result["tools"]!.AsArray()[0]!["type"]!.GetValue<string>().ShouldBe("web_search");
     }
@@ -116,7 +118,7 @@ public class RequestTransformerTests
         ]}
         """;
 
-        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!["messages"]!.AsArray();
 
         messages[0]!["role"]!.GetValue<string>().ShouldBe("system");
         messages[0]!["content"]!.GetValue<string>().ShouldBe("be brief");
@@ -129,7 +131,7 @@ public class RequestTransformerTests
         var transformer = OpenAi();
         string body = """{"model":"gpt5.4","messages":[{"role":"developer","content":"sys"},{"role":"user","content":"hi"}]}""";
 
-        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!["messages"]!.AsArray();
 
         messages[0]!["role"]!.GetValue<string>().ShouldBe("system");
         messages[0]!["content"]!.GetValue<string>().ShouldBe("sys");
@@ -148,7 +150,7 @@ public class RequestTransformerTests
         }
         """;
 
-        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi-k2.7", caching: true), "gpt5.4"))!.AsObject();
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi-k2.7", caching: true), "gpt5.4", NoSession))!.AsObject();
 
         result["model"]!.GetValue<string>().ShouldBe("kimi-k2.7");
         result["max_tokens"]!.GetValue<int>().ShouldBe(321);
@@ -176,7 +178,7 @@ public class RequestTransformerTests
         ]}
         """;
 
-        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!["messages"]!.AsArray();
 
         messages.Count.ShouldBe(4);
         messages[0]!["role"]!.GetValue<string>().ShouldBe("assistant");
@@ -205,7 +207,7 @@ public class RequestTransformerTests
         ]}
         """;
 
-        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!["messages"]!.AsArray();
 
         messages.Count.ShouldBe(1);
         messages[0]!["role"]!.GetValue<string>().ShouldBe("user");
@@ -224,7 +226,7 @@ public class RequestTransformerTests
         ]}
         """;
 
-        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!["messages"]!.AsArray();
 
         messages.Count.ShouldBe(1);
         messages[0]!["role"]!.GetValue<string>().ShouldBe("user");
@@ -237,7 +239,7 @@ public class RequestTransformerTests
         var transformer = OpenAi();
         string body = """{"model":"gpt5.4","previous_response_id":"resp_123","input":"continue"}""";
 
-        RoutingException ex = Should.Throw<RoutingException>(() => transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"));
+        RoutingException ex = Should.Throw<RoutingException>(() => transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession));
 
         ex.StatusCode.ShouldBe(400);
         ex.Message.ShouldContain("previous_response_id");
@@ -249,7 +251,7 @@ public class RequestTransformerTests
         var transformer = OpenAi();
         string body = """{"model":"gpt5.4","previous_response_id":"resp_123","input":"continue"}""";
 
-        JsonObject result = JsonNode.Parse(transformer.Transform(body, Decision("gpt5.5", caching: false), "gpt5.4"))!.AsObject();
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, Decision("gpt5.5", caching: false), "gpt5.4", NoSession))!.AsObject();
 
         result["previous_response_id"]!.GetValue<string>().ShouldBe("resp_123");
         result["input"]!.GetValue<string>().ShouldBe("continue");
@@ -263,7 +265,7 @@ public class RequestTransformerTests
         // so the downgrade rejects it like previous_response_id rather than silently dropping it (LADR-03).
         string body = """{"model":"gpt5.4","conversation":"conv_123","input":"continue"}""";
 
-        RoutingException ex = Should.Throw<RoutingException>(() => transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"));
+        RoutingException ex = Should.Throw<RoutingException>(() => transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession));
 
         ex.StatusCode.ShouldBe(400);
         ex.Message.ShouldContain("conversation");
@@ -277,7 +279,7 @@ public class RequestTransformerTests
         // not falsely reject it.
         string body = """{"model":"gpt5.4","conversation":null,"input":"hi"}""";
 
-        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!.AsObject();
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!.AsObject();
 
         result["model"]!.GetValue<string>().ShouldBe("kimi");
         result.ContainsKey("conversation").ShouldBeFalse();
@@ -290,7 +292,7 @@ public class RequestTransformerTests
         // The real /responses (no-downgrade) path stays byte-transparent for both new fields.
         string body = """{"model":"gpt5.4","conversation":"conv_123","reasoning":{"effort":"high"},"input":"continue"}""";
 
-        JsonObject result = JsonNode.Parse(transformer.Transform(body, Decision("gpt5.5", caching: false), "gpt5.4"))!.AsObject();
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, Decision("gpt5.5", caching: false), "gpt5.4", NoSession))!.AsObject();
 
         result["conversation"]!.GetValue<string>().ShouldBe("conv_123");
         result["reasoning"]!["effort"]!.GetValue<string>().ShouldBe("high");
@@ -306,7 +308,7 @@ public class RequestTransformerTests
         // object (summary/etc.) never leaks into the Chat body (LADR-03 convert).
         string body = """{"model":"gpt5.4","input":"hi","reasoning":{"effort":"high","summary":"auto"}}""";
 
-        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!.AsObject();
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!.AsObject();
 
         result["reasoning_effort"]!.GetValue<string>().ShouldBe("high");
         result.ContainsKey("reasoning").ShouldBeFalse();
@@ -322,7 +324,7 @@ public class RequestTransformerTests
         // unknown values are not valid Chat reasoning_effort. Both are dropped, never forwarded (LADR-03).
         string body = """{"model":"gpt5.4","input":"hi","reasoning":{"effort":"EFFORT"}}""".Replace("EFFORT", effort);
 
-        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!.AsObject();
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!.AsObject();
 
         result.ContainsKey("reasoning_effort").ShouldBeFalse();
         result.ContainsKey("reasoning").ShouldBeFalse();
@@ -343,7 +345,7 @@ public class RequestTransformerTests
          "top_logprobs":3}
         """;
 
-        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!.AsObject();
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!.AsObject();
 
         result["stop"]!.AsArray()[0]!.GetValue<string>().ShouldBe("STOP");
         result["metadata"]!["k"]!.GetValue<string>().ShouldBe("v");
@@ -365,7 +367,7 @@ public class RequestTransformerTests
         }}}
         """;
 
-        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!.AsObject();
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!.AsObject();
 
         result.ContainsKey("text").ShouldBeFalse();
         JsonObject responseFormat = result["response_format"]!.AsObject();
@@ -382,7 +384,7 @@ public class RequestTransformerTests
         var transformer = OpenAi();
         string body = """{"model":"gpt5.4","input":"hi","text":{"format":{"type":"grammar"}}}""";
 
-        RoutingException ex = Should.Throw<RoutingException>(() => transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"));
+        RoutingException ex = Should.Throw<RoutingException>(() => transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession));
 
         ex.Message.ShouldContain("text.format type 'grammar'");
     }
@@ -393,7 +395,7 @@ public class RequestTransformerTests
         var transformer = OpenAi();
         string body = """{"model":"gpt5.4","input":"hi","text":{"format":{"type":"json_schema","strict":true}}}""";
 
-        RoutingException ex = Should.Throw<RoutingException>(() => transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"));
+        RoutingException ex = Should.Throw<RoutingException>(() => transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession));
 
         ex.Message.ShouldContain("json_schema requires name and schema");
     }
@@ -406,7 +408,7 @@ public class RequestTransformerTests
         var transformer = OpenAi();
         string body = """{"model":"gpt5.4","input":"hi","text":{"format":{"type":"FORMAT"}}}""".Replace("FORMAT", formatType);
 
-        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!.AsObject();
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!.AsObject();
 
         result.ContainsKey("text").ShouldBeFalse();
         JsonObject responseFormat = result["response_format"]!.AsObject();
@@ -428,7 +430,7 @@ public class RequestTransformerTests
         ]}
         """;
 
-        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!["messages"]!.AsArray();
 
         messages.Count.ShouldBe(5);
         messages[0]!["role"]!.GetValue<string>().ShouldBe("assistant");
@@ -454,7 +456,7 @@ public class RequestTransformerTests
         ]}
         """;
 
-        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!["messages"]!.AsArray();
 
         messages.Count.ShouldBe(1);
         messages[0]!["role"]!.GetValue<string>().ShouldBe("user");
@@ -476,7 +478,7 @@ public class RequestTransformerTests
         ]}
         """;
 
-        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!["messages"]!.AsArray();
 
         messages.Count.ShouldBe(2);
         messages.Select(m => m!["role"]!.GetValue<string>()).ShouldBe(["user", "user"]);
@@ -496,7 +498,7 @@ public class RequestTransformerTests
         ]}
         """;
 
-        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!["messages"]!.AsArray();
 
         messages.Count.ShouldBe(1);
         messages[0]!["role"]!.GetValue<string>().ShouldBe("user");
@@ -515,7 +517,7 @@ public class RequestTransformerTests
         ]}
         """;
 
-        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!["messages"]!.AsArray();
 
         messages.Count.ShouldBe(1);
         messages[0]!["role"]!.GetValue<string>().ShouldBe("user");
@@ -534,7 +536,7 @@ public class RequestTransformerTests
         ]}
         """;
 
-        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!["messages"]!.AsArray();
 
         messages.Count.ShouldBe(2);
         messages[0]!["role"]!.GetValue<string>().ShouldBe("assistant");
@@ -559,7 +561,7 @@ public class RequestTransformerTests
         ]}
         """;
 
-        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!["messages"]!.AsArray();
 
         messages.Select(m => m!["role"]!.GetValue<string>()).ShouldBe(["user", "assistant", "tool", "user"]);
         messages[1]!["tool_calls"]!.AsArray()[0]!["id"]!.GetValue<string>().ShouldBe("call_1");
@@ -581,7 +583,7 @@ public class RequestTransformerTests
         ]}
         """;
 
-        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"))!["messages"]!.AsArray();
+        JsonArray messages = JsonNode.Parse(transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession))!["messages"]!.AsArray();
 
         messages.Count.ShouldBe(2);
         messages[0]!["role"]!.GetValue<string>().ShouldBe("assistant");
@@ -601,7 +603,7 @@ public class RequestTransformerTests
         // (LADR-03 fail-fast) rather than being silently dropped or converted to an empty user message.
         string body = """{"model":"gpt5.4","input":[{"type":"mcp_list_tools","id":"mcp_1"}]}""";
 
-        RoutingException ex = Should.Throw<RoutingException>(() => transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"));
+        RoutingException ex = Should.Throw<RoutingException>(() => transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession));
 
         ex.Message.ShouldContain("mcp_list_tools");
     }
@@ -612,7 +614,7 @@ public class RequestTransformerTests
         var transformer = OpenAi();
         string body = """{"model":"gpt5.4","input":[{"type":"mystery_item","role":"user","content":"x"}]}""";
 
-        RoutingException ex = Should.Throw<RoutingException>(() => transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4"));
+        RoutingException ex = Should.Throw<RoutingException>(() => transformer.Transform(body, ChatDecision("kimi", caching: false), "gpt5.4", NoSession));
 
         ex.Message.ShouldContain("mystery_item");
     }
@@ -623,7 +625,7 @@ public class RequestTransformerTests
         var transformer = new AnthropicRequestTransformer();
         string body = """{"model":"claude-haiku-x","system":"you are helpful","messages":[{"role":"user","content":"hi"}]}""";
 
-        JsonNode result = JsonNode.Parse(transformer.Transform(body, Decision("claude-3-5-haiku-latest", caching: true), "claude-haiku-x"))!;
+        JsonNode result = JsonNode.Parse(transformer.Transform(body, Decision("claude-3-5-haiku-latest", caching: true), "claude-haiku-x", NoSession))!;
 
         result["model"]!.GetValue<string>().ShouldBe("claude-3-5-haiku-latest");
         JsonArray system = result["system"]!.AsArray();
@@ -642,7 +644,7 @@ public class RequestTransformerTests
         ]}
         """;
 
-        JsonNode result = JsonNode.Parse(transformer.Transform(body, Decision("target", caching: true), "claude-haiku-x"))!;
+        JsonNode result = JsonNode.Parse(transformer.Transform(body, Decision("target", caching: true), "claude-haiku-x", NoSession))!;
 
         JsonArray content = result["messages"]!.AsArray()[0]!["content"]!.AsArray();
         content[0]!.AsObject().ContainsKey("cache_control").ShouldBeFalse();
@@ -655,7 +657,7 @@ public class RequestTransformerTests
         var transformer = new AnthropicRequestTransformer();
         string body = """{"model":"claude-x","system":"sys","messages":[{"role":"user","content":"hi"}]}""";
 
-        JsonNode result = JsonNode.Parse(transformer.Transform(body, Decision("target", caching: false), "claude-x"))!;
+        JsonNode result = JsonNode.Parse(transformer.Transform(body, Decision("target", caching: false), "claude-x", NoSession))!;
 
         result["model"]!.GetValue<string>().ShouldBe("target");
         result["system"]!.GetValueKind().ShouldBe(JsonValueKind.String);
@@ -675,7 +677,7 @@ public class RequestTransformerTests
          ]}
         """;
 
-        JsonObject result = JsonNode.Parse(transformer.Transform(body, Decision("target", caching: true), "claude-x"))!.AsObject();
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, Decision("target", caching: true), "claude-x", NoSession))!.AsObject();
 
         result["model"]!.GetValue<string>().ShouldBe("target");
         result["max_tokens"]!.GetValue<int>().ShouldBe(1024);
@@ -689,6 +691,108 @@ public class RequestTransformerTests
     public void Invalid_json_throws_routing_exception()
     {
         var transformer = OpenAi();
-        Should.Throw<RoutingException>(() => transformer.Transform("not json", Decision("x", false), "x"));
+        Should.Throw<RoutingException>(() => transformer.Transform("not json", Decision("x", false), "x", NoSession));
+    }
+
+    private static RouteDecision SessionChatDecision(bool isImposter, SessionForwarding forwarding = SessionForwarding.OpencodeGo) =>
+        new(
+            new ProviderRoute(
+                "p", ApiDialect.OpenAi, new Uri("https://p.example"), null, false, null, [],
+                OpenAiUpstreamApi.ChatCompletions, null, RequestNormalization.None, true, null, null, forwarding),
+            "kimi",
+            CachingEnabled: false,
+            IsImposter: isImposter);
+
+    private static RouteDecision SessionResponsesDecision(bool caching, SessionForwarding forwarding = SessionForwarding.OpencodeGo) =>
+        new(
+            new ProviderRoute(
+                "p", ApiDialect.OpenAi, new Uri("https://p.example"), null, false, null, [],
+                OpenAiUpstreamApi.Responses, null, RequestNormalization.None, true, null, null, forwarding),
+            "grok-code",
+            CachingEnabled: caching,
+            IsImposter: true);
+
+    [Fact]
+    public void OpenAi_session_forwarding_stamps_session_id_on_opted_in_imposter()
+    {
+        var transformer = OpenAi();
+        string body = """{"model":"gpt5.4","messages":[{"role":"user","content":"hi"}]}""";
+        var session = new SessionIdentity("sess-123", SessionIdentitySource.Captured);
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, SessionChatDecision(isImposter: true), "gpt5.4", session))!.AsObject();
+
+        result["session_id"]!.GetValue<string>().ShouldBe("sess-123");
+    }
+
+    [Fact]
+    public void OpenAi_session_forwarding_is_byte_transparent_without_opt_in()
+    {
+        var transformer = OpenAi();
+        string body = """{"model":"gpt5.4","messages":[{"role":"user","content":"hi"}]}""";
+        var session = new SessionIdentity("sess-123", SessionIdentitySource.Captured);
+
+        JsonObject result = JsonNode.Parse(
+            transformer.Transform(body, SessionChatDecision(isImposter: true, SessionForwarding.None), "gpt5.4", session))!.AsObject();
+
+        result.ContainsKey("session_id").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void OpenAi_session_forwarding_skipped_on_passthrough_even_when_opted_in()
+    {
+        var transformer = OpenAi();
+        string body = """{"model":"gpt5.4","messages":[{"role":"user","content":"hi"}]}""";
+        var session = new SessionIdentity("sess-123", SessionIdentitySource.Captured);
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, SessionChatDecision(isImposter: false), "gpt5.4", session))!.AsObject();
+
+        result.ContainsKey("session_id").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void OpenAi_responses_to_chat_downgrade_carries_session_id()
+    {
+        var transformer = OpenAi();
+        string body = """{"model":"gpt5.4","input":"hi","stream":true}""";
+        var session = new SessionIdentity("sess-downgrade", SessionIdentitySource.Captured);
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, SessionChatDecision(isImposter: true), "gpt5.4", session))!.AsObject();
+
+        result.ContainsKey("input").ShouldBeFalse();
+        result["session_id"]!.GetValue<string>().ShouldBe("sess-downgrade");
+        result["messages"]!.AsArray()[0]!["role"]!.GetValue<string>().ShouldBe("user");
+    }
+
+    [Fact]
+    public void OpenAi_caching_prefers_session_identity_for_prompt_cache_key()
+    {
+        var transformer = OpenAi();
+        string body = """{"model":"gpt5.4","input":"hi"}""";
+        var session = new SessionIdentity("sess-cache", SessionIdentitySource.Derived);
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, SessionResponsesDecision(caching: true), "gpt5.4", session))!.AsObject();
+
+        result["prompt_cache_key"]!.GetValue<string>().ShouldBe("sess-cache");
+        result["session_id"]!.GetValue<string>().ShouldBe("sess-cache");
+    }
+
+    [Fact]
+    public void Anthropic_does_not_inject_session_into_body()
+    {
+        var transformer = new AnthropicRequestTransformer();
+        string body = """{"model":"claude","messages":[{"role":"user","content":"hi"}]}""";
+        var decision = new RouteDecision(
+            new ProviderRoute(
+                "p", ApiDialect.Anthropic, new Uri("https://p.example"), null, false, null, [],
+                OpenAiUpstreamApi.Responses, null, RequestNormalization.None, true, null, null, SessionForwarding.OpencodeGo),
+            "claude-out",
+            CachingEnabled: false,
+            IsImposter: true);
+        var session = new SessionIdentity("sess-anthropic", SessionIdentitySource.Captured);
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, decision, "claude", session))!.AsObject();
+
+        result["model"]!.GetValue<string>().ShouldBe("claude-out");
+        result.ContainsKey("session_id").ShouldBeFalse();
     }
 }

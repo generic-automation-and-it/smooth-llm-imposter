@@ -10,12 +10,15 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 ## Non-Negotiables
 
 - **Never persist, log, or echo provider `Secret` values.** They live only in `ImposterOptions` (config/env). Logs
-  carry provider name + model names only.
+  carry provider name + model names only, plus the safe session token `session=captured|derived|none` (HLD 009) —
+  never the raw session value or fingerprint inputs.
 - **Transparent proxy — do not strip or rewrite the request.** The forwarder relays the caller's inbound
-  headers and body to the upstream **unchanged**, with exactly three sanctioned request-rewrite classes: (1) the
+  headers and body to the upstream **unchanged**, with exactly four sanctioned request-rewrite classes: (1) the
   **auth** header is managed (see below), (2) **caching injection** rewrites the body on a matched imposter
-  route, and (3) **opt-in request normalization** reshapes the body on a matched OpenAI imposter route that
-  opted in (HLD 004 — see "Request normalization" below). These three are **request-only**. The single sanctioned
+  route, (3) **opt-in request normalization** reshapes the body on a matched OpenAI imposter route that
+  opted in (HLD 004 — see "Request normalization" below), and (4) **opt-in session-identity forwarding** stamps
+  a resolved session id on a matched imposter route whose provider set `SessionForwarding` (HLD 009 — OpenAI
+  body `session_id` + both-dialects header `x-opencode-session`). These four are **request-only**. The single sanctioned
   response rewrite is `ChatToResponsesStreamTransformer`, and only on the matched OpenAI imposter
   `/responses`→Chat downgrade path (`OpenAiUpstreamApi: chat_completions` + inbound `/responses`); it is an
   incremental SSE transform, never a buffer/replay step (HLD 004 LADR-05 / NFR-05). Every other response stream is
@@ -145,7 +148,15 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   enabled default, but re-enabling into a duplicate default is rejected by the admin mutation validation.
 - **Caching is per-dialect** (only when `Caching: true`): Anthropic injects ephemeral `cache_control` on the
   `system` block (a string `system` is converted to a one-element block array) and on the last content block
-  of the last message; OpenAI sets `prompt_cache_key` to the **inbound** model name.
+  of the last message; OpenAI sets `prompt_cache_key` to a resolved **session identity** when session forwarding
+  produced one, otherwise the **inbound** model name (HLD 009).
+- **Session identity forwarding (HLD 009)** is per-provider opt-in (`SessionForwarding: opencode-go`, conventional
+  `<PREFIX>_SESSION_FORWARDING`). On matched imposter routes only, the router resolves once per request
+  (headers `session_id`/`x-opencode-session`/`x-session-id`/`conversation_id` → body `prompt_cache_key`/
+  `metadata.user_id` → stable fingerprint of caller identity material → none) and stamps OpenAI `session_id`
+  plus `x-opencode-session` (Anthropic: header only). Passthrough stays byte-transparent. The routing
+  Information line adds `session=captured|derived|none` and never logs the raw value. The Responses→Chat
+  allowlist carries `session_id`; body stamping is **not** gated on the Responses-only caching branch.
 - **Request normalization — `CodexToOpenAiSdk` v1** (`Features/Routing/Normalization/`). The seam is a
   `IReadOnlyDictionary<RequestNormalization, IRequestNormalizer>` in `OpenAiRequestTransformer`; adding a profile
   is a new `IRequestNormalizer` + enum value, not a router/forwarder branch. v1 keeps only upstream-valid
@@ -284,6 +295,7 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-07-24 | HLD 009: opt-in `SessionForwarding` (fourth request-rewrite class) stamps resolved session identity on matched imposter routes (`session_id` body + `x-opencode-session` header; Anthropic header-only). Routing log adds `session=captured|derived|none`. | #72 |
 | 2026-06-14 | Initial routing feature: same-dialect router, config-driven imposters, per-dialect caching, SSE streaming. | — |
 | 2026-06-14 | Moved full LADRs + C4/flow/sequence diagrams to HLD 001; trimmed this file to minimal AI-coder context. | — |
 | 2026-06-15 | HLD 001 split into `README.md` index + `diagrams/`, `nfrs/`, `ladrs/` subfolders. | — |

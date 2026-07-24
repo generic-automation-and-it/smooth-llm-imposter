@@ -87,6 +87,7 @@ internal static class RoutingEndpoints
         CancellationToken cancellationToken = context.RequestAborted;
 
         string requestBody = await ReadBodyAsync(context, cancellationToken);
+        CallerHeaders callerHeaders = CaptureCallerHeaders(context);
 
         LogInboundRequest(logger, context, dialect, upstreamPath, requestBody);
 
@@ -95,9 +96,11 @@ internal static class RoutingEndpoints
         {
             // A body carries a model → imposter/default resolution + transform. No body (e.g. GET /v1/models)
             // → passthrough to the dialect default, since there is no model to match on.
+            // Caller headers are captured once at the Host edge and shared by planning (session resolve)
+            // and forwarding (header relay + optional session stamp).
             plan = string.IsNullOrWhiteSpace(requestBody)
-                ? await router.PlanPassthroughAsync(dialect, cancellationToken)
-                : await router.PlanAsync(dialect, requestBody, cancellationToken);
+                ? await router.PlanPassthroughAsync(dialect, callerHeaders, cancellationToken)
+                : await router.PlanAsync(dialect, requestBody, callerHeaders, cancellationToken);
         }
         catch (RoutingException ex)
         {
@@ -117,7 +120,8 @@ internal static class RoutingEndpoints
                 string.IsNullOrEmpty(plan.TransformedBody) ? null : plan.TransformedBody,
                 translateChatToResponses ? "/v1/chat/completions" : upstreamPath,
                 context.Request.QueryString.Value,
-                CaptureCallerHeaders(context),
+                callerHeaders,
+                plan.SessionIdentity,
                 cancellationToken);
 
         }

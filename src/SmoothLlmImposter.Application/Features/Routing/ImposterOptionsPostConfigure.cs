@@ -79,6 +79,7 @@ internal sealed class ImposterOptionsPostConfigure(
         new("_ENABLED", nameof(ProviderOptions.Enabled), static (_, _) => { }),
         new("_OPENAI_UPSTREAM_API", nameof(ProviderOptions.OpenAiUpstreamApi), static (p, v) => p.OpenAiUpstreamApi = v),
         new("_REQUEST_NORMALIZATION", nameof(ProviderOptions.RequestNormalization), static (p, v) => p.RequestNormalization = v),
+        new("_SESSION_FORWARDING", nameof(ProviderOptions.SessionForwarding), static (p, v) => p.SessionForwarding = v),
         new("_ANTHROPIC_VERSION", nameof(ProviderOptions.AnthropicVersion), static (p, v) => p.AnthropicVersion = v),
     ];
 

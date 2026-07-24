@@ -212,4 +212,23 @@ public class ImposterOptionsValidatorTests
         };
         _validator.Validate(null, Options(("a", provider))).Failed.ShouldBeTrue();
     }
+
+    [Fact]
+    public void Invalid_session_forwarding_fails()
+    {
+        var provider = new ProviderOptions { Dialect = "openai", BaseUrl = "https://a.example", SessionForwarding = "sticky" };
+        _validator.Validate(null, Options(("a", provider))).Failed.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("none")]
+    [InlineData("opencode-go")]
+    [InlineData("opencode_go")]
+    public void Known_or_omitted_session_forwarding_succeeds(string? forwarding)
+    {
+        var provider = new ProviderOptions { Dialect = "openai", BaseUrl = "https://a.example", SessionForwarding = forwarding };
+        _validator.Validate(null, Options(("a", provider))).Succeeded.ShouldBeTrue();
+    }
 }

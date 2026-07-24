@@ -228,6 +228,7 @@ public sealed class ProviderConfigAdminIntegrationTests
         AnthropicVersion: null,
         OpenAiUpstreamApi: "chat_completions",
         RequestNormalization: null,
+        SessionForwarding: null,
         Models: models ?? [new ProviderModelMappingBody("gpt5.4", "grok-code", Caching: false)]);
 
     private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");

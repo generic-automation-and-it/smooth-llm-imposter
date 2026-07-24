@@ -32,7 +32,11 @@ internal sealed class ImposterRouter : IImposterRouter
         _logger = logger;
     }
 
-    public async Task<RoutePlan> PlanAsync(ApiDialect dialect, string requestBody, CancellationToken cancellationToken)
+    public async Task<RoutePlan> PlanAsync(
+        ApiDialect dialect,
+        string requestBody,
+        CallerHeaders callerHeaders,
+        CancellationToken cancellationToken)
     {
         string model = ExtractModel(requestBody);
         RouteDecision decision = _resolver.Resolve(dialect, model);
@@ -42,13 +46,19 @@ internal sealed class ImposterRouter : IImposterRouter
             throw new RoutingException($"No request transformer registered for dialect '{dialect}'.", statusCode: 500);
         }
 
-        string transformedBody = transformer.Transform(requestBody, decision, model);
+        // Resolve once per request; only stamp on matched imposter routes to an opted-in provider.
+        // Passthrough stays byte-transparent (session=none in the log, no header/body write).
+        SessionIdentity sessionIdentity = ShouldForwardSession(decision)
+            ? SessionIdentityResolver.Resolve(callerHeaders, requestBody)
+            : SessionIdentity.None;
+
+        string transformedBody = transformer.Transform(requestBody, decision, model, sessionIdentity);
         RouteCredentialOverride? credentialOverride = decision.IsImposter
             ? null
             : await ResolvePassthroughCredentialAsync(dialect, decision.Provider.CredentialProviderName, cancellationToken);
 
         _logger.LogInformation(
-            "Routed {Dialect} model '{InboundModel}' -> provider '{Provider}' as '{TargetModel}' (imposter={IsImposter}, caching={Caching}, storedCredential={StoredCredential}, auth={Auth})",
+            "Routed {Dialect} model '{InboundModel}' -> provider '{Provider}' as '{TargetModel}' (imposter={IsImposter}, caching={Caching}, storedCredential={StoredCredential}, auth={Auth}, session={Session})",
             dialect,
             model,
             decision.Provider.Name,
@@ -56,27 +66,37 @@ internal sealed class ImposterRouter : IImposterRouter
             decision.IsImposter,
             decision.CachingEnabled,
             credentialOverride is not null,
-            DescribeAuth(decision, dialect, credentialOverride));
+            DescribeAuth(decision, dialect, credentialOverride),
+            sessionIdentity.LogToken);
 
-        return new RoutePlan(decision, model, transformedBody, credentialOverride);
+        return new RoutePlan(decision, model, transformedBody, credentialOverride, sessionIdentity);
     }
 
-    public async Task<RoutePlan> PlanPassthroughAsync(ApiDialect dialect, CancellationToken cancellationToken)
+    public async Task<RoutePlan> PlanPassthroughAsync(
+        ApiDialect dialect,
+        CallerHeaders callerHeaders,
+        CancellationToken cancellationToken)
     {
         // No body, no model (e.g. GET /v1/models): passthrough to the dialect default with no transform.
         // The body forwarded upstream is empty, so the forwarder issues the request with no content.
+        // callerHeaders is accepted for interface uniformity; session forwarding never stamps passthrough.
+        _ = callerHeaders;
         RouteDecision decision = _resolver.ResolveDefault(dialect);
         RouteCredentialOverride? credentialOverride = await ResolvePassthroughCredentialAsync(dialect, decision.Provider.CredentialProviderName, cancellationToken);
 
         _logger.LogInformation(
-            "Routed {Dialect} body-less request -> provider '{Provider}' (passthrough, no model, storedCredential={StoredCredential}, auth={Auth})",
+            "Routed {Dialect} body-less request -> provider '{Provider}' (passthrough, no model, storedCredential={StoredCredential}, auth={Auth}, session={Session})",
             dialect,
             decision.Provider.Name,
             credentialOverride is not null,
-            DescribeAuth(decision, dialect, credentialOverride));
+            DescribeAuth(decision, dialect, credentialOverride),
+            SessionIdentity.None.LogToken);
 
-        return new RoutePlan(decision, InboundModel: string.Empty, TransformedBody: string.Empty, credentialOverride);
+        return new RoutePlan(decision, InboundModel: string.Empty, TransformedBody: string.Empty, credentialOverride, SessionIdentity.None);
     }
+
+    private static bool ShouldForwardSession(RouteDecision decision) =>
+        decision.IsImposter && decision.Provider.SessionForwarding == SessionForwarding.OpencodeGo;
 
     private async Task<RouteCredentialOverride?> ResolvePassthroughCredentialAsync(ApiDialect dialect, string providerName, CancellationToken cancellationToken)
     {

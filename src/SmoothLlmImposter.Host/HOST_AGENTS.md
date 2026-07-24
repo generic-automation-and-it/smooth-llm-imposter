@@ -21,8 +21,10 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   deliberately unmapped because it's dialect-ambiguous. For matched OpenAI imposter routes whose provider sets
   `OpenAiUpstreamApi: chat_completions`, the Host overrides an inbound `/responses` upstream path to
   `/v1/chat/completions`; the body conversion lives in Application. That same downgraded path translates the
-  upstream Chat Completions response back to Responses shape before writing to the caller. Routing/transform
-  semantics live in Application — see `Features/Routing/ROUTING_AGENTS.md`.
+  upstream Chat Completions response back to Responses shape before writing to the caller. `CallerHeaders` are
+  captured once and shared by route planning (HLD 009 session resolve) and the forwarder (header relay + optional
+  `x-opencode-session` stamp). Routing/transform semantics live in Application — see
+  `Features/Routing/ROUTING_AGENTS.md`.
 - An un-routed request returns `404` (and a body-less request with no dialect prefix has no model to route).
 - **Codex CLI client contract.** Codex drives the proxy through a `~/.codex/config.toml` `model_provider` whose
   `base_url` is the router root **plus the `/openai` dialect prefix** (Codex's Responses client appends
@@ -74,6 +76,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-07-24 | `CaptureCallerHeaders` is shared with `PlanAsync` so HLD 009 session identity can be resolved without leaking `HttpContext` downstream. | #72 |
 | 2026-05-30 | Created — minimal runnable Host (`Program.cs`, `appsettings(.Development).json`, `Properties/launchSettings.json`) with empty `Configuration/`, `Endpoints/`, `HealthChecks/`, `Workers/`. | — |
 | 2026-06-19 | Documented the dialect-prefixed routing endpoints (`/openai/**`, `/anthropic/**`, any method) + retained legacy `POST /v1/*`; corrected stale "bare bootstrap" note. | — |
 | 2026-06-20 | Documented that compose/runbook `Imposter__Providers__N__*` env vars must not reference sparse provider indexes because they create empty providers during binding. | — |

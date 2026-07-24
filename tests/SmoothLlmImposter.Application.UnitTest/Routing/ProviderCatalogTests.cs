@@ -137,4 +137,18 @@ public class ProviderCatalogTests
         public ImposterOptions Value =>
             throw new InvalidOperationException("Options value should not be evaluated when the registry is seeded.");
     }
+
+    [Fact]
+    public void Session_forwarding_flows_to_the_route()
+    {
+        ProviderCatalog catalog = ProviderCatalogTestFactory.SeededCatalog(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
+        {
+            ["set"] = new() { Dialect = "openai", BaseUrl = "https://s.example", SessionForwarding = "opencode-go" },
+            ["blank"] = new() { Dialect = "openai", BaseUrl = "https://b.example", SessionForwarding = null }
+        });
+
+        IReadOnlyList<ProviderRoute> routes = catalog.ProvidersFor(ApiDialect.OpenAi);
+        routes.Single(r => r.Name == "set").SessionForwarding.ShouldBe(SessionForwarding.OpencodeGo);
+        routes.Single(r => r.Name == "blank").SessionForwarding.ShouldBe(SessionForwarding.None);
+    }
 }

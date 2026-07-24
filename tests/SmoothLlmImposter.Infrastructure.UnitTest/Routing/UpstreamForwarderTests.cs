@@ -324,10 +324,55 @@ public class UpstreamForwarderTests
             "/v1/models",
             queryString: null,
             CallerHeaders.None,
-            Ct);
+            sessionIdentity: null, Ct);
 
         capture.Method.ShouldBe(HttpMethod.Get);
         capture.HadContent.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Session_identity_is_stamped_once_on_opted_in_imposter()
+    {
+        var capture = new CapturingHandler();
+        UpstreamForwarder forwarder = Build(capture);
+        CallerHeaders caller = Headers(("x-opencode-session", "caller-session"));
+        var session = new SessionIdentity("resolved-session", SessionIdentitySource.Captured);
+
+        await forwarder.SendAsync(
+            Decision(ApiDialect.OpenAi, isImposter: true, sessionForwarding: SessionForwarding.OpencodeGo),
+            credentialOverride: null,
+            ApiDialect.OpenAi,
+            HttpMethod.Post,
+            body: "{}",
+            "/v1/chat/completions",
+            queryString: null,
+            caller,
+            session,
+            Ct);
+
+        capture.Header("x-opencode-session").ShouldBe("resolved-session");
+    }
+
+    [Fact]
+    public async Task Session_identity_is_not_stamped_without_opt_in()
+    {
+        var capture = new CapturingHandler();
+        UpstreamForwarder forwarder = Build(capture);
+        var session = new SessionIdentity("resolved-session", SessionIdentitySource.Captured);
+
+        await forwarder.SendAsync(
+            Decision(ApiDialect.OpenAi, isImposter: true, sessionForwarding: SessionForwarding.None),
+            credentialOverride: null,
+            ApiDialect.OpenAi,
+            HttpMethod.Post,
+            body: "{}",
+            "/v1/chat/completions",
+            queryString: null,
+            CallerHeaders.None,
+            session,
+            Ct);
+
+        capture.Header("x-opencode-session").ShouldBeNull();
     }
 
     private static Task Send(
@@ -336,7 +381,7 @@ public class UpstreamForwarderTests
         RouteCredentialOverride? credentialOverride,
         ApiDialect dialect,
         CallerHeaders caller) =>
-        forwarder.SendAsync(decision, credentialOverride, dialect, HttpMethod.Post, "{}", dialect == ApiDialect.Anthropic ? "/v1/messages" : "/v1/chat/completions", queryString: null, caller, TestContext.Current.CancellationToken);
+        forwarder.SendAsync(decision, credentialOverride, dialect, HttpMethod.Post, "{}", dialect == ApiDialect.Anthropic ? "/v1/messages" : "/v1/chat/completions", queryString: null, caller, sessionIdentity: null, TestContext.Current.CancellationToken);
 
     private static CallerHeaders Headers(params (string Name, string Value)[] headers) =>
         new(headers.Select(h => new KeyValuePair<string, IReadOnlyList<string>>(h.Name, [h.Value])).ToArray());
@@ -349,8 +394,11 @@ public class UpstreamForwarderTests
         string? secret = "config-key",
         bool isImposter = false,
         CredentialAuthScheme? authScheme = null,
-        string? authHeader = null) => new(
-        new ProviderRoute("provider", dialect, new Uri("https://upstream.test"), Secret: secret, IsDefault: !isImposter, AnthropicVersion: null, Models: [], AuthScheme: authScheme, AuthHeader: authHeader),
+        string? authHeader = null,
+        SessionForwarding sessionForwarding = SessionForwarding.None) => new(
+        new ProviderRoute(
+            "provider", dialect, new Uri("https://upstream.test"), Secret: secret, IsDefault: !isImposter, AnthropicVersion: null, Models: [],
+            AuthScheme: authScheme, AuthHeader: authHeader, SessionForwarding: sessionForwarding),
         TargetModel: "model",
         CachingEnabled: false,
         IsImposter: isImposter);

@@ -32,6 +32,7 @@ public class ProviderConfigurationHandlerTests
                     AnthropicVersion: null,
                     OpenAiUpstreamApi: "chat_completions",
                     RequestNormalization: null,
+                    SessionForwarding: null,
                     Models: [new ProviderModelMappingBody("gpt5.4", "grok-code", Caching: true)]),
                 Actor: "test"),
             TestContext.Current.CancellationToken);
@@ -70,6 +71,7 @@ public class ProviderConfigurationHandlerTests
                     AnthropicVersion: null,
                     OpenAiUpstreamApi: null,
                     RequestNormalization: null,
+                    SessionForwarding: null,
                     Models: []),
                 Actor: "test"),
             TestContext.Current.CancellationToken).AsTask());

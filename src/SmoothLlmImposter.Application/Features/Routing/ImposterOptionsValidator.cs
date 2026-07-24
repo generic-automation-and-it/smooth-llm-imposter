@@ -110,6 +110,11 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
                 }
             }
 
+            if (!SessionForwardingParser.TryParse(provider.SessionForwarding, out _))
+            {
+                failures.Add($"{prefix}:SessionForwarding '{provider.SessionForwarding}' is invalid (expected 'none' or 'opencode-go').");
+            }
+
             for (int j = 0; j < provider.Models.Count; j++)
             {
                 ModelMappingOptions mapping = provider.Models[j];

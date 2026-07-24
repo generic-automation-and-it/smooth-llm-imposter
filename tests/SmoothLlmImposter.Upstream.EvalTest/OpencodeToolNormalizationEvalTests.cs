@@ -57,7 +57,7 @@ public sealed class OpencodeToolNormalizationEvalTests
             CachingEnabled: false,
             IsImposter: true);
 
-        string normalized = transformer.Transform(RawCodexBody, decision, "gpt-5.4");
+        string normalized = transformer.Transform(RawCodexBody, decision, "gpt-5.4", SessionIdentity.None);
 
         // Sanity-check our own output before sending it: only valid function tools survive.
         JsonObject normalizedRoot = JsonNode.Parse(normalized)!.AsObject();

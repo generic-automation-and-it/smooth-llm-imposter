@@ -14,6 +14,8 @@ namespace SmoothLlmImposter.Domain.Routing;
 /// MyCompany Gateway's <c>api-key</c> — sets it.
 /// <see cref="RequestNormalization"/> opts the provider into a proxy-side request-normalization profile
 /// (HLD 004); <see cref="RequestNormalization.None"/> (default) forwards the body unchanged.
+/// <see cref="SessionForwarding"/> opts the provider into a proxy-side session-identity stamp
+/// (HLD 009); <see cref="SessionForwarding.None"/> (default) leaves session signals untouched.
 /// </summary>
 public sealed record ProviderRoute(
     string Name,
@@ -28,7 +30,8 @@ public sealed record ProviderRoute(
     RequestNormalization RequestNormalization = RequestNormalization.None,
     bool Enabled = true,
     string? ProviderKey = null,
-    string? AuthHeader = null)
+    string? AuthHeader = null,
+    SessionForwarding SessionForwarding = SessionForwarding.None)
 {
     /// <summary>
     /// The stable identity used to key credentials and the authorization override — the provider's

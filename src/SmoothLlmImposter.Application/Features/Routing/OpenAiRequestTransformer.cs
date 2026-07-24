@@ -21,7 +21,11 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
 
     public ApiDialect Dialect => ApiDialect.OpenAi;
 
-    public string Transform(string requestBody, RouteDecision decision, string inboundModel)
+    public string Transform(
+        string requestBody,
+        RouteDecision decision,
+        string inboundModel,
+        SessionIdentity sessionIdentity)
     {
         JsonObject root = JsonNodeMaterializer.ParseObject(requestBody);
 
@@ -35,6 +39,17 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
             normalizer.Normalize(root);
         }
 
+        // Session body stamp runs before the Responses→Chat rebuild so ToChatCompletions can carry
+        // session_id through its allowlist (HLD 009). Opt-in + matched-imposter only.
+        bool stampSession = decision.IsImposter &&
+            decision.Provider.SessionForwarding == SessionForwarding.OpencodeGo &&
+            sessionIdentity.HasValue;
+
+        if (stampSession)
+        {
+            root["session_id"] = sessionIdentity.Value;
+        }
+
         if (decision.Provider.OpenAiUpstreamApi == OpenAiUpstreamApi.ChatCompletions)
         {
             root = ToChatCompletions(root);
@@ -42,9 +57,12 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
 
         root["model"] = decision.TargetModel;
 
+        // Prefer a resolved session identity for prompt_cache_key (better stickiness) when caching is on
+        // for a Responses upstream; fall back to the inbound model name when no session was resolved.
+        // Body-stamping session_id itself is NOT gated on this branch — opencode-go uses chat_completions.
         if (decision.CachingEnabled && decision.Provider.OpenAiUpstreamApi == OpenAiUpstreamApi.Responses)
         {
-            root["prompt_cache_key"] = inboundModel;
+            root["prompt_cache_key"] = stampSession ? sessionIdentity.Value : inboundModel;
         }
 
         return root.ToJsonString();
@@ -94,6 +112,10 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
         AddIfPresent(root, chat, "logit_bias");
         AddIfPresent(root, chat, "logprobs");
         AddIfPresent(root, chat, "top_logprobs");
+
+        // HLD 009: carry a stamped session_id through the Responses→Chat allowlist so the downgrade
+        // path does not silently drop the body field (opencode-go chat_completions stamp).
+        AddIfPresent(root, chat, "session_id");
 
         if (ConvertReasoningEffort(root) is { } reasoningEffort)
         {

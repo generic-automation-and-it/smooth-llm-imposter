@@ -34,6 +34,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         string path,
         string? queryString,
         CallerHeaders callerHeaders,
+        SessionIdentity? sessionIdentity,
         CancellationToken cancellationToken)
     {
         Uri baseUrl = credentialOverride?.BaseUrlOverride ?? decision.Provider.BaseUrl;
@@ -51,6 +52,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         ForwardCallerHeaders(request, callerHeaders);
         string? managedAuthHeader = ApplyAuthentication(request, decision, credentialOverride, dialect, callerHeaders);
         EnsureAnthropicVersion(request, decision, credentialOverride, dialect);
+        ApplySessionIdentity(request, decision, sessionIdentity);
 
         logger.LogDebug("Forwarding to {Provider} at {Target}", decision.Provider.Name, target);
         LogOutboundRequest(request, target, body, managedAuthHeader);
@@ -168,6 +170,27 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         request.Headers.TryAddWithoutValidation(
             "anthropic-version",
             credentialOverride?.AnthropicVersion ?? decision.Provider.AnthropicVersion ?? DefaultAnthropicVersion);
+    }
+
+    // HLD 009: stamp x-opencode-session once on matched opted-in imposter routes. Drop any caller-relayed
+    // value first (ForwardCallerHeaders may have copied it) so the resolved identity is the sole write —
+    // mirrors the managed-auth drop-then-write pattern. Never logs the raw value.
+    private static void ApplySessionIdentity(
+        HttpRequestMessage request,
+        RouteDecision decision,
+        SessionIdentity? sessionIdentity)
+    {
+        if (!decision.IsImposter ||
+            decision.Provider.SessionForwarding != SessionForwarding.OpencodeGo ||
+            sessionIdentity is null ||
+            !sessionIdentity.HasValue)
+        {
+            return;
+        }
+
+        const string headerName = "x-opencode-session";
+        request.Headers.Remove(headerName);
+        request.Headers.TryAddWithoutValidation(headerName, sessionIdentity.Value);
     }
 
     // Auth headers whose secret value is masked in the Debug request dump so real keys never reach the log sink.
