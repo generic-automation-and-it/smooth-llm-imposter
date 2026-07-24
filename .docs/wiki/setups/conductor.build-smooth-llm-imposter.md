@@ -5,8 +5,8 @@
 This page contains exactly two Conductor scripts for a Conductor cloud snapshot based on Amazon Linux 2023:
 
 1. The **snapshot script** installs the general CLI tooling, Docker Engine + Compose; persists and loads
-   `DOCKER_HOST`; starts the daemon so it can pre-pull the published SmoothLlmImposter image; and does **not**
-   create or run the imposter container.
+   `DOCKER_HOST`, `OPENAI_BASE_URL`, and `ANTHROPIC_BASE_URL`; starts the daemon so it can pre-pull the published
+   SmoothLlmImposter image; and does **not** create or run the imposter container.
 2. The **workspace setup script** preserves unrelated Codex configuration while selecting SmoothLlmImposter as
    its model provider, then creates the container from the image already stored in the snapshot. All provider
    configuration and secrets are passed before the container starts.
@@ -42,6 +42,15 @@ The Docker socket is explicitly persisted in both `~/.zshrc` and `~/.bashrc` and
 snapshot process. This makes the non-interactive lifecycle and later workspace shell use the native
 `/var/run/docker.sock` consistently. The published tag supports `linux/arm64` and `linux/amd64`, so Docker
 selects the native image without forcing a platform.
+
+The same environment setup points generic OpenAI and Anthropic clients at the local router. The OpenAI base
+includes `/v1` because OpenAI-compatible SDKs append paths such as `/responses` and `/chat/completions`; the
+Anthropic base omits `/v1` because Anthropic clients append `/v1/messages` themselves:
+
+| Variable | Value |
+|---|---|
+| `OPENAI_BASE_URL` | `http://127.0.0.1:5080/openai/v1` |
+| `ANTHROPIC_BASE_URL` | `http://127.0.0.1:5080/anthropic` |
 
 The final `docker pull` warms the snapshot. There is intentionally no `docker run` in this stage.
 
@@ -88,6 +97,8 @@ curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/instal
 
 echo "--- [3] Persisting and loading the environment ---"
 DOCKER_HOST_VALUE="unix:///var/run/docker.sock"
+OPENAI_BASE_URL_VALUE="http://127.0.0.1:5080/openai/v1"
+ANTHROPIC_BASE_URL_VALUE="http://127.0.0.1:5080/anthropic"
 
 for shell_rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
   touch "$shell_rc"
@@ -103,11 +114,17 @@ for shell_rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
     echo 'export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"' >>"$shell_rc"
   grep -Fqx 'export DOCKER_HOST="unix:///var/run/docker.sock"' "$shell_rc" ||
     echo 'export DOCKER_HOST="unix:///var/run/docker.sock"' >>"$shell_rc"
+  grep -Fqx 'export OPENAI_BASE_URL="http://127.0.0.1:5080/openai/v1"' "$shell_rc" ||
+    echo 'export OPENAI_BASE_URL="http://127.0.0.1:5080/openai/v1"' >>"$shell_rc"
+  grep -Fqx 'export ANTHROPIC_BASE_URL="http://127.0.0.1:5080/anthropic"' "$shell_rc" ||
+    echo 'export ANTHROPIC_BASE_URL="http://127.0.0.1:5080/anthropic"' >>"$shell_rc"
 done
 
 export DOTNET_ROOT="$HOME/.dotnet"
 export PATH="$HOME/.dotnet:$HOME/.dotnet/tools:$HOME/.opencode/bin:$HOME/.local/bin:$PATH"
 export DOCKER_HOST="$DOCKER_HOST_VALUE"
+export OPENAI_BASE_URL="$OPENAI_BASE_URL_VALUE"
+export ANTHROPIC_BASE_URL="$ANTHROPIC_BASE_URL_VALUE"
 
 echo "--- [4] Configuring RTK ---"
 expect -c "
