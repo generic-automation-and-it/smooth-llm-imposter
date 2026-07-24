@@ -3,13 +3,14 @@
 ## TL;DR
 
 This page has two independent stages. **General sandbox setup** provisions a fresh Conductor cloud sandbox
-with the CLI tooling every engineer/agent needs (`gh`, the .NET 10 SDK, `opencode`, Claude Code, Codex CLI,
-`pi`, and `rtk`) — it is generic to the sandbox, not specific to SmoothLlmImposter, and is safe to run in any
-repo's sandbox. **Imposter setup** publishes SmoothLlmImposter from source (`Release` config) and runs it
-directly with `dotnet` on `localhost:5080` with a full set of example imposter providers, then points the
-Codex CLI at the router. Point any OpenAI- or Anthropic-dialect client's base URL at `http://localhost:5080`
-and the router rewrites the inbound `model` only when a non-default provider has a matching `Models[]` entry
-in the **`Imposter`** config section. Read the current shipped provider keys, URLs, and defaults in
+with the CLI tooling every engineer/agent needs (`gh`, Docker CLI + Compose v2, the .NET 10 SDK, `opencode`,
+Claude Code, Codex CLI, `pi`, and `rtk`) — it is generic to the sandbox, not specific to SmoothLlmImposter, and
+is safe to run in any repo's sandbox. **Imposter setup** publishes SmoothLlmImposter from source (`Release`
+config) and runs it directly with `dotnet` on `localhost:5080` with a full set of example imposter providers,
+then points the Codex CLI at the router. Point any OpenAI- or Anthropic-dialect client's base URL at
+`http://localhost:5080` and the router rewrites the inbound `model` only when a non-default provider has a
+matching `Models[]` entry in the **`Imposter`** config section. Read the current shipped provider keys, URLs, and
+defaults in
 [`src/SmoothLlmImposter.Host/appsettings.json`](../../../src/SmoothLlmImposter.Host/appsettings.json); this
 setup page intentionally avoids duplicating that table. With no matching model mapping, routing falls through
 to the dialect default when one is configured, or returns a dialect-shaped 404 when no default exists.
@@ -21,12 +22,13 @@ route the inbound `Authorization` / `x-api-key` is replaced by the provider's co
 ## General sandbox setup
 
 Run this first in a fresh Conductor cloud sandbox (Amazon Linux 2023 / DNF4). It installs system packages, the
-GitHub CLI (via GitHub's official RPM repo, since Amazon Linux 2023 ships DNF4), the .NET 10 SDK, and the CLI
-agents this repo is commonly driven by (`opencode`, Claude Code, Codex CLI, `pi`); wires their bins onto `PATH`
-with a couple of YOLO-mode aliases in `~/.bashrc`; then installs `rtk` (token-optimized CLI proxy — see
-`RTK.md`), patches it into the shell and Codex config non-interactively via `expect`, and disables its telemetry.
-It is generic to the sandbox, not to SmoothLlmImposter — the [Imposter setup](#imposter-setup) below is what
-actually clones, builds, and runs the SmoothLlmImposter Host as a sidecar for whichever repo the sandbox is for.
+GitHub CLI (via GitHub's official RPM repo, since Amazon Linux 2023 ships DNF4), Docker CLI + Compose v2, starts
+and verifies the local Docker daemon, installs the .NET 10 SDK, and installs the CLI agents this repo is commonly
+driven by (`opencode`, Claude Code, Codex CLI, `pi`); wires their bins onto `PATH` with a couple of YOLO-mode
+aliases in `~/.bashrc`; then installs `rtk` (token-optimized CLI proxy — see `RTK.md`), patches it into the shell
+and Codex config non-interactively via `expect`, and disables its telemetry. It is generic to the sandbox, not to
+SmoothLlmImposter — the [Imposter setup](#imposter-setup) below is what actually clones, builds, and runs the
+SmoothLlmImposter Host as a sidecar for whichever repo the sandbox is for.
 
 ```bash
 #!/usr/bin/env bash
@@ -34,7 +36,7 @@ set -euo pipefail
 
 # --- [1/7] Installing System Dependencies (dnf) ---
 echo "--- [1] Installing System Dependencies (dnf) ---"
-sudo dnf install -y python3-pip expect python3 'dnf-command(config-manager)'
+sudo dnf install -y python3-pip expect python3 'dnf-command(config-manager)' docker
 
 # --- [2/7] Installing Core CLI Tools ---
 echo "--- [2] Installing Core CLI Tools ---"
@@ -42,6 +44,47 @@ echo "--- [2] Installing Core CLI Tools ---"
 # GitHub CLI: Amazon Linux 2023 uses DNF4, so add GitHub's official RPM repo first.
 sudo dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
 sudo dnf install -y gh
+
+# Docker Compose v2: Amazon Linux 2023 has Docker, but not the Compose plugin
+# package in the default repo. Install the official CLI plugin binary so
+# `docker compose` works alongside `docker`.
+docker_arch="$(uname -m)"
+case "$docker_arch" in
+  x86_64) docker_compose_arch="x86_64" ;;
+  aarch64|arm64) docker_compose_arch="aarch64" ;;
+  *) echo "Unsupported Docker Compose architecture: $docker_arch" >&2; exit 1 ;;
+esac
+
+sudo install -d -m 0755 /usr/local/lib/docker/cli-plugins
+sudo curl -fsSL \
+  "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$docker_compose_arch" \
+  -o /usr/local/lib/docker/cli-plugins/docker-compose
+sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+# Start Docker when the snapshot supports a local daemon. Keep sudo in the
+# verification commands because group membership usually needs a fresh shell.
+if command -v systemctl >/dev/null 2>&1; then
+  sudo systemctl enable --now docker || true
+else
+  sudo service docker start || true
+fi
+
+if ! sudo docker info >/dev/null 2>&1; then
+  sudo nohup dockerd >/tmp/dockerd.log 2>&1 &
+  for _ in $(seq 1 30); do
+    sudo docker info >/dev/null 2>&1 && break
+    sleep 1
+  done
+fi
+
+if ! sudo docker info >/dev/null 2>&1; then
+  echo "Docker daemon did not become ready; see /tmp/dockerd.log when dockerd fallback was used." >&2
+  exit 1
+fi
+
+sudo usermod -aG docker "$USER" || true
+sudo docker --version
+sudo docker compose version
 
 curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0
 curl -fsSL https://opencode.ai/install | bash
