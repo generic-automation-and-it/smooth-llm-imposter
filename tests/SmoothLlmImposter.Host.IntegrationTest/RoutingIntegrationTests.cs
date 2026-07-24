@@ -395,6 +395,11 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
         fixture.Upstream.LastHeaders.TryGetValue("x-opencode-session", out string? stamped).ShouldBeTrue(
             "the resolved session identity must be stamped on the outbound Anthropic request");
         stamped.ShouldBe("anthropic-session-1");
+        // Drop half of the drop-then-write contract — mirrors the OpenAI test above. ApplySessionIdentity
+        // (UpstreamForwarder.cs) is dialect-agnostic, but a regression that moved the Remove("session_id")
+        // call into an if (OpenAi) branch would slip past this test without this assertion.
+        fixture.Upstream.LastHeaders.ContainsKey("session_id").ShouldBeFalse(
+            "the caller session_id header must not be relayed verbatim on the Anthropic branch");
         JsonObject forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!.AsObject();
         forwarded.ContainsKey("session_id").ShouldBeFalse();
     }

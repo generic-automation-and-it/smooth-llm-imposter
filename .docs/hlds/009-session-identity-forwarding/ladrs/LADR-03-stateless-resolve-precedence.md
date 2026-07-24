@@ -5,7 +5,7 @@
 - **Status:** Accepted · 2026-07-24
 - **Context:** NFR-001 forbids stored session affinity. Clients differ in what they send.
 - **Decision:** Per-request precedence — headers (`session_id`, `x-opencode-session`, `x-session-id`, `conversation_id`) → body (`prompt_cache_key`, `metadata.user_id`) → SHA-256 fingerprint of stable caller identity material → none. Never random. Log only the source token.
-- **Fingerprint inputs:** `chatgpt-account-id`, `openai-organization`, `openai-project`, `Authorization`, `x-api-key`, body `user`. Sorted canonical `name=value` lines; when **at least one** input is present, output `derived-` + 16-byte SHA-256 prefix (32 hex chars). When **all six are absent**, the resolver returns `session=none` — never a hash of the empty input set.
+- **Fingerprint inputs:** five headers (`chatgpt-account-id`, `openai-organization`, `openai-project`, `Authorization`, `x-api-key`) + body `user` — read from the same single body parse. Sorted canonical `name=value` lines; when **at least one** input is present, output `derived-` + 16-byte SHA-256 prefix (32 hex chars). When **all six are absent**, the resolver returns `session=none` — never a hash of the empty input set.
 - **Consequences:** Same CLI credential/account buckets together upstream; empty identity stays unstamped.
 
 ## Alternatives Considered
@@ -21,7 +21,8 @@
 
 - [LADR-01: Fourth rewrite class, opt-in](./LADR-01-fourth-rewrite-class-opt-in.md)
 - [NFR-01: Statelessness](../nfrs/NFR-01-statelessness.md)
-- `SessionIdentityResolver.FingerprintHeaderNames`
+- `SessionIdentityResolver.FingerprintHeaderNames` — the five header inputs (`chatgpt-account-id`, `openai-organization`, `openai-project`, `Authorization`, `x-api-key`).
+- `SessionIdentityResolver.ReadBodySignals` / `BodySignals.User` — the sixth input (body `user`), read from the same single body parse.
 
 ## Known Limitations
 

@@ -178,6 +178,9 @@ internal sealed class ImposterRouter : IImposterRouter
 
         if (document.RootElement.ValueKind != JsonValueKind.Object)
         {
+            // Explicit Dispose + throw: this branch exits the method without a `using` in scope, so
+            // the document must be released before the throw leaks the local. The success path returns
+            // the document to the caller (wrapped in a using block) and lets that frame dispose it.
             document.Dispose();
             throw new RoutingException("Request body must be a JSON object.");
         }

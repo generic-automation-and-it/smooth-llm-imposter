@@ -194,6 +194,25 @@ public class ImposterRouterTests
         joined.ShouldNotContain("Bearer ");
     }
 
+    [Fact]
+    public async Task PlanPassthroughAsync_accepts_caller_headers_and_returns_none_session()
+    {
+        // L0 coverage for the PlanPassthroughAsync signature change (HLD 009): the public interface
+        // accepts CallerHeaders for parity with PlanAsync, but the parameter is intentionally unread
+        // because session forwarding never stamps passthrough (LADR-02 / NFR-02). This test pins both
+        // halves of that contract — the call is accepted, and the returned plan carries SessionIdentity.None
+        // (no captured/derived identity), so the forwarder will not stamp x-opencode-session on the wire.
+        ImposterRouter router = Build();
+        CallerHeaders headers = new([
+            new KeyValuePair<string, IReadOnlyList<string>>("x-opencode-session", ["should-not-be-read"])
+        ]);
+
+        RoutePlan plan = await router.PlanPassthroughAsync(ApiDialect.OpenAi, headers, TestContext.Current.CancellationToken);
+
+        plan.Decision.IsImposter.ShouldBeFalse();
+        plan.SessionIdentity.ShouldBe(SessionIdentity.None);
+    }
+
     private sealed class StubSecretProtector : ISecretProtector
     {
         public string Protect(string plaintext) => "cipher:" + plaintext;

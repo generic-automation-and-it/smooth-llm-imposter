@@ -76,7 +76,11 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   the operator populates `Models` via env vars, mirroring the dev-template behaviour. Note: the dev `opencode-go-*`
   providers declare `SessionForwarding=opencode-go` but `Models: []`, so no imposter route ever matches them and the
   `SessionForwarding` field is currently inert there — a reminder that the opt-in is only meaningful alongside a
-  populated `Models` array.
+  populated `Models` array. **Note (HLD 009):** `Models` is **structured-only** — there is no conventional
+  `Imposter__Providers__<name>__Models` scalar env suffix. Use the structured form
+  `Imposter__Providers__<name>__Models__0__From=...`, the `/admin/providers` admin CRUD API, or
+  `appsettings.Development.json`. An operator following the `Imposter__Providers__<name>__*` env convention will
+  hit a dead end on `Models` without this note.
 - **Runtime provider-config admin endpoints (HLD 008 Phase 1).** `Endpoints/ProviderConfigurationEndpoints.cs`
   maps `/admin/providers` and requires the existing `CredentialAdmin` policy. Endpoints are thin HTTP-to-Mediator
   adapters only; the Application slices own validation, registry mutation, secret preservation, and enable/disable
