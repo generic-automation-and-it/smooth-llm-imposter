@@ -177,15 +177,6 @@ internal static class RoutingEndpoints
         }
     }
 
-    // Auth and session-identity headers whose value is masked in the Debug request dump so real keys,
-    // session tokens, and account/organization identifiers never reach the log sink in the clear. The
-    // Debug sink may still log them (operators should not enable Debug in production).
-    private static readonly HashSet<string> SensitiveHeaders = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Authorization", "x-api-key", "session_id", "x-opencode-session",
-        "chatgpt-account-id", "openai-organization", "openai-project",
-    };
-
     // Debug-only dump of the full inbound request (method, path, query, every header, raw body). Off by default
     // — the SmoothLlmImposter.Routing logger sits at Information unless its minimum level is overridden to Debug.
     // The IsEnabled guard keeps it free when disabled (no header/body string is built). Auth secrets are masked.
@@ -199,7 +190,7 @@ internal static class RoutingEndpoints
         var headers = new StringBuilder();
         foreach (KeyValuePair<string, Microsoft.Extensions.Primitives.StringValues> header in context.Request.Headers)
         {
-            string value = SensitiveHeaders.Contains(header.Key)
+            string value = SensitiveHeaderNames.Values.Contains(header.Key)
                 ? MaskSecretHeader(header.Value.ToString())
                 : header.Value.ToString();
             headers.Append("\n  ").Append(header.Key).Append(": ").Append(value);

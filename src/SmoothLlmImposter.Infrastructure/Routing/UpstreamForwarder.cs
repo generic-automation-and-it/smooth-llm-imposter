@@ -180,7 +180,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
     // passthrough-transparent) so the resolved identity is the sole write — mirrors the managed-auth
     // drop-then-write pattern. The raw value is never logged at Information level; LogOutboundRequest's
     // Debug-level dump is the only place the header value reaches the log sink, and Debug is opt-in by
-    // configuration. LogOutboundRequest masks the session-identity headers via SensitiveHeaders.
+    // configuration. LogOutboundRequest masks the session-identity headers via SensitiveHeaderNames.
     private static void ApplySessionIdentity(
         HttpRequestMessage request,
         RouteDecision decision,
@@ -199,15 +199,6 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         request.Headers.TryAddWithoutValidation(headerName, sessionIdentity.Value);
     }
 
-    // Auth and session-identity headers whose value is masked in the Debug request dump so real keys,
-    // session tokens, and account/organization identifiers never reach the log sink in the clear. The
-    // Debug sink may still log them (operators should not enable Debug in production).
-    private static readonly HashSet<string> SensitiveHeaders = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Authorization", "x-api-key", "session_id", "x-opencode-session",
-        "chatgpt-account-id", "openai-organization", "openai-project",
-    };
-
     // Debug-only dump of the exact request leaving the forwarder (method, target, every header that opencode/the
     // upstream will actually receive). Mirrors the Host's inbound dump so you can diff what the caller sent vs what
     // is forwarded — the suspect is a relayed caller header the upstream rejects. Off by default (Information); the
@@ -224,7 +215,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         {
             // Mask the static auth headers and any provider-specific AuthHeader the managed secret was written
             // into, so a relocated credential (e.g. `api-key`) never reaches the log sink in the clear.
-            bool sensitive = SensitiveHeaders.Contains(header.Key) ||
+            bool sensitive = SensitiveHeaderNames.Values.Contains(header.Key) ||
                 (managedAuthHeader is not null && string.Equals(header.Key, managedAuthHeader, StringComparison.OrdinalIgnoreCase));
             string value = sensitive
                 ? MaskSecretHeader(string.Join(", ", header.Value))
