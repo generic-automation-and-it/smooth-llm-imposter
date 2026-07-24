@@ -116,7 +116,7 @@ appears in opencode diag for Codex traffic through Smooth (body-only vs header-o
 | LADR | Decision | Status |
 |------|----------|--------|
 | [LADR-01](./ladrs/LADR-01-fourth-rewrite-class-opt-in.md) | Session forwarding is a fourth sanctioned request-rewrite class, matched-imposter + per-provider opt-in only | Accepted |
-| [LADR-02](./ladrs/LADR-02-dual-stamp-and-cache-key.md) | OpenAI dual-stamps body+header; Anthropic header-only; `prompt_cache_key` prefers session when present | Accepted |
+| [LADR-02](./ladrs/LADR-02-dual-stamp-and-cache-key.md) | OpenAI dual-stamps body+header; Anthropic header-only; `prompt_cache_key` uses the session only when Responses caching is enabled and a session was resolved | Accepted |
 | [LADR-03](./ladrs/LADR-03-stateless-resolve-precedence.md) | Capture → derive fingerprint → none; never random; never log raw values | Accepted |
 
 ## Non-Functional Requirements

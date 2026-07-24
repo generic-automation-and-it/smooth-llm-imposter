@@ -14,8 +14,10 @@ any log sink. Fingerprint inputs are named in [README §2](../../README.md#2-sta
 ## Acceptance Criteria
 
 - Routing Information line includes `session=captured|derived|none` only.
-- The `LogToken` switch is exhaustive: `UnreachableException` throws on
-  a new `SessionIdentitySource` value.
+- The `LogToken` switch has a default arm that throws `UnreachableException`
+  on an unrecognised `SessionIdentitySource`, so a new enum value fails fast
+  at **runtime** the first time such a request is routed (the default arm
+  means C# does not enforce compile-time exhaustiveness).
 - All four resolver capture headers (`session_id`, `x-opencode-session`,
   `x-session-id`, `conversation_id`) are in `SensitiveHeaderNames.Values`
   and masked in both inbound (Host) and outbound (Infrastructure) Debug
@@ -24,7 +26,9 @@ any log sink. Fingerprint inputs are named in [README §2](../../README.md#2-sta
 ## Verification
 
 - `SessionIdentity.LogToken` initializer is a switch with `_ => throw new
-  UnreachableException()` — compile-time fail on new enum values.
+  UnreachableException()` — a runtime fail-fast guard on new enum values
+  (not a compile-time exhaustiveness check, because the default arm handles
+  the unmatched case).
 - `tests/SmoothLlmImposter.Application.UnitTest/Routing/ImposterRouterTests.cs`
   covers the derived-path log triad.
 
