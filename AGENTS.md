@@ -33,6 +33,8 @@ All planned work is tracked as worktasks under `.context/work-tasks/` (gitignore
 Setup docs in `.docs/wiki/setup.md` and `.docs/wiki/setups/` should keep client base-url examples aligned with
 the run mode's published host port, including Codex `openai_base_url` and `ANTHROPIC_BASE_URL` examples where
 the guide is meant to be used by agent clients.
+Conductor sandbox setup docs should keep general snapshot tooling (including Docker CLI + Compose v2) separate
+from SmoothLlmImposter-specific imposter runtime setup.
 Claude/Anthropic setup sections should also document that `claude setup-token` can create a Claude subscription
 token, which users may supply explicitly as an imposter provider `Secret` with the matching `AuthScheme`.
 
@@ -115,3 +117,7 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 | Blueprint | A reusable, parameterised specification for a component or service |
 | Catalogue | The collection of all blueprints and templates in this repository |
 | Spec-driven | Development approach where machine-readable specifications are the source of truth |
+
+## Changelog
+
+- 2026-07-24: Note Conductor sandbox Docker CLI + Compose v2 setup-doc guidance.
