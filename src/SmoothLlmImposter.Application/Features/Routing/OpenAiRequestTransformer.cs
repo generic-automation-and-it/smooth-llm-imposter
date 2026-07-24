@@ -118,8 +118,10 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
 
         // HLD 009: carry a stamped session_id through the Responses→Chat allowlist so the downgrade
         // path does not silently drop the body field. The inverse case — a non-opted-in imposter whose
-        // caller supplied session_id — also rides this line: the body is byte-transparent for session
-        // on that route.
+        // caller supplied session_id — also rides this line: a non-null body value is relayed as-is.
+        // AddIfPresent uses an `is { } value` pattern, so a caller-supplied "session_id": null drops
+        // the key rather than relaying null. This is consistent with the other AddIfPresent users
+        // (stream, temperature, …).
         AddIfPresent(root, chat, "session_id");
 
         if (ConvertReasoningEffort(root) is { } reasoningEffort)
