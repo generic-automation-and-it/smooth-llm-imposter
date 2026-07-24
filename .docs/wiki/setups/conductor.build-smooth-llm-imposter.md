@@ -34,11 +34,11 @@ SmoothLlmImposter Host as a sidecar for whichever repo the sandbox is for.
 #!/usr/bin/env bash
 set -euo pipefail
 
-# --- [1/7] Installing System Dependencies (dnf) ---
+# --- [1] Installing System Dependencies (dnf) ---
 echo "--- [1] Installing System Dependencies (dnf) ---"
 sudo dnf install -y python3-pip expect python3 'dnf-command(config-manager)' docker
 
-# --- [2/7] Installing Core CLI Tools ---
+# --- [2] Installing Core CLI Tools ---
 echo "--- [2] Installing Core CLI Tools ---"
 
 # GitHub CLI: Amazon Linux 2023 uses DNF4, so add GitHub's official RPM repo first.
@@ -70,7 +70,7 @@ else
 fi
 
 if ! sudo docker info >/dev/null 2>&1; then
-  sudo nohup dockerd >/tmp/dockerd.log 2>&1 &
+  sudo nohup dockerd </dev/null >/tmp/dockerd.log 2>&1 &
   for _ in $(seq 1 30); do
     sudo docker info >/dev/null 2>&1 && break
     sleep 1
@@ -93,7 +93,7 @@ curl -fsSL https://chatgpt.com/codex/install.sh | sh
 curl -fsSL https://pi.dev/install.sh | sh
 curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh
 
-# --- [3/7] Fixing Environment & Paths ---
+# --- [3] Fixing Environment & Paths ---
 echo "--- [3] Fixing Environment & Paths ---"
 sudo ln -sf /usr/bin/pip3 /usr/bin/pip
 
@@ -120,8 +120,8 @@ export PATH="/usr/local/share/dotnet:$PATH"
 export PATH="$HOME/.opencode/bin:$PATH"
 export PATH="$HOME/.local/bin:$PATH"
 
-# --- [4/7] Configuring RTK (Automated) ---
-echo "--- [4/7] Configuring RTK (Automated) ---"
+# --- [4] Configuring RTK (Automated) ---
+echo "--- [4] Configuring RTK (Automated) ---"
 expect -c "
     spawn sudo HOME=$HOME rtk init -g --auto-patch
     expect \"Patch existing\"
