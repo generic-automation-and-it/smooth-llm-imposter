@@ -23,14 +23,15 @@ internal static class SessionIdentityResolver
     // Stable, non-ephemeral caller identity headers used only as fingerprint inputs when nothing was
     // captured. Values are hashed, never logged. Authorization/x-api-key are included because a CLI
     // session's credential is the most stable identity those clients expose; chatgpt-account-id is the
-    // Codex subscription identity; openai-organization/project pin a workspace.
+    // Codex subscription identity; openai-organization/project pin a workspace. The sixth fingerprint
+    // input (body `user`) is read by TryDeriveFingerprint separately, see LADR-03 for the full list.
     private static readonly string[] FingerprintHeaderNames =
     [
-        "chatgpt-account-id",
-        "openai-organization",
-        "openai-project",
-        "authorization",
-        "x-api-key"
+        "chatgpt-account-id",   // LADR-03: Codex subscription identity
+        "openai-organization",  // LADR-03: workspace pin
+        "openai-project",       // LADR-03: workspace pin
+        "authorization",        // LADR-03: most stable CLI credential
+        "x-api-key"             // LADR-03: most stable CLI credential
     ];
 
     public static SessionIdentity Resolve(CallerHeaders callerHeaders, string? requestBody)

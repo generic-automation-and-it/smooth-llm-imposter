@@ -43,8 +43,8 @@ Identity is resolved once per request from inbound material only:
 2. OpenAI body fields: `prompt_cache_key`, then `metadata.user_id`.
 3. Fallback: SHA-256 fingerprint over stable caller identity material
    (`chatgpt-account-id`, `openai-organization`, `openai-project`, `Authorization`, `x-api-key`,
-   and body `user` when present). Prefixed `derived-` + first 16 hash bytes hex. If nothing
-   stable exists → `session=none` (never invent a random-per-request id).
+   and body `user` when present). Prefixed `derived-` + first 16-byte SHA-256 prefix (→ 32 hex chars).
+   If nothing stable exists → `session=none` (never invent a random-per-request id).
 
 **Acceptance criteria / DoD**
 

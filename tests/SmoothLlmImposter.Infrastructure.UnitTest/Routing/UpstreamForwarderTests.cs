@@ -375,6 +375,54 @@ public class UpstreamForwarderTests
         capture.Header("x-opencode-session").ShouldBeNull();
     }
 
+    [Fact]
+    public async Task Session_identity_is_not_stamped_on_passthrough_even_when_opted_in()
+    {
+        // ApplySessionIdentity guard: IsImposter=false short-circuits regardless of the provider opt-in.
+        // A passthrough route to an opted-in provider must never emit x-opencode-session (transparent
+        // proxy non-negotiable — only matched imposter routes may rewrite).
+        var capture = new CapturingHandler();
+        UpstreamForwarder forwarder = Build(capture);
+        var session = new SessionIdentity("resolved-session", SessionIdentitySource.Captured);
+
+        await forwarder.SendAsync(
+            Decision(ApiDialect.OpenAi, isImposter: false, sessionForwarding: SessionForwarding.OpencodeGo),
+            credentialOverride: null,
+            ApiDialect.OpenAi,
+            HttpMethod.Post,
+            body: "{}",
+            "/v1/chat/completions",
+            queryString: null,
+            CallerHeaders.None,
+            session,
+            Ct);
+
+        capture.Header("x-opencode-session").ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Session_identity_is_not_stamped_when_resolver_returned_None()
+    {
+        // ApplySessionIdentity guard: opted in + matched imposter, but the resolver returned None
+        // (no header, no body marker, no stable fingerprint). The forwarder must NOT invent an id.
+        var capture = new CapturingHandler();
+        UpstreamForwarder forwarder = Build(capture);
+
+        await forwarder.SendAsync(
+            Decision(ApiDialect.OpenAi, isImposter: true, sessionForwarding: SessionForwarding.OpencodeGo),
+            credentialOverride: null,
+            ApiDialect.OpenAi,
+            HttpMethod.Post,
+            body: "{}",
+            "/v1/chat/completions",
+            queryString: null,
+            CallerHeaders.None,
+            SessionIdentity.None,
+            Ct);
+
+        capture.Header("x-opencode-session").ShouldBeNull();
+    }
+
     private static Task Send(
         UpstreamForwarder forwarder,
         RouteDecision decision,

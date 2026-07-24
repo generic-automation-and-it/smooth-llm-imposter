@@ -32,7 +32,7 @@ public class ProviderConfigurationHandlerTests
                     AnthropicVersion: null,
                     OpenAiUpstreamApi: "chat_completions",
                     RequestNormalization: null,
-                    SessionForwarding: null,
+                    SessionForwarding: "opencode-go",
                     Models: [new ProviderModelMappingBody("gpt5.4", "grok-code", Caching: true)]),
                 Actor: "test"),
             TestContext.Current.CancellationToken);
@@ -40,10 +40,45 @@ public class ProviderConfigurationHandlerTests
         response.BaseUrl.ShouldBe("https://new.example");
         // AuthHeader is a new field — assert it round-trips through both the response and stored config.
         response.AuthHeader.ShouldBe("api-key");
+        // SessionForwarding round-trips through the From(...) projection so the response surface mirrors the
+        // stored value (regression: prior tests only exercised the null branch).
+        response.SessionForwarding.ShouldBe("opencode-go");
         registry.TryGet("opencode", out ProviderOptions? stored).ShouldBeTrue();
         stored!.Secret.ShouldBe("sk-existing");
         stored.AuthHeader.ShouldBe("api-key");
+        stored.SessionForwarding.ShouldBe("opencode-go");
         stored.Models.Single().To.ShouldBe("grok-code");
+    }
+
+    [Fact]
+    public async Task Upsert_rejects_unknown_session_forwarding_value()
+    {
+        var registry = new InMemoryProviderRegistry();
+        registry.Seed(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
+        {
+            ["opencode"] = Provider("openai", "https://opencode.example")
+        });
+
+        var handler = new UpsertProvider.Handler(registry, NullLogger<UpsertProvider.Handler>.Instance);
+
+        await Should.ThrowAsync<ValidationException>(() => handler.Handle(
+            new UpsertProvider.Request(
+                "opencode",
+                new ProviderConfigurationBody(
+                    Name: null,
+                    Dialect: "openai",
+                    BaseUrl: "https://opencode.example",
+                    AuthScheme: null,
+                    AuthHeader: null,
+                    IsDefault: false,
+                    Enabled: true,
+                    AnthropicVersion: null,
+                    OpenAiUpstreamApi: null,
+                    RequestNormalization: null,
+                    SessionForwarding: "sticky",
+                    Models: []),
+                Actor: "test"),
+            TestContext.Current.CancellationToken).AsTask());
     }
 
     [Fact]

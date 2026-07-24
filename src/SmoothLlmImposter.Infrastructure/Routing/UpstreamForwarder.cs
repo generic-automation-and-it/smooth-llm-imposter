@@ -174,7 +174,9 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
 
     // HLD 009: stamp x-opencode-session once on matched opted-in imposter routes. Drop any caller-relayed
     // value first (ForwardCallerHeaders may have copied it) so the resolved identity is the sole write —
-    // mirrors the managed-auth drop-then-write pattern. Never logs the raw value.
+    // mirrors the managed-auth drop-then-write pattern. The raw value is never logged at Information level;
+    // LogOutboundRequest's Debug-level dump is the only place the header value reaches the log sink, and
+    // Debug is opt-in by configuration.
     private static void ApplySessionIdentity(
         HttpRequestMessage request,
         RouteDecision decision,

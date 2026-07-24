@@ -353,9 +353,38 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
         using HttpResponseMessage response = await client.SendAsync(request, Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
-        string stamped = fixture.Upstream.LastHeaders["x-opencode-session"];
+        // TryGetValue with an explicit "did not arrive" assertion so a regression that drops the header
+        // surfaces as a clear message instead of a KeyNotFoundException at the indexer.
+        fixture.Upstream.LastHeaders.TryGetValue("x-opencode-session", out string? stamped).ShouldBeTrue(
+            "the resolved (derived) session identity must be stamped on the outbound request");
+        stamped.ShouldNotBeNull();
         stamped.StartsWith("derived-").ShouldBeTrue();
         JsonNode forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!;
         forwarded["session_id"]!.GetValue<string>().ShouldBe(stamped);
+    }
+
+    [Fact]
+    public async Task Anthropic_session_forwarding_stamps_header_only()
+    {
+        // Anthropic dialect: header-only stamp (LADR-02). The Messages body must NOT gain a session_id
+        // field, only the x-opencode-session outbound header. End-to-end coverage of the forwarder +
+        // resolver + transformer wiring for the Anthropic branch (unit test covers the transformer in
+        // isolation; this exercises the real Host pipeline).
+        HttpClient client = fixture.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/messages")
+        {
+            Content = Json("""{"model":"claude-opus-3-7-sonnet","messages":[{"role":"user","content":"hi"}]}""")
+        };
+        request.Headers.TryAddWithoutValidation("session_id", "anthropic-session-1");
+
+        using HttpResponseMessage response = await client.SendAsync(request, Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://anthropic-imposter.test/v1/messages");
+        fixture.Upstream.LastHeaders.TryGetValue("x-opencode-session", out string? stamped).ShouldBeTrue(
+            "the resolved session identity must be stamped on the outbound Anthropic request");
+        stamped.ShouldBe("anthropic-session-1");
+        JsonObject forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!.AsObject();
+        forwarded.ContainsKey("session_id").ShouldBeFalse();
     }
 }

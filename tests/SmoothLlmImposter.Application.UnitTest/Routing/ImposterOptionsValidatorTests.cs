@@ -226,6 +226,9 @@ public class ImposterOptionsValidatorTests
     [InlineData("none")]
     [InlineData("opencode-go")]
     [InlineData("opencode_go")]
+    [InlineData("opencodego")]
+    [InlineData("OpenCode-Go")]
+    [InlineData("OPENCODE-GO")]
     public void Known_or_omitted_session_forwarding_succeeds(string? forwarding)
     {
         var provider = new ProviderOptions { Dialect = "openai", BaseUrl = "https://a.example", SessionForwarding = forwarding };

@@ -738,6 +738,21 @@ public class RequestTransformerTests
     }
 
     [Fact]
+    public void OpenAi_session_forwarding_passes_caller_session_id_through_when_not_opted_in()
+    {
+        // Byte-transparent inverse of the body stamp: a non-opted-in imposter never writes session_id,
+        // so a caller-supplied session_id field must reach the upstream unchanged. The imposter route
+        // is matched, but the opt-in is off.
+        var transformer = OpenAi();
+        string body = """{"model":"gpt5.4","session_id":"caller-supplied","messages":[{"role":"user","content":"hi"}]}""";
+
+        JsonObject result = JsonNode.Parse(
+            transformer.Transform(body, SessionChatDecision(isImposter: true, SessionForwarding.None), "gpt5.4", NoSession))!.AsObject();
+
+        result["session_id"]!.GetValue<string>().ShouldBe("caller-supplied");
+    }
+
+    [Fact]
     public void OpenAi_session_forwarding_skipped_on_passthrough_even_when_opted_in()
     {
         var transformer = OpenAi();
@@ -774,6 +789,28 @@ public class RequestTransformerTests
 
         result["prompt_cache_key"]!.GetValue<string>().ShouldBe("sess-cache");
         result["session_id"]!.GetValue<string>().ShouldBe("sess-cache");
+    }
+
+    [Fact]
+    public void OpenAi_responses_caching_falls_back_to_inbound_model_when_no_session()
+    {
+        // Session-aware code path: when no session is resolved, the ternary's else arm writes
+        // inboundModel. This test pins the fallback so a future refactor cannot silently introduce
+        // a null prompt_cache_key or, worse, use the resolved session identity from a prior request.
+        var transformer = OpenAi();
+        string body = """{"model":"gpt5.4","input":"hi"}""";
+        var passthrough = new RouteDecision(
+            new ProviderRoute(
+                "p", ApiDialect.OpenAi, new Uri("https://p.example"), null, false, null, [],
+                OpenAiUpstreamApi.Responses, null, RequestNormalization.None, true, null, null, SessionForwarding.None),
+            "grok-code",
+            CachingEnabled: true,
+            IsImposter: false);
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, passthrough, "gpt5.4", NoSession))!.AsObject();
+
+        result["prompt_cache_key"]!.GetValue<string>().ShouldBe("gpt5.4");
+        result.ContainsKey("session_id").ShouldBeFalse();
     }
 
     [Fact]

@@ -25,6 +25,11 @@ public enum SessionForwarding
 /// </summary>
 public static class SessionForwardingParser
 {
+    /// <summary>
+    /// Returns <c>true</c> for any accepted spelling, including the safe default (null/empty/whitespace).
+    /// A blank input is intentionally reported as "valid + None" rather than "invalid" so an omitted
+    /// config field is not flagged at startup; only a present-but-unrecognised value returns <c>false</c>.
+    /// </summary>
     public static bool TryParse(string? value, out SessionForwarding forwarding)
     {
         if (string.IsNullOrWhiteSpace(value))

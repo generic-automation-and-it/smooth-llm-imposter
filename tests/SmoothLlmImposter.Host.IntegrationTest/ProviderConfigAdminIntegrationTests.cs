@@ -50,7 +50,11 @@ public sealed class ProviderConfigAdminIntegrationTests
         getJson.ShouldNotContain("opencode-key");
         getJson.ShouldNotContain("secret", Case.Insensitive);
 
+        // GET round-trips the seeded SessionForwarding so a regression in the From(...) projection
+        // (which would silently drop a non-null value) surfaces here.
         ProviderConfigurationBody body = JsonNode.Parse(getJson)!.Deserialize<ProviderConfigurationBody>(JsonOptions)!;
+        body.SessionForwarding.ShouldBe("opencode-go");
+
         using HttpResponseMessage put = await client.PutAsJsonAsync("/admin/providers/opencode-go", body, JsonOptions, Ct);
 
         string putJson = await put.Content.ReadAsStringAsync(Ct);
@@ -258,6 +262,7 @@ public sealed class ProviderConfigAdminIntegrationTests
                     ["Imposter:Providers:opencode-go:Secret"] = "opencode-key",
                     ["Imposter:Providers:opencode-go:AuthScheme"] = "ApiKey",
                     ["Imposter:Providers:opencode-go:OpenAiUpstreamApi"] = "chat_completions",
+                    ["Imposter:Providers:opencode-go:SessionForwarding"] = "opencode-go",
                     ["Imposter:Providers:opencode-go:Models:0:From"] = "gpt5.4",
                     ["Imposter:Providers:opencode-go:Models:0:To"] = "grok-code"
                 };

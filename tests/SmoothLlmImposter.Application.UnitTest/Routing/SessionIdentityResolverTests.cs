@@ -7,6 +7,9 @@ public class SessionIdentityResolverTests
     private static CallerHeaders Headers(params (string Name, string Value)[] headers) =>
         new(headers.Select(h => new KeyValuePair<string, IReadOnlyList<string>>(h.Name, [h.Value])).ToArray());
 
+    private static CallerHeaders MultiValueHeader(string name, params string[] values) =>
+        new([new KeyValuePair<string, IReadOnlyList<string>>(name, values)]);
+
     [Fact]
     public void Header_session_id_wins_over_body_and_other_headers()
     {
@@ -58,6 +61,54 @@ public class SessionIdentityResolverTests
     }
 
     [Fact]
+    public void Body_prompt_cache_key_with_non_string_value_is_ignored()
+    {
+        // Non-string prompt_cache_key values (number / object) must not crash the resolver; the
+        // TryReadString helper is type-strict, so we fall through to metadata.user_id.
+        SessionIdentity identity = SessionIdentityResolver.Resolve(
+            CallerHeaders.None,
+            """{"model":"gpt","prompt_cache_key":42,"metadata":{"user_id":"meta-user"}}""");
+
+        identity.Value.ShouldBe("meta-user");
+        identity.Source.ShouldBe(SessionIdentitySource.Captured);
+    }
+
+    [Fact]
+    public void Body_metadata_non_object_is_ignored()
+    {
+        // metadata is a string here, not an object — the resolver must not crash and must fall through
+        // to the fingerprint path. No fingerprint inputs are present either, so result is None.
+        SessionIdentity identity = SessionIdentityResolver.Resolve(
+            CallerHeaders.None,
+            """{"model":"gpt","metadata":"oops"}""");
+
+        identity.ShouldBe(SessionIdentity.None);
+    }
+
+    [Fact]
+    public void Non_object_top_level_body_returns_none_when_no_stable_identity()
+    {
+        // A JSON array body is valid JSON but not a top-level object; body capture must not throw and
+        // there are no fingerprint inputs to derive from, so the resolver returns None.
+        SessionIdentity identity = SessionIdentityResolver.Resolve(CallerHeaders.None, """[]""");
+
+        identity.ShouldBe(SessionIdentity.None);
+    }
+
+    [Fact]
+    public void Invalid_json_body_swallowed_and_falls_through()
+    {
+        // The resolver swallows JsonException in the body-capture path; the router/transformer is
+        // responsible for surfacing bad-JSON as a routing error downstream.
+        SessionIdentity identity = SessionIdentityResolver.Resolve(
+            Headers(("Authorization", "Bearer stable")),
+            "not-json");
+
+        identity.Source.ShouldBe(SessionIdentitySource.Derived);
+        identity.Value!.StartsWith("derived-").ShouldBeTrue();
+    }
+
+    [Fact]
     public void Derived_fingerprint_is_stable_for_same_caller_material()
     {
         CallerHeaders headers = Headers(
@@ -81,6 +132,68 @@ public class SessionIdentityResolverTests
         SessionIdentity b = SessionIdentityResolver.Resolve(Headers(("Authorization", "Bearer b")), "{}");
 
         a.Value.ShouldNotBe(b.Value);
+    }
+
+    [Fact]
+    public void Derived_fingerprint_is_independent_of_header_enumeration_order()
+    {
+        // CallerHeaders.Items enumeration order is dictated by the Host edge; the resolver must sort
+        // fingerprint inputs before hashing so a caller that reorders them cannot fork the hash.
+        CallerHeaders a = new(
+        [
+            new KeyValuePair<string, IReadOnlyList<string>>("x-api-key", ["key-1"]),
+            new KeyValuePair<string, IReadOnlyList<string>>("openai-organization", ["org-1"]),
+            new KeyValuePair<string, IReadOnlyList<string>>("openai-project", ["proj-1"]),
+            new KeyValuePair<string, IReadOnlyList<string>>("chatgpt-account-id", ["acct-1"]),
+        ]);
+        CallerHeaders b = new(
+        [
+            new KeyValuePair<string, IReadOnlyList<string>>("chatgpt-account-id", ["acct-1"]),
+            new KeyValuePair<string, IReadOnlyList<string>>("openai-project", ["proj-1"]),
+            new KeyValuePair<string, IReadOnlyList<string>>("openai-organization", ["org-1"]),
+            new KeyValuePair<string, IReadOnlyList<string>>("x-api-key", ["key-1"]),
+        ]);
+
+        SessionIdentityResolver.Resolve(a, "{}").Value.ShouldBe(SessionIdentityResolver.Resolve(b, "{}").Value);
+    }
+
+    [Theory]
+    [InlineData("x-api-key", "key-1")]
+    [InlineData("openai-organization", "org-1")]
+    [InlineData("openai-project", "proj-1")]
+    public void Each_fingerprint_header_is_a_derivation_input(string headerName, string headerValue)
+    {
+        // Pin that every individual fingerprint header changes the derived hash, so a future
+        // refactor that drops one of them from FingerprintHeaderNames breaks this test.
+        SessionIdentity identity = SessionIdentityResolver.Resolve(Headers((headerName, headerValue)), "{}");
+
+        identity.Source.ShouldBe(SessionIdentitySource.Derived);
+        identity.Value!.StartsWith("derived-").ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Body_user_field_contributes_to_fingerprint()
+    {
+        // body.user is the sixth fingerprint input (LADR-03); changing it must change the hash.
+        SessionIdentity a = SessionIdentityResolver.Resolve(CallerHeaders.None, """{"model":"gpt","user":"alice"}""");
+        SessionIdentity b = SessionIdentityResolver.Resolve(CallerHeaders.None, """{"model":"gpt","user":"bob"}""");
+
+        a.Source.ShouldBe(SessionIdentitySource.Derived);
+        b.Source.ShouldBe(SessionIdentitySource.Derived);
+        a.Value.ShouldNotBe(b.Value);
+    }
+
+    [Fact]
+    public void Multi_value_header_first_non_blank_value_wins()
+    {
+        // A caller that sends the same header twice (rare, but possible) gets the first non-blank
+        // value; the resolver must not surface an empty entry that hashes into a different bucket.
+        SessionIdentity identity = SessionIdentityResolver.Resolve(
+            MultiValueHeader("Authorization", "", "   ", "Bearer real"),
+            "{}");
+
+        identity.Source.ShouldBe(SessionIdentitySource.Derived);
+        identity.Value!.StartsWith("derived-").ShouldBeTrue();
     }
 
     [Fact]

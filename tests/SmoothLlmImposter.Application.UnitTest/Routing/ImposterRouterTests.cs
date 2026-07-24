@@ -165,6 +165,35 @@ public class ImposterRouterTests
         joined.ShouldNotContain("raw-secret-session");
     }
 
+    [Fact]
+    public async Task Plan_logs_session_derived_token_without_raw_inputs_on_opted_in_imposter()
+    {
+        // Derived-path unit coverage mirrors the captured-path test above. The fingerprint is hashed so
+        // the raw inputs (Authorization/chatgpt-account-id) must never appear in the Information line;
+        // only the source token and the prefixed hash reach the log sink.
+        var logger = new CapturingLogger();
+        ImposterRouter router = Build(logger: logger, sessionForwarding: "opencode-go");
+        CallerHeaders headers = new([
+            new KeyValuePair<string, IReadOnlyList<string>>("Authorization", ["Bearer raw-credential-value"]),
+            new KeyValuePair<string, IReadOnlyList<string>>("chatgpt-account-id", ["raw-account-id"]),
+        ]);
+
+        RoutePlan plan = await router.PlanAsync(
+            ApiDialect.OpenAi,
+            """{"model":"gpt5.4","messages":[{"role":"user","content":"hi"}]}""",
+            headers,
+            TestContext.Current.CancellationToken);
+
+        plan.SessionIdentity!.Source.ShouldBe(SessionIdentitySource.Derived);
+        plan.SessionIdentity.Value!.StartsWith("derived-").ShouldBeTrue();
+        plan.TransformedBody.ShouldContain("session_id");
+        string joined = string.Join('\n', logger.Messages);
+        joined.ShouldContain("session=derived");
+        joined.ShouldNotContain("raw-credential-value");
+        joined.ShouldNotContain("raw-account-id");
+        joined.ShouldNotContain("Bearer ");
+    }
+
     private sealed class StubSecretProtector : ISecretProtector
     {
         public string Protect(string plaintext) => "cipher:" + plaintext;
