@@ -45,11 +45,9 @@ grows for the life of the process, in exchange for zero management overhead.
   id does **not** match (the responder returns no match; the request forwards
   normally).
 - **Looked up by the resolver** — when the resolver produces a session id equal
-  to a dictionary key, the resolved `SessionIdentity.Value` (the live record
-  property; the planned rename to `StableId` is part of the follow-up commit
-  — both names refer to the same string) is rewritten to the stored synthetic
-  id before the transformer stamps it on the outbound request. The
-  translation fires only when `Imposter:WhoMessage:Enabled=true`; with the
+  to a dictionary key, the resolved `SessionIdentity.Value` is rewritten to the
+  stored synthetic id before the transformer stamps it on the outbound request.
+  The translation fires only when `Imposter:WhoMessage:Enabled=true`; with the
   toggle off, the dictionary is bypassed and the captured/derived value passes
   through unchanged.
 

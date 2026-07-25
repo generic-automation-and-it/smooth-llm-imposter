@@ -29,10 +29,10 @@ public static class DependencyInjection
         services.AddScoped<IImposterRouter, ImposterRouter>();
         services.AddScoped<IModelCatalogResponder, OpenAiModelCatalogResponder>();
         services.AddScoped<IAnthropicModelCatalogResponder, AnthropicModelCatalogResponder>();
-        services.AddScoped<IWhoMessageResponder, WhoMessageResponder>();
         // Scoped lifetime: the responder is invoked from the minimal-API request scope,
         // depends on a process-lifetime singleton (ISessionTranslationDictionary) and
         // an ILogger — all of which are DI-permitted in a Scoped registration.
+        services.AddScoped<IWhoMessageResponder, WhoMessageResponder>();
         // Process-lifetime session translation dictionary (HLD 010, LADR-06). Singleton so all
         // scopes share the same map — a scoped instance would split the dictionary and break
         // --newsession minting across requests.

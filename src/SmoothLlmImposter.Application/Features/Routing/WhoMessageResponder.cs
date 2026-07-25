@@ -139,12 +139,13 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
                     return false;
                 }
 
-                _sessionDictionary.TryAdd(plan.SessionIdentity.Value!, out string? syntheticId);
+                bool wasInserted = _sessionDictionary.TryAdd(plan.SessionIdentity.Value!, out string? syntheticId);
                 _logger.LogDebug(
-                    "WhoMessage: matched switch '{Switch}' — caller session '{CallerId}' mapped to synthetic '{SyntheticId}'",
+                    "WhoMessage: matched switch '{Switch}' — caller session '{CallerId}' mapped to synthetic '{SyntheticId}' ({MintStatus})",
                     SwitchNewSession,
                     plan.SessionIdentity.LogToken,
-                    syntheticId);
+                    syntheticId,
+                    wasInserted ? "newly inserted" : "reused existing");
 
                 string model = string.IsNullOrEmpty(plan.InboundModel) ? PassthroughLabel : plan.InboundModel;
                 string contentText = $"Session: {plan.SessionIdentity.Value} → {syntheticId}";
@@ -166,7 +167,7 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
     private static string BuildProbeResponse(ApiDialect dialect, RoutePlan plan)
     {
         string auth = ImposterRouter.DescribeAuth(plan.Decision, dialect, plan.CredentialOverride);
-        string contentText = BuildContentText(plan, auth, plan.SessionIdentity);
+        string contentText = BuildContentText(plan, auth);
         string model = string.IsNullOrEmpty(plan.InboundModel) ? PassthroughLabel : plan.InboundModel;
 
         return dialect == ApiDialect.OpenAi
@@ -256,9 +257,9 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
         return null;
     }
 
-    private static string BuildContentText(RoutePlan plan, string auth, SessionIdentity sessionIdentity)
+    private static string BuildContentText(RoutePlan plan, string auth)
     {
-        string sessionField = $", session: {(sessionIdentity.HasValue ? sessionIdentity.Value : "null")}";
+        string sessionField = $", session: {(plan.SessionIdentity.HasValue ? plan.SessionIdentity.Value : "null")}";
 
         if (plan.Decision.IsImposter)
         {
