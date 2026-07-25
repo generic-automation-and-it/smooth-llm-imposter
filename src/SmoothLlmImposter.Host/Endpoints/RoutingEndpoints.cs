@@ -119,6 +119,10 @@ internal static class RoutingEndpoints
         // HLD 010: in-band routing probe. When enabled and the body triggers the responder,
         // short-circuit before the forwarder — zero upstream HTTP calls on match. The feature gate
         // skips the responder entirely when disabled, so the forward path stays byte-identical (NFR-01).
+        // TODO(perf): whoResponder.TryBuildResponse re-parses the body that PlanAsync has already
+        // parsed. Intentional per the HLD 010 "pure predicate" seam so the responder stays
+        // transport-agnostic; revisit once a parsed-body seam is added (one JsonDocument.Parse
+        // per chat-completion request today).
         if (imposterOptions.WhoMessage.Enabled &&
             whoResponder.TryBuildResponse(dialect, requestBody, plan, out string? whoResponseJson))
         {

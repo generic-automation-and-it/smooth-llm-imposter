@@ -135,5 +135,5 @@ See [nfrs/](./nfrs/) for measurable targets. The four that change how code is wr
 
 | Date | Change | Ref |
 | :---- | :---- | :---- |
-| 2026-07-25 | Initial HLD AGENTS.md — 5 LADRs, 3 NFRs, 3 diagrams. | — |
+| 2026-07-25 | Initial HLD AGENTS.md — 5 LADRs, 3 NFRs, 1 diagram file (3 mermaid blocks). | — |
 | 2026-07-25 | Extended design (NOT YET IMPLEMENTED): proposed trigger is `--who?` (was `who?`); proposed `--newsession` switch + in-memory translation dictionary. HLD is **in design** — implementation lands in a follow-up commit. LADR-06 and NFR-04 are Draft. AI agents: do not modify the live `who?` trigger or the `IWhoMessageResponder` contract on the basis of this AGENTS.md alone. | — |

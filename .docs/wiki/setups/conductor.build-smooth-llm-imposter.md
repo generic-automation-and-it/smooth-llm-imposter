@@ -40,8 +40,7 @@ clients send to the proxy. The `To` column names the upstream wire ID, which is 
 the upstream provider uses on its own API. For the OpenAI row `gpt-5.6-luna → grok-4.5`, the imposter
 accepts the OpenAI-style alias and forwards to xAI; see
 [OpenAI's model index](https://platform.openai.com/docs/models) for the imposter-side namespace
-and [xAI's model index](https://docs.x.ai/docs/models) for the upstream wire ID (aliases include
-`grok-4.5-latest`).
+and [xAI's model index](https://docs.x.ai/docs/models) for the upstream wire ID.
 
 Session identity forwarding is **off** for the OpenCode Go providers in this workspace script
 (`OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING=none` and `OPENCODE_GO_OPENAI_SESSION_FORWARDING=none`,

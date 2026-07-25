@@ -144,12 +144,14 @@ Pick the guide that matches how you want to run or work on the router:
 
 The HLD 010 customized-switches family (`--who?` and `--newsession`, plus an
 in-memory session-id translation dictionary consulted on the forward path) is
-**in design** as of this PR. The current binary still matches the HLD 010
-"Customized Switches" table on [`.docs/hlds/010-who-message-introspection/README.md`](.docs/hlds/010-who-message-introspection/README.md)
-*and* the older "How it works" table at the top of this file: the only live
-switch today is `who?` (exact match, trimmed), the reply carries no `session:`
-field, and there is no in-memory dictionary. The new switches, envelope field, and
-dictionary are tracked in HLD 010 and will land in a follow-up commit.
+**in design** as of this PR. The current binary still matches the original HLD 010
+`who?` design in
+[`.docs/hlds/010-who-message-introspection/README.md`](.docs/hlds/010-who-message-introspection/README.md)
+(Goals 1–5) *and* the older "How it works" table at the top of this file:
+the only live switch today is `who?` (exact match, trimmed), the reply carries
+no `session:` field, and there is no in-memory dictionary. The new switches,
+envelope field, and dictionary are tracked in HLD 010 and will land in a
+follow-up commit.
 
 **Do not send `--who?` or `--newsession` to a release binary — `who?` is the live
 trigger today, and the rest of the affordances below are documented as a forward
@@ -166,7 +168,7 @@ whose content text names the resolved route:
 | Imposter | `Imposter: <inbound-model> → <target-model> (auth: <scheme>)` | `Imposter: <inbound-model> → <target-model> (auth: <scheme>) session:<id>` |
 | Passthrough | `Passthrough: <inbound-model> (auth: <scheme>)` | `Passthrough: <inbound-model> (auth: <scheme>) session:null` |
 
-The id field is `chatcmpl-who-{guid}` (OpenAI) or `msg_who_{guid}` (Anthropic)
+The id field is `chatcmpl-who-{guid:N}` (OpenAI) or `msg_who_{guid:N}` (Anthropic)
 under both contracts.
 
 ### `--newsession` — session-id mint + in-memory translation (PROPOSED — not yet implemented)
@@ -189,8 +191,8 @@ stored synthetic id** before stamping it on the outbound request. The caller
 controls the key; the proxy controls the synthetic value; the upstream sees a
 stable id without the caller having to coordinate a long-lived secret.
 
-The id field is `chatcmpl-newsession-{guid}` (OpenAI) or
-`msg_newsession_{guid}` (Anthropic).
+The id field is `chatcmpl-newsession-{guid:N}` (OpenAI) or
+`msg_newsession_{guid:N}` (Anthropic).
 
 ### Scope and limits (when implemented)
 

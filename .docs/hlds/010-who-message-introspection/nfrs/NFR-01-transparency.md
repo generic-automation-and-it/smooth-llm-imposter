@@ -1,6 +1,6 @@
-# NFR-01: Transparency preservation
+# NFR-01: Transparency preservation (base `who?` probe)
 
-**Status:** Accepted
+**Status:** Accepted (scope: base `who?` probe only)
 
 ## Requirement
 
@@ -29,5 +29,6 @@ headers).
 
 ## Applies To
 
-- Goal 5 (Transparency preserved).
+- Goal 5 (Transparency preserved) — base `who?` probe only.
+- LADR-06 extends this to the translation dictionary (separate row, NFR-04 Draft).
 - Every forward-path flow in the [C1 diagram](../diagrams/c4-context.md).

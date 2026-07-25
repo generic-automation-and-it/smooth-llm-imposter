@@ -1,6 +1,6 @@
-# NFR-02: Zero upstream cost on match
+# NFR-02: Zero upstream cost on match (base `who?` probe)
 
-**Status:** Accepted
+**Status:** Accepted (scope: base `who?` probe only)
 
 ## Requirement
 

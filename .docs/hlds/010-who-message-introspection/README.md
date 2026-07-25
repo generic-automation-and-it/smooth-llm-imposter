@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Completed |
+| **Status** | Partially Implemented — base `who?` probe Completed; `--who?` / `--newsession` switch family + in-memory translation dictionary Draft (LADR-02/03/04 revised, LADR-06 + NFR-04 Draft) |
 | **Owner** | SmoothLlmImposter maintainers |
 | **Tracker** | _None — completed without a tracker issue (NO-TICKET)_ |
 | **Last updated** | 2026-07-25 |

@@ -18,9 +18,9 @@ public interface IWhoMessageResponder
     /// </summary>
     /// <remarks>
     /// The trigger does NOT fire when the body's <c>stream</c> field is <c>true</c> (LADR-05) or
-    /// when the last user message contains any non-text content part. A malformed body returns
-    /// <c>false</c> rather than throwing — the router has already validated JSON shape upstream
-    /// of this call, but defensive behavior keeps the responder a pure predicate.
+    /// when the last user message contains any non-text content part. A malformed or unexpected
+    /// body shape returns <c>false</c> rather than throwing — the responder is a pure predicate
+    /// that does not depend on the caller having validated JSON shape first.
     /// </remarks>
     bool TryBuildResponse(ApiDialect dialect, string requestBody, RoutePlan plan, out string? responseJson);
 }

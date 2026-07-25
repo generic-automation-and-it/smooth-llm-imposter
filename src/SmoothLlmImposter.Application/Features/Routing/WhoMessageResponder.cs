@@ -122,7 +122,8 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
 
             if (!message.TryGetProperty("content", out JsonElement content))
             {
-                // A user message with no content cannot carry the trigger; treat as absent.
+                // Clear lastUserText so a later user message in the array can become the last
+                // candidate — a user message with no content cannot carry the trigger.
                 lastUserText = null;
                 continue;
             }

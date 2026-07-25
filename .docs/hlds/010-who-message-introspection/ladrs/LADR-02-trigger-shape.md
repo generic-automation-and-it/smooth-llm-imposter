@@ -38,10 +38,10 @@ predicate is evaluated only when `stream != true` and the feature is enabled.
 
 **Live code caveat.** The current `WhoMessageResponder` accepts either a bare string
 OR an array of text parts (concatenated before compare) on the last user message,
-and the existing L0 test `WhoMessageResponderTests:213` exercises the
-split-across-two-text-parts case. The proposed bare-string-only narrowing is a
-behavior change to the live contract; the L0 test will need to be updated (or
-removed) when the implementation lands.
+and the existing L0 test `WhoMessageResponderTests.Concatenated_text_parts_match_when_all_parts_are_text`
+(lines 207–218) exercises the split-across-two-text-parts case. The proposed
+bare-string-only narrowing is a behavior change to the live contract; the L0 test
+will need to be updated (or removed) when the implementation lands.
 
 The match is ordinal (`StringComparison.Ordinal`) — no locale, no case-folding. The
 switches are hardcoded constants (not configurable via `appsettings.json` or env)
