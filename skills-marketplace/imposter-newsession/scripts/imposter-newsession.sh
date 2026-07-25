@@ -69,6 +69,9 @@ fi
 
 # Optional --port override: replace the port in whatever BASE_URL we resolved.
 if [[ -n "$PORT" ]]; then
+  if [[ ! "$PORT" =~ ^[0-9]+$ ]]; then
+    echo "--port must be a positive integer: $PORT" >&2; exit 2
+  fi
   if [[ "$BASE_URL" =~ ^(.+):[0-9]+(/.*)?$ ]]; then
     BASE_URL="${BASH_REMATCH[1]}:${PORT}${BASH_REMATCH[2]:-}"
   else

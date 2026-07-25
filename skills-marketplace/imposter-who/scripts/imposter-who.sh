@@ -67,6 +67,9 @@ fi
 # the client might have layered in front of the router.
 # Optional --port override: replace the port in whatever BASE_URL we resolved.
 if [[ -n "$PORT" ]]; then
+  if [[ ! "$PORT" =~ ^[0-9]+$ ]]; then
+    echo "--port must be a positive integer: $PORT" >&2; exit 2
+  fi
   # Match :<port> at the end of the URL (host:port, with or without a trailing path).
   # Replaces only the authority port, leaving host and path intact.
   if [[ "$BASE_URL" =~ ^(.+):[0-9]+(/.*)?$ ]]; then
