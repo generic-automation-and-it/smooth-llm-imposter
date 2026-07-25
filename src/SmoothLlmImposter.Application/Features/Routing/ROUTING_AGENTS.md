@@ -18,7 +18,9 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   route, (3) **opt-in request normalization** reshapes the body on a matched OpenAI imposter route that
   opted in (HLD 004 — see "Request normalization" below), and (4) **opt-in session-identity forwarding** stamps
   a resolved session id on a matched imposter route whose provider set `SessionForwarding` (HLD 009 — OpenAI
-  body `session_id` + both-dialects header `x-opencode-session`). These four are **request-only**. The single sanctioned
+  body `session_id` + both-dialects header `x-opencode-session`). These four are **request-only**. A single
+  sanctioned **response-synthesizing** inspection class exists (HLD 010 — see "Who-message probe" below) and
+  is gated on a config toggle; it is the only place the proxy reads `messages` content. The single sanctioned
   response rewrite is `ChatToResponsesStreamTransformer`, and only on the matched OpenAI imposter
   `/responses`→Chat downgrade path (`OpenAiUpstreamApi: chat_completions` + inbound `/responses`); it is an
   incremental SSE transform, never a buffer/replay step (HLD 004 LADR-05 / NFR-05). Every other response stream is
@@ -250,6 +252,18 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   and it does not rewrite prior-turn tool history. This preserves Codex's dispatch contract while avoiding strict
   upstream 400s for unsupported tool shapes/names. The LADR-05 response bridge is a **wire-shape** translation for
   downgraded `/responses` calls, not a tool-name remapper.
+- **Who-message probe short-circuits the forward path (HLD 010).** When `Imposter:WhoMessage:Enabled` is `true`
+  (default) and a request's **last** `role:"user"` message is the exact string `who?` (trimmed, ordinal, case-
+  sensitive), the proxy returns a dialect-shaped synthetic reply whose content text names the inbound model,
+  the resolved target (or `passthrough`), and the auth scheme — and does **not** call the upstream. The trigger
+  is `stream:false` only: `stream:true` requests always forward (no SSE synthesis). Content concatenation
+  across text parts is supported; any non-text content part (image, tool_use, …) in the last user message
+  disables the trigger. This is the **one** sanctioned place the proxy reads `messages` content — a fifth
+  request-inspection class alongside the four sanctioned request-rewrite classes above (auth / caching /
+  normalization / session-identity), the only one that synthesizes a response rather than rewriting the request.
+  The auth token in the reply comes from `ImposterRouter.DescribeAuth` (now `internal static`), so the reply,
+  the Information log, and the outbound auth header all carry the same resolved scheme name. Conventional env
+  override: `IMPOSTER_WHO_MESSAGE_ENABLED` (bool; invalid value warns and keeps the bound default).
 
 ## Credential Overrides
 
@@ -282,7 +296,7 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 
 - **L0** `Domain.UnitTest/Routing` — matcher, dialect parser.
 - **L0** `Application.UnitTest/Routing` — resolver, transformers (cache injection), router, error factory, options
-  validator, `CodexToOpenAiSdkNormalizerTests` (normalization drop/flatten/name-rules/tool_choice/idempotency, flat+nested shapes), model-catalog responder.
+  validator, `CodexToOpenAiSdkNormalizerTests` (normalization drop/flatten/name-rules/tool_choice/idempotency, flat+nested shapes), model-catalog responder, `WhoMessageResponderTests` (HLD 010 trigger semantics, envelope shape, streaming exclusion, no-secret-leakage).
 - **L3** `Upstream.EvalTest` — **live** opencode-go conformance eval (HLD 004): a raw Codex catalog run through the
   real transformer+normalizer is accepted (200), un-normalized is rejected (400). Excluded from `SmoothLlmImposter.slnx`;
   secret-gated on `OPENCODE_API_KEY`, neutral (skipped) when absent; runs only in `pr-evals-gate.yml`.
@@ -295,6 +309,7 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-07-25 | HLD 010 who-message introspection: last-user-message `who?` (exact, trimmed, non-streaming) short-circuits the forward path with a dialect-shaped synthetic reply naming the resolved route and auth scheme. `ImposterRouter.DescribeAuth` promoted to `internal static` so the reply, log, and outbound header share one source of truth. Gated on `Imposter:WhoMessage:Enabled` (default `true`, env `IMPOSTER_WHO_MESSAGE_ENABLED`). Fifth sanctioned request-inspection class, the only one that reads `messages` content or synthesizes a response. | HLD 010 |
 | 2026-07-24 | HLD 009: opt-in `SessionForwarding` (fourth request-rewrite class) stamps resolved session identity on matched imposter routes (`session_id` body + `x-opencode-session` header; Anthropic header-only). Routing log adds `session=captured|derived|none`. | #72 |
 | 2026-07-24 | HLD 009 review follow-up: `session_id`/`x-opencode-session` added to the forwarder drop set (resolver consumes them; `ApplySessionIdentity` is the sole writer); resolver single-parses the body for capture + fingerprint inputs; opt-in predicate centralized as `SessionForwardingPolicy.IsOptedIn` (Domain) consulted by router and transformers; `SessionIdentity.LogToken` is exhaustive via `UnreachableException`. | #73 |
 | 2026-06-14 | Initial routing feature: same-dialect router, config-driven imposters, per-dialect caching, SSE streaming. | — |

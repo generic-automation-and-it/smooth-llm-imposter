@@ -116,6 +116,7 @@ HLDs under `.docs/hlds/`:
 | [007 — Named Provider Config & Conventional Env Overrides](.docs/hlds/007-named-provider-env-overrides/README.md) | Completed | Key providers by name (dictionary, not array) + conventional `<NAME>_<FIELD>` env overrides for stable, ergonomic config (made runtime-mutable by HLD 008) |
 | [008 — Runtime Config CRUD & Provider-Addressable Credentials](.docs/hlds/008-runtime-config-crud/README.md) | Completed | Runtime CRUD over an in-memory provider registry consumed by scoped routing catalogs + `Enabled` flag; provider-keyed, settings-backed credentials with optional DB; provider-addressable auth-override. Supersedes HLD 002 LADR-001 (mandatory PostgreSQL) and LADR-002 (dialect discriminator); LADR-003/004/005 remain in force |
 | [009 — Session Identity Forwarding](.docs/hlds/009-session-identity-forwarding/README.md) | Accepted | Opt-in per-provider session stamp on matched imposter routes (`session_id` + `x-opencode-session`) so opencode-go diag groups Codex/Claude traffic; stateless capture→derive→none |
+| [010 — Who-Message Introspection](.docs/hlds/010-who-message-introspection/README.md) | Completed | In-band routing probe: a last user message of `who?` returns a dialect-shaped synthetic reply naming the resolved target and auth scheme; no upstream call |
 
 ---
 

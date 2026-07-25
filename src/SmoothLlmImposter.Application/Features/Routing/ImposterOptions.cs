@@ -19,6 +19,28 @@ public sealed class ImposterOptions
     /// — the validator rejects that shape.
     /// </summary>
     public Dictionary<string, ProviderOptions> Providers { get; init; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// In-band routing probe (HLD 010). When enabled, a request whose last user message is the exact
+    /// string <c>who?</c> (trimmed, case-sensitive, non-streaming) short-circuits the forward path and
+    /// returns a dialect-shaped synthetic reply describing the resolved route and auth scheme.
+    /// Default <c>true</c>; conventional env override <c>IMPOSTER_WHO_MESSAGE_ENABLED</c>.
+    /// </summary>
+    public WhoMessageOptions WhoMessage { get; set; } = new();
+}
+
+/// <summary>
+/// In-band routing-probe config (HLD 010). Boolean-only today; reserved for future probe tunables
+/// (trigger shape, response verbosity) without churning <see cref="ImposterOptions"/>.
+/// </summary>
+public sealed class WhoMessageOptions
+{
+    /// <summary>
+    /// When true, the proxy intercepts a request whose last user message is <c>who?</c> and answers
+    /// locally with a dialect-shaped synthetic reply. When false, the forward path is byte-identical
+    /// to the pre-HLD-010 router (no body parsing for this concern).
+    /// </summary>
+    public bool Enabled { get; set; } = true;
 }
 
 /// <summary>One upstream: a base URL + secret + dialect. Identity is the dictionary key under which it

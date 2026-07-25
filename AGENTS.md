@@ -120,6 +120,7 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-07-25: HLD 010 who-message introspection — last user message `who?` (exact, trimmed, non-streaming) short-circuits the forward path with a dialect-shaped synthetic reply naming the resolved route and auth scheme; gated on `Imposter:WhoMessage:Enabled` (default `true`, env `IMPOSTER_WHO_MESSAGE_ENABLED`).
 - 2026-07-25: Conductor workspace setup disables OpenCode Go session forwarding (`OPENCODE_GO_SESSION_FORWARDING=none`).
 - 2026-07-25: Conductor workspace setup mappings — sonnet→opencode qwen3.6-plus, haiku→OpenRouter tencent/hy3, gpt-5.5→glm-5.2, gpt-5.6-luna→grok-4.5; require OPENROUTER_API_KEY.
 - 2026-07-24: Note Conductor sandbox Docker CLI + Compose v2 setup-doc guidance.

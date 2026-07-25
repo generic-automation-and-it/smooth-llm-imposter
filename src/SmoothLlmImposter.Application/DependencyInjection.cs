@@ -29,6 +29,9 @@ public static class DependencyInjection
         services.AddScoped<IImposterRouter, ImposterRouter>();
         services.AddScoped<IModelCatalogResponder, OpenAiModelCatalogResponder>();
         services.AddScoped<IAnthropicModelCatalogResponder, AnthropicModelCatalogResponder>();
+        // HLD 010: the who-message probe is scoped (reads the per-request RoutePlan) but stateless;
+        // scoped lifetime keeps it consistent with its sibling responders without implying shared state.
+        services.AddScoped<IWhoMessageResponder, WhoMessageResponder>();
         services.AddSingleton<IErrorResponseFactory, ErrorResponseFactory>();
         services.AddSingleton<IAuthorizationOverrideSwitch, AuthorizationOverrideSwitch>();
 

@@ -412,6 +412,40 @@ public class ImposterOptionsPostConfigureTests
         mapped.ShouldBe(scalarProperties, ignoreOrder: true);
     }
 
+    [Fact]
+    public void Who_message_enabled_env_override_flips_default()
+    {
+        // Default in ImposterOptions is true; IMPOSTER_WHO_MESSAGE_ENABLED=false flips it.
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["IMPOSTER_WHO_MESSAGE_ENABLED"] = "false" })
+            .Build();
+        var sut = new ImposterOptionsPostConfigure(configuration, new CapturingLogger());
+
+        var options = new ImposterOptions();
+        options.WhoMessage.Enabled.ShouldBeTrue("default before PostConfigure");
+
+        sut.PostConfigure(name: null, options);
+
+        options.WhoMessage.Enabled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Who_message_enabled_invalid_value_logs_warning_and_keeps_bound_default()
+    {
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["IMPOSTER_WHO_MESSAGE_ENABLED"] = "yes_please" })
+            .Build();
+        var logger = new CapturingLogger();
+        var sut = new ImposterOptionsPostConfigure(configuration, logger);
+
+        var options = new ImposterOptions();
+        sut.PostConfigure(name: null, options);
+
+        // Default value is preserved when the env value is unparseable.
+        options.WhoMessage.Enabled.ShouldBeTrue();
+        logger.Entries.ShouldContain(entry => entry.Contains("IMPOSTER_WHO_MESSAGE_ENABLED"));
+    }
+
     /// <summary>Captures formatted log lines so a test can assert what was (and was not) logged.</summary>
     private sealed class CapturingLogger : ILogger<ImposterOptionsPostConfigure>
     {
