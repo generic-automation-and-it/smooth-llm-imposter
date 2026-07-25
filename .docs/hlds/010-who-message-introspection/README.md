@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Completed (base `who?` probe Completed; `--who?` / `--newsession` switch family + in-memory translation dictionary Draft) |
+| **Status** | In Design — base `who?` probe Completed (LADRs 01/05, NFRs 01/02/03 Accepted); `--who?` / `--newsession` switch family + translation dictionary Draft (LADR-02/03/04 `Draft (revised)`, LADR-06 + NFR-04 `Draft`) |
 | **Owner** | SmoothLlmImposter maintainers |
 | **Tracker** | _None — completed without a tracker issue (NO-TICKET)_ |
 | **Last updated** | 2026-07-25 |
@@ -203,7 +203,11 @@ dictionary is an override source on the same seam, not a parallel resolver.
 LADRs 01, 05, and 06 are strategic (*what* and *why*); LADR-04 is tactical (*how*). LADR-02 and LADR-03 are content-shape decisions that bridge strategy and tactics. Each is a
 single decision — a horizontal concern spanning this HLD. See [`./ladrs/`](./ladrs/).
 
-> **Reclassification note (2026-07-25):** LADR-05 moves from "tactical" to "strategic" because its "what — don't synthesize" decision constrains every LADR that follows. LADR-02 and LADR-03 sit between the two categories: they govern content *shape* (a tactical concern) but in service of the strategic decision of what content is allowed.
+> **Note (2026-07-25):** The LADR taxonomy distinguishes strategic (*what/why*),
+> tactical (*how*), and bridge (content-shape) decisions. LADR-01, 05, and 06 are
+> strategic; LADR-04 is tactical; LADR-02 and LADR-03 bridge the two because they
+> govern content shape (a tactical concern) in service of the strategic decision of
+> what content is allowed.
 
 | LADR | Decision | Status |
 |------|----------|--------|
@@ -231,5 +235,6 @@ target, a verification mechanism, and acceptance criteria. See [`./nfrs/`](./nfr
 | Date | Change | Ref |
 | :---- | :---- | :---- |
 | 2026-07-25 | Initial draft — intent, 5 goals, 5 LADRs, 3 NFRs, 3 diagrams. | — |
+| 2026-07-25 | LADR-05 reclassification note — clarifies the strategic / tactical / bridge split; no status change. | — |
 | 2026-07-25 | Implemented: `WhoMessageResponder` + endpoint seam + `Imposter:WhoMessage:Enabled` (default `true`) + env override `IMPOSTER_WHO_MESSAGE_ENABLED`. 17 L0 + 5 L2 tests pass. LADRs/NFRs → Accepted; HLD → Completed. | — |
 | 2026-07-25 | Extended design (NOT YET IMPLEMENTED): proposed trigger is `--who?` (live is `who?`); proposed `--newsession` switch for session-id mint + in-memory translation; proposed `session:<id>` envelope field. New LADR-06, new NFR-04, new goal 6 (session-id mint + translation) and goal 7 (switch registration). LADR-02/03/04 marked `Draft (revised)`; LADR-06 and NFR-04 stay `Draft`. **HLD is in design** — implementation lands in a follow-up commit. | — |
