@@ -29,7 +29,7 @@ the published GHCR image, and point your client's base URL at it. Full setup:
 <p align="center">
   <picture>
     <source srcset="docs/architecture-diagram.svg" type="image/svg+xml">
-    <img src="docs/architecture-diagram.png" alt="SmoothLlmImposter routing architecture">
+    <img src="docs/architecture-diagram.png" alt="SmoothLlmImposter routing architecture" width="1200">
   </picture>
 </p>
 
