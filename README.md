@@ -140,6 +140,102 @@ Pick the guide that matches how you want to run or work on the router:
 
 ---
 
+## Customized Switches
+
+The proxy recognizes a small set of **customized switch messages** — last-user-message
+strings that, instead of being forwarded upstream, are intercepted and answered
+locally with a dialect-shaped synthetic reply. The two switches shipped today are
+diagnostic / session-management affordances for agent clients; both are non-streaming
+and are gated by a single `Imposter:WhoMessage:Enabled` toggle (env
+`IMPOSTER_WHO_MESSAGE_ENABLED`, default `true`).
+
+### `--who?` — routing probe
+
+Send a chat message whose **last user content** is the exact string `--who?` (trimmed,
+case-sensitive). The proxy replies with a normal chat completion (no upstream call)
+whose content text names the resolved route and the persisted session id for the
+caller:
+
+| Route | Content text |
+|---|---|
+| Imposter | `Imposter: <inbound-model> → <target-model> (auth: <Bearer\|ApiKey\|none>) session:<id>` |
+| Passthrough | `Passthrough: <inbound-model> (auth: <caller-passthrough\|Bearer\|ApiKey>) session:null` |
+
+Example:
+
+```bash
+curl -X POST http://localhost:8080/openai/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-5.4",
+    "messages": [{"role": "user", "content": "--who?"}]
+  }'
+# 200 OK — zero upstream calls. The reply names the route and the persisted session id.
+```
+
+The synthetic id is greppable in the response's `id` field as `chatcmpl-who-{guid}`
+(OpenAI) or `msg_who_{guid}` (Anthropic).
+
+### `--newsession` — session-id mint + in-memory translation
+
+Send a chat message whose **last user content** is the exact string `--newsession`
+(trimmed, case-sensitive). The request **must** carry a caller-supplied session id
+(header `session_id` / `x-opencode-session` / `x-session-id` / `conversation_id`,
+or body field `prompt_cache_key` / `metadata.user_id` / `user` — the same resolution
+order as HLD 009's session-identity forwarder). The proxy:
+
+1. Generates a **synthetic session id** (UUID).
+2. **Persists** the pair `(callerId, syntheticId)` in a process-lifetime in-memory
+   `ConcurrentDictionary` — no TTL, no eviction, no clear (volumes are expected to
+   be small).
+3. Replies with content text: `Session: <callerId> → <syntheticId>`.
+
+On every **subsequent** request that is *not* a switch match, if the resolver
+produces a session id equal to a dictionary key, the proxy **translates it to the
+stored synthetic id** before stamping it on the outbound request. The caller
+controls the key; the proxy controls the synthetic value; the upstream sees a
+stable id without the caller having to coordinate a long-lived secret.
+
+```bash
+# Step 1: mint a session
+curl -X POST http://localhost:8080/openai/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "X-Opencode-Session: my-tooling-1" \
+  -d '{"model": "gpt-5.4", "messages": [{"role":"user","content":"--newsession"}]}'
+# Reply: "Session: my-tooling-1 → <synthetic-uuid>"
+
+# Step 2: send a real chat request with the SAME caller-supplied id
+#         (the proxy translates it to the synthetic id on the way out)
+curl -X POST http://localhost:8080/openai/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "X-Opencode-Session: my-tooling-1" \
+  -d '{"model": "gpt-5.4", "messages": [{"role":"user","content":"hello"}]}'
+# Upstream receives the synthetic uuid (not "my-tooling-1") in the body/header
+# the proxy stamps for session forwarding.
+```
+
+The synthetic id is greppable in the response's `id` field as
+`chatcmpl-newsession-{guid}` (OpenAI) or `msg_newsession_{guid}` (Anthropic).
+
+### Scope and limits
+
+- The dictionary is **process-lifetime** — a restart loses all minted ids; callers
+  must re-mint on restart.
+- The dictionary is **in-process, not clustered** — a horizontally-scaled proxy has
+  N independent dictionaries; the caller must route to the same instance to use the
+  same synthetic id.
+- High-cardinality callers (millions of unique session ids per process) are an
+  explicit non-goal. At that scale, disable the feature
+  (`IMPOSTER_WHO_MESSAGE_ENABLED=false`) until a future HLD adds a persistent or
+  evictable store.
+- Streaming (`stream: true`) requests are **never** intercepted by either switch —
+  they forward to the upstream as normal. The probes are one-shot affordances,
+  intended for ad-hoc agent-tooling use.
+
+Full design: [HLD 010 — Who-Message Introspection](.docs/hlds/010-who-message-introspection/README.md).
+
+---
+
 ## Documentation
 
 | Topic | Location |
