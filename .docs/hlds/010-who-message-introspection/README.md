@@ -71,9 +71,11 @@ as a non-streaming request.
 
 `Imposter:WhoMessage:Enabled` is a boolean under the existing `Imposter` options root,
 defaulting to `true`. The conventional env override is `IMPOSTER_WHO_MESSAGE_ENABLED`
-(parsed as bool; invalid values log a warning and leave the bound value unchanged,
-matching the existing `_IS_DEFAULT` post-configure pattern). Setting it to `false`
-disables the short-circuit; the request is forwarded verbatim.
+(parsed as bool via the root-level `ApplyRootBooleanOverride` helper in
+`ImposterOptionsPostConfigure.cs`; invalid values log a Warning and leave the bound
+value unchanged, mirroring the bool.TryParse semantics of the per-provider
+`_IS_DEFAULT` / `_ENABLED` overrides). Setting it to `false` disables the
+short-circuit; the request is forwarded verbatim.
 
 **Acceptance criteria / DoD**
 

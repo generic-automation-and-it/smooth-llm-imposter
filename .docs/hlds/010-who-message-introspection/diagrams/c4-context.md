@@ -77,7 +77,11 @@ flowchart TD
 
 ## Diagram selection rationale
 
-Per `references/diagram-selection.md`:
+The probe does not change the system boundary (no new actor, no new external
+dependency), so the C1 context overlay is a re-statement of HLD 001's with a note.
+The short-circuit adds a new branch to the request flow, which the sequence diagram
+makes visible. The decision gate has five short-circuit predicates, which the
+flowchart documents so the "fail transparent" property is visible at a glance.
 
 - **C1 System Context** — included (mandatory floor). The probe adds no external
   dependency, so C1 is a re-statement of HLD 001's with a note.

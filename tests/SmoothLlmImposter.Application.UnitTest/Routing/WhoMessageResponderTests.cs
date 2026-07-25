@@ -251,7 +251,7 @@ public class WhoMessageResponderTests
     }
 
     [Fact]
-    public void Imputer_route_with_no_secret_reports_auth_none()
+    public void Imposter_route_with_no_secret_reports_auth_none()
     {
         var responder = new WhoMessageResponder();
         // Imposter route with no configured secret → DescribeAuth returns "none".

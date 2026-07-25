@@ -13,10 +13,10 @@ JSON serialization, not network.
 ## Verification
 
 Integration tests stub the upstream transport. The matched-probe test asserts that
-the stub's request counter is zero after the probe call. (A latency-with-margin
-assertion against the local `/v1/models` endpoint was considered and dropped:
-the counter check is sufficient evidence of "no upstream call" and a fixed
-margin is flaky-prone in CI.)
+the stub's request counter is zero after the probe call. No timing assertion is made
+— the probe's latency class is a side effect of being in-process JSON serialization,
+not a contract; asserting a fixed margin against another endpoint would be flaky on
+loaded CI workers without adding any coverage the counter check does not already give.
 
 ## Acceptance Criteria
 

@@ -13,9 +13,11 @@ for a near-zero-cost feature is the wrong default.
 ## Decision
 
 **Default the feature ON** via `Imposter:WhoMessage:Enabled: true`, with the conventional
-env override `IMPOSTER_WHO_MESSAGE_ENABLED`. The boolean is parsed using the existing
-`_IS_DEFAULT` post-configure pattern: invalid values log a Warning and leave the bound
-value unchanged (fail-safe toward the appsettings default, not toward a crash).
+env override `IMPOSTER_WHO_MESSAGE_ENABLED`. The boolean is parsed by the root-level
+`ApplyRootBooleanOverride` helper (`ImposterOptionsPostConfigure.cs`), which mirrors the
+bool.TryParse + warn-on-invalid semantics of the per-provider `_IS_DEFAULT` / `_ENABLED`
+field loop: invalid values log a Warning and leave the bound value unchanged (fail-safe
+toward the appsettings default, not toward a crash).
 
 Operators who want the forward path fully byte-identical to a pre-HLD router set
 `Enabled: false` (or `IMPOSTER_WHO_MESSAGE_ENABLED=false`) and the short-circuit seam

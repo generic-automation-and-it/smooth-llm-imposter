@@ -25,11 +25,14 @@ Unit tests on `WhoMessageResponder` feed every provider-config permutation (all 
 schemes, all credential-override combinations, secret-bearing and secret-empty) and
 assert the response string does not contain any value from the input secret set.
 The test fixture also asserts the response contains no substring of length ≥ 4 that
-appears in any configured `Secret` — the lower bound is needed because typical API
-key formats cannot be uniquely identified below that length, while the test fixture
-ships with keys of length ≥ 8 to keep the search space tractable (a documented
-limitation: secrets shorter than 8 chars rely solely on exact-match, not
-substring-leak, detection).
+appears in any configured `Secret`.
+
+Substring threshold: **≥ 4 characters.** Secrets shorter than 4 characters are too
+short to identify uniquely (typical API-key formats are 20+ chars; the 4-char floor
+is the smallest substring that a masked-log test can still exercise without the
+assertion collapsing into "the whole secret is absent, period"). Tests ship with
+secrets of length ≥ 8 to keep the search space tractable; the 4-char floor is a
+defensive lower bound, not a statement about expected secret lengths.
 
 ## Acceptance Criteria
 
@@ -38,10 +41,10 @@ substring-leak, detection).
 - The responder's only dependency on credentials is `ImposterRouter.DescribeAuth`'s
   scheme-name return value; it never reads `Secret` or `CredentialOverride.Secret`
   directly.
-- A L0 test (`WhoMessageResponderTests`) asserts the probe does not log its own
-  reply body at Information or Debug level.
-- A L2 test (`WhoMessageIntegrationTests`) captures the host's log sink and
-  asserts the probe reply text is absent.
+- L0 test asserts the responder does not emit its own reply body to the
+  `SmoothLlmImposter.Routing` log at Information or Debug level.
+- L2 test captures the host's Serilog sink during a matched-probe request and asserts
+  the probe reply's content text is absent from every captured log event.
 
 ## Applies To
 
