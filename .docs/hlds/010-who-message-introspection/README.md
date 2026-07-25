@@ -157,4 +157,4 @@ target, a verification mechanism, and acceptance criteria. See [`./nfrs/`](./nfr
 | Date | Change | Ref |
 | :---- | :---- | :---- |
 | 2026-07-25 | Initial draft — intent, 5 goals, 5 LADRs, 3 NFRs, 3 diagrams. | — |
-| 2026-07-25 | Implemented: `WhoMessageResponder` + endpoint seam + `Imposter:WhoMessage:Enabled` (default `true`) + env override `IMPOSTER_WHO_MESSAGE_ENABLED`. 16 L0 + 5 L2 tests pass. LADRs/NFRs → Accepted; HLD → Completed. | — |
+| 2026-07-25 | Implemented: `WhoMessageResponder` + endpoint seam + `Imposter:WhoMessage:Enabled` (default `true`) + env override `IMPOSTER_WHO_MESSAGE_ENABLED`. 17 L0 + 5 L2 tests pass. LADRs/NFRs → Accepted; HLD → Completed. | — |

@@ -290,9 +290,9 @@ sudo docker info >/dev/null 2>&1 || {
 }
 
 # Conductor injects these only into the workspace lifecycle, not snapshot
-# construction. Alias OPENCODE_API_KEY to the shared prefix resolved by both
-# OpenCode Go dialect providers; OPENROUTER_API_KEY feeds the OpenRouter
-# Anthropic-dialect haiku route.
+# construction. Fall back from OPENCODE_GO_API_KEY to OPENCODE_API_KEY so
+# either name supplies the shared OpenCode Go key; OPENROUTER_API_KEY feeds
+# the OpenRouter Anthropic-dialect haiku route.
 export OPENCODE_GO_API_KEY="${OPENCODE_GO_API_KEY:-${OPENCODE_API_KEY:-}}"
 : "${OPENCODE_GO_API_KEY:?Set OPENCODE_API_KEY in the workspace environment.}"
 # Export so docker `-e OPENROUTER_API_KEY` can inherit the value (name-only pass-through).
