@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | In Design — base `who?` probe Completed (LADRs 01/05, NFRs 01/02/03 Accepted); `--who?` / `--newsession` switch family + translation dictionary Draft (LADR-02/03/04 `Draft (revised)`, LADR-06 + NFR-04 `Draft`) |
+| **Status** | Completed — `--who?` / `--newsession` switch family + session translation dictionary live. LADR-02/03/04/06 + NFR-04 Accepted. |
 | **Owner** | SmoothLlmImposter maintainers |
 | **Tracker** | _None — completed without a tracker issue (NO-TICKET)_ |
 | **Last updated** | 2026-07-25 |
@@ -11,6 +11,10 @@
 > building and why, the decisions behind it, and the quality bar it must meet. It does
 > **not** contain an implementation plan; execution (phasing, sub-issues, sequencing) is
 > tracked in the issue tracker (worktask list).
+
+## TL;DR
+
+Two switches — `--who?`, `--newsession` — short-circuit the forward path when the last user message matches exactly (trimmed, case-sensitive, non-streaming). `--who?` returns routing + auth info + session identity; `--newsession` mints a synthetic session id and stores the caller→synthetic mapping in a process-lifetime dictionary that translates session ids on subsequent forwards. Diagnostic logging (Debug level) in `WhoMessageResponder` reports each non-match reason; `RoutingEndpoints` logs when the feature is disabled or a translation is applied.
 
 ## Intent
 
@@ -28,24 +32,21 @@ dialect-shaped synthetic reply. The whole feature family is config-gated
 
 ### 1. In-band routing probe
 
-A request whose last user message is the exact string `who?` (trimmed) is intercepted
+A request whose last user message is the exact string `--who?` (trimmed) is intercepted
 between the router's plan step and the upstream forwarder. The proxy returns a 200
 chat reply whose content text names the inbound model, the resolved upstream target
-(or `passthrough`), and the resolved auth scheme. No upstream HTTP call is made for
-that request — the probe costs zero upstream tokens and round-trips in the same
-latency class as a local `/v1/models` response. *(A `--who?` / `--newsession`
-switch-family and a `session:<id>` envelope field are part of a proposed
-extension — see the "Implementation status" note above; they are not the live
-contract today.)*
+(or `passthrough`), the resolved auth scheme, and the session identity (or `session: null`).
+No upstream HTTP call is made for that request — the probe costs zero upstream tokens and
+round-trips in the same latency class as a local `/v1/models` response.
 
 **Acceptance criteria / DoD**
 
 - POST to `/openai/v1/chat/completions` or `/anthropic/v1/messages` with last user
-  content `who?` returns HTTP 200 with a synthetic body.
-- The upstream stub in integration tests is never invoked for a matched `who?` request.
+  content `--who?` returns HTTP 200 with a synthetic body.
+- The upstream stub in integration tests is never invoked for a matched `--who?` request.
 - The reply content text matches the format
-  `Imposter: <inbound> → <target> (auth: <scheme>)` for imposter routes, or
-  `Passthrough: <inbound> (auth: <scheme>)` for passthrough.
+  `Imposter: <inbound> → <target> (auth: <scheme>, session: <id>)` for imposter routes, or
+  `Passthrough: <inbound> (auth: <scheme>, session: <id>)` for passthrough.
 
 ### 2. Dialect fidelity
 
@@ -64,14 +65,14 @@ requests receive a `type:"message"` object with one `text` content block and
 ### 3. Streaming exclusion
 
 Requests with `stream: true` are **not** intercepted, even when the last user message
-is a configured switch (today `who?`; future `--who?` / `--newsession`). SSE synthesis
+is a configured switch (`--who?` or `--newsession`). SSE synthesis
 would require fabricating the chunked delta protocol per dialect for negligible
 benefit; streaming callers who want a probe can simply send it as a non-streaming
 request.
 
 **Acceptance criteria / DoD**
 
-- `stream: true` + `who?` (or `--who?` / `--newsession` once implemented) reaches the
+- `stream: true` + `--who?` or `--newsession` reaches the
   upstream stub in integration tests.
 - No SSE synthesis code exists in the short-circuit path.
 
@@ -91,8 +92,8 @@ option in the codebase today.
 
 **Acceptance criteria / DoD**
 
-- A default boot (no config override) intercepts `who?`.
-- `IMPOSTER_WHO_MESSAGE_ENABLED=false` causes a `who?` request to be forwarded.
+- A default boot (no config override) intercepts `--who?`.
+- `IMPOSTER_WHO_MESSAGE_ENABLED=false` causes a `--who?` request to be forwarded.
 - An invalid env value (e.g. `yes_please`) does not crash boot and is logged at Warning.
 
 ### 5. Transparency preserved
@@ -212,11 +213,11 @@ single decision — a horizontal concern spanning this HLD. See [`./ladrs/`](./l
 | LADR | Decision | Status |
 |------|----------|--------|
 | [LADR-01](./ladrs/LADR-01-short-circuit-location.md) | Short-circuit inside the proxy, not a sidecar endpoint | Accepted |
-| [LADR-02](./ladrs/LADR-02-trigger-shape.md) | Exact-match `"--who?"` or `"--newsession"` on the last user message (proposed; live is `who?`) | Draft (revised) |
-| [LADR-03](./ladrs/LADR-03-response-envelope.md) | Dialect-shaped chat envelope, not bare text (proposed; live omits `session:`) | Draft (revised) |
-| [LADR-04](./ladrs/LADR-04-default-on-config.md) | Default-ON opt-out config (proposed; shared by both switches AND the dictionary) | Draft (revised) |
+| [LADR-02](./ladrs/LADR-02-trigger-shape.md) | Exact-match `"--who?"` or `"--newsession"` on the last user message | Accepted |
+| [LADR-03](./ladrs/LADR-03-response-envelope.md) | Dialect-shaped chat envelope, not bare text | Accepted |
+| [LADR-04](./ladrs/LADR-04-default-on-config.md) | Default-ON opt-out config | Accepted |
 | [LADR-05](./ladrs/LADR-05-no-stream-synthesis.md) | No SSE synthesis — streaming requests pass through | Accepted |
-| [LADR-06](./ladrs/LADR-06-session-translation-dictionary.md) | In-memory `ConcurrentDictionary` translates caller-supplied session ids to stored override ids on the forward path | Draft |
+| [LADR-06](./ladrs/LADR-06-session-translation-dictionary.md) | In-memory `ConcurrentDictionary` translates caller-supplied session ids to stored override ids on the forward path | Accepted |
 
 ## Non-Functional Requirements
 
@@ -228,7 +229,7 @@ target, a verification mechanism, and acceptance criteria. See [`./nfrs/`](./nfr
 | [NFR-01](./nfrs/NFR-01-transparency.md) | Transparency | Non-match path byte-identical to pre-HLD | Accepted |
 | [NFR-02](./nfrs/NFR-02-no-upstream-cost.md) | Efficiency | Zero upstream HTTP calls on match | Accepted |
 | [NFR-03](./nfrs/NFR-03-no-secret-leakage.md) | Security | Response contains no secret, credential, or masked fragment | Accepted |
-| [NFR-04](./nfrs/NFR-04-process-lifetime-dictionary.md) | Process-lifetime dictionary | Translation dictionary does not evict; entries survive process lifetime | Draft |
+| [NFR-04](./nfrs/NFR-04-process-lifetime-dictionary.md) | Process-lifetime dictionary | Translation dictionary does not evict; entries survive process lifetime | Accepted |
 
 ## Changelog
 
@@ -236,5 +237,5 @@ target, a verification mechanism, and acceptance criteria. See [`./nfrs/`](./nfr
 | :---- | :---- | :---- |
 | 2026-07-25 | Initial draft — intent, 5 goals, 5 LADRs, 3 NFRs, 3 diagrams. | — |
 | 2026-07-25 | Implemented: `WhoMessageResponder` + endpoint seam + `Imposter:WhoMessage:Enabled` (default `true`) + env override `IMPOSTER_WHO_MESSAGE_ENABLED`. 17 L0 + 5 L2 tests pass. LADRs/NFRs → Accepted; HLD → Completed. | — |
-| 2026-07-25 | Extended design (NOT YET IMPLEMENTED): proposed trigger is `--who?` (live is `who?`); proposed `--newsession` switch for session-id mint + in-memory translation; proposed `session:<id>` envelope field. New LADR-06, new NFR-04, new goal 6 (session-id mint + translation) and goal 7 (switch registration). LADR-02/03/04 marked `Draft (revised)`; LADR-06 and NFR-04 stay `Draft`. **HLD is in design** — implementation lands in a follow-up commit. | — |
+| 2026-07-25 | **Implemented:** `--who?` / `--newsession` switch family + `ISessionTranslationDictionary` + forward-path translation seam. LADR-02/03/04/06 + NFR-04 → Accepted. Diagnostic logging added to `WhoMessageResponder` (non-match reasons) and `RoutingEndpoints` (feature-disabled, translation applied). **Breaking change:** Bare `who?` trigger from initial HLD 010 implementation replaced by `--who?`. | — |
 | 2026-07-25 | LADR-05 reclassification note — clarifies the strategic / tactical / bridge split; no status change. | — |

@@ -22,6 +22,11 @@ variables. Create `.env` next to `docker-compose.yml`:
 # .env  (never committed — *.env is gitignored)
 OPENCODE_GO_API_KEY=sk-your-opencode-key              # feeds opencode-go-openai and opencode-go-anthropic
 OPENROUTER_API_KEY=sk-your-openrouter-key             # feeds openrouter-openai and openrouter-anthropic
+
+# Optional — HLD 010 in-band routing switches. Default true; set to false to disable
+# both the `--who?` probe and `--newsession` mint, and the forward-path session
+# translation dictionary (LADR-04 / LADR-06). The Host validates this at startup.
+IMPOSTER_WHO_MESSAGE_ENABLED=true
 ```
 
 > `<NAME>_AUTH_TOKEN`, `<NAME>_AUTHORIZATION_BEARER`, and `<NAME>_API_KEY` fill the **same** provider secret, but

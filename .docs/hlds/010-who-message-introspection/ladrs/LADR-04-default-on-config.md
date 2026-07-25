@@ -1,6 +1,6 @@
 # LADR-04: Default-ON opt-out config (shared by all customized switches)
 
-**Status:** Draft (revised) — proposed; live is the single-gate `Imposter:WhoMessage:Enabled` for the original `who?` probe
+**Status:** Accepted
 
 ## Context
 

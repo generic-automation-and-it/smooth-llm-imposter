@@ -17,15 +17,21 @@ services:
       # Load appsettings.Development.json (the debug request dumps live behind its
       # Serilog `SmoothLlmImposter` Debug override). Drop this line to run Production-quiet.
       ASPNETCORE_ENVIRONMENT: Development
+      # In-band routing switches (HLD 010): --who? probe + --newsession mint.
+      # Default true; set to false to disable BOTH switches AND the session
+      # translation dictionary on the forward path (LADR-04 / LADR-06).
+      IMPOSTER_WHO_MESSAGE_ENABLED: ${IMPOSTER_WHO_MESSAGE_ENABLED:-true}
       # Upstream provider secrets — providers are keyed by NAME (HLD 007), not index,
       # so these survive any reordering of appsettings.json. The shipped imposters are
       # openrouter-anthropic, openrouter-openai, opencode-go-anthropic, opencode-go-openai; the two *-default real providers are
       # catch-all passthrough and take NO secret here. These use the conventional
       # <NAME>_<FIELD> surface (OPENCODE_GO_API_KEY → opencode-go-* Secret, etc.); the
       # structured form Imposter__Providers__opencode-go-openai__Secret is equivalent. AuthScheme
-      # is decoupled from Dialect: OpenRouter expects Bearer even on its Anthropic-compatible
-      # surface, while opencode-go-anthropic is configured for x-api-key. Supply secrets via shell
-      # export or a gitignored .env file; :- keeps compose quiet when a secret is unset.
+      # is decoupled from Dialect: OpenRouter is configured for x-api-key on
+      # both its Anthropic-compatible and OpenAI-compatible surfaces; opencode-go-anthropic
+      # is configured for x-api-key as well, while opencode-go-openai is configured for
+      # Bearer. Supply secrets via shell export or a gitignored .env file; :- keeps
+      # compose quiet when a secret is unset.
       OPENCODE_GO_API_KEY: ${OPENCODE_GO_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     # Only needed for the optional /admin/credentials API (requires PostgreSQL):

@@ -253,7 +253,7 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   upstream 400s for unsupported tool shapes/names. The LADR-05 response bridge is a **wire-shape** translation for
   downgraded `/responses` calls, not a tool-name remapper.
 - **Who-message probe short-circuits the forward path (HLD 010).** When `Imposter:WhoMessage:Enabled` is `true`
-  (default) and a request's **last** `role:"user"` message is the exact string `who?` (trimmed, ordinal, case-
+  (default) and a request's **last** `role:"user"` message is the exact string `--who?` (trimmed, ordinal, case-
   sensitive), the proxy returns a dialect-shaped synthetic reply whose content text names the inbound model,
   the resolved target (or `passthrough`), and the auth scheme — and does **not** call the upstream. The trigger
   is `stream:false` only: `stream:true` requests always forward (no SSE synthesis). Content concatenation
@@ -309,7 +309,7 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
-| 2026-07-25 | HLD 010 who-message introspection: last-user-message `who?` (exact, trimmed, non-streaming) short-circuits the forward path with a dialect-shaped synthetic reply naming the resolved route and auth scheme. `ImposterRouter.DescribeAuth` promoted to `internal static` so the reply, log, and outbound header share one source of truth. Gated on `Imposter:WhoMessage:Enabled` (default `true`, env `IMPOSTER_WHO_MESSAGE_ENABLED`). Fifth sanctioned request-inspection class, the only one that reads `messages` content or synthesizes a response. | HLD 010 |
+| 2026-07-25 | HLD 010 who-message introspection: last-user-message `--who?` (exact, trimmed, non-streaming) short-circuits the forward path with a dialect-shaped synthetic reply naming the resolved route and auth scheme. `ImposterRouter.DescribeAuth` promoted to `internal static` so the reply, log, and outbound header share one source of truth. Gated on `Imposter:WhoMessage:Enabled` (default `true`, env `IMPOSTER_WHO_MESSAGE_ENABLED`). Fifth sanctioned request-inspection class, the only one that reads `messages` content or synthesizes a response. | HLD 010 |
 | 2026-07-24 | HLD 009: opt-in `SessionForwarding` (fourth request-rewrite class) stamps resolved session identity on matched imposter routes (`session_id` body + `x-opencode-session` header; Anthropic header-only). Routing log adds `session=captured|derived|none`. | #72 |
 | 2026-07-24 | HLD 009 review follow-up: `session_id`/`x-opencode-session` added to the forwarder drop set (resolver consumes them; `ApplySessionIdentity` is the sole writer); resolver single-parses the body for capture + fingerprint inputs; opt-in predicate centralized as `SessionForwardingPolicy.IsOptedIn` (Domain) consulted by router and transformers; `SessionIdentity.LogToken` is exhaustive via `UnreachableException`. | #73 |
 | 2026-06-14 | Initial routing feature: same-dialect router, config-driven imposters, per-dialect caching, SSE streaming. | — |

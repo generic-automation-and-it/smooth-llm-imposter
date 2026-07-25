@@ -31,6 +31,7 @@ public sealed class WhoMessageIntegrationTests
         ["Imposter:Providers:opencode-go:BaseUrl"] = "https://opencode.test",
         ["Imposter:Providers:opencode-go:Secret"] = "opencode-key",
         ["Imposter:Providers:opencode-go:AuthScheme"] = "ApiKey",
+        ["Imposter:Providers:opencode-go:SessionForwarding"] = "opencode-go",
         ["Imposter:Providers:opencode-go:Models:0:From"] = "gpt5.4",
         ["Imposter:Providers:opencode-go:Models:0:To"] = "grok-code",
 
@@ -98,7 +99,7 @@ public sealed class WhoMessageIntegrationTests
         HttpClient client = factory.CreateClient();
         int upstreamBefore = factory.Upstream.RequestCount;
 
-        string body = """{"model":"gpt5.4","messages":[{"role":"user","content":"who?"}]}""";
+        string body = """{"model":"gpt5.4","messages":[{"role":"user","content":"--who?"}]}""";
         using HttpResponseMessage response = await client.PostAsync(
             "/openai/v1/chat/completions",
             new StringContent(body, Encoding.UTF8, "application/json"),
@@ -114,7 +115,7 @@ public sealed class WhoMessageIntegrationTests
         JsonNode choice = root["choices"]!.AsArray().Single()!;
         choice["finish_reason"]!.GetValue<string>().ShouldBe("stop");
         string content = choice["message"]!["content"]!.GetValue<string>();
-        content.ShouldBe("Imposter: gpt5.4 → grok-code (auth: ApiKey)");
+        content.ShouldBe("Imposter: gpt5.4 → grok-code (auth: ApiKey, session: null)");
         root["usage"]!["total_tokens"]!.GetValue<int>().ShouldBe(0);
 
         // The forwarder must NOT have been called — zero upstream cost on match (NFR-02).
@@ -128,7 +129,7 @@ public sealed class WhoMessageIntegrationTests
         HttpClient client = factory.CreateClient();
         int upstreamBefore = factory.Upstream.RequestCount;
 
-        string body = """{"model":"gpt5.4","messages":[{"role":"user","content":"who?"}],"stream":true}""";
+        string body = """{"model":"gpt5.4","messages":[{"role":"user","content":"--who?"}],"stream":true}""";
         using HttpResponseMessage response = await client.PostAsync(
             "/openai/v1/chat/completions",
             new StringContent(body, Encoding.UTF8, "application/json"),
@@ -148,7 +149,7 @@ public sealed class WhoMessageIntegrationTests
         HttpClient client = factory.CreateClient();
         int upstreamBefore = factory.Upstream.RequestCount;
 
-        string body = """{"model":"gpt5.4","messages":[{"role":"user","content":"who?"}]}""";
+        string body = """{"model":"gpt5.4","messages":[{"role":"user","content":"--who?"}]}""";
         using HttpResponseMessage response = await client.PostAsync(
             "/openai/v1/chat/completions",
             new StringContent(body, Encoding.UTF8, "application/json"),
@@ -158,7 +159,7 @@ public sealed class WhoMessageIntegrationTests
         // Disabled → the probe never runs; the upstream sees the body verbatim (NFR-01).
         factory.Upstream.RequestCount.ShouldBe(upstreamBefore + 1);
         factory.Upstream.LastRequestBody.ShouldNotBeNull();
-        factory.Upstream.LastRequestBody.ShouldContain("who?");
+        factory.Upstream.LastRequestBody.ShouldContain("--who?");
     }
 
     [Fact]
@@ -189,7 +190,7 @@ public sealed class WhoMessageIntegrationTests
 
         // The claude-haiku-* mapping on anthropic-official rewrites to claude-3-5-haiku-latest. The dialect
         // default scheme is ApiKey (no explicit AuthScheme configured), so DescribeAuth returns "ApiKey".
-        string body = """{"model":"claude-haiku-3","messages":[{"role":"user","content":"who?"}]}""";
+        string body = """{"model":"claude-haiku-3","messages":[{"role":"user","content":"--who?"}]}""";
         using HttpResponseMessage response = await client.PostAsync(
             "/anthropic/v1/messages",
             new StringContent(body, Encoding.UTF8, "application/json"),
@@ -204,10 +205,59 @@ public sealed class WhoMessageIntegrationTests
         root["model"]!.GetValue<string>().ShouldBe("claude-haiku-3");
         JsonNode textBlock = root["content"]!.AsArray().Single()!;
         textBlock["type"]!.GetValue<string>().ShouldBe("text");
-        textBlock["text"]!.GetValue<string>().ShouldBe("Imposter: claude-haiku-3 → claude-3-5-haiku-latest (auth: ApiKey)");
+        textBlock["text"]!.GetValue<string>().ShouldBe("Imposter: claude-haiku-3 → claude-3-5-haiku-latest (auth: ApiKey, session: null)");
         root["usage"]!["input_tokens"]!.GetValue<int>().ShouldBe(0);
         root["usage"]!["output_tokens"]!.GetValue<int>().ShouldBe(0);
 
         factory.Upstream.RequestCount.ShouldBe(upstreamBefore);
+    }
+
+    [Fact]
+    public async Task NewSession_mints_synthetic_id_and_translation_seam_replaces_caller_id_on_forward()
+    {
+        using var factory = new Fixture();
+        HttpClient client = factory.CreateClient();
+        string callerSessionId = "test-caller-session-12345";
+
+        // Step 1: Send --newsession with a caller session id to mint a synthetic id
+        string newSessionBody = """{"model":"gpt5.4","messages":[{"role":"user","content":"--newsession"}]}""";
+        using HttpRequestMessage newSessionRequest = new(HttpMethod.Post, "/openai/v1/chat/completions")
+        {
+            Content = new StringContent(newSessionBody, Encoding.UTF8, "application/json")
+        };
+        newSessionRequest.Headers.TryAddWithoutValidation("session_id", callerSessionId);
+
+        using HttpResponseMessage newSessionResponse = await client.SendAsync(newSessionRequest, TestContext.Current.CancellationToken);
+        newSessionResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        string newSessionResponseBody = await newSessionResponse.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        JsonObject newSessionRoot = JsonNode.Parse(newSessionResponseBody)!.AsObject();
+
+        // Extract the synthetic id from the response content
+        string contentText = newSessionRoot["choices"]!.AsArray().Single()!["message"]!["content"]!.GetValue<string>();
+        contentText.ShouldStartWith($"Session: {callerSessionId} → ");
+        string syntheticId = contentText.Split("→")[1].Trim();
+        syntheticId.ShouldNotBeNullOrWhiteSpace();
+
+        // Step 2: Send a normal request with the same caller session id
+        int upstreamBefore = factory.Upstream.RequestCount;
+        string normalBody = """{"model":"gpt5.4","messages":[{"role":"user","content":"hello"}]}""";
+        using HttpRequestMessage normalRequest = new(HttpMethod.Post, "/openai/v1/chat/completions")
+        {
+            Content = new StringContent(normalBody, Encoding.UTF8, "application/json")
+        };
+        normalRequest.Headers.TryAddWithoutValidation("session_id", callerSessionId);
+
+        using HttpResponseMessage normalResponse = await client.SendAsync(normalRequest, TestContext.Current.CancellationToken);
+        normalResponse.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        // Step 3: Verify the upstream received the synthetic id, not the caller id
+        factory.Upstream.RequestCount.ShouldBe(upstreamBefore + 1);
+        factory.Upstream.LastHeaders["x-opencode-session"].ShouldBe(syntheticId);
+        factory.Upstream.LastHeaders["x-opencode-session"].ShouldNotBe(callerSessionId);
+
+        // Step 4: Verify the caller's original session_id header was NOT forwarded
+        factory.Upstream.LastHeaders.ContainsKey("session_id").ShouldBeFalse(
+            "caller's session_id must not leak alongside the synthetic id");
     }
 }

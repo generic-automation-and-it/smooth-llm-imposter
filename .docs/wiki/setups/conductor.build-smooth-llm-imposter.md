@@ -340,7 +340,7 @@ fi
   -e "Imposter__Providers__opencode-go-anthropic__Models__2__To=minimax-m3" \
   -e "Imposter__Providers__openrouter-anthropic__Dialect=anthropic" \
   -e "Imposter__Providers__openrouter-anthropic__BaseUrl=https://openrouter.ai/api" \
-  -e "Imposter__Providers__openrouter-anthropic__AuthScheme=Bearer" \
+  -e "Imposter__Providers__openrouter-anthropic__AuthScheme=ApiKey" \
   -e "Imposter__Providers__openrouter-anthropic__Models__0__From=claude-haiku-*" \
   -e "Imposter__Providers__openrouter-anthropic__Models__0__To=tencent/hy3" \
   -e "Imposter__Providers__opencode-go-openai__Dialect=openai" \

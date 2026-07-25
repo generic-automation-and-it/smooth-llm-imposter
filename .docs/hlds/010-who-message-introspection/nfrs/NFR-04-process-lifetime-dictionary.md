@@ -1,6 +1,6 @@
 # NFR-04: Process-lifetime dictionary (no eviction)
 
-**Status:** Draft — implementation-gated; verification list is phased
+**Status:** Accepted
 
 ## Requirement
 
@@ -21,10 +21,15 @@ HLD adds a persistent or evictable store.
 
 ## Verification
 
-**Phased: no test is runnable today; all of the following become runnable
-together when the dictionary implementation lands in a follow-up commit.**
+The following L0 and L2 tests cover this NFR (all are runnable in the
+current build):
 
-- L0 test (`WhoMessageResponderTests` or a new `SessionIdTranslationTests`):
+- L0 test (`WhoMessageResponderTests` + co-located dictionary tests):
+
+  Dictionary coverage lives alongside the switch tests rather than in a separate
+  `SessionTranslationDictionaryTests` class to keep the single-responsibility seam
+  (caller→synthetic translation) adjacent to its primary caller; splitting later
+  is acceptable if the dictionary gains additional operations.
   - `--newsession` request with caller id `A` mints synthetic id `S1`.
   - A second `--newsession` request with the same caller id `A` returns the
     **same** synthetic id `S1` (no overwrite).

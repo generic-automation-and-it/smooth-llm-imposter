@@ -1,6 +1,6 @@
 # LADR-06: In-memory translation dictionary for caller-supplied session ids
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 
@@ -32,7 +32,7 @@ grows for the life of the process, in exchange for zero management overhead.
 - **Process-lifetime** — no TTL, no eviction, no clear. The dictionary grows
   for the life of the process; volumes are expected to be small enough that this
   is a non-issue.
-- **Single instance** — registered as a DI **singleton** (`ISessionIdTranslation`)
+- **Single instance** — registered as a DI **singleton** (`ISessionTranslationDictionary`)
   so every resolver, transformer, and forwarder sees the same map for the
   process lifetime. (DI lifetime: `Singleton`, not `Scoped` — the dictionary is
   process-lifetime, so per-scope instances would split the map and silently break
@@ -45,11 +45,9 @@ grows for the life of the process, in exchange for zero management overhead.
   id does **not** match (the responder returns no match; the request forwards
   normally).
 - **Looked up by the resolver** — when the resolver produces a session id equal
-  to a dictionary key, the resolved `SessionIdentity.Value` (the live record
-  property; the planned rename to `StableId` is part of the follow-up commit
-  — both names refer to the same string) is rewritten to the stored synthetic
-  id before the transformer stamps it on the outbound request. The
-  translation fires only when `Imposter:WhoMessage:Enabled=true`; with the
+  to a dictionary key, the resolved `SessionIdentity.Value` is rewritten to the
+  stored synthetic id before the transformer stamps it on the outbound request.
+  The translation fires only when `Imposter:WhoMessage:Enabled=true`; with the
   toggle off, the dictionary is bypassed and the captured/derived value passes
   through unchanged.
 
@@ -123,7 +121,7 @@ path: the short-circuit runs before the forwarder; the translation runs after
 - **LADR-05** — the translation does not affect streaming behavior; the
   dictionary is consulted on the same hot path regardless of `stream`.
 - **LADR-03** — the synthetic id appears in the `--who?` envelope's content
-  text (`session:<id>`), so the same id flows from `--newsession` (mint) →
+  text (`session: <id>`), so the same id flows from `--newsession` (mint) →
   `--who?` (display) → forward path (stamp).
 - **NFR-04** — the process-lifetime growth contract; the dictionary does not
   evict.
