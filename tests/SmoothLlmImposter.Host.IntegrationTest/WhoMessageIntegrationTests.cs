@@ -255,5 +255,9 @@ public sealed class WhoMessageIntegrationTests
         factory.Upstream.RequestCount.ShouldBe(upstreamBefore + 1);
         factory.Upstream.LastHeaders["x-opencode-session"].ShouldBe(syntheticId);
         factory.Upstream.LastHeaders["x-opencode-session"].ShouldNotBe(callerSessionId);
+
+        // Step 4: Verify the caller's original session_id header was NOT forwarded
+        factory.Upstream.LastHeaders.ContainsKey("session_id").ShouldBeFalse(
+            "caller's session_id must not leak alongside the synthetic id");
     }
 }

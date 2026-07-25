@@ -21,27 +21,20 @@ probe intent at a glance and is unlikely to collide with natural English.
 
 **Adopt** (revised) a registered-switch table on the last `role:"user"` message: when
 the trimmed, ordinal-equalled content matches any registered switch literal, the
-responder short-circuits with the switch's reply shape. **The live implementation
-matches this LADR for the `who?` trigger only; the `--who?` / `--newsession`
-literal change and the switch table are pending a follow-up commit.**
+responder short-circuits with the switch's reply shape. The live implementation
+matches this LADR.
 
-Two switches will be registered when the LADR lands:
+Two switches are registered:
 
 - `--who?` → routing probe (LADR-03 envelope, content text per Goal 1)
 - `--newsession` → session-id mint + translation (LADR-03 envelope, content text
   `Session: <callerId> → <syntheticId>`)
 
-Both switches will share the same predicate: last user message, exact match
-(case-sensitive, ordinal), trimmed, non-streaming, content is a bare string (not an
-array of content parts — multimodal last user content disables the trigger). The
-predicate is evaluated only when `stream != true` and the feature is enabled.
-
-**Live code caveat.** The current `WhoMessageResponder` accepts either a bare string
-OR an array of text parts (concatenated before compare) on the last user message,
-and the existing L0 test `WhoMessageResponderTests.Concatenated_text_parts_match_when_all_parts_are_text`
-(lines 207–218) exercises the split-across-two-text-parts case. The proposed
-bare-string-only narrowing is a behavior change to the live contract; the L0 test
-will need to be updated (or removed) when the implementation lands.
+Both switches share the same predicate: last user message, exact match
+(case-sensitive, ordinal), trimmed, non-streaming. Multi-part text content
+(an array of text parts) matches when the concatenated trimmed value equals
+the trigger literal. Bare-string-only narrowing is a planned follow-up.
+The predicate is evaluated only when `stream != true` and the feature is enabled.
 
 The match is ordinal (`StringComparison.Ordinal`) — no locale, no case-folding. The
 switches are hardcoded constants (not configurable via `appsettings.json` or env)

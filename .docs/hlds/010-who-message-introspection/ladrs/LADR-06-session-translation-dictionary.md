@@ -32,7 +32,7 @@ grows for the life of the process, in exchange for zero management overhead.
 - **Process-lifetime** — no TTL, no eviction, no clear. The dictionary grows
   for the life of the process; volumes are expected to be small enough that this
   is a non-issue.
-- **Single instance** — registered as a DI **singleton** (`ISessionIdTranslation`)
+- **Single instance** — registered as a DI **singleton** (`ISessionTranslationDictionary`)
   so every resolver, transformer, and forwarder sees the same map for the
   process lifetime. (DI lifetime: `Singleton`, not `Scoped` — the dictionary is
   process-lifetime, so per-scope instances would split the map and silently break

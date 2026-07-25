@@ -21,8 +21,8 @@ HLD adds a persistent or evictable store.
 
 ## Verification
 
-**Phased: no test is runnable today; all of the following become runnable
-together when the dictionary implementation lands in a follow-up commit.**
+The following L0 and L2 tests cover this NFR (all are runnable in the
+current build):
 
 - L0 test (`WhoMessageResponderTests` or a new `SessionIdTranslationTests`):
   - `--newsession` request with caller id `A` mints synthetic id `S1`.

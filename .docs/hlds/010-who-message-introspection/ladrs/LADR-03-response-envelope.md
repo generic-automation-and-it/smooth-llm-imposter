@@ -24,25 +24,18 @@ The `model` field in both envelopes echoes the inbound model (not the resolved t
 matching what the caller asked for — the resolved target is named inside the content
 text. `id` is a fresh synthetic value with a switch-specific prefix so transcripts
 can be greppable per switch:
-- `who?` (live) → `chatcmpl-who-{guid:N}` (OpenAI) / `msg_who_{guid:N}` (Anthropic)
-- `--who?` (reserved) → `chatcmpl-who-{guid:N}` (OpenAI) / `msg_who_{guid:N}` (Anthropic)
-  *(same prefix as the live `who?` envelope; the id prefix is the responder's
-  switch identity, not the trigger literal — the new trigger is a future naming
-  change, the id stays greppable for transcripts.)*
-- `--newsession` (reserved) → `chatcmpl-newsession-{guid:N}` (OpenAI) /
+- `--who?` → `chatcmpl-who-{guid:N}` (OpenAI) / `msg_who_{guid:N}` (Anthropic)
+- `--newsession` → `chatcmpl-newsession-{guid:N}` (OpenAI) /
   `msg_newsession_{guid:N}` (Anthropic)
 
 Content text by switch:
-- `who?` (live) → `Imposter: <inbound> → <target> (auth: <scheme>)` /
-  `Passthrough: <inbound> (auth: <scheme>)`
-- `--who?` (reserved) → `Imposter: <inbound> → <target> (auth: <scheme>) session:<id>` /
-  `Passthrough: <inbound> (auth: <scheme>) session:null`
-- `--newsession` (reserved) → `Session: <callerId> → <syntheticId>`
+- `--who?` → `Imposter: <inbound> → <target> (auth: <scheme>, session: <id>)` /
+  `Passthrough: <inbound> (auth: <scheme>, session: <id>)`
+- `--newsession` → `Session: <callerId> → <syntheticId>`
 
-The `session:<id>` field in the reserved `--who?` content text is the persisted
+The `session: <id>` field in the `--who?` content text is the persisted
 synthetic id for the caller (so the caller can reuse the same id on subsequent
-requests), or `session:null` for passthrough (which does not persist sessions).
-Both fields are absent in the live `who?` envelope today.
+requests), or `session: null` when no session identity was resolved.
 
 ## Alternatives Considered
 
@@ -80,7 +73,7 @@ Both fields are absent in the live `who?` envelope today.
 
 The switches are selected by **dialect**, not by inbound upstream path. A request to
 `/v1/responses` (OpenAI's newer API surface) whose last user message is `who?`
-(live), or `--who?` / `--newsession` (reserved) still receives a `chat.completion`
+(live) still receives a `chat.completion`
 object — not a `response` object. Clients using the official `openai` Responses
 SDK and routing to `/v1/responses` will see a parse error on the synthetic reply.
 
@@ -97,7 +90,7 @@ contributor does not read the silence as an oversight.
 - **LADR-01** — depends on (seam provides `plan.InboundModel`, `plan.Decision`, dialect).
 - **LADR-02** — independent; trigger shape does not affect response shape (both
   switches share this envelope).
-- **LADR-06** — the `session:<id>` field in the `--who?` content text is the
+- **LADR-06** — the `session: <id>` field in the `--who?` content text is the
   synthetic id minted by an earlier `--newsession`; both switches read the same
   translation dictionary for consistency.
 - **NFR-03** — the envelope's content text is audited against the no-secret-leakage rule.

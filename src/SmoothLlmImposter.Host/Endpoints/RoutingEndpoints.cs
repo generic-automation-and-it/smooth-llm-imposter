@@ -163,6 +163,10 @@ internal static class RoutingEndpoints
                 plan.SessionIdentity.LogToken,
                 translated,
                 dialect);
+            // Source describes the origin path of the request's session identity
+            // (how the caller's value was obtained), not the current value's provenance.
+            // The translated value is synthetic, but Source is preserved so log consumers
+            // can trace the request back to its inbound session-resolution path.
             plan = plan with { SessionIdentity = new SessionIdentity(translated, plan.SessionIdentity.Source) };
         }
 
