@@ -22,30 +22,35 @@ Agent harnesses (Codex, Claude Code) stream chat requests by default (`"stream":
 
 ## Workflow
 
-1. Determine the dialect: OpenAI (`gpt-*`, most chat models) or Anthropic (`claude-*`). The script auto-detects from `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`; pass `--dialect` to force it.
-2. Identify the inbound model — the model name the harness is configured to send (e.g. `gpt-5.5`, `claude-sonnet-4-6`). This is the model whose imposter mapping is being probed. Defaults to `who-probe` which routes to the dialect default.
-3. Run the probe script:
+This is a **single-shot** probe. Run the script once, relay the one-line reply, stop. Do not enumerate other models, sweep dialects, or re-probe unless the user names a specific model.
+
+1. Determine the model and dialect to probe, in this order of precedence:
+   - If the user named a model in their request, use that model. Pick the dialect from the model name: `gpt-*` (and most non-Claude chat models) → OpenAI; `claude-*` → Anthropic. The script auto-detects dialect from `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`; pass `--dialect` only when the model name is ambiguous.
+   - If the user did not name a model, run the script with no `--model` (it defaults to `who-probe`, which routes to the dialect default). Relay the single-line `Passthrough:` reply as-is — that is the honest answer for an unnamed model.
+2. Run the probe **once**:
 
 ```bash
 .agents/skills/imposter-who/scripts/imposter-who.sh --model gpt-5.5
 ```
 
-For an Anthropic dialect:
+For an Anthropic model:
 
 ```bash
 .agents/skills/imposter-who/scripts/imposter-who.sh --dialect anthropic --model claude-sonnet-4-6
 ```
 
-4. Interpret the single-line output:
+3. Relay the single-line output verbatim to the user. It has the shape:
 
 ```
 Imposter: gpt-5.5 → glm-5.2 (auth: Bearer, session: null)
 ```
 
-- `Imposter: in to out` — the inbound model is rewritten to `<out>` upstream.
+- `Imposter: in to out` — the inbound model is rewritten to `out` upstream.
 - `Passthrough: inbound` — no mapping matched; the request reaches the real provider unchanged.
 - `auth:` — the auth scheme the router will use upstream (`Bearer` / `ApiKey` / `none` / `caller-passthrough`).
 - `session:` — resolved session identity, or `null`.
+
+**Do not** loop over candidate models, probe both dialects, or build a summary table unless the user explicitly asks for a sweep. The default invocation is one curl, one line, one answer.
 
 ## Script
 
