@@ -20,8 +20,7 @@ any log sink. Fingerprint inputs are named in [README §2](../../README.md#2-sta
   means C# does not enforce compile-time exhaustiveness).
 - All four resolver capture headers (`session_id`, `x-opencode-session`,
   `x-session-id`, `conversation_id`) are in `SensitiveHeaderNames.Values`
-  and masked in both inbound (Host) and outbound (Infrastructure) Debug
-  dumps.
+  and masked in the inbound (Host) Debug dump.
 
 ## Verification
 
@@ -35,5 +34,5 @@ any log sink. Fingerprint inputs are named in [README §2](../../README.md#2-sta
 ## Applies To
 
 - `SessionIdentity.LogToken`
-- `SensitiveHeaderNames` (Host inbound + Infrastructure outbound)
+- `SensitiveHeaderNames` (Host inbound)
 - `ImposterRouter` Information log

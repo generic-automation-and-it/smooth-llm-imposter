@@ -3,9 +3,8 @@ namespace SmoothLlmImposter.Application.Features.Routing;
 /// <summary>
 /// Auth and session-identity header names whose value is masked in the Debug request dump so real keys,
 /// session tokens, and account/organization identifiers never reach the log sink in the clear. The
-/// Debug sink may still log them (operators should not enable Debug in production). Shared by the
-/// Host's inbound dump and Infrastructure's outbound dump so the two cannot drift — a drift-side
-/// value would otherwise be relayed in the clear on whichever side stopped masking it.
+/// Debug sink may still log them (operators should not enable Debug in production). Shared single
+/// source of truth for the masked header set so it cannot drift between callers.
 /// </summary>
 public static class SensitiveHeaderNames
 {
