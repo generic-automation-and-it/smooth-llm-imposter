@@ -32,7 +32,7 @@ The companion `.github/workflows/pipeline-ai-analyse.yml` runs after `PR Code Re
 - **Mode auto-detect:** any `N=fix`/`N=skip` arg → execute; otherwise analyse. Analyse always STOPS and never auto-executes.
 - **Source routing:** auto-detects Copilot vs other via `copilot-review.sh detect <pr>`. Copilot → reply/resolve each linked review thread + post a summary comment. Other → append the fix/skip table to AI Review Notes **and** write every skipped item into the PR description's Skip Areas / Known Issues bullets (verify bullets after edit before completion).
 - **All deterministic GitHub plumbing** (detect/threads/reply/resolve/summary) lives in `scripts/copilot-review.sh`; the skill keeps only the judgment (parsing + fix/skip + reply text).
-- **Critical/High marker commit:** when a processed review contains any 🔴/🟠 finding (fixed or skipped), execute must produce the final empty commit `ci: /ai-review — processed review responses` so the full review reruns.
+- **Critical/High marker commit:** when a processed review contains any 🔴/🟠 finding (fixed or skipped), execute must include `/ai-review` as the last line of every fix commit body AND produce the final empty commit `ci: /ai-review — processed review responses` as a re-verification safety net.
 
 ## Changelog
 
@@ -41,3 +41,4 @@ The companion `.github/workflows/pipeline-ai-analyse.yml` runs after `PR Code Re
 | 2026-06-20 | Vendored `/ai-review` consumer skill from smooth-ai-report-review; generator kept remote via thin caller workflow. | |
 | 2026-07-05 | Documented the companion self-fix workflow that consumes low/medium review findings and posts an auto-fix summary. | |
 | 2026-07-25 | Synced to upstream `/ai-review` updates: non-Copilot skip-bullet propagation/verification and mandatory critical/high marker-commit behavior. | #78 |
+| 2026-07-25 | Synced to upstream: require `/ai-review` in every fix commit message body when Critical/High findings exist; empty commit remains as re-verification safety net. | #84 |
