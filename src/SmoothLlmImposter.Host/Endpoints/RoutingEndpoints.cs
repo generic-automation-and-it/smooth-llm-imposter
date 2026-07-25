@@ -111,9 +111,11 @@ internal static class RoutingEndpoints
             return;
         }
 
-        // IOptions<ImposterOptions> — the WhoMessage.Enabled flag is captured at startup; flipping
-        // IMPOSTER_WHO_MESSAGE_ENABLED requires a host restart (LADR-04). IOptionsMonitor is not used
-        // here to keep the toggle semantics consistent with every other Imposter option.
+        // Snapshot of ImposterOptions for the duration of this request (IOptions<T> is effectively
+        // immutable post-startup, so per-request and startup snapshots are equivalent).
+        // The WhoMessage.Enabled flag is captured at startup; flipping IMPOSTER_WHO_MESSAGE_ENABLED
+        // requires a host restart (LADR-04). IOptionsMonitor is not used here to keep the toggle
+        // semantics consistent with every other Imposter option.
         // HLD 010: in-band routing probe. When enabled and the body triggers the responder,
         // short-circuit before the forwarder — zero upstream HTTP calls on match. The feature gate
         // skips the responder entirely when disabled, so the forward path stays byte-identical (NFR-01).

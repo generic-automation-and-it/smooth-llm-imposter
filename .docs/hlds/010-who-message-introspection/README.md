@@ -4,10 +4,10 @@
 |---|---|
 | **Status** | Completed |
 | **Owner** | SmoothLlmImposter maintainers |
-| **Tracker** | TBD |
+| **Tracker** | _None — completed without a tracker issue (NO-TICKET)_ |
 | **Last updated** | 2026-07-25 |
 
-> Discovery / prototyping HLD. This document delivers **intent + spec** — what we are
+> Design HLD. This document delivers **intent + spec** — what we are
 > building and why, the decisions behind it, and the quality bar it must meet. It does
 > **not** contain an implementation plan; execution (phasing, sub-issues, sequencing) is
 > tracked in the issue tracker (worktask list).
