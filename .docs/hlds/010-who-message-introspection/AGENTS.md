@@ -1,6 +1,23 @@
 # AGENTS.md - Who-Message Introspection
 
-AI Context: HLD for the customized-switches feature family (HLD 010). Updated: 2026-07-25
+AI Context: HLD for the customized-switches feature family (HLD 010). **STILL IN DESIGN** — see "Implementation status" below. Updated: 2026-07-25
+
+## Implementation status
+
+**This HLD is in design.** The live implementation on this branch matches the
+*original* HLD 010 only: the responder recognizes the trigger `who?` (no `--`
+prefix) and returns a dialect-shaped chat envelope whose content text is
+`Imposter: <inbound> → <target> (auth: <scheme>)` (or the passthrough equivalent).
+The `--who?` / `--newsession` switch family, the `session:<id>` envelope field, the
+in-memory translation dictionary, and the new LADR-06 / NFR-04 are **NOT YET
+IMPLEMENTED** — `grep` for `--newsession`, `ISessionIdTranslation`, or
+`SessionIdTranslation` in `src/` returns zero matches. They are documented here as
+a forward design; implementation lands in a follow-up commit.
+
+**AI agents: do not modify the live `who?` trigger or the `IWhoMessageResponder`
+contract on the basis of this AGENTS.md alone.** Read the implementation status
+and treat the LADR-02/03/04 prose as the *proposed* contract for the follow-up
+implementation, not as the live contract today.
 
 ## TL;DR
 
@@ -70,19 +87,27 @@ Intent in [README.md](./README.md), decisions in [ladrs/](./ladrs/), quality spe
   regardless of the message content. Header-only signals (`Accept: text/event-stream`)
   are not consulted — the forwarder keys off the body too.
 - **Non-text last user content → no match.** A last user message built from image or
-  tool parts does not fire either switch; content concatenation is text-parts-only.
+  tool parts does not fire either switch. The live code currently concatenates
+  arrays of text parts (text-part-only arrays match the trigger when their
+  concatenated value equals the trigger literal after trim); the LADR-02
+  follow-up narrows this to bare-string only. Until that follow-up lands, treat
+  the live code as the contract.
 - **`DescribeAuth` return value is the auth-scheme vocabulary.** The same tokens the
   log emits (`Bearer` / `ApiKey` / `caller-passthrough` / `none`) appear in the
-  `--who?` reply; do not invent a parallel vocabulary.
+  `who?` reply today; the same tokens will appear in the `--who?` reply once
+  the trigger-literal change lands. Do not invent a parallel vocabulary.
 - **`--newsession` requires a caller-supplied session id** (header or body field per
   the HLD 009 resolution order). A `--newsession` request with no caller-supplied
   id does **not** match — the responder returns no match and the request forwards
   normally. The translation step on the forward path has no fallback.
 - **Dictionary translation is an override on the HLD 009 session-identity stamping
   path.** The resolver still produces a `SessionIdentity` from the captured/derived
-  sources; the dictionary only rewrites `StableId` before the transformer stamps it.
-  With the dictionary disabled (toggle off), the captured/derived value passes
-  through unchanged.
+  sources; the dictionary only rewrites `SessionIdentity.Value` (the live
+  record property; the planned rename to `StableId` is part of the follow-up
+  commit) before the transformer stamps it. With the dictionary disabled
+  (toggle off), the captured/derived value passes through unchanged. The
+  dictionary is registered as a DI **singleton** (not Scoped — per-scope
+  instances would split the map and silently break translation).
 
 ## Quality Constraints
 
@@ -99,7 +124,8 @@ See [nfrs/](./nfrs/) for measurable targets. The four that change how code is wr
   evict; a second `--newsession` with the same caller id returns the same synthetic
   id (no overwrite). The dictionary's public surface has no `Remove` / `Evict` /
   `Clear` method — the contract is enforced at the type level, not just by
-  convention.
+  convention. **The NFR is Draft and the verification list is
+  implementation-gated; do not run the verification until the dictionary lands.**
 - **L0/L2 test coverage:** every switch literal (`--who?`, `--newsession`) has a
   L0 unit test in `WhoMessageResponderTests` and at least one L2 integration test
   in `WhoMessageIntegrationTests`. The translation step has at least one L2 test
@@ -110,4 +136,4 @@ See [nfrs/](./nfrs/) for measurable targets. The four that change how code is wr
 | Date | Change | Ref |
 | :---- | :---- | :---- |
 | 2026-07-25 | Initial HLD AGENTS.md — 5 LADRs, 3 NFRs, 3 diagrams. | — |
-| 2026-07-25 | Extended: trigger is now `--who?` (was `who?`); added `--newsession` switch + in-memory translation dictionary. AGENTS.md updated to reflect the new switch family, LADR-06, and NFR-04. | — |
+| 2026-07-25 | Extended design (NOT YET IMPLEMENTED): proposed trigger is `--who?` (was `who?`); proposed `--newsession` switch + in-memory translation dictionary. HLD is **in design** — implementation lands in a follow-up commit. LADR-06 and NFR-04 are Draft. AI agents: do not modify the live `who?` trigger or the `IWhoMessageResponder` contract on the basis of this AGENTS.md alone. | — |

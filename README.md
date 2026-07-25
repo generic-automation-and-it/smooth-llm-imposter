@@ -140,43 +140,36 @@ Pick the guide that matches how you want to run or work on the router:
 
 ---
 
-## Customized Switches
+## Customized Switches (design preview — NOT YET IMPLEMENTED)
 
-The proxy recognizes a small set of **customized switch messages** — last-user-message
-strings that, instead of being forwarded upstream, are intercepted and answered
-locally with a dialect-shaped synthetic reply. The two switches shipped today are
-diagnostic / session-management affordances for agent clients; both are non-streaming
-and are gated by a single `Imposter:WhoMessage:Enabled` toggle (env
-`IMPOSTER_WHO_MESSAGE_ENABLED`, default `true`).
+The HLD 010 customized-switches family (`--who?` and `--newsession`, plus an
+in-memory session-id translation dictionary consulted on the forward path) is
+**in design** as of this PR. The current binary still matches the HLD 010
+"Customized Switches" table on [`.docs/hlds/010-who-message-introspection/README.md`](.docs/hlds/010-who-message-introspection/README.md)
+*and* the older "How it works" table at the top of this file: the only live
+switch today is `who?` (exact match, trimmed), the reply carries no `session:`
+field, and there is no in-memory dictionary. The new switches, envelope field, and
+dictionary are tracked in HLD 010 and will land in a follow-up commit.
 
-### `--who?` — routing probe
+**Do not send `--who?` or `--newsession` to a release binary — `who?` is the live
+trigger today, and the rest of the affordances below are documented as a forward
+design preview.**
 
-Send a chat message whose **last user content** is the exact string `--who?` (trimmed,
+### `--who?` — routing probe (PROPOSED — live is `who?`)
+
+Send a chat message whose **last user content** is the exact string `who?` (trimmed,
 case-sensitive). The proxy replies with a normal chat completion (no upstream call)
-whose content text names the resolved route and the persisted session id for the
-caller:
+whose content text names the resolved route:
 
-| Route | Content text |
-|---|---|
-| Imposter | `Imposter: <inbound-model> → <target-model> (auth: <Bearer\|ApiKey\|none>) session:<id>` |
-| Passthrough | `Passthrough: <inbound-model> (auth: <caller-passthrough\|Bearer\|ApiKey>) session:null` |
+| Route | Content text (live) | Content text (proposed `--who?`) |
+|---|---|---|
+| Imposter | `Imposter: <inbound-model> → <target-model> (auth: <scheme>)` | `Imposter: <inbound-model> → <target-model> (auth: <scheme>) session:<id>` |
+| Passthrough | `Passthrough: <inbound-model> (auth: <scheme>)` | `Passthrough: <inbound-model> (auth: <scheme>) session:null` |
 
-Example:
+The id field is `chatcmpl-who-{guid}` (OpenAI) or `msg_who_{guid}` (Anthropic)
+under both contracts.
 
-```bash
-curl -X POST http://localhost:8080/openai/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-5.4",
-    "messages": [{"role": "user", "content": "--who?"}]
-  }'
-# 200 OK — zero upstream calls. The reply names the route and the persisted session id.
-```
-
-The synthetic id is greppable in the response's `id` field as `chatcmpl-who-{guid}`
-(OpenAI) or `msg_who_{guid}` (Anthropic).
-
-### `--newsession` — session-id mint + in-memory translation
+### `--newsession` — session-id mint + in-memory translation (PROPOSED — not yet implemented)
 
 Send a chat message whose **last user content** is the exact string `--newsession`
 (trimmed, case-sensitive). The request **must** carry a caller-supplied session id
@@ -196,28 +189,10 @@ stored synthetic id** before stamping it on the outbound request. The caller
 controls the key; the proxy controls the synthetic value; the upstream sees a
 stable id without the caller having to coordinate a long-lived secret.
 
-```bash
-# Step 1: mint a session
-curl -X POST http://localhost:8080/openai/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "X-Opencode-Session: my-tooling-1" \
-  -d '{"model": "gpt-5.4", "messages": [{"role":"user","content":"--newsession"}]}'
-# Reply: "Session: my-tooling-1 → <synthetic-uuid>"
+The id field is `chatcmpl-newsession-{guid}` (OpenAI) or
+`msg_newsession_{guid}` (Anthropic).
 
-# Step 2: send a real chat request with the SAME caller-supplied id
-#         (the proxy translates it to the synthetic id on the way out)
-curl -X POST http://localhost:8080/openai/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "X-Opencode-Session: my-tooling-1" \
-  -d '{"model": "gpt-5.4", "messages": [{"role":"user","content":"hello"}]}'
-# Upstream receives the synthetic uuid (not "my-tooling-1") in the body/header
-# the proxy stamps for session forwarding.
-```
-
-The synthetic id is greppable in the response's `id` field as
-`chatcmpl-newsession-{guid}` (OpenAI) or `msg_newsession_{guid}` (Anthropic).
-
-### Scope and limits
+### Scope and limits (when implemented)
 
 - The dictionary is **process-lifetime** — a restart loses all minted ids; callers
   must re-mint on restart.

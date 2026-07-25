@@ -26,25 +26,26 @@ dialect-shaped synthetic reply. The whole feature family is config-gated
 
 ## Key Goals
 
-### 1. In-band routing probe (`--who?`)
+### 1. In-band routing probe
 
-A request whose last user message is the exact string `--who?` (trimmed) is intercepted
-between the router's plan step and the upstream forwarder. The proxy returns a 200 chat
-reply whose content text names the inbound model, the resolved upstream target (or
-`passthrough`), the resolved auth scheme, **and the persisted session id** for this
-caller (so the caller can reuse the same id on subsequent requests — see Goal 6). No
-upstream HTTP call is made for that request — the probe costs zero upstream tokens and
-round-trips in the same latency class as a local `/v1/models` response.
+A request whose last user message is the exact string `who?` (trimmed) is intercepted
+between the router's plan step and the upstream forwarder. The proxy returns a 200
+chat reply whose content text names the inbound model, the resolved upstream target
+(or `passthrough`), and the resolved auth scheme. No upstream HTTP call is made for
+that request — the probe costs zero upstream tokens and round-trips in the same
+latency class as a local `/v1/models` response. *(A `--who?` / `--newsession`
+switch-family and a `session:<id>` envelope field are part of a proposed
+extension — see the "Implementation status" note above; they are not the live
+contract today.)*
 
 **Acceptance criteria / DoD**
 
 - POST to `/openai/v1/chat/completions` or `/anthropic/v1/messages` with last user
-  content `--who?` returns HTTP 200 with a synthetic body.
-- The upstream stub in integration tests is never invoked for a matched `--who?` request.
+  content `who?` returns HTTP 200 with a synthetic body.
+- The upstream stub in integration tests is never invoked for a matched `who?` request.
 - The reply content text matches the format
-  `Imposter: <inbound> → <target> (auth: <scheme>) session:<id>` for imposter routes,
-  or `Passthrough: <inbound> (auth: <scheme>) session:null` for passthrough (passthrough
-  does not persist sessions).
+  `Imposter: <inbound> → <target> (auth: <scheme>)` for imposter routes, or
+  `Passthrough: <inbound> (auth: <scheme>)` for passthrough.
 
 ### 2. Dialect fidelity
 
@@ -63,13 +64,15 @@ requests receive a `type:"message"` object with one `text` content block and
 ### 3. Streaming exclusion
 
 Requests with `stream: true` are **not** intercepted, even when the last user message
-is a configured switch (`--who?` or `--newsession`). SSE synthesis would require
-fabricating the chunked delta protocol per dialect for negligible benefit; streaming
-callers who want a probe can simply send it as a non-streaming request.
+is a configured switch (today `who?`; future `--who?` / `--newsession`). SSE synthesis
+would require fabricating the chunked delta protocol per dialect for negligible
+benefit; streaming callers who want a probe can simply send it as a non-streaming
+request.
 
 **Acceptance criteria / DoD**
 
-- `stream: true` + `--who?` (or `--newsession`) reaches the upstream stub in integration tests.
+- `stream: true` + `who?` (or `--who?` / `--newsession` once implemented) reaches the
+  upstream stub in integration tests.
 - No SSE synthesis code exists in the short-circuit path.
 
 ### 4. Config-gated, default-ON
@@ -146,22 +149,22 @@ bypassed and the original captured/derived value passes through unchanged.
 - The same gate `Imposter:WhoMessage:Enabled=false` disables both the probe and the
   translation; the dictionary is unused.
 
-### 7. Switch registration (forward-compatible)
+### 7. Switch registration (forward-compatible) — future HLD may consider
 
 The two switches are hardcoded constants today (`--who?`, `--newsession`) so the
-behavior is fixed and stable for callers. Adding a new switch in the future is a
-localized change to the responder's switch table and does not touch the seam, the
-config gate, or the dictionary. The HLD reserves the option of moving the switch
-table to config (an `Imposter:WhoMessage:Switches` array of
-`{trigger, kind, responseShape}` objects) without churning the gate, the seam, or the
-translation dictionary.
+behavior is fixed and stable for callers. A future HLD may consider moving the
+switch table to config (an `Imposter:WhoMessage:Switches` array of
+`{trigger, kind, responseShape}` objects) without churning the gate, the seam, or
+the translation dictionary. This is **not** a near-term extension point — it is
+captured here so a future contributor does not invent the design ad-hoc.
 
-**Acceptance criteria / DoD**
+**Acceptance criteria / DoD** (for the future HLD, not this one)
 
 - Today: two switches registered (`--who?`, `--newsession`), both exact-match, both
   non-streaming, both gated by the same `Imposter:WhoMessage:Enabled` toggle.
 - A future third switch (e.g. `--key=value`) can be added by editing the responder's
-  switch table — no change to `ImposterOptions`, no new env var, no new LADR.
+  switch table — no change to `ImposterOptions`, no new env var, no new LADR in
+  this HLD.
 
 ## Core Separation of Concerns
 
@@ -203,9 +206,9 @@ single decision — a horizontal concern spanning this HLD. See [`./ladrs/`](./l
 | LADR | Decision | Status |
 |------|----------|--------|
 | [LADR-01](./ladrs/LADR-01-short-circuit-location.md) | Short-circuit inside the proxy, not a sidecar endpoint | Accepted |
-| [LADR-02](./ladrs/LADR-02-trigger-shape.md) | Exact-match `"--who?"` or `"--newsession"` on the last user message | Accepted |
-| [LADR-03](./ladrs/LADR-03-response-envelope.md) | Dialect-shaped chat envelope, not bare text | Accepted |
-| [LADR-04](./ladrs/LADR-04-default-on-config.md) | Default-ON opt-out config (shared by both switches) | Accepted |
+| [LADR-02](./ladrs/LADR-02-trigger-shape.md) | Exact-match `"--who?"` or `"--newsession"` on the last user message (proposed; live is `who?`) | Draft (revised) |
+| [LADR-03](./ladrs/LADR-03-response-envelope.md) | Dialect-shaped chat envelope, not bare text (proposed; live omits `session:`) | Draft (revised) |
+| [LADR-04](./ladrs/LADR-04-default-on-config.md) | Default-ON opt-out config (proposed; shared by both switches AND the dictionary) | Draft (revised) |
 | [LADR-05](./ladrs/LADR-05-no-stream-synthesis.md) | No SSE synthesis — streaming requests pass through | Accepted |
 | [LADR-06](./ladrs/LADR-06-session-translation-dictionary.md) | In-memory `ConcurrentDictionary` translates caller-supplied session ids to stored override ids on the forward path | Draft |
 
@@ -227,4 +230,4 @@ target, a verification mechanism, and acceptance criteria. See [`./nfrs/`](./nfr
 | :---- | :---- | :---- |
 | 2026-07-25 | Initial draft — intent, 5 goals, 5 LADRs, 3 NFRs, 3 diagrams. | — |
 | 2026-07-25 | Implemented: `WhoMessageResponder` + endpoint seam + `Imposter:WhoMessage:Enabled` (default `true`) + env override `IMPOSTER_WHO_MESSAGE_ENABLED`. 17 L0 + 5 L2 tests pass. LADRs/NFRs → Accepted; HLD → Completed. | — |
-| 2026-07-25 | Extended: trigger is now `--who?` (was `who?`); added `--newsession` switch for session-id mint + in-memory translation. New LADR-06, new NFR-04, new goal 6 (session-id mint + translation) and goal 7 (switch registration). LADR-02 / LADR-03 / LADR-04 updated; HLD still in design for the new trigger and dictionary — implementation will follow in a separate commit. | — |
+| 2026-07-25 | Extended design (NOT YET IMPLEMENTED): proposed trigger is `--who?` (live is `who?`); proposed `--newsession` switch for session-id mint + in-memory translation; proposed `session:<id>` envelope field. New LADR-06, new NFR-04, new goal 6 (session-id mint + translation) and goal 7 (switch registration). LADR-02/03/04 marked `Draft (revised)`; LADR-06 and NFR-04 stay `Draft`. **HLD is in design** — implementation lands in a follow-up commit. | — |

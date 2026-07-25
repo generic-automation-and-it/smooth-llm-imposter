@@ -1,6 +1,6 @@
 # LADR-04: Default-ON opt-out config (shared by all customized switches)
 
-**Status:** Accepted
+**Status:** Draft (revised) — proposed; live is the single-gate `Imposter:WhoMessage:Enabled` for the original `who?` probe
 
 ## Context
 
@@ -64,10 +64,15 @@ When the toggle is `false`:
   already familiar with `<PREFIX>_IS_DEFAULT` do not need a new mental model.
 - Neutral: the toggle name `WhoMessage:Enabled` is the existing name; an operator
   reading the config sees a probe-related knob and may not realize it also gates the
-  session-id translation. LADR-04 keeps the existing name; a future HLD may rename
-  the node to `Imposter:Switches:Enabled` to match the broader feature family without
-  breaking the env-var contract (the new env var would be `IMPOSTER_SWITCHES_ENABLED`,
-  with `IMPOSTER_WHO_MESSAGE_ENABLED` retained as a deprecated alias).
+  session-id translation. LADR-04 keeps the existing name.
+
+## Future Work
+
+A future HLD may rename the node to `Imposter:Switches:Enabled` to match the broader
+feature family without breaking the env-var contract (the new env var would be
+`IMPOSTER_SWITCHES_ENABLED`, with `IMPOSTER_WHO_MESSAGE_ENABLED` retained as a
+deprecated alias). This is **not** part of the LADR-04 decision today; it is
+captured here so a future contributor does not invent it ad-hoc.
 
 ## Related
 

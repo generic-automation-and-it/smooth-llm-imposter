@@ -1,6 +1,6 @@
 # NFR-04: In-memory growth contract (process lifetime, no eviction)
 
-**Status:** Draft
+**Status:** Draft — implementation-gated; verification list is phased
 
 ## Requirement
 
@@ -20,6 +20,9 @@ should disable the feature (`Imposter:WhoMessage:Enabled=false`) until a future
 HLD adds a persistent or evictable store.
 
 ## Verification
+
+**Phased: no test is runnable today; all of the following become runnable
+together when the dictionary implementation lands in a follow-up commit.**
 
 - L0 test (`WhoMessageResponderTests` or a new `SessionIdTranslationTests`):
   - `--newsession` request with caller id `A` mints synthetic id `S1`.

@@ -32,8 +32,11 @@ grows for the life of the process, in exchange for zero management overhead.
 - **Process-lifetime** — no TTL, no eviction, no clear. The dictionary grows
   for the life of the process; volumes are expected to be small enough that this
   is a non-issue.
-- **Single instance** — registered as a DI singleton (`ISessionIdTranslation`,
-  scoped) so every resolver, transformer, and forwarder sees the same map.
+- **Single instance** — registered as a DI **singleton** (`ISessionIdTranslation`)
+  so every resolver, transformer, and forwarder sees the same map for the
+  process lifetime. (DI lifetime: `Singleton`, not `Scoped` — the dictionary is
+  process-lifetime, so per-scope instances would split the map and silently break
+  translation.)
 - **Read-mostly** — written by the `--newsession` short-circuit, read on every
   non-match forward request that resolves a session id. ConcurrentDictionary
   handles concurrency without locks.
@@ -42,11 +45,13 @@ grows for the life of the process, in exchange for zero management overhead.
   id does **not** match (the responder returns no match; the request forwards
   normally).
 - **Looked up by the resolver** — when the resolver produces a session id equal
-  to a dictionary key, the resolved `SessionIdentity.StableId` is rewritten to
-  the stored synthetic id before the transformer stamps it on the outbound
-  request. The translation fires only when `Imposter:WhoMessage:Enabled=true`;
-  with the toggle off, the dictionary is bypassed and the captured/derived value
-  passes through unchanged.
+  to a dictionary key, the resolved `SessionIdentity.Value` (the live record
+  property; the planned rename to `StableId` is part of the follow-up commit
+  — both names refer to the same string) is rewritten to the stored synthetic
+  id before the transformer stamps it on the outbound request. The
+  translation fires only when `Imposter:WhoMessage:Enabled=true`; with the
+  toggle off, the dictionary is bypassed and the captured/derived value passes
+  through unchanged.
 
 The dictionary lives on the same seam as the customized-switches short-circuit
 (between `router.PlanAsync` and `forwarder.SendAsync`) but on a different code
@@ -98,9 +103,11 @@ path: the short-circuit runs before the forwarder; the translation runs after
   `--newsession` must re-mint on restart; the proxy does not persist the
   table. This is an explicit non-goal of the feature, documented in NFR-04.
 - Negative: the resolver must learn a new optional dependency (the dictionary);
-  without it, the resolver still works (the dictionary defaults to
-  `EmptyDictionary`-equivalent). Adding a constructor parameter keeps the
-  resolver testable in isolation (tests can pass an empty dictionary).
+  without it, the resolver still works because the singleton dictionary
+  instance is empty until the first `--newsession` mint — there is no separate
+  "empty" code path. Adding the constructor parameter keeps the resolver
+  testable in isolation (tests can pass an empty dictionary and exercise the
+  no-match branch).
 - Neutral: the dictionary is in-process and not clustered. A horizontally
   scaled SmoothLlmImposter would have N independent dictionaries; the caller
   must route to the same instance to use the same synthetic id. This is
