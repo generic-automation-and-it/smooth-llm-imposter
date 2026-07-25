@@ -33,13 +33,13 @@ repo_name()  { gh repo view --json name  -q .name; }
 cmd_detect() {
   local pr="$1"
   # Check both the formal reviews and the inline review comments for a Copilot-bot author.
-  local hit
-  hit=$(
-    {
-      gh api --paginate "repos/{owner}/{repo}/pulls/${pr}/reviews" -q '.[].user.login'
-      gh api --paginate "repos/{owner}/{repo}/pulls/${pr}/comments" -q '.[].user.login'
-    } 2>/dev/null | grep -Ei "$COPILOT_LOGINS_RE" | head -n1 || true
-  )
+  # Assign the gh calls first (unmasked, on their own lines so `set -e` sees the command
+  # substitution status) so genuine auth/network/repo errors abort here instead of being
+  # swallowed into an empty match that would silently misreport OTHER.
+  local hit reviews comments
+  reviews="$(gh api --paginate "repos/{owner}/{repo}/pulls/${pr}/reviews" -q '.[].user.login')"
+  comments="$(gh api --paginate "repos/{owner}/{repo}/pulls/${pr}/comments" -q '.[].user.login')"
+  hit="$(printf '%s\n%s\n' "$reviews" "$comments" | grep -Ei "$COPILOT_LOGINS_RE" | head -n1 || true)"
   if [ -n "$hit" ]; then echo "COPILOT"; else echo "OTHER"; fi
 }
 
@@ -79,7 +79,10 @@ cmd_threads() {
         }
       }')
 
-    nodes="$(printf '%s' "$page" | jq -c '.data.repository.pullRequest.reviewThreads.nodes')"
+    # Flatten each thread's comments connection to the documented array contract
+    # ({ id, isResolved, comments:[{ databaseId, path, author, body }] }) so consumers
+    # read `comments` directly rather than the raw `{ pageInfo, nodes }` connection.
+    nodes="$(printf '%s' "$page" | jq -c '[.data.repository.pullRequest.reviewThreads.nodes[] | {id, isResolved, comments: .comments.nodes}]')"
     jq -c --argjson nodes "$nodes" '. + $nodes' "$tmp" > "$next_tmp"
     mv "$next_tmp" "$tmp"
     next_tmp="$(mktemp)"
