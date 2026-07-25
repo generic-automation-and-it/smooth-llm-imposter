@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | In Design — base `who?` probe Completed (LADRs 01/05, NFRs 01/02/03 Accepted); `--who?` / `--newsession` switch family + translation dictionary Draft (LADR-02/03/04 `Draft (revised)`, LADR-06 + NFR-04 `Draft`) |
+| **Status** | Completed — `--who?` / `--newsession` switch family + session translation dictionary live. LADR-02/03/04/06 + NFR-04 Accepted. |
 | **Owner** | SmoothLlmImposter maintainers |
 | **Tracker** | _None — completed without a tracker issue (NO-TICKET)_ |
 | **Last updated** | 2026-07-25 |
@@ -237,5 +237,5 @@ target, a verification mechanism, and acceptance criteria. See [`./nfrs/`](./nfr
 | :---- | :---- | :---- |
 | 2026-07-25 | Initial draft — intent, 5 goals, 5 LADRs, 3 NFRs, 3 diagrams. | — |
 | 2026-07-25 | Implemented: `WhoMessageResponder` + endpoint seam + `Imposter:WhoMessage:Enabled` (default `true`) + env override `IMPOSTER_WHO_MESSAGE_ENABLED`. 17 L0 + 5 L2 tests pass. LADRs/NFRs → Accepted; HLD → Completed. | — |
-| 2026-07-25 | Extended design (NOT YET IMPLEMENTED): proposed trigger is `--who?` (live is `who?`); proposed `--newsession` switch for session-id mint + in-memory translation; proposed `session:<id>` envelope field. New LADR-06, new NFR-04, new goal 6 (session-id mint + translation) and goal 7 (switch registration). LADR-02/03/04 marked `Draft (revised)`; LADR-06 and NFR-04 stay `Draft`. **HLD is in design** — implementation lands in a follow-up commit. | — |
+| 2026-07-25 | **Implemented:** `--who?` / `--newsession` switch family + `ISessionTranslationDictionary` + forward-path translation seam. LADR-02/03/04/06 + NFR-04 → Accepted. Diagnostic logging added to `WhoMessageResponder` (non-match reasons) and `RoutingEndpoints` (feature-disabled, translation applied). **Breaking change:** Bare `who?` trigger from initial HLD 010 implementation replaced by `--who?`. | — |
 | 2026-07-25 | LADR-05 reclassification note — clarifies the strategic / tactical / bridge split; no status change. | — |

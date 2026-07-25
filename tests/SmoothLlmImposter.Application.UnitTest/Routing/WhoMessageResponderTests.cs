@@ -156,7 +156,7 @@ public class WhoMessageResponderTests
         var responder = CreateResponder();
         RoutePlan plan = ImposterPlan(OpenAiRoute());
 
-        bool matched = responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("who?", stream: true), plan, out string? json);
+        bool matched = responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("--who?", stream: true), plan, out string? json);
 
         matched.ShouldBeFalse();
         json.ShouldBeNull();

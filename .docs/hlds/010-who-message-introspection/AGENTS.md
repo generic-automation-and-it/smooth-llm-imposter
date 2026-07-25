@@ -112,9 +112,10 @@ See [nfrs/](./nfrs/) for measurable targets. The four that change how code is wr
   id (no overwrite). The dictionary's public surface has no `Remove` / `Evict` /
   `Clear` method — the contract is enforced at the type level, not just by
   convention.
-- **L0/L2 test coverage:** every switch literal (`who?`, `--who?`, `--newsession`) has a
+- **L0/L2 test coverage:** every switch literal (`--who?`, `--newsession`) has a
   L0 unit test in `WhoMessageResponderTests` and at least one L2 integration test
-  in `WhoMessageIntegrationTests`. The translation step has at least one L2 test
+  in `WhoMessageIntegrationTests`. The bare `who?` string is covered as a no-match
+  negative case. The translation step has at least one L2 test
   proving that the outbound request carries the synthetic id, not the caller id.
 
 ## Changelog
