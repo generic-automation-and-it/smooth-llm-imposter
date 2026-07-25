@@ -143,7 +143,10 @@ internal sealed class ImposterRouter : IImposterRouter
     // forwarder will actually apply: a resolved Bearer/ApiKey scheme when a secret is present, "none" for a
     // matched imposter route with no configured secret (no header is sent at all), or "caller-passthrough"
     // when the caller's own credential is relayed. Never logs the secret value itself.
-    private static string DescribeAuth(RouteDecision decision, ApiDialect dialect, RouteCredentialOverride? credentialOverride)
+    //
+    // Shared with WhoMessageResponder (HLD 010) so the probe's reply carries the same resolved scheme token
+    // as the log line and the outbound header — one source of truth for that value.
+    internal static string DescribeAuth(RouteDecision decision, ApiDialect dialect, RouteCredentialOverride? credentialOverride)
     {
         string? secret = credentialOverride?.Secret ?? decision.Provider.Secret;
         if (!string.IsNullOrEmpty(secret))

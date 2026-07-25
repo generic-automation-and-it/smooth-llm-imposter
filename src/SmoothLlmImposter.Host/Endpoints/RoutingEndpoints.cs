@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Domain.Routing;
 
@@ -39,8 +40,8 @@ internal static class RoutingEndpoints
         // disambiguates shared paths like /v1/models that are identical across OpenAI and Anthropic — and the
         // captured tail is forwarded verbatim, so /v1/models, /v1/responses, /v1/messages/count_tokens, etc.
         // all proxy without a per-route mapping.
-        app.Map("/openai/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, loggerFactory));
+        app.Map("/openai/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, whoResponder, imposterOptions.Value, loggerFactory));
 
         // Anthropic model discovery is answered LOCALLY from the route catalogue (distinct union of configured
         // `to` targets), not forwarded upstream (HLD 005, Anthropic scope). This specific GET route takes
@@ -53,19 +54,19 @@ internal static class RoutingEndpoints
             return Results.Text(responder.BuildModelsResponse(), "application/json");
         });
 
-        app.Map("/anthropic/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.Anthropic, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, loggerFactory));
+        app.Map("/anthropic/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.Anthropic, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, whoResponder, imposterOptions.Value, loggerFactory));
 
         // Legacy unprefixed completion routes (POST only). The inbound path is the upstream path. Unprefixed
         // /v1/models is intentionally NOT mapped here — it is dialect-ambiguous; use the /openai or /anthropic prefix.
-        app.MapPost("/v1/chat/completions", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/chat/completions", router, forwarder, responseTransformer, errors, loggerFactory));
+        app.MapPost("/v1/chat/completions", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/chat/completions", router, forwarder, responseTransformer, errors, whoResponder, imposterOptions.Value, loggerFactory));
 
-        app.MapPost("/v1/responses", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/responses", router, forwarder, responseTransformer, errors, loggerFactory));
+        app.MapPost("/v1/responses", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/responses", router, forwarder, responseTransformer, errors, whoResponder, imposterOptions.Value, loggerFactory));
 
-        app.MapPost("/v1/messages", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.Anthropic, "/v1/messages", router, forwarder, responseTransformer, errors, loggerFactory));
+        app.MapPost("/v1/messages", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.Anthropic, "/v1/messages", router, forwarder, responseTransformer, errors, whoResponder, imposterOptions.Value, loggerFactory));
     }
 
     // The {**upstreamPath} catch-all captures the tail WITHOUT a leading slash and excludes the query string.
@@ -81,6 +82,8 @@ internal static class RoutingEndpoints
         IUpstreamForwarder forwarder,
         IChatToResponsesTransformer responseTransformer,
         IErrorResponseFactory errors,
+        IWhoMessageResponder whoResponder,
+        ImposterOptions imposterOptions,
         ILoggerFactory loggerFactory)
     {
         ILogger logger = loggerFactory.CreateLogger(LoggerCategory);
@@ -105,6 +108,38 @@ internal static class RoutingEndpoints
         catch (RoutingException ex)
         {
             await WriteErrorAsync(context, dialect, errors, ex.StatusCode, ex.Message, ErrorTypeFor(ex.StatusCode), cancellationToken);
+            return;
+        }
+
+        // Snapshot of ImposterOptions for the duration of this request (IOptions<T> is effectively
+        // immutable post-startup, so per-request and startup snapshots are equivalent).
+        // The WhoMessage.Enabled flag is captured at startup; flipping IMPOSTER_WHO_MESSAGE_ENABLED
+        // requires a host restart (LADR-04). IOptionsMonitor is not used here to keep the toggle
+        // semantics consistent with every other Imposter option.
+        // HLD 010: in-band routing probe. When enabled and the body triggers the responder,
+        // short-circuit before the forwarder — zero upstream HTTP calls on match. The feature gate
+        // skips the responder entirely when disabled, so the forward path stays byte-identical (NFR-01).
+        // TODO(perf): whoResponder.TryBuildResponse re-parses the body that PlanAsync has already
+        // parsed. Intentional per the HLD 010 "pure predicate" seam so the responder stays
+        // transport-agnostic; revisit once a parsed-body seam is added (one JsonDocument.Parse
+        // per chat-completion request today).
+        if (imposterOptions.WhoMessage.Enabled &&
+            whoResponder.TryBuildResponse(dialect, requestBody, plan, out string? whoResponseJson))
+        {
+            logger.LogDebug("Short-circuited who-message probe for {Dialect} model '{Model}'", dialect, plan.InboundModel);
+            context.Response.StatusCode = StatusCodes.Status200OK;
+            context.Response.ContentType = "application/json";
+            try
+            {
+                await context.Response.WriteAsync(whoResponseJson!, cancellationToken);
+            }
+            catch (Exception ex) when (cancellationToken.IsCancellationRequested && ex is OperationCanceledException or IOException)
+            {
+                // Caller disconnected between the feature-gate check and WriteAsync. The status line may
+                // already be on the wire; there is nothing left to write and nothing to retry. Mirrors the
+                // forward-path guard (lines below) for the same scenario.
+                return;
+            }
             return;
         }
 

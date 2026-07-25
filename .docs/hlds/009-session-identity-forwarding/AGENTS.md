@@ -47,7 +47,7 @@ Measurable NFRs live in [./nfrs/](./nfrs/). Constraints that change how code is 
 
 - **No persistence** — resolution is a pure function of the current request; no new storage types/tables (NFR-01).
 - **Disabled ⇒ byte-identical** — with `SessionForwarding` unset, forwarded body and header bytes equal the inbound bytes on both imposter and passthrough routes (NFR-02).
-- **Log token only** — `SessionIdentity.LogToken` emits `captured|derived|none`; raw session values and fingerprint inputs never reach a log sink, and all four capture headers are masked in both inbound and outbound Debug dumps via `SensitiveHeaderNames` (NFR-03).
+- **Log token only** — `SessionIdentity.LogToken` emits `captured|derived|none`; raw session values and fingerprint inputs never reach a log sink, and all four capture headers are masked in the inbound Debug dump via `SensitiveHeaderNames` (NFR-03).
 
 ## Changelog
 

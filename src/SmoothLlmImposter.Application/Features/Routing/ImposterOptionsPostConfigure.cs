@@ -98,6 +98,14 @@ internal sealed class ImposterOptionsPostConfigure(
 
     public void PostConfigure(string? name, ImposterOptions options)
     {
+        // Root-level boolean toggle (HLD 010). Same bool.TryParse + warn-on-invalid pattern as the
+        // per-provider _IS_DEFAULT / _ENABLED fields below. A blank/whitespace value is treated as
+        // absent so an empty-but-present var never blanks the appsettings default.
+        ApplyRootBooleanOverride("IMPOSTER_WHO_MESSAGE_ENABLED", nameof(options.WhoMessage.Enabled), value =>
+        {
+            options.WhoMessage.Enabled = value;
+        });
+
         foreach ((string key, ProviderOptions provider) in options.Providers)
         {
             string prefix = ToEnvPrefix(key);
@@ -312,4 +320,29 @@ internal sealed class ImposterOptionsPostConfigure(
 
     /// <summary>One conventional suffix, the provider field it targets, and how to apply a string value.</summary>
     internal sealed record ConventionalField(string Suffix, string PropertyName, Action<ProviderOptions, string> Apply);
+
+    /// <summary>
+    /// Root-level boolean env override shared by every provider (e.g. <c>IMPOSTER_WHO_MESSAGE_ENABLED</c>).
+    /// Mirrors the per-provider bool pattern: blank/whitespace is absent, unparseable logs a Warning and
+    /// leaves the bound value untouched, parseable applies via <paramref name="apply"/>.
+    /// </summary>
+    private void ApplyRootBooleanOverride(string variable, string propertyName, Action<bool> apply)
+    {
+        string? value = configuration[variable];
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        if (!bool.TryParse(value, out bool parsed))
+        {
+            logger.LogWarning(
+                "Ignoring conventional override {EnvVar} for field {Field}: value '{Value}' is not a recognized boolean.",
+                variable, propertyName, value);
+            return;
+        }
+
+        apply(parsed);
+        logger.LogDebug("Applied conventional override {EnvVar} to root field {Field}.", variable, propertyName);
+    }
 }

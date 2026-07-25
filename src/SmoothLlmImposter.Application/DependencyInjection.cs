@@ -29,6 +29,9 @@ public static class DependencyInjection
         services.AddScoped<IImposterRouter, ImposterRouter>();
         services.AddScoped<IModelCatalogResponder, OpenAiModelCatalogResponder>();
         services.AddScoped<IAnthropicModelCatalogResponder, AnthropicModelCatalogResponder>();
+        // Scoped lifetime, consistent with sibling responders (IImposterRouter, IModelCatalogResponder).
+        // The responder itself is stateless; it only consumes the per-request RoutePlan passed in by the caller.
+        services.AddScoped<IWhoMessageResponder, WhoMessageResponder>();
         services.AddSingleton<IErrorResponseFactory, ErrorResponseFactory>();
         services.AddSingleton<IAuthorizationOverrideSwitch, AuthorizationOverrideSwitch>();
 

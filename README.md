@@ -116,6 +116,7 @@ HLDs under `.docs/hlds/`:
 | [007 — Named Provider Config & Conventional Env Overrides](.docs/hlds/007-named-provider-env-overrides/README.md) | Completed | Key providers by name (dictionary, not array) + conventional `<NAME>_<FIELD>` env overrides for stable, ergonomic config (made runtime-mutable by HLD 008) |
 | [008 — Runtime Config CRUD & Provider-Addressable Credentials](.docs/hlds/008-runtime-config-crud/README.md) | Completed | Runtime CRUD over an in-memory provider registry consumed by scoped routing catalogs + `Enabled` flag; provider-keyed, settings-backed credentials with optional DB; provider-addressable auth-override. Supersedes HLD 002 LADR-001 (mandatory PostgreSQL) and LADR-002 (dialect discriminator); LADR-003/004/005 remain in force |
 | [009 — Session Identity Forwarding](.docs/hlds/009-session-identity-forwarding/README.md) | Accepted | Opt-in per-provider session stamp on matched imposter routes (`session_id` + `x-opencode-session`) so opencode-go diag groups Codex/Claude traffic; stateless capture→derive→none |
+| [010 — Who-Message Introspection](.docs/hlds/010-who-message-introspection/README.md) | Completed | In-band routing probe: a last user message of `who?` (exact match, trimmed) returns a dialect-shaped synthetic reply naming the inbound model, the resolved upstream target (or `passthrough`), and the auth scheme; no upstream call. Base probe Completed; `--who?` / `--newsession` switch family + in-memory translation dictionary Draft |
 
 ---
 
@@ -136,6 +137,79 @@ Pick the guide that matches how you want to run or work on the router:
 | Local debug | Run from source with a debugger attached | [`local-debug.run-smooth-llm-imposter.md`](.docs/wiki/setups/local-debug.run-smooth-llm-imposter.md) | Developer |
 | Conductor | Fresh-sandbox build & routing setup for Conductor workspaces | [`conductor.build-smooth-llm-imposter.md`](.docs/wiki/setups/conductor.build-smooth-llm-imposter.md) | Developer |
 | Logging debug | Dump the full inbound request for message-level debugging | [`logging.debug-smooth-llm-imposter.md`](.docs/wiki/setups/logging.debug-smooth-llm-imposter.md) | Developer |
+
+---
+
+## Customized Switches (design preview — NOT YET IMPLEMENTED)
+
+The HLD 010 customized-switches family (`--who?` and `--newsession`, plus an
+in-memory session-id translation dictionary consulted on the forward path) is
+**in design** as of this PR. The current binary still matches the original HLD 010
+`who?` design in
+[`.docs/hlds/010-who-message-introspection/README.md`](.docs/hlds/010-who-message-introspection/README.md)
+(Goals 1–5) *and* the older "How it works" table at the top of this file:
+the only live switch today is `who?` (exact match, trimmed), the reply carries
+no `session:` field, and there is no in-memory dictionary. The new switches,
+envelope field, and dictionary are tracked in HLD 010 and will land in a
+follow-up commit.
+
+**Do not send `--who?` or `--newsession` to a release binary — `who?` is the live
+trigger today, and the rest of the affordances below are documented as a forward
+design preview.**
+
+### `--who?` — routing probe (PROPOSED — live is `who?`)
+
+Send a chat message whose **last user content** is the exact string `who?` (trimmed,
+case-sensitive). The proxy replies with a normal chat completion (no upstream call)
+whose content text names the resolved route:
+
+| Route | Content text (live) | Content text (proposed `--who?`) |
+|---|---|---|
+| Imposter | `Imposter: <inbound-model> → <target-model> (auth: <scheme>)` | `Imposter: <inbound-model> → <target-model> (auth: <scheme>) session:<id>` |
+| Passthrough | `Passthrough: <inbound-model> (auth: <scheme>)` | `Passthrough: <inbound-model> (auth: <scheme>) session:null` |
+
+The id field is `chatcmpl-who-{guid:N}` (OpenAI) or `msg_who_{guid:N}` (Anthropic)
+under both contracts.
+
+### `--newsession` — session-id mint + in-memory translation (PROPOSED — not yet implemented)
+
+Send a chat message whose **last user content** is the exact string `--newsession`
+(trimmed, case-sensitive). The request **must** carry a caller-supplied session id
+(header `session_id` / `x-opencode-session` / `x-session-id` / `conversation_id`,
+or body field `prompt_cache_key` / `metadata.user_id` / `user` — the same resolution
+order as HLD 009's session-identity forwarder). The proxy:
+
+1. Generates a **synthetic session id** (UUID).
+2. **Persists** the pair `(callerId, syntheticId)` in a process-lifetime in-memory
+   `ConcurrentDictionary` — no TTL, no eviction, no clear (volumes are expected to
+   be small).
+3. Replies with content text: `Session: <callerId> → <syntheticId>`.
+
+On every **subsequent** request that is *not* a switch match, if the resolver
+produces a session id equal to a dictionary key, the proxy **translates it to the
+stored synthetic id** before stamping it on the outbound request. The caller
+controls the key; the proxy controls the synthetic value; the upstream sees a
+stable id without the caller having to coordinate a long-lived secret.
+
+The id field is `chatcmpl-newsession-{guid:N}` (OpenAI) or
+`msg_newsession_{guid:N}` (Anthropic).
+
+### Scope and limits (when implemented)
+
+- The dictionary is **process-lifetime** — a restart loses all minted ids; callers
+  must re-mint on restart.
+- The dictionary is **in-process, not clustered** — a horizontally-scaled proxy has
+  N independent dictionaries; the caller must route to the same instance to use the
+  same synthetic id.
+- High-cardinality callers (millions of unique session ids per process) are an
+  explicit non-goal. At that scale, disable the feature
+  (`IMPOSTER_WHO_MESSAGE_ENABLED=false`) until a future HLD adds a persistent or
+  evictable store.
+- Streaming (`stream: true`) requests are **never** intercepted by either switch —
+  they forward to the upstream as normal. The probes are one-shot affordances,
+  intended for ad-hoc agent-tooling use.
+
+Full design: [HLD 010 — Who-Message Introspection](.docs/hlds/010-who-message-introspection/README.md).
 
 ---
 

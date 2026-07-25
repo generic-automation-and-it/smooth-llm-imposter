@@ -8,29 +8,43 @@ This page contains exactly two Conductor scripts for an Amazon Linux 2023 cloud 
    `DOCKER_HOST`, `OPENAI_BASE_URL`, and `ANTHROPIC_BASE_URL`; configures Codex; pulls the published
    SmoothLlmImposter image; and does not require provider credentials.
 2. The **workspace setup script** restarts the Docker daemon after snapshot restoration, reads
-   `OPENCODE_API_KEY` from the workspace environment, creates the configured container from the already-pulled
-   image, and waits for the router health endpoint.
+   `OPENCODE_API_KEY` and `OPENROUTER_API_KEY` from the workspace environment, creates the configured container
+   from the already-pulled image, and waits for the router health endpoint.
 
 The setup works from any repository because it uses the published multi-platform image:
 
 `ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest`
 
-It configures these OpenCode Go mappings:
+It configures these imposter mappings:
 
-| Dialect | Incoming model | OpenCode Go model |
-|---|---|---|
-| Anthropic | `claude-haiku-*` | `qwen3.6-plus` |
-| Anthropic | `claude-opus-4-6` | `qwen3.7-plus` |
-| Anthropic | `claude-opus-4-7` | `minimax-m3` |
-| OpenAI | `gpt-5.4` | `kimi-k2.7-code` |
-| OpenAI | `gpt-5.5` | `kimi-k3` |
+| Dialect | Incoming model | Upstream provider | Upstream model |
+|---|---|---|---|
+| Anthropic | `claude-sonnet-4-6` | OpenCode Go | `qwen3.6-plus` |
+| Anthropic | `claude-opus-4-6` | OpenCode Go | `qwen3.7-plus` |
+| Anthropic | `claude-opus-4-7` | OpenCode Go | `minimax-m3` |
+| Anthropic | `claude-haiku-*` | OpenRouter | `tencent/hy3` |
+| OpenAI | `gpt-5.4` | OpenCode Go | `kimi-k2.7-code` |
+| OpenAI | `gpt-5.5` | OpenCode Go | `glm-5.2` |
+| OpenAI | `gpt-5.6-luna` | OpenCode Go | `grok-4.5` |
 
 These are setup-specific mappings chosen for this Conductor environment. They intentionally differ from the
 illustrative mappings and caching choices in
 [HLD 001](../../hlds/001-llm-imposter-routing/README.md#configuration); the HLD is not the runtime source of
-truth for this script. Target model IDs are bare upstream strings with no `opencode-go/` prefix, consistent
-with the live-upstream
+truth for this script. OpenCode Go target IDs are bare upstream strings with no `opencode-go/` prefix,
+consistent with the live-upstream
 [`OpencodeToolNormalizationEvalTests.cs`](../../../tests/SmoothLlmImposter.Upstream.EvalTest/OpencodeToolNormalizationEvalTests.cs).
+OpenRouter targets keep the provider-prefixed slug the OpenRouter API expects (here `tencent/hy3`).
+
+Inbound API model names (the `From` column above) are imposter-side aliases — they are what
+clients send to the proxy. The `To` column names the upstream wire ID, which is the identifier
+the upstream provider uses on its own API. For the OpenAI row `gpt-5.6-luna → grok-4.5`, the imposter
+accepts the OpenAI-style alias and forwards to xAI; see
+[OpenAI's model index](https://platform.openai.com/docs/models) for the imposter-side namespace
+and [xAI's model index](https://docs.x.ai/docs/models) for the upstream wire ID.
+
+Session identity forwarding is **off** for the OpenCode Go providers in this workspace script
+(`OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING=none` and `OPENCODE_GO_OPENAI_SESSION_FORWARDING=none`,
+the per-provider conventional vars), overriding the image default `SessionForwarding: opencode-go`.
 
 ## Snapshot script (install, configure, and pull the image)
 
@@ -39,9 +53,9 @@ Linux 2023 (for example, `/home/vercel-sandbox`), so it uses DNF4 and native Doc
 Linuxbrew, or Colima.
 
 Provider credentials are intentionally absent from snapshot construction: Conductor makes
-`OPENCODE_API_KEY` available only to the later workspace lifecycle. The snapshot therefore performs every
-credential-independent operation—including Codex configuration and the image pull—but does not create the
-container.
+`OPENCODE_API_KEY` and `OPENROUTER_API_KEY` available only to the later workspace lifecycle. The snapshot
+therefore performs every credential-independent operation—including Codex configuration and the image
+pull—but does not create the container.
 
 The environment setup also persists these client endpoints in both `~/.bashrc` and `~/.zshrc`:
 
@@ -246,7 +260,8 @@ sudo docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 
 Use this as the Conductor workspace lifecycle. It does not reconfigure Codex or pull the image because those
 credential-independent steps are complete in the snapshot. It restarts `dockerd`, requires the workspace-only
-`OPENCODE_API_KEY`, and supplies the provider mappings and secret while creating the container.
+`OPENCODE_API_KEY` and `OPENROUTER_API_KEY`, and supplies the provider mappings and secrets while creating the
+container.
 
 ```bash
 #!/usr/bin/env bash
@@ -277,26 +292,37 @@ sudo docker info >/dev/null 2>&1 || {
   exit 1
 }
 
-# Conductor injects this only into the workspace lifecycle, not snapshot
-# construction. Alias it to the shared prefix resolved by both OpenCode Go
-# dialect providers.
+# Conductor injects these only into the workspace lifecycle, not snapshot
+# construction. Fall back from OPENCODE_GO_API_KEY to OPENCODE_API_KEY so either
+# name supplies the shared OpenCode Go key; OPENROUTER_API_KEY feeds the
+# OpenRouter Anthropic-dialect haiku route.
 export OPENCODE_GO_API_KEY="${OPENCODE_GO_API_KEY:-${OPENCODE_API_KEY:-}}"
 : "${OPENCODE_GO_API_KEY:?Set OPENCODE_API_KEY in the workspace environment.}"
+# Export so docker `-e OPENROUTER_API_KEY` can inherit the value (name-only pass-through).
+export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in the workspace environment.}"
+# Image default is SessionForwarding=opencode-go on both opencode-go-* providers.
+# Disable per-provider so matched routes do not stamp session_id / x-opencode-session.
+# (Per-provider vars — there is no shared prefix fallback for non-Secret fields.)
+export OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING="${OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING:-none}"
+export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWARDING:-none}"
 
 # Prefer unprivileged Docker when the snapshot's docker-group membership is
-# active. Otherwise preserve the secret through sudo so `-e NAME` remains a
-# name-only pass-through and the value does not appear in the command line.
+# active. Otherwise preserve the secrets through sudo so `-e NAME` remains a
+# name-only pass-through and the values do not appear in the command line.
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
 elif sudo docker info >/dev/null 2>&1; then
-  DOCKER=(sudo --preserve-env=OPENCODE_GO_API_KEY docker)
+  DOCKER=(sudo --preserve-env=OPENCODE_GO_API_KEY,OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING,OPENCODE_GO_OPENAI_SESSION_FORWARDING,OPENROUTER_API_KEY docker)
 else
   echo "Docker failed to start; inspect /tmp/dockerd.log." >&2
   exit 1
 fi
 
-# Create the container only now, after the workspace secret exists. The image
+# Create the container only now, after the workspace secrets exist. The image
 # was pulled into the snapshot, so do not contact GHCR during workspace setup.
+# openrouter-* is absent from the published base image, so define the Anthropic
+# OpenRouter provider fully here (same env-var shape, but defines a new provider
+# because the base image omits it).
 "${DOCKER[@]}" rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 "${DOCKER[@]}" run -d \
   --name "$CONTAINER_NAME" \
@@ -306,12 +332,17 @@ fi
   -e "Imposter__Providers__opencode-go-anthropic__Dialect=anthropic" \
   -e "Imposter__Providers__opencode-go-anthropic__BaseUrl=https://opencode.ai/zen/go" \
   -e "Imposter__Providers__opencode-go-anthropic__AuthScheme=ApiKey" \
-  -e "Imposter__Providers__opencode-go-anthropic__Models__0__From=claude-haiku-*" \
+  -e "Imposter__Providers__opencode-go-anthropic__Models__0__From=claude-sonnet-4-6" \
   -e "Imposter__Providers__opencode-go-anthropic__Models__0__To=qwen3.6-plus" \
   -e "Imposter__Providers__opencode-go-anthropic__Models__1__From=claude-opus-4-6" \
   -e "Imposter__Providers__opencode-go-anthropic__Models__1__To=qwen3.7-plus" \
   -e "Imposter__Providers__opencode-go-anthropic__Models__2__From=claude-opus-4-7" \
   -e "Imposter__Providers__opencode-go-anthropic__Models__2__To=minimax-m3" \
+  -e "Imposter__Providers__openrouter-anthropic__Dialect=anthropic" \
+  -e "Imposter__Providers__openrouter-anthropic__BaseUrl=https://openrouter.ai/api" \
+  -e "Imposter__Providers__openrouter-anthropic__AuthScheme=Bearer" \
+  -e "Imposter__Providers__openrouter-anthropic__Models__0__From=claude-haiku-*" \
+  -e "Imposter__Providers__openrouter-anthropic__Models__0__To=tencent/hy3" \
   -e "Imposter__Providers__opencode-go-openai__Dialect=openai" \
   -e "Imposter__Providers__opencode-go-openai__BaseUrl=https://opencode.ai/zen/go" \
   -e "Imposter__Providers__opencode-go-openai__AuthScheme=Bearer" \
@@ -319,8 +350,13 @@ fi
   -e "Imposter__Providers__opencode-go-openai__Models__0__From=gpt-5.4" \
   -e "Imposter__Providers__opencode-go-openai__Models__0__To=kimi-k2.7-code" \
   -e "Imposter__Providers__opencode-go-openai__Models__1__From=gpt-5.5" \
-  -e "Imposter__Providers__opencode-go-openai__Models__1__To=kimi-k3" \
+  -e "Imposter__Providers__opencode-go-openai__Models__1__To=glm-5.2" \
+  -e "Imposter__Providers__opencode-go-openai__Models__2__From=gpt-5.6-luna" \
+  -e "Imposter__Providers__opencode-go-openai__Models__2__To=grok-4.5" \
   -e OPENCODE_GO_API_KEY \
+  -e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \
+  -e OPENCODE_GO_OPENAI_SESSION_FORWARDING \
+  -e OPENROUTER_API_KEY \
   "$IMAGE" >/dev/null
 
 for _ in $(seq 1 30); do
@@ -336,6 +372,6 @@ echo "SmoothLlmImposter did not become healthy." >&2
 exit 1
 ```
 
-The workspace must expose `OPENCODE_API_KEY`; no provider secret is required or expected while constructing
-the snapshot. Re-running the workspace script recreates the container so current provider settings and the
-current workspace secret always take effect.
+The workspace must expose `OPENCODE_API_KEY` and `OPENROUTER_API_KEY`; no provider secret is required or
+expected while constructing the snapshot. Re-running the workspace script recreates the container so current
+provider settings and the current workspace secrets always take effect.
