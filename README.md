@@ -24,6 +24,8 @@ There is **no `claude login` and no token capture** inside the Host — you run 
 the published GHCR image, and point your client's base URL at it. Full setup:
 **[`.docs/wiki/setup.md`](.docs/wiki/setup.md)**.
 
+![Architecture](docs/architecture-diagram.svg)
+
 ---
 
 ## Use cases

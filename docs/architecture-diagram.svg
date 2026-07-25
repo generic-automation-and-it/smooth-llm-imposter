@@ -1,0 +1,262 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 695" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="routerGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+    <linearGradient id="clientGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="imposterArrow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+    <linearGradient id="passthroughArrow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="upstreamOpenAI" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <linearGradient id="upstreamAnthropic" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+    <linearGradient id="upstreamOpenRouter" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="upstreamOpenCodeGO" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="upstreamLocal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#64748b"/>
+      <stop offset="100%" stop-color="#475569"/>
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="115%" height="115%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#f59e0b"/>
+    </marker>
+    <marker id="arrowCyan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#22d3ee"/>
+    </marker>
+    <marker id="arrowGray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="695" rx="16" fill="url(#bgGrad)"/>
+
+  <!-- Subtle grid pattern -->
+  <g opacity="0.04" stroke="#94a3b8" stroke-width="0.5">
+    <line x1="0" y1="100" x2="1200" y2="100"/><line x1="0" y1="200" x2="1200" y2="200"/>
+    <line x1="0" y1="300" x2="1200" y2="300"/><line x1="0" y1="400" x2="1200" y2="400"/>
+    <line x1="0" y1="500" x2="1200" y2="500"/><line x1="0" y1="600" x2="1200" y2="600"/>
+    <line x1="200" y1="0" x2="200" y2="695"/><line x1="400" y1="0" x2="400" y2="695"/>
+    <line x1="600" y1="0" x2="600" y2="695"/><line x1="800" y1="0" x2="800" y2="695"/>
+    <line x1="1000" y1="0" x2="1000" y2="695"/>
+  </g>
+
+  <!-- Title -->
+  <text x="600" y="46" text-anchor="middle" fill="#f8fafc" font-size="22" font-weight="700" letter-spacing="0.5">
+    SmoothLlmImposter — LLM Request Router
+  </text>
+  <text x="600" y="70" text-anchor="middle" fill="#94a3b8" font-size="13" font-weight="400">
+    Stateless · Key-less · Dual-dialect — route subscriptions, not just API keys
+  </text>
+
+  <!-- ============ LEFT: CLIENTS ============ -->
+  <text x="110" y="112" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600" letter-spacing="1.5">LLM CLIENTS</text>
+
+  <!-- Client boxes -->
+  <g filter="url(#shadow)">
+    <rect x="30" y="130" width="160" height="52" rx="10" fill="url(#clientGrad)" stroke="#475569" stroke-width="1"/>
+    <text x="110" y="153" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="600">🤖 Claude Code</text>
+    <text x="110" y="170" text-anchor="middle" fill="#94a3b8" font-size="10">Anthropic dialect</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="30" y="200" width="160" height="52" rx="10" fill="url(#clientGrad)" stroke="#475569" stroke-width="1"/>
+    <text x="110" y="223" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="600">⚡ Codex / ChatGPT</text>
+    <text x="110" y="240" text-anchor="middle" fill="#94a3b8" font-size="10">OpenAI dialect</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="30" y="270" width="160" height="52" rx="10" fill="url(#clientGrad)" stroke="#475569" stroke-width="1"/>
+    <text x="110" y="293" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="600">📦 Any SDK</text>
+    <text x="110" y="310" text-anchor="middle" fill="#94a3b8" font-size="10">OpenAI / Anthropic</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="30" y="340" width="160" height="52" rx="10" fill="url(#clientGrad)" stroke="#475569" stroke-width="1"/>
+    <text x="110" y="363" text-anchor="middle" fill="#e2e8f0" font-size="13" font-weight="600">🔧 Custom Apps</text>
+    <text x="110" y="380" text-anchor="middle" fill="#94a3b8" font-size="10">HTTP / REST</text>
+  </g>
+
+  <!-- ============ CENTER: ROUTER ============ -->
+  <g filter="url(#shadow)">
+    <rect x="340" y="120" width="300" height="440" rx="16" fill="url(#routerGrad)" opacity="0.15" stroke="#6366f1" stroke-width="1.5"/>
+  </g>
+
+  <!-- Router header -->
+  <text x="490" y="158" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="600" letter-spacing="1.5">ROUTER</text>
+  <text x="490" y="185" text-anchor="middle" fill="#f8fafc" font-size="18" font-weight="700">SmoothLlmImposter</text>
+  <text x="490" y="206" text-anchor="middle" fill="#c7d2fe" font-size="11">stateless · key-less · config-driven</text>
+
+  <!-- Internal pipeline steps -->
+  <g>
+    <rect x="370" y="230" width="240" height="36" rx="8" fill="#312e81" opacity="0.7" stroke="#6366f1" stroke-width="0.5"/>
+    <text x="490" y="253" text-anchor="middle" fill="#c7d2fe" font-size="12" font-weight="500">① Read <tspan fill="#fbbf24" font-weight="700">model</tspan> from request body</text>
+
+    <rect x="370" y="276" width="240" height="36" rx="8" fill="#312e81" opacity="0.7" stroke="#6366f1" stroke-width="0.5"/>
+    <text x="490" y="299" text-anchor="middle" fill="#c7d2fe" font-size="12" font-weight="500">② Match first <tspan fill="#fbbf24" font-weight="700">From → To</tspan> mapping</text>
+
+    <rect x="370" y="322" width="240" height="36" rx="8" fill="#312e81" opacity="0.7" stroke="#6366f1" stroke-width="0.5"/>
+    <text x="490" y="345" text-anchor="middle" fill="#c7d2fe" font-size="12" font-weight="500">③ <tspan fill="#f59e0b" font-weight="700">Imposter</tspan> (rewrite) or <tspan fill="#22d3ee" font-weight="700">Passthrough</tspan></text>
+
+    <rect x="370" y="368" width="240" height="36" rx="8" fill="#312e81" opacity="0.7" stroke="#6366f1" stroke-width="0.5"/>
+    <text x="490" y="391" text-anchor="middle" fill="#c7d2fe" font-size="12" font-weight="500">④ Inject <tspan fill="#fbbf24" font-weight="700">cache</tspan> + apply <tspan fill="#fbbf24" font-weight="700">credentials</tspan></text>
+
+    <rect x="370" y="414" width="240" height="36" rx="8" fill="#312e81" opacity="0.7" stroke="#6366f1" stroke-width="0.5"/>
+    <text x="490" y="437" text-anchor="middle" fill="#c7d2fe" font-size="12" font-weight="500">⑤ Stream response back <tspan fill="#a5b4fc">unbuffered</tspan></text>
+  </g>
+
+  <!-- Dialect badges -->
+  <g>
+    <rect x="365" y="468" width="100" height="24" rx="12" fill="#1e1b4b" stroke="#6366f1" stroke-width="0.8"/>
+    <text x="415" y="484" text-anchor="middle" fill="#a5b4fc" font-size="10" font-weight="600">/openai</text>
+    <rect x="475" y="468" width="100" height="24" rx="12" fill="#1e1b4b" stroke="#6366f1" stroke-width="0.8"/>
+    <text x="525" y="484" text-anchor="middle" fill="#a5b4fc" font-size="10" font-weight="600">/anthropic</text>
+  </g>
+
+  <!-- ============ ARROWS: Clients → Router ============ -->
+  <g stroke="#475569" stroke-width="1.5" fill="none" marker-end="url(#arrowGray)">
+    <path d="M 190 156 Q 270 156 340 220" stroke-dasharray="4 3" opacity="0.5"/>
+    <path d="M 190 226 Q 270 226 340 260" stroke-dasharray="4 3" opacity="0.5"/>
+    <path d="M 190 296 Q 270 296 340 310" stroke-dasharray="4 3" opacity="0.5"/>
+    <path d="M 190 366 Q 270 366 340 370" stroke-dasharray="4 3" opacity="0.5"/>
+  </g>
+
+  <!-- ============ RIGHT: UPSTREAM PROVIDERS ============ -->
+  <text x="940" y="112" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="600" letter-spacing="1.5">UPSTREAM PROVIDERS</text>
+
+  <!-- Imposter arrow label -->
+  <g>
+    <line x1="640" y1="170" x2="760" y2="170" stroke="url(#imposterArrow)" stroke-width="2.5" marker-end="url(#arrowAmber)"/>
+    <rect x="660" y="155" width="80" height="20" rx="4" fill="#451a03" opacity="0.9"/>
+    <text x="700" y="169" text-anchor="middle" fill="#fbbf24" font-size="9" font-weight="700">IMPOSTER</text>
+  </g>
+
+  <!-- Passthrough arrow label -->
+  <g>
+    <line x1="640" y1="510" x2="760" y2="510" stroke="url(#passthroughArrow)" stroke-width="2.5" marker-end="url(#arrowCyan)"/>
+    <rect x="648" y="495" width="100" height="20" rx="4" fill="#083344" opacity="0.9"/>
+    <text x="698" y="509" text-anchor="middle" fill="#22d3ee" font-size="9" font-weight="700">PASSTHROUGH</text>
+  </g>
+
+  <!-- Upstream: OpenAI -->
+  <g filter="url(#shadow)">
+    <rect x="780" y="135" width="170" height="58" rx="10" fill="url(#upstreamOpenAI)" opacity="0.9"/>
+    <text x="865" y="160" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">OpenAI</text>
+    <text x="865" y="178" text-anchor="middle" fill="#d1fae5" font-size="10">gpt-5.x · o3 · o4-mini</text>
+  </g>
+
+  <!-- Upstream: Anthropic -->
+  <g filter="url(#shadow)">
+    <rect x="780" y="215" width="170" height="58" rx="10" fill="url(#upstreamAnthropic)" opacity="0.9"/>
+    <text x="865" y="240" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">Anthropic</text>
+    <text x="865" y="258" text-anchor="middle" fill="#ffedd5" font-size="10">Claude Opus · Sonnet · Haiku</text>
+  </g>
+
+  <!-- Upstream: OpenRouter -->
+  <g filter="url(#shadow)">
+    <rect x="780" y="295" width="170" height="58" rx="10" fill="url(#upstreamOpenRouter)" opacity="0.9"/>
+    <text x="865" y="320" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">OpenRouter</text>
+    <text x="865" y="338" text-anchor="middle" fill="#ede9fe" font-size="10">DeepSeek · Llama · Mistral …</text>
+  </g>
+
+  <!-- Upstream: OpenCode GO -->
+  <g filter="url(#shadow)">
+    <rect x="780" y="375" width="170" height="58" rx="10" fill="url(#upstreamOpenCodeGO)" opacity="0.9"/>
+    <text x="865" y="400" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">OpenCode GO</text>
+    <text x="865" y="418" text-anchor="middle" fill="#e0f2fe" font-size="10">Grok · GLM · Qwen · MiniMax …</text>
+  </g>
+
+  <!-- Upstream: Local / Other -->
+  <g filter="url(#shadow)">
+    <rect x="780" y="455" width="170" height="58" rx="10" fill="url(#upstreamLocal)" opacity="0.9"/>
+    <text x="865" y="480" text-anchor="middle" fill="#fff" font-size="14" font-weight="700">Local / Other</text>
+    <text x="865" y="498" text-anchor="middle" fill="#cbd5e1" font-size="10">Ollama · LM Studio · Bedrock</text>
+  </g>
+
+  <!-- Upstream: Subscription (special) -->
+  <g filter="url(#shadow)">
+    <rect x="990" y="215" width="170" height="58" rx="10" fill="#1e293b" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4 3"/>
+    <text x="1075" y="238" text-anchor="middle" fill="#fbbf24" font-size="12" font-weight="700">Subscription Tier</text>
+    <text x="1075" y="255" text-anchor="middle" fill="#fde68a" font-size="10">Claude Pro/Max · ChatGPT Plus</text>
+    <text x="1075" y="269" text-anchor="middle" fill="#94a3b8" font-size="9">setup-token · session auth</text>
+  </g>
+
+  <!-- Curved arrows from router to upstreams -->
+  <g fill="none" stroke-width="1.8">
+    <!-- Imposter paths (amber) -->
+    <path d="M 640 280 C 700 280 720 164 780 164" stroke="#f59e0b" opacity="0.7" marker-end="url(#arrowAmber)"/>
+    <path d="M 640 300 C 700 300 720 244 780 244" stroke="#f59e0b" opacity="0.7" marker-end="url(#arrowAmber)"/>
+    <path d="M 640 320 C 700 320 720 324 780 324" stroke="#f59e0b" opacity="0.7" marker-end="url(#arrowAmber)"/>
+    <path d="M 640 340 C 700 340 720 404 780 404" stroke="#f59e0b" opacity="0.7" marker-end="url(#arrowAmber)"/>
+    <path d="M 640 360 C 700 360 720 484 780 484" stroke="#f59e0b" opacity="0.5" marker-end="url(#arrowAmber)"/>
+
+    <!-- Passthrough paths (cyan) -->
+    <path d="M 640 380 C 710 420 720 244 780 244" stroke="#22d3ee" opacity="0.5" marker-end="url(#arrowCyan)"/>
+    <path d="M 640 400 C 710 450 720 324 780 324" stroke="#22d3ee" opacity="0.5" marker-end="url(#arrowCyan)"/>
+    <path d="M 640 420 C 710 470 720 404 780 404" stroke="#22d3ee" opacity="0.5" marker-end="url(#arrowCyan)"/>
+  </g>
+
+  <!-- Arrow to subscription -->
+  <path d="M 950 244 Q 970 244 990 244" stroke="#f59e0b" stroke-width="1.5" fill="none" marker-end="url(#arrowAmber)" opacity="0.6"/>
+
+  <!-- ============ BOTTOM: Feature badges ============ -->
+  <g>
+    <rect x="80" y="580" width="140" height="32" rx="16" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="150" y="600" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="500"> No DB / No Vault</text>
+
+    <rect x="240" y="580" width="130" height="32" rx="16" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="305" y="600" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="500"> Streaming</text>
+
+    <rect x="390" y="580" width="160" height="32" rx="16" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="470" y="600" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="500">💾 Cache Injection</text>
+
+    <rect x="570" y="580" width="160" height="32" rx="16" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="650" y="600" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="500">🔐 Credential Mgmt</text>
+
+    <rect x="750" y="580" width="130" height="32" rx="16" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="815" y="600" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="500">🐳 Docker</text>
+
+    <rect x="900" y="580" width="170" height="32" rx="16" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+    <text x="985" y="600" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="500">📊 appsettings + env</text>
+  </g>
+
+  <!-- Bottom tagline -->
+  <text x="600" y="646" text-anchor="middle" fill="#64748b" font-size="11" font-style="italic">
+    Point your client's base URL at the router — it handles the rest.
+  </text>
+
+  <!-- Key insight callout -->
+  <g filter="url(#shadow)">
+    <rect x="990" y="455" width="170" height="64" rx="10" fill="#1e1b4b" stroke="#6366f1" stroke-width="1"/>
+    <text x="1075" y="475" text-anchor="middle" fill="#a5b4fc" font-size="10" font-weight="700">KEY INSIGHT</text>
+    <text x="1075" y="492" text-anchor="middle" fill="#e2e8f0" font-size="10">Most gateways route API keys.</text>
+    <text x="1075" y="508" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="700">This one routes subscriptions.</text>
+  </g>
+</svg>
