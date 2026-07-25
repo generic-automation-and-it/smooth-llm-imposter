@@ -22,11 +22,12 @@ Agent harnesses (Codex, Claude Code) stream chat requests by default (`"stream":
 
 ## Workflow
 
-This is a **single-shot** probe. Run the script once, relay the one-line reply, stop. Do not enumerate other models, sweep dialects, or re-probe unless the user names a specific model.
+This is a **single-shot**, **self-referential** probe. The skill runs *as* the agent that invoked it, so the default model to probe is **the executing agent's own model** — that is what the user is asking about when they say "which model am I really hitting?" or invoke `/imposter-who` bare. Run the script once, relay the one-line reply, stop. Do not enumerate other models, sweep dialects, or re-probe unless the user names a specific model.
 
 1. Determine the model and dialect to probe, in this order of precedence:
-   - If the user named a model in their request, use that model. Pick the dialect from the model name: `gpt-*` (and most non-Claude chat models) → OpenAI; `claude-*` → Anthropic. The script auto-detects dialect from `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`; pass `--dialect` only when the model name is ambiguous.
-   - If the user did not name a model, run the script with no `--model` (it defaults to `who-probe`, which routes to the dialect default). Relay the single-line `Passthrough:` reply as-is — that is the honest answer for an unnamed model.
+   - If the user named a model in their request, use that model.
+   - Otherwise, probe **your own model** — the model you are executing as in this session. You always know this from your own identity (e.g. Claude Code knows it is `claude-opus-4-7`, Codex knows its `model`/`--model` flag, etc.). Pass it to `--model`. If you genuinely cannot determine your own model identity, fall back to no `--model` (the script defaults to `who-probe`) and relay the `Passthrough:` line with a note that the executing model could not be auto-detected.
+   - Pick the dialect from the model name: `gpt-*` (and most non-Claude chat models) → OpenAI; `claude-*` → Anthropic. The script auto-detects dialect from `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`; pass `--dialect` only when the model name is ambiguous.
 2. Run the probe **once**:
 
 ```bash
