@@ -21,12 +21,11 @@ implementation, not as the live contract today.
 
 ## TL;DR
 
-Design for the customized-switches feature: a chat message whose last user content is
-exactly `--who?` (routing probe) or `--newsession` (session-id mint + in-memory
-translation) returns a dialect-shaped synthetic reply. The `--newsession` switch
-populates an in-memory translation dictionary consulted on the forward path.
-Intent in [README.md](./README.md), decisions in [ladrs/](./ladrs/), quality spec in
-[nfrs/](./nfrs/).
+A request whose last user message is exactly `who?` (routing probe) short-circuits the
+forward path and returns a dialect-shaped synthetic reply. The proposed `--who?` and
+`--newsession` switch family, plus the in-memory translation dictionary, is **NOT YET
+IMPLEMENTED** — see LADR-06 and NFR-04. Intent in [README.md](./README.md), decisions in
+[ladrs/](./ladrs/), quality spec in [nfrs/](./nfrs/).
 
 ## Non-Negotiables
 
@@ -49,10 +48,10 @@ Intent in [README.md](./README.md), decisions in [ladrs/](./ladrs/), quality spe
 - **Reuse `ImposterRouter.DescribeAuth`** (promoted to `internal static`) for the auth
   string. Re-deriving the scheme precedence locally will drift from the forwarder's
   actual header.
-- **Triggers are exact-match `--who?` or `--newsession` after trim, case-sensitive,
-  last user message only.** Do not add regex, case-insensitive, or "any message in
-  history" variants (LADR-02). Adding a new switch is a localized change to the
-  responder's switch table — not a new LADR, not a new config node.
+- **(Proposed) Triggers are exact-match `--who?` or `--newsession` after trim, case-sensitive,
+  last user message only.** The live trigger today is bare `who?`. Do not add regex,
+  case-insensitive, or "any message in history" variants (LADR-02). Adding a new switch is a
+  localized change to the responder's switch table — not a new LADR, not a new config node.
 - **Feature is gated; default ON.** Do not hardcode enable or disable. The
   `Imposter:WhoMessage:Enabled` boolean (env `IMPOSTER_WHO_MESSAGE_ENABLED`) must be
   readable at request time. `false` must skip BOTH the switch short-circuit AND the

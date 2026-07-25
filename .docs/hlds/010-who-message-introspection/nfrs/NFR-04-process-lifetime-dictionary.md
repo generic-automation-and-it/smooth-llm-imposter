@@ -1,4 +1,4 @@
-# NFR-04: In-memory growth contract (process lifetime, no eviction)
+# NFR-04: Process-lifetime dictionary (no eviction)
 
 **Status:** Draft — implementation-gated; verification list is phased
 
@@ -30,10 +30,10 @@ together when the dictionary implementation lands in a follow-up commit.**
     **same** synthetic id `S1` (no overwrite).
   - A second `--newsession` request with a different caller id `B` returns a
     **different** synthetic id `S2`.
-  - A `TryGetValue(A)` after the first mint returns `S1`; the dictionary has
-    exactly two entries after the two mints.
-  - A `TryGetValue(C)` (an unknown caller id) returns `false` — the
-    dictionary is empty for unrelated callers.
+- A lookup for caller `A` after the first mint returns `S1`; the dictionary has
+  exactly two entries after the two mints.
+- A lookup for caller `C` (an unknown caller id) returns `false` — the
+  dictionary contains no entry for unrelated callers.
 - L2 test (`WhoMessageIntegrationTests`): the in-memory dictionary
   configured via a fresh `Fixture` survives across two requests in the same
   test (the second request sees the entry minted by the first).

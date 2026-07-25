@@ -186,9 +186,9 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
             return $"Imposter: {plan.InboundModel} → {plan.Decision.TargetModel} (auth: {auth})";
         }
 
-        // Passthrough: the upstream target IS the inbound model (no rewrite); surface the inbound
-        // name once and the auth scheme. Empty inbound model means the request had no `model` field,
-        // which cannot happen here — PlanAsync requires it — but guard anyway with the passthrough label.
+        // Passthrough target = inbound. For body-less requests that flowed through
+        // PlanPassthroughAsync, InboundModel may be string.Empty; the PassthroughLabel
+        // fallback is the right guard for that case.
         string inbound = string.IsNullOrEmpty(plan.InboundModel) ? PassthroughLabel : plan.InboundModel;
         return $"Passthrough: {inbound} (auth: {auth})";
     }

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Partially Implemented — base `who?` probe Completed; `--who?` / `--newsession` switch family + in-memory translation dictionary Draft (LADR-02/03/04 revised, LADR-06 + NFR-04 Draft) |
+| **Status** | Accepted (base `who?` probe Completed; `--who?` / `--newsession` switch family + in-memory translation dictionary Draft) |
 | **Owner** | SmoothLlmImposter maintainers |
 | **Tracker** | _None — completed without a tracker issue (NO-TICKET)_ |
 | **Last updated** | 2026-07-25 |
@@ -200,7 +200,7 @@ dictionary is an override source on the same seam, not a parallel resolver.
 
 ## Architecture Decisions (LADRs)
 
-LADRs 01–03 are strategic (*what* and *why*); 04–05 are tactical (*how*). Each is a
+LADRs 01, 05, and 06 are strategic (*what* and *why*); LADR-04 is tactical (*how*). LADR-02 and LADR-03 are content-shape decisions that bridge strategy and tactics. Each is a
 single decision — a horizontal concern spanning this HLD. See [`./ladrs/`](./ladrs/).
 
 | LADR | Decision | Status |
@@ -222,7 +222,7 @@ target, a verification mechanism, and acceptance criteria. See [`./nfrs/`](./nfr
 | [NFR-01](./nfrs/NFR-01-transparency.md) | Transparency | Non-match path byte-identical to pre-HLD | Accepted |
 | [NFR-02](./nfrs/NFR-02-no-upstream-cost.md) | Efficiency | Zero upstream HTTP calls on match | Accepted |
 | [NFR-03](./nfrs/NFR-03-no-secret-leakage.md) | Security | Response contains no secret, credential, or masked fragment | Accepted |
-| [NFR-04](./nfrs/NFR-04-process-lifetime-dictionary.md) | In-memory growth | Translation dictionary does not evict; entries survive process lifetime | Draft |
+| [NFR-04](./nfrs/NFR-04-process-lifetime-dictionary.md) | Process-lifetime dictionary | Translation dictionary does not evict; entries survive process lifetime | Draft |
 
 ## Changelog
 
