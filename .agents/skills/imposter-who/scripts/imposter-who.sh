@@ -22,6 +22,7 @@
 set -euo pipefail
 
 DIALECT=""
+DIALECT_EXPLICIT=false
 MODEL="who-probe"
 SESSION=""
 BASE_URL=""
@@ -34,7 +35,7 @@ print_usage() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --dialect) DIALECT="$2"; shift 2 ;;
+    --dialect) DIALECT="$2"; DIALECT_EXPLICIT=true; shift 2 ;;
     --model) MODEL="$2"; shift 2 ;;
     --session) SESSION="$2"; shift 2 ;;
     --base-url) BASE_URL="$2"; shift 2 ;;
@@ -53,10 +54,9 @@ if [[ -z "$DIALECT" ]]; then
   fi
 fi
 
-# Refine dialect from model name when env-var auto-detect left it ambiguous
-# (e.g. both *_BASE_URL are unset, or only one is set and the inbound model
-# clearly belongs to the other family).
-if [[ -z "$DIALECT" || ( -n "${OPENAI_BASE_URL:-}" && -n "${ANTHROPIC_BASE_URL:-}" ) ]]; then
+# Refine dialect from model name when both *_BASE_URL are set, so the model
+# family can override the env-var-driven default.
+if [[ "$DIALECT_EXPLICIT" == "false" && ( -z "$DIALECT" || ( -n "${OPENAI_BASE_URL:-}" && -n "${ANTHROPIC_BASE_URL:-}" ) ) ]]; then
   case "$MODEL" in
     claude-*) DIALECT="anthropic" ;;
     gpt-*|o1-*|o3-*|o4-*) DIALECT="openai" ;;

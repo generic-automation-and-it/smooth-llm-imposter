@@ -48,7 +48,7 @@ For an Anthropic model:
 Imposter: gpt-5.5 -> glm-5.2 (auth: Bearer, session: null)
 ```
 
-- `Imposter: in to out` — the inbound model is rewritten to `out` upstream.
+- `Imposter: in -> out` — the inbound model is rewritten to `out` upstream.
 - `Passthrough: inbound` — no mapping matched; the request reaches the real provider unchanged.
 - `auth:` — the auth scheme the router will use upstream (`Bearer` / `ApiKey` / `none` / `caller-passthrough`).
 - `session:` — resolved session identity, or `null`.
