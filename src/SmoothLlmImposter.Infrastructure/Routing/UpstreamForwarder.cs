@@ -56,7 +56,6 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         ApplySessionIdentity(request, decision, sessionIdentity);
 
         logger.LogDebug("Forwarding to {Provider} at {Target}", decision.Provider.Name, target);
-        LogOutboundRequest(request, target, body, managedAuthHeader);
 
         HttpClient client = httpClientFactory.CreateClient(HttpClientName);
         // Headers-read completion keeps body-stream failures outside the retry scope, avoiding partial replay.
@@ -181,9 +180,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
     // HLD 009: stamp x-opencode-session once on matched opted-in imposter routes. Drop caller-relayed
     // session_id and x-opencode-session first (ForwardCallerHeaders copies them now that they are
     // passthrough-transparent) so the resolved identity is the sole write — mirrors the managed-auth
-    // drop-then-write pattern. The raw value is never logged at Information level; LogOutboundRequest's
-    // Debug-level dump is the only place the header value reaches the log sink, and Debug is opt-in by
-    // configuration. LogOutboundRequest masks the session-identity headers via SensitiveHeaderNames.
+    // drop-then-write pattern. The raw value is never logged at Information level.
     private static void ApplySessionIdentity(
         HttpRequestMessage request,
         RouteDecision decision,
@@ -199,64 +196,6 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         request.Headers.Remove("session_id");
         request.Headers.Remove(SessionHeaderName);
         request.Headers.TryAddWithoutValidation(SessionHeaderName, sessionIdentity.Value);
-    }
-
-    // Debug-only dump of the exact request leaving the forwarder (method, target, every header that opencode/the
-    // upstream will actually receive). Mirrors the Host's inbound dump so you can diff what the caller sent vs what
-    // is forwarded — the suspect is a relayed caller header the upstream rejects. Off by default (Information); the
-    // IsEnabled guard keeps it free when disabled. Auth secrets and resolved session-identity values are masked via
-    // SensitiveHeaderNames (shared with the Host's inbound dump so the two cannot drift).
-    private void LogOutboundRequest(HttpRequestMessage request, string target, string? body, string? managedAuthHeader)
-    {
-        if (!logger.IsEnabled(LogLevel.Debug))
-        {
-            return;
-        }
-
-        var headers = new StringBuilder();
-        foreach (KeyValuePair<string, IEnumerable<string>> header in request.Headers)
-        {
-            // Mask the static auth headers and any provider-specific AuthHeader the managed secret was written
-            // into, so a relocated credential (e.g. `api-key`) never reaches the log sink in the clear.
-            bool sensitive = SensitiveHeaderNames.Values.Contains(header.Key) ||
-                (managedAuthHeader is not null && string.Equals(header.Key, managedAuthHeader, StringComparison.OrdinalIgnoreCase));
-            string value = sensitive
-                ? MaskSecretHeader(string.Join(", ", header.Value))
-                : string.Join(", ", header.Value);
-            headers.Append("\n  ").Append(header.Key).Append(": ").Append(value);
-        }
-
-        if (request.Content is not null)
-        {
-            foreach (KeyValuePair<string, IEnumerable<string>> header in request.Content.Headers)
-            {
-                headers.Append("\n  ").Append(header.Key).Append(": ").Append(string.Join(", ", header.Value));
-            }
-        }
-
-        // Body is the exact post-transform payload sent to the upstream (Responses→Chat conversion already
-        // applied). Logged in full at Debug to diagnose tool-shape/name rejections; no secrets live in the
-        // body (auth is header-only, masked above). Temporary diagnostic — remove or gate further if noisy.
-        logger.LogDebug(
-            "Outbound {Method} {Target}\nHeaders:{Headers}\nBody: {Body}",
-            request.Method, target, headers.ToString(), body ?? "(none)");
-    }
-
-    // Preserve the auth scheme prefix (e.g. "Bearer ") and the secret's last 4 chars; mask the rest. Short
-    // secrets (≤4 chars) are fully masked so nothing recoverable is logged.
-    private static string MaskSecretHeader(string value)
-    {
-        if (string.IsNullOrEmpty(value))
-        {
-            return value;
-        }
-
-        int spaceIndex = value.IndexOf(' ');
-        string scheme = spaceIndex > 0 ? value[..(spaceIndex + 1)] : string.Empty;
-        string secret = spaceIndex > 0 ? value[(spaceIndex + 1)..] : value;
-        string tail = secret.Length > 4 ? secret[^4..] : string.Empty;
-
-        return $"{scheme}***{tail}";
     }
 
     // Writes the credential into headerName using the value format the scheme dictates: Bearer prepends
