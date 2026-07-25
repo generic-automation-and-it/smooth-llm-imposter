@@ -38,8 +38,10 @@ internal sealed class InMemorySessionTranslationDictionary : ISessionTranslation
         }
 
         // First-write wins: only generate the synthetic id if no mapping exists yet.
-        // ConcurrentDictionary.GetOrAdd would generate the value even when the key already
-        // exists, so we check first to avoid minting unused ids.
+        // We use ContainsKey + TryAdd instead of the eager value overload of GetOrAdd
+        // so that a Guid is not minted on the existing-key path. (The factory overload
+        // of GetOrAdd only invokes the factory on a miss, so this rationale is the
+        // eager-overload case.)
         if (_map.ContainsKey(callerId))
         {
             syntheticId = _map[callerId];

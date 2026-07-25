@@ -163,7 +163,7 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
     /// <summary>
     /// Builds the probe response for <c>--who?</c>. The envelope includes session identity info.
     /// </summary>
-    private string BuildProbeResponse(ApiDialect dialect, RoutePlan plan)
+    private static string BuildProbeResponse(ApiDialect dialect, RoutePlan plan)
     {
         string auth = ImposterRouter.DescribeAuth(plan.Decision, dialect, plan.CredentialOverride);
         string contentText = BuildContentText(plan, auth, plan.SessionIdentity);

@@ -151,7 +151,9 @@ internal static class RoutingEndpoints
         // has a mapping in the translation dictionary (minted by a prior --newsession), replace
         // it with the synthetic id before forwarding. Passthrough and un-opted-in routes stay
         // byte-identical (NFR-01) — the dictionary is only consulted when the plan has a
-        // stampable session identity.
+        // stampable session identity. For passthrough routes, `plan.SessionIdentity.HasValue` is
+        // false, so the `imposterOptions.WhoMessage.Enabled` gate is naturally bypassed even
+        // though the feature toggle is checked first.
         if (imposterOptions.WhoMessage.Enabled &&
             plan.SessionIdentity.HasValue &&
             sessionTranslation.TryTranslate(plan.SessionIdentity.Value!, out string? translated))
