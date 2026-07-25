@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Accepted (base `who?` probe Completed; `--who?` / `--newsession` switch family + in-memory translation dictionary Draft) |
+| **Status** | Completed (base `who?` probe Completed; `--who?` / `--newsession` switch family + in-memory translation dictionary Draft) |
 | **Owner** | SmoothLlmImposter maintainers |
 | **Tracker** | _None — completed without a tracker issue (NO-TICKET)_ |
 | **Last updated** | 2026-07-25 |
@@ -202,6 +202,8 @@ dictionary is an override source on the same seam, not a parallel resolver.
 
 LADRs 01, 05, and 06 are strategic (*what* and *why*); LADR-04 is tactical (*how*). LADR-02 and LADR-03 are content-shape decisions that bridge strategy and tactics. Each is a
 single decision — a horizontal concern spanning this HLD. See [`./ladrs/`](./ladrs/).
+
+> **Reclassification note (2026-07-25):** LADR-05 moves from "tactical" to "strategic" because its "what — don't synthesize" decision constrains every LADR that follows. LADR-02 and LADR-03 sit between the two categories: they govern content *shape* (a tactical concern) but in service of the strategic decision of what content is allowed.
 
 | LADR | Decision | Status |
 |------|----------|--------|

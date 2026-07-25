@@ -49,9 +49,11 @@ IMPLEMENTED** — see LADR-06 and NFR-04. Intent in [README.md](./README.md), de
   string. Re-deriving the scheme precedence locally will drift from the forwarder's
   actual header.
 - **(Proposed) Triggers are exact-match `--who?` or `--newsession` after trim, case-sensitive,
-  last user message only.** The live trigger today is bare `who?`. Do not add regex,
-  case-insensitive, or "any message in history" variants (LADR-02). Adding a new switch is a
-  localized change to the responder's switch table — not a new LADR, not a new config node.
+  last user message only.** The live trigger today is bare `who?`; the proposed `--who?` /
+  `--newsession` switch family is tracked by LADR-02 in `Draft (revised)` status and is
+  **not** live. Do not add regex, case-insensitive, or "any message in history" variants
+  (LADR-02). Adding a new switch is a localized change to the responder's switch table —
+  not a new LADR, not a new config node.
 - **Feature is gated; default ON.** Do not hardcode enable or disable. The
   `Imposter:WhoMessage:Enabled` boolean (env `IMPOSTER_WHO_MESSAGE_ENABLED`) must be
   readable at request time. `false` must skip BOTH the switch short-circuit AND the
