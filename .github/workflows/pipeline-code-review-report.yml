@@ -5,9 +5,8 @@
 # in `uses:` below. The local repo copies only the `/ai-review` consumer skill
 # (.agents/skills/ai-review/); the report *generator* stays remote.
 #
-# Pinned at @main: the upstream repo publishes no tags yet (no @v1), so this
-# tracks the upstream default branch. Swap to an exact tag/SHA for stricter
-# supply-chain control once upstream cuts a release.
+# Pinned to upstream commit SHA fc2c2037b6032aad252cb13a3355093dd6aad81b.
+# Update both `uses:` and `tools_ref` together when syncing upstream.
 #
 # Required configuration in THIS repo/org (provider = OpenAI):
 #   Secret   — OPENCODE_OPENAI_API_KEY                      (your OpenAI API key; passed via secrets: inherit)
@@ -90,7 +89,7 @@ jobs:
       (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '/ai-review')) ||
       (github.event_name == 'workflow_dispatch')
-    uses: generic-automation-and-it/smooth-ai-report-review/.github/workflows/pipeline-code-review-report.yml@main
+    uses: generic-automation-and-it/smooth-ai-report-review/.github/workflows/pipeline-code-review-report.yml@fc2c2037b6032aad252cb13a3355093dd6aad81b
     with:
       pr_number: ${{ inputs.pr_number || '' }}
       model: ${{ inputs.model || '' }}
@@ -98,10 +97,10 @@ jobs:
       # tools_ref MUST be set when calling cross-repo: the callee's default resolves
       # `github.workflow_sha`, which on a pull_request call is THIS repo's commit SHA
       # (`not our ref` in the upstream tooling repo) — so the review-script checkout
-      # fails. Pin it to a ref that exists upstream; `main` matches the @main call above.
-      tools_ref: main
+      # fails. Pin it to the same upstream SHA used in `uses:`.
+      tools_ref: fc2c2037b6032aad252cb13a3355093dd6aad81b
       # UPSTREAM CONTRACT: disable_claude_code and disable_agents_md_check must be declared
-      # as inputs in the upstream reusable workflow (smooth-ai-report-review@main). If the
+      # as inputs in the upstream reusable workflow (smooth-ai-report-review@fc2c2037). If the
       # upstream has not been updated in lockstep, dispatch will fail with "Unexpected input".
       disable_claude_code: ${{ inputs.disable_claude_code || '' }}
       disable_agents_md_check: ${{ inputs.disable_agents_md_check || '' }}

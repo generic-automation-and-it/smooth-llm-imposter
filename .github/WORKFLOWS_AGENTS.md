@@ -46,9 +46,11 @@ C4Context
 - The generous job `timeout-minutes` and the per-workflow/per-ref GHA cache `scope=` exist to keep the QEMU-emulated `arm64` `dotnet restore`/`publish` (~5–10× slower than native) inside a green build — do not tighten or remove them without re-measuring an emulated cold-cache run.
 - The Dockerfile's BuildKit NuGet `--mount=type=cache,target=/root/.nuget/packages` only reuses packages **within a single build invocation** — the `type=gha` cache backend does not export `--mount=type=cache` contents, so there is no cross-run package reuse. Keep the mount (it is cheap and harmless), but do not add cross-run assumptions on top of it. Mount NuGet's global packages folder, not its scratch dir (`/tmp/NuGetScratch<user>` is user-suffixed and unused by `--no-restore` publish).
 - **First-tag cold cache is intentional.** On the first build of a fresh `ref_name` (e.g. a new `v1.0.0` tag) `cache-from` has no matching scope entry, so Buildx cold-caches and starts exporting under the new scope on the next run. This is by design, not a config bug.
+- The `pipeline-code-review-report.yml` thin caller must keep the upstream reusable-workflow `uses:` ref and the passed `tools_ref` synchronized to the same pinned upstream SHA; mismatching refs can break cross-repo tooling checkout.
 
 ## Changelog
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
 | 2026-07-04 | Created workflow context for multi-architecture GHCR publishing (QEMU-before-Buildx, `setup-qemu-action` v4); recorded why the emulated-build job timeout, scoped GHA cache, and Dockerfile NuGet cache mount exist, and that first-tag cold cache is intentional. | #58 |
+| 2026-07-25 | Added review-workflow caller pinning note: keep reusable `uses:` and `tools_ref` aligned to the same upstream SHA. | #78 |
