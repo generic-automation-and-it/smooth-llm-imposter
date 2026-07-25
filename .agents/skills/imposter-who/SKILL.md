@@ -42,7 +42,7 @@ For an Anthropic model:
 3. Relay the single-line output verbatim to the user. It has the shape:
 
 ```
-Imposter: gpt-5.5 → glm-5.2 (auth: Bearer, session: null)
+Imposter: gpt-5.5 -> glm-5.2 (auth: Bearer, session: null)
 ```
 
 - `Imposter: in to out` — the inbound model is rewritten to `out` upstream.
