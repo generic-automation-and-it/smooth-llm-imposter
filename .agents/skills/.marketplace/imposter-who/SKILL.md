@@ -22,12 +22,14 @@ Agent harnesses (Codex, Claude Code) stream chat requests by default (`"stream":
 
 ## Workflow
 
-This is a **single-shot**, **self-referential** probe. The skill runs *as* the agent that invoked it, so the default model to probe is **the executing agent's own model** — that is what the user is asking about when they say "which model am I really hitting?" or invoke `/imposter-who` bare. Run the script once, relay the one-line reply, stop. Do not enumerate other models, sweep dialects, or re-probe unless the user names a specific model.
+This is a **single-shot** probe. Run the script once, relay the one-line reply, stop. Do not enumerate other models, sweep dialects, or re-probe unless the user names a specific model.
 
-1. Determine the model and dialect to probe, in this order of precedence:
-   - If the user named a model in their request, use that model.
-   - Otherwise, probe **your own model** — the model you are executing as in this session. You always know this from your own identity (e.g. Claude Code knows it is `claude-opus-4-7`, Codex knows its `model`/`--model` flag, etc.). Pass it to `--model`. If you genuinely cannot determine your own model identity, fall back to no `--model` (the script defaults to `who-probe`) and relay the `Passthrough:` line with a note that the executing model could not be auto-detected.
-   - Pick the dialect from the model name: `gpt-*` (and most non-Claude chat models) → OpenAI; `claude-*` → Anthropic. The script auto-detects dialect from `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`; pass `--dialect` only when the model name is ambiguous.
+**Important — what the router matches on.** The SmoothLlmImposter router rewrites on the **inbound** (`From`) model — the model name the harness is configured to send to the router (e.g. `claude-opus-4-7`, `gpt-5.5`). The probe's `--model` argument takes that `From` value, NOT your own executing model. When the router is configured `From: claude-opus-4-7 → To: minimax-m3`, the agent running through the imposter *is* `minimax-m3` — that is the resolved upstream, not the inbound model. Probing `--model minimax-m3` will always return `Passthrough: minimax-m3` because no `From` mapping starts from the `To` model. The script cannot auto-detect the harness's inbound model from the environment; only the user (or the harness config) knows it.
+
+1. Determine the `From` model and dialect to probe, in this order of precedence:
+   - If the user named a model in their request, use that model as the `From`. That is the common case — the user usually names the model they configured their harness to send (e.g. `/imposter-who gpt-5.5` or "am I really hitting gpt-5.5?").
+   - If the user did not name a model, DO NOT fall back to probing your own executing model (that is the `To`, and probing it returns a meaningless `Passthrough`). Ask the user once, briefly, which inbound model their harness is configured to send (e.g. "which model is your harness set to send — e.g. `gpt-5.5`, `claude-opus-4-7`?"). Do not run the script until you have a `From` model.
+   - Pick the dialect from the `From` model name: `gpt-*` (and most non-Claude chat models) → OpenAI; `claude-*` → Anthropic. The script auto-detects dialect from `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`; pass `--dialect` only when the model name is ambiguous.
 2. Run the probe **once**:
 
 ```bash
@@ -43,7 +45,7 @@ For an Anthropic model:
 3. Relay the single-line output verbatim to the user. It has the shape:
 
 ```
-Imposter: gpt-5.5 → glm-5.2 (auth: Bearer, session: null)
+Imposter: gpt-5.5 -> glm-5.2 (auth: Bearer, session: null)
 ```
 
 - `Imposter: in to out` — the inbound model is rewritten to `out` upstream.
