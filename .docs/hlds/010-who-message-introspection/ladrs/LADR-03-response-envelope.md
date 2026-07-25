@@ -45,6 +45,22 @@ text. `id` is a fresh synthetic value; `created` is the request timestamp.
 - Neutral: `usage` is zero in both dialects, which is honest (no upstream tokens) and
   also signals "this reply is synthetic" to any tooling that tracks cost.
 
+### Addendum: OpenAI `/v1/responses` callers receive a `chat.completion` envelope
+
+The probe is selected by **dialect**, not by inbound upstream path. A request to
+`/v1/responses` (OpenAI's newer API surface) whose last user message is `who?` still
+receives a `chat.completion` object — not a `response` object. Clients using the
+official `openai` Responses SDK and routing to `/v1/responses` will see a parse
+error on the synthetic reply.
+
+This is an intentional, documented departure from `RoutingEndpoints.ShouldTranslateChatToResponses`,
+which only distinguishes the two shapes on the real forward path. The probe is a
+diagnostic affordance, not a production API: callers are expected to use it via the
+chat-completion surface (the well-trodden `chat.completions.create(...)` entry point),
+and paying for a third envelope shape + a third test surface for a probe that should
+not be on a hot path is a poor trade. The asymmetry is locked here so a future
+contributor does not read the silence as an oversight.
+
 ## Related
 
 - **LADR-01** — depends on (seam provides `plan.InboundModel`, `plan.Decision`, dialect).
