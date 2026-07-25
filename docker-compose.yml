@@ -27,9 +27,10 @@ services:
       # catch-all passthrough and take NO secret here. These use the conventional
       # <NAME>_<FIELD> surface (OPENCODE_GO_API_KEY → opencode-go-* Secret, etc.); the
       # structured form Imposter__Providers__opencode-go-openai__Secret is equivalent. AuthScheme
-      # is decoupled from Dialect: OpenRouter expects Bearer even on its Anthropic-compatible
-      # surface, while opencode-go-anthropic is configured for x-api-key. Supply secrets via shell
-      # export or a gitignored .env file; :- keeps compose quiet when a secret is unset.
+      # is decoupled from Dialect: OpenRouter is configured for x-api-key on both its
+      # Anthropic-compatible and OpenAI-compatible surfaces; opencode-go-anthropic is also
+      # configured for x-api-key. Supply secrets via shell export or a gitignored .env file;
+      # :- keeps compose quiet when a secret is unset.
       OPENCODE_GO_API_KEY: ${OPENCODE_GO_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     # Only needed for the optional /admin/credentials API (requires PostgreSQL):

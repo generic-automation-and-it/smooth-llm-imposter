@@ -19,7 +19,7 @@ probe intent at a glance and is unlikely to collide with natural English.
 
 ## Decision
 
-**Adopt** (revised) a registered-switch table on the last `role:"user"` message: when
+**Adopt** a registered-switch table on the last `role:"user"` message: when
 the trimmed, ordinal-equalled content matches any registered switch literal, the
 responder short-circuits with the switch's reply shape. The live implementation
 matches this LADR.

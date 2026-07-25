@@ -60,9 +60,9 @@ requests), or `session: null` when no session identity was resolved.
   change required.
 - Positive: the reply is trivially greppable in a transcript (`Imposter:` /
   `Passthrough:` / `Session:` prefixes).
-- Positive: the `chatcmpl-who-` / `msg_who_` id prefix (live) and the reserved
-  `chatcmpl-newsession-` / `msg_newsession_` id prefix split lets a single regex
-  or grep locate a specific switch's replies in a stream of completions.
+- Positive: the `chatcmpl-who-` / `msg_who_` and `chatcmpl-newsession-` /
+  `msg_newsession_` id prefix split lets a single regex or grep locate a
+  specific switch's replies in a stream of completions.
 - Negative: each switch's envelope is slightly larger than a bare string (~300 bytes
   for OpenAI, ~250 bytes for Anthropic); acceptable given the switches are one-shot
   affordances, not a high-QPS endpoint.
