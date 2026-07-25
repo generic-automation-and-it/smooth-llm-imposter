@@ -86,14 +86,11 @@ A request whose last user message is exactly `--who?` or `--newsession` (trimmed
   the HLD 009 resolution order). A `--newsession` request with no caller-supplied
   id does **not** match — the responder returns no match and the request forwards
   normally. The translation step on the forward path has no fallback.
-- **Dictionary translation is an override on the HLD 009 session-identity stamping
-  path.** The resolver still produces a `SessionIdentity` from the captured/derived
-  sources; the dictionary only rewrites `SessionIdentity.Value` (the live
-  record property; the planned rename to `StableId` is part of the follow-up
-  commit) before the transformer stamps it. With the dictionary disabled
-  (toggle off), the captured/derived value passes through unchanged. The
-  dictionary is registered as a DI **singleton** (not Scoped — per-scope
-  instances would split the map and silently break translation).
+- The dictionary only rewrites `SessionIdentity.Value` after `PlanAsync` returns;
+  callers that stamp the body via the transformer (e.g. `OpenAiRequestTransformer`)
+  must either (a) consult the dictionary before stamping, or (b) accept that the
+  body `session_id` field carries the caller's id and rely on the upstream provider
+  to honour the `x-opencode-session` header.
 
 ## Quality Constraints
 

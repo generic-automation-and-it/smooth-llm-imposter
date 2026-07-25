@@ -37,11 +37,10 @@ internal sealed class InMemorySessionTranslationDictionary : ISessionTranslation
             return false;
         }
 
-        // First-write wins: only generate the synthetic id if no mapping exists yet.
-        // We use ContainsKey + TryAdd instead of the eager value overload of GetOrAdd
-        // so that a Guid is not minted on the existing-key path. (The factory overload
-        // of GetOrAdd only invokes the factory on a miss, so this rationale is the
-        // eager-overload case.)
+        // We use ContainsKey + TryAdd rather than the factory overload of GetOrAdd so the
+        // "first-write wins" contract is explicit: the existing-key branch is a direct
+        // lookup, not a factory return path, and TryAdd returns a boolean indicating
+        // whether this call inserted (so we can log "newly inserted" vs "reused").
         if (_map.ContainsKey(callerId))
         {
             syntheticId = _map[callerId];
