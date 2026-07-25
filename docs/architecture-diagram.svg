@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 695" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 695" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
   <defs>
     <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#0f172a"/>
@@ -126,7 +126,7 @@
     <text x="490" y="345" text-anchor="middle" fill="#c7d2fe" font-size="12" font-weight="500">③ <tspan fill="#f59e0b" font-weight="700">Imposter</tspan> (rewrite) or <tspan fill="#22d3ee" font-weight="700">Passthrough</tspan></text>
 
     <rect x="370" y="368" width="240" height="36" rx="8" fill="#312e81" opacity="0.7" stroke="#6366f1" stroke-width="0.5"/>
-    <text x="490" y="391" text-anchor="middle" fill="#c7d2fe" font-size="12" font-weight="500">④ Inject <tspan fill="#fbbf24" font-weight="700">cache</tspan> + apply <tspan fill="#fbbf24" font-weight="700">credentials</tspan></text>
+    <text x="490" y="391" text-anchor="middle" fill="#c7d2fe" font-size="10" font-weight="500">④ <tspan fill="#fbbf24" font-weight="700">cache</tspan> · credentials · normalize · session-id</text>
 
     <rect x="370" y="414" width="240" height="36" rx="8" fill="#312e81" opacity="0.7" stroke="#6366f1" stroke-width="0.5"/>
     <text x="490" y="437" text-anchor="middle" fill="#c7d2fe" font-size="12" font-weight="500">⑤ Stream response back <tspan fill="#a5b4fc">unbuffered</tspan></text>
