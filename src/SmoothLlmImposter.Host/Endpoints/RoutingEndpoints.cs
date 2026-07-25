@@ -40,8 +40,8 @@ internal static class RoutingEndpoints
         // disambiguates shared paths like /v1/models that are identical across OpenAI and Anthropic — and the
         // captured tail is forwarded verbatim, so /v1/models, /v1/responses, /v1/messages/count_tokens, etc.
         // all proxy without a per-route mapping.
-        app.Map("/openai/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, whoResponder, imposterOptions.Value, loggerFactory));
+        app.Map("/openai/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, ISessionTranslationDictionary sessionTranslation, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, whoResponder, sessionTranslation, imposterOptions.Value, loggerFactory));
 
         // Anthropic model discovery is answered LOCALLY from the route catalogue (distinct union of configured
         // `to` targets), not forwarded upstream (HLD 005, Anthropic scope). This specific GET route takes
@@ -54,19 +54,19 @@ internal static class RoutingEndpoints
             return Results.Text(responder.BuildModelsResponse(), "application/json");
         });
 
-        app.Map("/anthropic/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.Anthropic, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, whoResponder, imposterOptions.Value, loggerFactory));
+        app.Map("/anthropic/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, ISessionTranslationDictionary sessionTranslation, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.Anthropic, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, whoResponder, sessionTranslation, imposterOptions.Value, loggerFactory));
 
         // Legacy unprefixed completion routes (POST only). The inbound path is the upstream path. Unprefixed
         // /v1/models is intentionally NOT mapped here — it is dialect-ambiguous; use the /openai or /anthropic prefix.
-        app.MapPost("/v1/chat/completions", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/chat/completions", router, forwarder, responseTransformer, errors, whoResponder, imposterOptions.Value, loggerFactory));
+        app.MapPost("/v1/chat/completions", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, ISessionTranslationDictionary sessionTranslation, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/chat/completions", router, forwarder, responseTransformer, errors, whoResponder, sessionTranslation, imposterOptions.Value, loggerFactory));
 
-        app.MapPost("/v1/responses", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/responses", router, forwarder, responseTransformer, errors, whoResponder, imposterOptions.Value, loggerFactory));
+        app.MapPost("/v1/responses", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, ISessionTranslationDictionary sessionTranslation, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/responses", router, forwarder, responseTransformer, errors, whoResponder, sessionTranslation, imposterOptions.Value, loggerFactory));
 
-        app.MapPost("/v1/messages", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.Anthropic, "/v1/messages", router, forwarder, responseTransformer, errors, whoResponder, imposterOptions.Value, loggerFactory));
+        app.MapPost("/v1/messages", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, ISessionTranslationDictionary sessionTranslation, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.Anthropic, "/v1/messages", router, forwarder, responseTransformer, errors, whoResponder, sessionTranslation, imposterOptions.Value, loggerFactory));
     }
 
     // The {**upstreamPath} catch-all captures the tail WITHOUT a leading slash and excludes the query string.
@@ -83,6 +83,7 @@ internal static class RoutingEndpoints
         IChatToResponsesTransformer responseTransformer,
         IErrorResponseFactory errors,
         IWhoMessageResponder whoResponder,
+        ISessionTranslationDictionary sessionTranslation,
         ImposterOptions imposterOptions,
         ILoggerFactory loggerFactory)
     {
@@ -123,8 +124,11 @@ internal static class RoutingEndpoints
         // parsed. Intentional per the HLD 010 "pure predicate" seam so the responder stays
         // transport-agnostic; revisit once a parsed-body seam is added (one JsonDocument.Parse
         // per chat-completion request today).
-        if (imposterOptions.WhoMessage.Enabled &&
-            whoResponder.TryBuildResponse(dialect, requestBody, plan, out string? whoResponseJson))
+        if (!imposterOptions.WhoMessage.Enabled)
+        {
+            logger.LogDebug("WhoMessage feature is disabled — forwarding without intercept");
+        }
+        else if (whoResponder.TryBuildResponse(dialect, requestBody, plan, out string? whoResponseJson))
         {
             logger.LogDebug("Short-circuited who-message probe for {Dialect} model '{Model}'", dialect, plan.InboundModel);
             context.Response.StatusCode = StatusCodes.Status200OK;
@@ -141,6 +145,23 @@ internal static class RoutingEndpoints
                 return;
             }
             return;
+        }
+
+        // HLD 010, LADR-06: session translation. When the caller's resolved session identity
+        // has a mapping in the translation dictionary (minted by a prior --newsession), replace
+        // it with the synthetic id before forwarding. Passthrough and un-opted-in routes stay
+        // byte-identical (NFR-01) — the dictionary is only consulted when the plan has a
+        // stampable session identity.
+        if (imposterOptions.WhoMessage.Enabled &&
+            plan.SessionIdentity.HasValue &&
+            sessionTranslation.TryTranslate(plan.SessionIdentity.Value!, out string? translated))
+        {
+            logger.LogDebug(
+                "Translating session identity '{Source}' to synthetic '{Synthetic}' for {Dialect} forward",
+                plan.SessionIdentity.LogToken,
+                translated,
+                dialect);
+            plan = plan with { SessionIdentity = new SessionIdentity(translated, plan.SessionIdentity.Source) };
         }
 
         bool translateChatToResponses = ShouldTranslateChatToResponses(dialect, upstreamPath, plan);

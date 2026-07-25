@@ -12,6 +12,10 @@
 > **not** contain an implementation plan; execution (phasing, sub-issues, sequencing) is
 > tracked in the issue tracker (worktask list).
 
+## TL;DR
+
+Three switches — `who?`, `--who?`, `--newsession` — short-circuit the forward path when the last user message matches exactly (trimmed, case-sensitive, non-streaming). `who?` returns routing + auth info; `--who?` adds session identity; `--newsession` mints a synthetic session id and stores the caller→synthetic mapping in a process-lifetime dictionary that translates session ids on subsequent forwards. Diagnostic logging (Debug level) in `WhoMessageResponder` reports each non-match reason; `RoutingEndpoints` logs when the feature is disabled or a translation is applied.
+
 ## Intent
 
 SmoothLlmImposter is a transparent, stateless, key-less router. Callers — agent clients

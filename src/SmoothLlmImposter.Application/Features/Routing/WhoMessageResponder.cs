@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging;
 using SmoothLlmImposter.Domain.Routing;
 
 namespace SmoothLlmImposter.Application.Features.Routing;
@@ -8,33 +9,60 @@ namespace SmoothLlmImposter.Application.Features.Routing;
 /// <summary>
 /// Default <see cref="IWhoMessageResponder"/>. Reads the raw inbound body, locates the last
 /// <c>role:"user"</c> message, and matches its text content (string or concatenated text parts)
-/// against the exact trigger <c>who?</c> (trimmed, case-sensitive). On match, builds a
+/// against the switch table (trimmed, case-sensitive, ordinal). On match, builds a
 /// dialect-shaped chat envelope whose content text names the inbound model, the resolved
 /// upstream target (or <c>passthrough</c>), and the auth scheme resolved by
 /// <see cref="ImposterRouter.DescribeAuth"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Trigger semantics (HLD 010, LADR-02):
+/// Switch table (HLD 010, LADR-02):
 /// <list type="bullet">
-///   <item><description>stream: true → no match (LADR-05 — no SSE synthesis).</description></item>
-///   <item><description>no <c>messages</c> array → no match.</description></item>
-///   <item><description>no <c>role:"user"</c> message → no match.</description></item>
-///   <item><description>last user message has non-text content (image, tool_use, etc.) → no match.</description></item>
-///   <item><description>last user text, trimmed, must equal <c>who?</c> ordinally.</description></item>
+///   <item><description><c>who?</c> — original probe: <c>Imposter: ... → ... (auth: ...)</c> or <c>Passthrough: ... (auth: ...)</c>.</description></item>
+///   <item><description><c>--who?</c> — extended probe with session info: <c>Imposter: ... → ... (auth: ..., session: ...)</c>.</description></item>
+///   <item><description><c>--newsession</c> — mint a synthetic session id and store the caller→synthetic mapping. Requires a resolvable caller session id; when absent, no match (forward normally).</description></item>
 /// </list>
 /// </para>
 /// <para>
-/// NFR-03: the reply exposes only inbound-model, resolved target, and auth-scheme name.
-/// No secret, credential, base URL, or provider registry key ever reaches the output; the
-/// auth token comes from <see cref="ImposterRouter.DescribeAuth"/>, which returns only the
-/// scheme name (<c>Bearer</c> / <c>ApiKey</c> / <c>none</c> / <c>caller-passthrough</c>).
+/// Trigger semantics (HLD 010, LADR-02):
+/// <list type="bullet">
+///   <item><description>stream: true → no match for any switch (LADR-05).</description></item>
+///   <item><description>no <c>messages</c> array → no match.</description></item>
+///   <item><description>no <c>role:"user"</c> message → no match.</description></item>
+///   <item><description>last user message has non-text content (image, tool_use, etc.) → no match.</description></item>
+///   <item><description>last user text, trimmed, must equal one of the switches ordinally.</description></item>
+/// </list>
+/// </para>
+/// <para>
+/// NFR-03: the reply exposes only inbound-model, resolved target, auth-scheme name, and (for
+/// <c>--who?</c>) the session identity. No secret, credential, base URL, or provider registry
+/// key ever reaches the output; the auth token comes from <see cref="ImposterRouter.DescribeAuth"/>,
+/// which returns only the scheme name (<c>Bearer</c> / <c>ApiKey</c> / <c>none</c> / <c>caller-passthrough</c>).
 /// </para>
 /// </remarks>
 internal sealed class WhoMessageResponder : IWhoMessageResponder
 {
-    internal const string Trigger = "who?";
+    /// <summary>
+    /// The switch table. Order matters only for readability; the match loop checks every entry.
+    /// <c>who?</c> is at index 0 to make the backward-compatibility intent explicit.
+    /// </summary>
+    internal static readonly string[] Switches = ["who?", "--who?", "--newsession"];
+
     private const string PassthroughLabel = "passthrough";
+    private const string SwitchWho = "who?";
+    private const string SwitchExtendedWho = "--who?";
+    private const string SwitchNewSession = "--newsession";
+
+    private readonly ISessionTranslationDictionary _sessionDictionary;
+    private readonly ILogger<WhoMessageResponder> _logger;
+
+    public WhoMessageResponder(
+        ISessionTranslationDictionary sessionDictionary,
+        ILogger<WhoMessageResponder> logger)
+    {
+        _sessionDictionary = sessionDictionary;
+        _logger = logger;
+    }
 
     public bool TryBuildResponse(ApiDialect dialect, string requestBody, RoutePlan plan, out string? responseJson)
     {
@@ -42,6 +70,7 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
 
         if (string.IsNullOrWhiteSpace(requestBody))
         {
+            _logger.LogDebug("WhoMessage: no match — body is empty or whitespace");
             return false;
         }
 
@@ -54,6 +83,7 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
         {
             // Router has already validated upstream of this call; defensive return keeps the responder
             // a pure predicate. Callers of the public method do not expect a throw on malformed input.
+            _logger.LogDebug("WhoMessage: no match — body is not valid JSON");
             return false;
         }
 
@@ -63,6 +93,7 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
 
             if (root.ValueKind != JsonValueKind.Object)
             {
+                _logger.LogDebug("WhoMessage: no match — JSON root is not an object");
                 return false;
             }
 
@@ -71,30 +102,90 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
             if (root.TryGetProperty("stream", out JsonElement streamElement) &&
                 streamElement.ValueKind == JsonValueKind.True)
             {
+                _logger.LogDebug("WhoMessage: no match — stream is true (LADR-05)");
                 return false;
             }
 
             if (!root.TryGetProperty("messages", out JsonElement messages) ||
                 messages.ValueKind != JsonValueKind.Array)
             {
+                _logger.LogDebug("WhoMessage: no match — no messages array");
                 return false;
             }
 
             string? lastUserText = ExtractLastUserText(messages);
-            if (lastUserText is null || !string.Equals(lastUserText.Trim(), Trigger, StringComparison.Ordinal))
+            if (lastUserText is null)
             {
+                _logger.LogDebug("WhoMessage: no match — no text content in last user message");
                 return false;
             }
-        }
 
-        string contentText = BuildContentText(plan, ImposterRouter.DescribeAuth(plan.Decision, dialect, plan.CredentialOverride));
+            string trimmed = lastUserText.Trim();
+
+            // Match against the switch table.
+            // `who?` and `--who?` return synthetic replies immediately.
+            // `--newsession` mints a synthetic session id (requires caller identity) and returns a
+            // confirmation reply. When the caller has no resolvable session id, `--newsession` is a
+            // no-match (forward normally) — it is NOT an error.
+            if (string.Equals(trimmed, SwitchWho, StringComparison.Ordinal))
+            {
+                _logger.LogDebug("WhoMessage: matched switch '{Switch}'", SwitchWho);
+                responseJson = BuildProbeResponse(dialect, plan, includeSession: false);
+                return true;
+            }
+
+            if (string.Equals(trimmed, SwitchExtendedWho, StringComparison.Ordinal))
+            {
+                _logger.LogDebug("WhoMessage: matched switch '{Switch}'", SwitchExtendedWho);
+                responseJson = BuildProbeResponse(dialect, plan, includeSession: true);
+                return true;
+            }
+
+            if (string.Equals(trimmed, SwitchNewSession, StringComparison.Ordinal))
+            {
+                if (!plan.SessionIdentity.HasValue)
+                {
+                    _logger.LogDebug("WhoMessage: switch '{Switch}' matched text but caller has no resolvable session id — no match, forwarding normally", SwitchNewSession);
+                    return false;
+                }
+
+                _sessionDictionary.TryAdd(plan.SessionIdentity.Value!, out string? syntheticId);
+                _logger.LogDebug(
+                    "WhoMessage: matched switch '{Switch}' — caller session '{CallerId}' mapped to synthetic '{SyntheticId}'",
+                    SwitchNewSession,
+                    plan.SessionIdentity.LogToken,
+                    syntheticId);
+
+                string model = string.IsNullOrEmpty(plan.InboundModel) ? PassthroughLabel : plan.InboundModel;
+                string contentText = $"Session: {plan.SessionIdentity.Value} → {syntheticId}";
+
+                responseJson = dialect == ApiDialect.OpenAi
+                    ? BuildOpenAiEnvelope(model, contentText)
+                    : BuildAnthropicEnvelope(model, contentText);
+                return true;
+            }
+
+            _logger.LogDebug(
+                "WhoMessage: no match — last user text '{LastUserText}' does not equal any switch {Switches}",
+                trimmed.Length > 64 ? trimmed[..64] + "..." : trimmed,
+                string.Join(", ", Switches));
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Builds the probe response for <c>who?</c> and <c>--who?</c>. Both share the same envelope
+    /// shape; <c>--who?</c> adds a <c>session:</c> field to the content text.
+    /// </summary>
+    private string BuildProbeResponse(ApiDialect dialect, RoutePlan plan, bool includeSession)
+    {
+        string auth = ImposterRouter.DescribeAuth(plan.Decision, dialect, plan.CredentialOverride);
+        string contentText = BuildContentText(plan, auth, includeSession, plan.SessionIdentity);
         string model = string.IsNullOrEmpty(plan.InboundModel) ? PassthroughLabel : plan.InboundModel;
 
-        responseJson = dialect == ApiDialect.OpenAi
+        return dialect == ApiDialect.OpenAi
             ? BuildOpenAiEnvelope(model, contentText)
             : BuildAnthropicEnvelope(model, contentText);
-
-        return true;
     }
 
     /// <summary>
@@ -179,18 +270,22 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
         return null;
     }
 
-    private static string BuildContentText(RoutePlan plan, string auth)
+    private static string BuildContentText(RoutePlan plan, string auth, bool includeSession, SessionIdentity sessionIdentity)
     {
+        string sessionField = includeSession
+            ? $", session: {(sessionIdentity.HasValue ? sessionIdentity.Value : "null")}"
+            : string.Empty;
+
         if (plan.Decision.IsImposter)
         {
-            return $"Imposter: {plan.InboundModel} → {plan.Decision.TargetModel} (auth: {auth})";
+            return $"Imposter: {plan.InboundModel} → {plan.Decision.TargetModel} (auth: {auth}{sessionField})";
         }
 
         // Passthrough target = inbound. For body-less requests that flowed through
         // PlanPassthroughAsync, InboundModel may be string.Empty; the PassthroughLabel
         // fallback is the right guard for that case.
         string inbound = string.IsNullOrEmpty(plan.InboundModel) ? PassthroughLabel : plan.InboundModel;
-        return $"Passthrough: {inbound} (auth: {auth})";
+        return $"Passthrough: {inbound} (auth: {auth}{sessionField})";
     }
 
     // Synthetic ids use a `who-` prefix so transcripts and logs can grep for probe replies

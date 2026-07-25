@@ -1,31 +1,21 @@
 # AGENTS.md - Who-Message Introspection
 
-AI Context: HLD for the customized-switches feature family (HLD 010). **STILL IN DESIGN** — see "Implementation status" below. Updated: 2026-07-25
+AI Context: HLD for the switch-family feature (HLD 010). **IMPLEMENTED** — `who?`, `--who?`, `--newsession`, and the in-memory translation dictionary are live. Updated: 2026-07-25
 
 ## Implementation status
 
-**This HLD is in design.** The live implementation on this branch matches the
-*original* HLD 010 only: the responder recognizes the trigger `who?` (no `--`
-prefix) and returns a dialect-shaped chat envelope whose content text is
-`Imposter: <inbound> → <target> (auth: <scheme>)` (or the passthrough equivalent).
-The `--who?` / `--newsession` switch family, the `session:<id>` envelope field, the
-in-memory translation dictionary, and the new LADR-06 / NFR-04 are **NOT YET
-IMPLEMENTED** — `grep` for `--newsession`, `ISessionIdTranslation`, or
-`SessionIdTranslation` in `src/` returns zero matches. They are documented here as
-a forward design; implementation lands in a follow-up commit.
+**All three switches are implemented:**
+- `who?` — original probe: `Imposter: <inbound> → <target> (auth: <scheme>)`
+- `--who?` — extended probe with session info: `Imposter: <inbound> → <target> (auth: <scheme>, session: <id>)`
+- `--newsession` — mints a synthetic session id and stores the caller→synthetic mapping in the in-memory translation dictionary
 
-**AI agents: do not modify the live `who?` trigger or the `IWhoMessageResponder`
-contract on the basis of this AGENTS.md alone.** Read the implementation status
-and treat the LADR-02/03/04 prose as the *proposed* contract for the follow-up
-implementation, not as the live contract today.
+The `ISessionTranslationDictionary` is a process-lifetime `ConcurrentDictionary` registered as a DI singleton. On the forward path, when the plan's session identity matches a dictionary key, the synthetic id replaces the caller id before stamping.
+
+**AI agents:** The switch table in `WhoMessageResponder.Switches` is the source of truth for trigger literals. Adding a new switch is a localized change to the responder's switch table — not a new LADR, not a new config node.
 
 ## TL;DR
 
-A request whose last user message is exactly `who?` (routing probe) short-circuits the
-forward path and returns a dialect-shaped synthetic reply. The proposed `--who?` and
-`--newsession` switch family, plus the in-memory translation dictionary, is **NOT YET
-IMPLEMENTED** — see LADR-06 and NFR-04. Intent in [README.md](./README.md), decisions in
-[ladrs/](./ladrs/), quality spec in [nfrs/](./nfrs/).
+A request whose last user message is exactly `who?`, `--who?`, or `--newsession` (trimmed, case-sensitive, non-streaming) short-circuits the forward path and returns a dialect-shaped synthetic reply. The in-memory translation dictionary (minted by `--newsession`) translates caller-supplied session ids to synthetic ids on the forward path. Intent in [README.md](./README.md), decisions in [ladrs/](./ladrs/), quality spec in [nfrs/](./nfrs/).
 
 ## Non-Negotiables
 
@@ -48,12 +38,10 @@ IMPLEMENTED** — see LADR-06 and NFR-04. Intent in [README.md](./README.md), de
 - **Reuse `ImposterRouter.DescribeAuth`** (promoted to `internal static`) for the auth
   string. Re-deriving the scheme precedence locally will drift from the forwarder's
   actual header.
-- **(Proposed) Triggers are exact-match `--who?` or `--newsession` after trim, case-sensitive,
-  last user message only.** The live trigger today is bare `who?`; the proposed `--who?` /
-  `--newsession` switch family is tracked by LADR-02 in `Draft (revised)` status and is
-  **not** live. Do not add regex, case-insensitive, or "any message in history" variants
-  (LADR-02). Adding a new switch is a localized change to the responder's switch table —
-  not a new LADR, not a new config node.
+- **Triggers are exact-match `who?`, `--who?`, or `--newsession` after trim, case-sensitive,
+  last user message only.** Do not add regex, case-insensitive, or "any message in history"
+  variants (LADR-02). Adding a new switch is a localized change to the responder's switch
+  table (`WhoMessageResponder.Switches`) — not a new LADR, not a new config node.
 - **Feature is gated; default ON.** Do not hardcode enable or disable. The
   `Imposter:WhoMessage:Enabled` boolean (env `IMPOSTER_WHO_MESSAGE_ENABLED`) must be
   readable at request time. `false` must skip BOTH the switch short-circuit AND the
@@ -125,9 +113,8 @@ See [nfrs/](./nfrs/) for measurable targets. The four that change how code is wr
   evict; a second `--newsession` with the same caller id returns the same synthetic
   id (no overwrite). The dictionary's public surface has no `Remove` / `Evict` /
   `Clear` method — the contract is enforced at the type level, not just by
-  convention. **The NFR is Draft and the verification list is
-  implementation-gated; do not run the verification until the dictionary lands.**
-- **L0/L2 test coverage:** every switch literal (`--who?`, `--newsession`) has a
+  convention.
+- **L0/L2 test coverage:** every switch literal (`who?`, `--who?`, `--newsession`) has a
   L0 unit test in `WhoMessageResponderTests` and at least one L2 integration test
   in `WhoMessageIntegrationTests`. The translation step has at least one L2 test
   proving that the outbound request carries the synthetic id, not the caller id.
@@ -138,3 +125,4 @@ See [nfrs/](./nfrs/) for measurable targets. The four that change how code is wr
 | :---- | :---- | :---- |
 | 2026-07-25 | Initial HLD AGENTS.md — 5 LADRs, 3 NFRs, 1 diagram file (3 mermaid blocks). | — |
 | 2026-07-25 | Extended design (NOT YET IMPLEMENTED): proposed trigger is `--who?` (was `who?`); proposed `--newsession` switch + in-memory translation dictionary. HLD is **in design** — implementation lands in a follow-up commit. LADR-06 and NFR-04 are Draft. AI agents: do not modify the live `who?` trigger or the `IWhoMessageResponder` contract on the basis of this AGENTS.md alone. | — |
+| 2026-07-25 | **Implemented:** `--who?` and `--newsession` switches + `ISessionTranslationDictionary` + forward-path translation seam. LADRs/NFRs → Accepted; HLD → Completed. Diagnostic logging added to `WhoMessageResponder` and `RoutingEndpoints` for non-match reasons. | — |

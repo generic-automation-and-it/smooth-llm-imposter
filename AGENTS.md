@@ -120,6 +120,7 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-07-25: HLD 010 switch family — `--who?` (extended probe with session info) and `--newsession` (mint synthetic session id + store caller→synthetic mapping) implemented; `ISessionTranslationDictionary` singleton + forward-path translation seam; diagnostic logging added to `WhoMessageResponder` (non-match reasons) and `RoutingEndpoints` (feature-disabled, translation applied). Base `who?` trigger preserved (no breaking change). LADRs/NFRs → Accepted.
 - 2026-07-25: HLD 010 who-message introspection — last user message `who?` (exact match, trimmed, non-streaming) short-circuits the forward path with a dialect-shaped synthetic reply naming the inbound model, the resolved upstream target (or `passthrough`), and the auth scheme; gated on `Imposter:WhoMessage:Enabled` (default `true`, env `IMPOSTER_WHO_MESSAGE_ENABLED`).
 - 2026-07-25: Conductor workspace setup disables OpenCode Go session forwarding (`OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING=none` and `OPENCODE_GO_OPENAI_SESSION_FORWARDING=none`).
 - 2026-07-25: Conductor workspace setup mappings — sonnet/opus-4-6/opus-4-7→opencode-go (qwen3.6-plus/qwen3.7-plus/minimax-m3), haiku→OpenRouter tencent/hy3, gpt-5.4/5.5/5.6-luna→opencode-go (kimi-k2.7-code/glm-5.2/grok-4.5); require OPENROUTER_API_KEY; `openrouter-anthropic` defined fully in script (absent from base image).
