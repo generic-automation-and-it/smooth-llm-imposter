@@ -71,6 +71,9 @@ public class WhoMessageResponderTests
         JsonNode choice = root["choices"]!.AsArray().Single()!;
         choice["finish_reason"]!.GetValue<string>().ShouldBe("stop");
         string content = choice["message"]!["content"]!.GetValue<string>();
+        // OpenAI dialect default scheme is Bearer (UpstreamAuthResolver.DefaultSchemeFor) when the
+        // provider's AuthScheme is null. If this assertion ever fails on auth-scheme, check the
+        // dialect default, not the responder — the responder just echoes DescribeAuth's return.
         content.ShouldBe($"Imposter: {InboundModel} → {TargetModel} (auth: Bearer)");
         root["usage"]!["total_tokens"]!.GetValue<int>().ShouldBe(0);
     }

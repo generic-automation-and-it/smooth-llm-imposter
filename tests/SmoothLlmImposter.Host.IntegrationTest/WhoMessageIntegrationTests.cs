@@ -7,6 +7,10 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using SmoothLlmImposter.Application.Common.Persistence;
+using SmoothLlmImposter.Domain.Credentials;
+using SmoothLlmImposter.Domain.Routing;
 
 namespace SmoothLlmImposter.Host.IntegrationTest;
 
@@ -20,7 +24,8 @@ public sealed class WhoMessageIntegrationTests
 {
     private static Dictionary<string, string?> BuildConfig(bool whoMessageEnabled) => new()
     {
-        ["Imposter:WhoMessage:Enabled"] = whoMessageEnabled.ToString().ToLowerInvariant(),
+        // IConfiguration binder is case-insensitive for bool parsing; no need to force lowercase.
+        ["Imposter:WhoMessage:Enabled"] = whoMessageEnabled.ToString(),
 
         ["Imposter:Providers:opencode-go:Dialect"] = "openai",
         ["Imposter:Providers:opencode-go:BaseUrl"] = "https://opencode.test",
@@ -61,9 +66,29 @@ public sealed class WhoMessageIntegrationTests
             });
 
             builder.ConfigureServices(services =>
+            {
+                // Mirror ImposterAppFixture: drop the real InMemoryCredentialStore singleton so a future
+                // passthrough-path test in this fixture does not silently hit the live store. The current
+                // tests are safe (they all hit imposter routes), but this keeps the test seam uniform.
+                services.RemoveAll<ICredentialStore>();
+                services.AddSingleton<ICredentialStore, NoopCredentialStore>();
                 services.AddHttpClient("imposter-upstream")
-                    .ConfigurePrimaryHttpMessageHandler(() => Upstream));
+                    .ConfigurePrimaryHttpMessageHandler(() => Upstream);
+            });
         }
+    }
+
+    /// <summary>No-op credential store: satisfies the <see cref="ICredentialStore"/> contract without
+    /// returning any credential, mirroring the sibling in <c>ImposterAppFixture</c>.</summary>
+    private sealed class NoopCredentialStore : ICredentialStore
+    {
+        public Task<ProviderCredential> AddAsync(ProviderCredential credential, CancellationToken cancellationToken) => Task.FromResult(credential);
+        public Task<IReadOnlyList<ProviderCredential>> ListAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<ProviderCredential>>(Array.Empty<ProviderCredential>());
+        public Task<ProviderCredential?> GetAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult<ProviderCredential?>(null);
+        public Task<ProviderCredential?> GetActiveAsync(ApiDialect dialect, string providerName, CancellationToken cancellationToken) => Task.FromResult<ProviderCredential?>(null);
+        public Task DeleteAsync(Guid id, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<ProviderCredential> UpdateAsync(ProviderCredential credential, CancellationToken cancellationToken) => Task.FromResult(credential);
+        public Task<ProviderCredential> ActivateAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult<ProviderCredential>(new OpenAiCredential("unused-provider", "unused", "cipher", CredentialAuthScheme.Bearer, null));
     }
 
     [Fact]

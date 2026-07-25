@@ -19,6 +19,12 @@ bool.TryParse + warn-on-invalid semantics of the per-provider `_IS_DEFAULT` / `_
 field loop: invalid values log a Warning and leave the bound value unchanged (fail-safe
 toward the appsettings default, not toward a crash).
 
+The toggle is read via `IOptions<ImposterOptions>` at the endpoint seam, so its value is
+captured at startup; flipping the env var **requires a host restart** to take effect. This
+is consistent with every other `Imposter` option in the codebase (no `IOptionsMonitor`
+usage for routing config today) and keeps the probe's config surface uniform with its
+siblings.
+
 Operators who want the forward path fully byte-identical to a pre-HLD router set
 `Enabled: false` (or `IMPOSTER_WHO_MESSAGE_ENABLED=false`) and the short-circuit seam
 is skipped entirely — no body parsing, no trigger check, no responder invocation.

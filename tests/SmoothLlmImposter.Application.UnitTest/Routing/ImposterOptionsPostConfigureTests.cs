@@ -430,7 +430,7 @@ public class ImposterOptionsPostConfigureTests
     }
 
     [Fact]
-    public void Who_message_enabled_invalid_value_logs_warning_and_keeps_bound_default()
+    public void Who_message_enabled_invalid_value_logs_warning_and_keeps_initial_default()
     {
         IConfiguration configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["IMPOSTER_WHO_MESSAGE_ENABLED"] = "yes_please" })

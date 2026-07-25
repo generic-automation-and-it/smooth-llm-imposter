@@ -244,6 +244,8 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
             },
             ["model"] = model,
             ["stop_reason"] = "end_turn",
+            // `stop_sequence` is omitted (convention for end_turn with no configured sequence; matches
+            // the Anthropic SDK's wire pattern — a present null is accepted but not emitted).
             ["usage"] = new JsonObject
             {
                 ["input_tokens"] = 0,

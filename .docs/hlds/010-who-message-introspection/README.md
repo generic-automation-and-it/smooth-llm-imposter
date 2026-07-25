@@ -10,7 +10,7 @@
 > Discovery / prototyping HLD. This document delivers **intent + spec** — what we are
 > building and why, the decisions behind it, and the quality bar it must meet. It does
 > **not** contain an implementation plan; execution (phasing, sub-issues, sequencing) is
-> tracked in the worktask.
+> tracked in the issue tracker (worktask list).
 
 ## Intent
 
@@ -76,6 +76,10 @@ defaulting to `true`. The conventional env override is `IMPOSTER_WHO_MESSAGE_ENA
 value unchanged, mirroring the bool.TryParse semantics of the per-provider
 `_IS_DEFAULT` / `_ENABLED` overrides). Setting it to `false` disables the
 short-circuit; the request is forwarded verbatim.
+
+The toggle is read via `IOptions<ImposterOptions>` at the endpoint seam, so flipping
+the env var **requires a host restart** — consistent with every other `Imposter`
+option in the codebase today.
 
 **Acceptance criteria / DoD**
 
