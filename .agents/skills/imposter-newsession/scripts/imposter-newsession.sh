@@ -31,7 +31,7 @@ BASE_URL=""
 PORT=""
 
 print_usage() {
-  sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'
   exit 0
 }
 
@@ -69,7 +69,7 @@ fi
 
 # Optional --port override: replace the port in whatever BASE_URL we resolved.
 if [[ -n "$PORT" ]]; then
-  if [[ ! "$PORT" =~ ^[1-9][0-9]*$ ]]; then
+  if ! [[ "$PORT" =~ ^[1-9][0-9]*$ ]] || (( PORT < 1 || PORT > 65535 )); then
     echo "--port must be a positive integer (1-65535): $PORT" >&2; exit 2
   fi
   if [[ "$BASE_URL" =~ ^(.+):[0-9]+(/.*)?$ ]]; then

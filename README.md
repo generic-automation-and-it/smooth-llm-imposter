@@ -233,7 +233,7 @@ Two Codex skills ship with this repo so an agent running through the imposter ca
 
 ### Install from the skills marketplace
 
-The marketplace lives at [`.agents/skills/.marketplace/`](.agents/skills/.marketplace/) and contains exactly these two installable skills. The `.` prefix keeps it out of Claude Code's one-level-deep skill discovery, so the installable copies aren't double-loaded as active skills. Install them with the Codex skill-installer:
+The marketplace lives at [`.agents/skills/.marketplace/`](.agents/skills/.marketplace/) and contains exactly these two installable skills. The `.`-prefixed parent keeps the catalog out of `ls` output and signals that it is an installable mirror, not part of the active skill tree — Claude Code's one-level-deep discovery would already skip it (it doesn't recurse into subfolders), but the dot makes the intent explicit. Install them with the Codex skill-installer:
 
 ```bash
 # list what is available

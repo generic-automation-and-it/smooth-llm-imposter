@@ -53,6 +53,16 @@ if [[ -z "$DIALECT" ]]; then
   fi
 fi
 
+# Refine dialect from model name when env-var auto-detect left it ambiguous
+# (e.g. both *_BASE_URL are unset, or only one is set and the inbound model
+# clearly belongs to the other family).
+if [[ -z "$DIALECT" || ( -n "${OPENAI_BASE_URL:-}" && -n "${ANTHROPIC_BASE_URL:-}" ) ]]; then
+  case "$MODEL" in
+    claude-*) DIALECT="anthropic" ;;
+    gpt-*|o1-*|o3-*|o4-*) DIALECT="openai" ;;
+  esac
+fi
+
 if [[ -z "$BASE_URL" ]]; then
   case "$DIALECT" in
     openai) BASE_URL="${OPENAI_BASE_URL:?OPENAI_BASE_URL not set}" ;;
@@ -67,7 +77,7 @@ fi
 # the client might have layered in front of the router.
 # Optional --port override: replace the port in whatever BASE_URL we resolved.
 if [[ -n "$PORT" ]]; then
-  if [[ ! "$PORT" =~ ^[1-9][0-9]*$ ]]; then
+  if ! [[ "$PORT" =~ ^[1-9][0-9]*$ ]] || (( PORT < 1 || PORT > 65535 )); then
     echo "--port must be a positive integer (1-65535): $PORT" >&2; exit 2
   fi
   # Match :<port> at the end of the URL (host:port, with or without a trailing path).
