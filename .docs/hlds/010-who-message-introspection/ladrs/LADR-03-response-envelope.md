@@ -72,8 +72,8 @@ requests), or `session: null` when no session identity was resolved.
 ### Addendum: OpenAI `/v1/responses` callers receive a `chat.completion` envelope
 
 The switches are selected by **dialect**, not by inbound upstream path. A request to
-`/v1/responses` (OpenAI's newer API surface) whose last user message is `who?`
-(live) still receives a `chat.completion`
+`/v1/responses` (OpenAI's newer API surface) whose last user message is `--who?` or
+`--newsession` still receives a `chat.completion`
 object — not a `response` object. Clients using the official `openai` Responses
 SDK and routing to `/v1/responses` will see a parse error on the synthetic reply.
 
