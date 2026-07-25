@@ -134,10 +134,12 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
     }
 
     /// <summary>
-    /// Concatenates the <c>text</c> field of every <c>type == "text"</c> part in <paramref name="content"/>.
-    /// A text part missing its <c>text</c> field is skipped (permissive) to remain forward-compatible with
-    /// future OpenAI/Anthropic content shapes. Returns <c>null</c> if no text parts are present or if
-    /// <paramref name="content"/> is not a JSON array of parts.
+    /// Returns the plain-text value of a message <c>content</c> field when it is (a) a string or
+    /// (b) an array of text-only parts, otherwise <c>null</c>. Any non-text part in the array
+    /// (image, tool_use, tool_result, …) short-circuits to <c>null</c> so the trigger cannot fire
+    /// on multimodal input. A text part missing its <c>text</c> field is skipped (permissive) to
+    /// remain forward-compatible with future OpenAI/Anthropic content shapes; an array of only
+    /// such parts returns the empty string rather than <c>null</c>.
     /// </summary>
     private static string? ReadTextContent(JsonElement content)
     {
