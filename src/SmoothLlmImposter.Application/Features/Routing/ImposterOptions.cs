@@ -26,7 +26,7 @@ public sealed class ImposterOptions
     /// returns a dialect-shaped synthetic reply describing the resolved route and auth scheme.
     /// Default <c>true</c>; conventional env override <c>IMPOSTER_WHO_MESSAGE_ENABLED</c>.
     /// </summary>
-    public WhoMessageOptions WhoMessage { get; set; } = new();
+    public WhoMessageOptions WhoMessage { get; init; } = new();
 }
 
 /// <summary>

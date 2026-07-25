@@ -10,7 +10,7 @@
 > Discovery / prototyping HLD. This document delivers **intent + spec** — what we are
 > building and why, the decisions behind it, and the quality bar it must meet. It does
 > **not** contain an implementation plan; execution (phasing, sub-issues, sequencing) is
-> tracked in the issue/worktracker.
+> tracked in the worktask.
 
 ## Intent
 

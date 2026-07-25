@@ -318,7 +318,8 @@ fi
 # Create the container only now, after the workspace secrets exist. The image
 # was pulled into the snapshot, so do not contact GHCR during workspace setup.
 # openrouter-* is absent from the published base image, so define the Anthropic
-# OpenRouter provider fully here (same pattern as the opencode-go overrides).
+# OpenRouter provider fully here (same env-var shape, but defines a new provider
+# because the base image omits it).
 "${DOCKER[@]}" rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 "${DOCKER[@]}" run -d \
   --name "$CONTAINER_NAME" \

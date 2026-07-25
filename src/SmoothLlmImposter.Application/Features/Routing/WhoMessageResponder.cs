@@ -244,7 +244,6 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
             },
             ["model"] = model,
             ["stop_reason"] = "end_turn",
-            ["stop_sequence"] = null,
             ["usage"] = new JsonObject
             {
                 ["input_tokens"] = 0,
