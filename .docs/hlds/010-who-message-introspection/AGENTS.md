@@ -76,11 +76,10 @@ A request whose last user message is exactly `who?`, `--who?`, or `--newsession`
   regardless of the message content. Header-only signals (`Accept: text/event-stream`)
   are not consulted — the forwarder keys off the body too.
 - **Non-text last user content → no match.** A last user message built from image or
-  tool parts does not fire either switch. The live code currently concatenates
-  arrays of text parts (text-part-only arrays match the trigger when their
-  concatenated value equals the trigger literal after trim); the LADR-02
-  follow-up narrows this to bare-string only. Until that follow-up lands, treat
-  the live code as the contract.
+  tool parts does not fire either switch. Multi-part text content is supported:
+  an array of text parts matches when the concatenated trimmed value equals the
+  trigger literal. The LADR-02 follow-up to narrow to bare-string only is
+  intentionally deferred.
 - **`DescribeAuth` return value is the auth-scheme vocabulary.** The same tokens the
   log emits (`Bearer` / `ApiKey` / `caller-passthrough` / `none`) appear in the
   `who?` reply today; the same tokens will appear in the `--who?` reply once
