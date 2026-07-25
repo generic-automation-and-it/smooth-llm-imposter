@@ -1,6 +1,6 @@
 # LADR-02: Exact-match `"--who?"` or `"--newsession"` on the last user message
 
-**Status:** Draft (revised) — proposed; live is `who?`
+**Status:** Accepted
 
 ## Context
 

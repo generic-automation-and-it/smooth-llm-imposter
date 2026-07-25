@@ -1,6 +1,6 @@
 # NFR-04: Process-lifetime dictionary (no eviction)
 
-**Status:** Draft — implementation-gated; verification list is phased
+**Status:** Accepted
 
 ## Requirement
 

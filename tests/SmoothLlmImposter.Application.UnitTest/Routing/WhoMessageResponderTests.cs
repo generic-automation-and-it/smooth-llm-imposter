@@ -172,6 +172,7 @@ public class WhoMessageResponderTests
         responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("Who?"), plan, out _).ShouldBeFalse("case-sensitive match");
         responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("WHO?"), plan, out _).ShouldBeFalse("case-sensitive match");
         responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("who"), plan, out _).ShouldBeFalse("missing question mark");
+        responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("who?"), plan, out _).ShouldBeFalse("bare 'who?' is no longer a trigger; use '--who?'");
     }
 
     [Fact]

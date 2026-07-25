@@ -1,6 +1,6 @@
 # LADR-03: Dialect-shaped chat envelope, not bare text
 
-**Status:** Draft (revised) — proposed; live is the original `chatcmpl-who-` / `msg_who_` envelope without `session:`
+**Status:** Accepted
 
 ## Context
 

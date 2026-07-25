@@ -1,6 +1,6 @@
 # LADR-06: In-memory translation dictionary for caller-supplied session ids
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

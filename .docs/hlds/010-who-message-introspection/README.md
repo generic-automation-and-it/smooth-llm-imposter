@@ -213,9 +213,9 @@ single decision — a horizontal concern spanning this HLD. See [`./ladrs/`](./l
 | LADR | Decision | Status |
 |------|----------|--------|
 | [LADR-01](./ladrs/LADR-01-short-circuit-location.md) | Short-circuit inside the proxy, not a sidecar endpoint | Accepted |
-| [LADR-02](./ladrs/LADR-02-trigger-shape.md) | Exact-match `"--who?"` or `"--newsession"` on the last user message (proposed; live is `who?`) | Accepted |
-| [LADR-03](./ladrs/LADR-03-response-envelope.md) | Dialect-shaped chat envelope, not bare text (proposed; live omits `session:`) | Accepted |
-| [LADR-04](./ladrs/LADR-04-default-on-config.md) | Default-ON opt-out config (proposed; shared by both switches AND the dictionary) | Accepted |
+| [LADR-02](./ladrs/LADR-02-trigger-shape.md) | Exact-match `"--who?"` or `"--newsession"` on the last user message | Accepted |
+| [LADR-03](./ladrs/LADR-03-response-envelope.md) | Dialect-shaped chat envelope, not bare text | Accepted |
+| [LADR-04](./ladrs/LADR-04-default-on-config.md) | Default-ON opt-out config | Accepted |
 | [LADR-05](./ladrs/LADR-05-no-stream-synthesis.md) | No SSE synthesis — streaming requests pass through | Accepted |
 | [LADR-06](./ladrs/LADR-06-session-translation-dictionary.md) | In-memory `ConcurrentDictionary` translates caller-supplied session ids to stored override ids on the forward path | Accepted |
 
