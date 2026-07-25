@@ -22,8 +22,9 @@ headers).
 
 - `dotnet test` passes the full L2 suite with the feature ON and with the feature OFF,
   with no test asserting a body or header change.
-- The `messages` array is parsed on the non-match path only when the feature is
-  enabled; the parsed `JsonDocument` is disposed before the forwarder is invoked.
+- The `messages` array is parsed on both the match and non-match paths when the
+  feature is enabled, and the responder is skipped entirely when the feature is
+  disabled. The parsed `JsonDocument` is disposed before the forwarder is invoked.
 - No new header is added to the outbound request on the non-match path.
 
 ## Applies To

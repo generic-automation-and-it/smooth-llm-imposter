@@ -10,10 +10,12 @@ dialect-shaped synthetic reply describing the resolved route and auth scheme. In
 
 ## Non-Negotiables
 
-- **Do not read `messages` content anywhere except the who-responder.** The proxy's
-  transparency property (HLD 001) depends on content being opaque; this HLD carves out
-  exactly one sanctioned inspection point. A second one silently added elsewhere would
-  silently break the transparency invariant.
+- **Do not make routing decisions based on `messages` content anywhere except the who-responder.**
+  (Body-shape transformation by HLD 004 / HLD 006 transformers is fine; routing-shape inspection
+  of `messages` is the who-responder's exclusive job.) The proxy's transparency property
+  (HLD 001) depends on routing decisions staying opaque to message content; this HLD carves
+  out exactly one sanctioned inspection point, and a second one added silently elsewhere
+  would break the transparency invariant.
 - **Do not synthesize SSE.** Streaming requests forward unchanged even when the last
   user message is `who?` (LADR-05). Adding streaming synthesis duplicates logic that
   already lives in the real transformers and drifts with every upstream format change.

@@ -128,6 +128,22 @@ public class WhoMessageResponderTests
     }
 
     [Fact]
+    public void Passthrough_route_with_active_ApiKey_credential_reports_apikey_scheme()
+    {
+        // Closes the (AuthScheme=ApiKey, IsImposter=false, HasOverride=true) permutation of
+        // the NFR-03 "every (AuthScheme, HasSecret, Override) tuple" claim.
+        var responder = new WhoMessageResponder();
+        var credential = new RouteCredentialOverride("sk-stored", CredentialAuthScheme.ApiKey, BaseUrlOverride: null, AnthropicVersion: null);
+        RoutePlan plan = PassthroughPlan(OpenAiRoute(secret: null, isDefault: true), credentialOverride: credential);
+
+        bool matched = responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("who?"), plan, out string? json);
+
+        matched.ShouldBeTrue();
+        string content = JsonNode.Parse(json!)!["choices"]!.AsArray().Single()!["message"]!["content"]!.GetValue<string>();
+        content.ShouldBe($"Passthrough: {InboundModel} (auth: ApiKey)");
+    }
+
+    [Fact]
     public void Streaming_request_is_forwarded_not_intercepted()
     {
         var responder = new WhoMessageResponder();

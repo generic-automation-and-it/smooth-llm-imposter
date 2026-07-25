@@ -229,6 +229,10 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
 
     private static string BuildAnthropicEnvelope(string model, string contentText)
     {
+        // `created_at` is intentionally omitted (LADR-03 is silent on it; Anthropic SDK accepts
+        // messages without it; the sibling AnthropicModelCatalogResponder sets a fixed epoch
+        // because /v1/models discovery must be byte-identical across calls — the who-probe does
+        // not have that constraint).
         var envelope = new JsonObject
         {
             ["id"] = $"msg_who_{Guid.NewGuid():N}",
