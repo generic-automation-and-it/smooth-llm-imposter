@@ -2,7 +2,7 @@
 
 Self-contained skills for Claude Code, GitHub Copilot, and OpenAI Codex providing specialized workflows and tools.
 
-Skills live **flat**, one directory per skill directly under `.agents/skills/`. Each folder name is **category-prefixed** (`agile-`, `ai-`, `context-`, `git-`) so the listing groups by category when sorted. The prefix is the only grouping mechanism — there are no category subfolders (Claude Code discovers skills exactly one level under `.claude/skills/`).
+Skills live **flat**, one directory per skill directly under `.agents/skills/`. Each folder name is **category-prefixed** (`agile-`, `ai-`, `context-`, `git-`, `imposter-`) so the listing groups by category when sorted. The prefix is the only grouping mechanism — there are no category subfolders (Claude Code discovers skills exactly one level under `.claude/skills/`).
 
 ## Quick Reference
 
@@ -13,6 +13,8 @@ Skills live **flat**, one directory per skill directly under `.agents/skills/`. 
 | **ai-mansplain** | Reformat this turn's reply into terse, high-density output with a TL;DR | `/ai-mansplain` |
 | **ai-review** | Analyse an AI PR review and apply per-issue fix/skip decisions | `/ai-review <pr> [N=fix\|N=skip …]` |
 | **ai-template-sync** | UPSERT smooth-devex-template scaffold into an existing repo | `/ai-template-sync` |
+| **imposter-who** | Probe the imposter router for the resolved upstream model behind the current harness | `/imposter-who [--model gpt-5.5]` |
+| **imposter-newsession** | Mint a synthetic upstream session id on the imposter router and map it to the caller | `/imposter-newsession --session caller-id [--model gpt-5.5]` |
 | **context-load-agents-context** | Load ancestor AGENTS.md context for a file | `/context-load-agents-context` |
 | **context-load-context** | Load domain context before implementation | `/context-load-context auth` |
 | **git-commit** | Commit with conventional format | `/git-commit [--mansplain]` |
@@ -81,6 +83,8 @@ Skills are classified by complexity tier. Each SKILL.md carries a `models` front
 | **agile-github-task-from-diff** | medium | Diff classification + issue authoring |
 | **manage-rule-system** | medium | Cross-tool frontmatter authoring |
 | **ai-mansplain** | low | Single-turn reply reformatting; no tools or deep reasoning |
+| **imposter-who** | low | Single non-streaming curl; no deep reasoning |
+| **imposter-newsession** | low | Single non-streaming curl; no deep reasoning |
 | **ai-review** | medium | Review parsing + fix/skip code edits across multiple files |
 | **ai-brain-dump** | high | Multi-turn synthesis + deep requirement reasoning |
 | **ai-template-sync** | high | Interactive multi-turn Q&A + conditional file sync across tools |
@@ -103,6 +107,7 @@ Skills are flat under `.agents/skills/`; the category lives in the folder-name p
 | `ai-` | `ai-brain-dump`, `ai-mansplain`, `ai-review`, `ai-template-sync` |
 | `context-` | `context-load-agents-context`, `context-load-context` |
 | `git-` | `git-commit`, `git-commit-push`, `git-commit-push-pr`, `git-commit-review-push`, `git-sync` |
+| `imposter-` | `imposter-who`, `imposter-newsession` |
 | _(none)_ | `manage-rule-system` |
 
 A skill's folder name MUST equal its `name:` frontmatter (this is the slash-command name). When adding a skill, pick the prefix of its category and keep the folder one level under `.agents/skills/`.
