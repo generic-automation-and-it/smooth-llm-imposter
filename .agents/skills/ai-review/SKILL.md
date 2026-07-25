@@ -121,9 +121,17 @@ Examples:
 
 1. **Load review context** — Fetch latest AI review and **re-detect review source** (Copilot vs other) per [Review source selection](#invocation) so execute routes results correctly even when run as a standalone command
 2. **Process each decision** — Apply fixes or prepare skip entries. **⛔ Non-Copilot flow — before leaving this step, every skipped finding must have a draft bullet ready for the "Skip Areas / Known Issues" section of the PR description (see [Result routing → Non-Copilot flow](#result-routing)). The bullets, not the summary table, are what the next review round reads. A skip without a bullet is a no-op. If the run is fix-only (zero `skip` decisions), skip the bullet-draft step entirely and proceed to step 3; do not fabricate an empty Skip Areas section.**
-3. **Commit and push fixes** (only if any fixes were applied)
+3. **Commit and push fixes** (only if any fixes were applied). Each fix gets its own commit (one commit per fix). **⚠️ When the review contains any 🔴 Critical or 🟠 High finding** (whether that specific finding is being fixed or skipped), **every fix commit message MUST include `/ai-review` as the last line of the commit body** — the workflow checks only the HEAD commit's message, so whichever fix commit ends up as HEAD when pushed must carry the trigger to force a full review immediately. Example commit message:
+   ```
+   fix(scope): address finding title
+
+   <what changed and why>
+
+   /ai-review
+   ```
+   For reviews with **only** medium/low findings, omit `/ai-review` from fix commit messages — the empty-commit step (5) is also skipped for medium/low-only reviews, so no full-review trigger is needed. Push all fix commits together in a single `git push`.
 4. **Route results** — post the fix/skip summary table + analysis per [Result routing](#result-routing) below; for the Non-Copilot flow this step also **writes the skip bullets into the PR description** and verifies they landed
-5. **Final empty commit** — **MANDATORY when any 🔴 Critical or 🟠 High priority issue appears in the review (fix OR skip) — no exceptions.** Commit message: `ci: /ai-review — processed review responses`. This empty commit re-triggers a full review run to re-verify critical/high findings. Do NOT skip this step, do NOT merge it into a fix commit, do NOT omit it because all high/critical items were skipped. For reviews with **only** medium/low findings, do NOT make this commit — the fix commits from step 3 suffice.
+5. **Final empty commit** — **MANDATORY when any 🔴 Critical or 🟠 High priority issue appears in the review (fix OR skip) — no exceptions.** Commit message: `ci: /ai-review — processed review responses`. The fix commits from step 3 already carry `/ai-review` (when Critical/High findings exist), so the first push already triggered a full review. This empty commit is a **re-verification safety net** — it ensures the workflow sees a clean HEAD commit with the trigger after all routing edits (step 4) are complete, giving the re-verification run a stable diff to review. Do NOT skip this step, do NOT merge it into a fix commit, do NOT omit it because all high/critical items were skipped. For reviews with **only** medium/low findings, do NOT make this commit — the fix commits from step 3 suffice.
 6. **Report completion** — only after the PR description verification in step 4 succeeded
 7. **Review process improvements** (only if items were skipped)
 
@@ -171,7 +179,7 @@ Do **all** of the following, in order:
 ## Guardrails
 
 - Never auto-execute after analyse mode
-- **MANDATORY:** make the final `ci: /ai-review — processed review responses` empty commit whenever the review contains at least one 🔴 Critical or 🟠 High finding — regardless of whether those findings were fixed or skipped. Never omit this commit, never fold it into a fix commit. Only omit for medium/low-only reviews.
+- **MANDATORY `/ai-review` trigger on fix commits AND empty commit:** when the review contains at least one 🔴 Critical or 🟠 High finding, **every fix commit** (step 3) must include `/ai-review` as the last body line so the first push triggers a full review immediately — the workflow checks only the HEAD commit's message, and with chunked commits any one could be HEAD. The final `ci: /ai-review — processed review responses` empty commit (step 5) is still mandatory as a re-verification safety net — never omit it, never fold it into a fix commit. Only omit both for medium/low-only reviews.
 - Keep fixes scoped to selected items only
 - **Copilot flow:** reply to and resolve only the threads for issues actually processed in this execute run; never resolve unrelated or human-authored threads
 - **Non-Copilot flow:** preserve existing PR AI Review Notes content (append, never overwrite)

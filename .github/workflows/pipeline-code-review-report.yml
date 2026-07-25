@@ -5,7 +5,7 @@
 # in `uses:` below. The local repo copies only the `/ai-review` consumer skill
 # (.agents/skills/ai-review/); the report *generator* stays remote.
 #
-# Pinned to upstream commit SHA fc2c2037b6032aad252cb13a3355093dd6aad81b.
+# Pinned to upstream commit SHA aa59e70564e6ec0cbca7a0d73d9b193498de9aa5.
 # Update both `uses:` and `tools_ref` together when syncing upstream.
 #
 # Required configuration in THIS repo/org (provider = OpenAI):
@@ -48,9 +48,22 @@ on:
           - '(repository default)'
           - 'OpenAI GPT-5.5'
           - 'OpenCode DeepSeek V4 Pro'
+          - 'OpenCode DeepSeek V4 Flash'
+          - 'OpenCode GLM-5.2'
           - 'OpenCode GLM-5.1'
-          - 'OpenCode MiniMax m3'
+          - 'OpenCode Grok 4.5'
+          - 'OpenCode Hy3'
+          - 'OpenCode Kimi K3'
+          - 'OpenCode Kimi K2.7 Code'
+          - 'OpenCode Kimi K2.6'
+          - 'OpenCode MiMo V2.5'
+          - 'OpenCode MiMo V2.5 Pro'
+          - 'OpenCode MiniMax M3'
+          - 'OpenCode MiniMax M2.7'
+          - 'OpenCode MiniMax M2.5'
+          - 'OpenCode Qwen3.7 Max'
           - 'OpenCode Qwen3.7 Plus'
+          - 'OpenCode Qwen3.6 Plus'
           - 'OpenRouter DeepSeek V4 Pro'
           - 'OpenRouter Qwen3.7 Plus'
           - 'OpenRouter GLM-5.1'
@@ -89,7 +102,7 @@ jobs:
       (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '/ai-review')) ||
       (github.event_name == 'workflow_dispatch')
-    uses: generic-automation-and-it/smooth-ai-report-review/.github/workflows/pipeline-code-review-report.yml@fc2c2037b6032aad252cb13a3355093dd6aad81b
+    uses: generic-automation-and-it/smooth-ai-report-review/.github/workflows/pipeline-code-review-report.yml@aa59e70564e6ec0cbca7a0d73d9b193498de9aa5
     with:
       pr_number: ${{ inputs.pr_number || '' }}
       model: ${{ inputs.model || '' }}
@@ -98,9 +111,9 @@ jobs:
       # `github.workflow_sha`, which on a pull_request call is THIS repo's commit SHA
       # (`not our ref` in the upstream tooling repo) — so the review-script checkout
       # fails. Pin it to the same upstream SHA used in `uses:`.
-      tools_ref: fc2c2037b6032aad252cb13a3355093dd6aad81b
+      tools_ref: aa59e70564e6ec0cbca7a0d73d9b193498de9aa5
       # UPSTREAM CONTRACT: disable_claude_code and disable_agents_md_check must be declared
-      # as inputs in the upstream reusable workflow (smooth-ai-report-review@fc2c2037). If the
+      # as inputs in the upstream reusable workflow (smooth-ai-report-review@aa59e705). If the
       # upstream has not been updated in lockstep, dispatch will fail with "Unexpected input".
       disable_claude_code: ${{ inputs.disable_claude_code || '' }}
       disable_agents_md_check: ${{ inputs.disable_agents_md_check || '' }}
