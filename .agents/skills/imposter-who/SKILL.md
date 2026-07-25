@@ -1,6 +1,15 @@
 ---
 name: imposter-who
 description: Probe the SmoothLlmImposter router for the resolved upstream model behind the current harness/agent by issuing a non-streaming `--who?` request. Use when the user asks "which model am I really hitting", "who am I talking to", "what is the imposter target for a model", "am I being rerouted", or `/imposter-who`. Also use when verifying an imposter mapping (e.g. confirming `gpt-5.5` is rewritten to `glm-5.2`) without spending upstream tokens. Works around the streaming-harness limitation that silently bypasses the in-band `--who?` switch (LADR-05).
+
+allowed-tools:
+  - Bash(.agents/skills/imposter-who/scripts/imposter-who.sh:*)
+  - Bash(${CLAUDE_PLUGIN_ROOT}/.agents/skills/imposter-who/scripts/imposter-who.sh:*)
+  - Bash(curl:*)
+models:
+  claude: haiku      # low-complexity; single non-streaming curl, no deep reasoning
+  copilot: gpt-5.4-mini
+  codex: gpt-5.4-mini
 ---
 
 # Imposter Who

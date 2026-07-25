@@ -1,6 +1,15 @@
 ---
 name: imposter-newsession
 description: Mint a synthetic session id on the SmoothLlmImposter router and map it to the current caller session, so subsequent forwarded requests are stamped with the proxy-owned id instead of the caller's. Use when the user says "mint a new imposter session", "rotate my upstream session", "start a new opencode-go session through the imposter", or `/imposter-newsession`. Requires a resolvable caller session id (passed via `--session`). Works around the streaming-harness limitation that silently bypasses the in-band `--newsession` switch (LADR-05).
+
+allowed-tools:
+  - Bash(.agents/skills/imposter-newsession/scripts/imposter-newsession.sh:*)
+  - Bash(${CLAUDE_PLUGIN_ROOT}/.agents/skills/imposter-newsession/scripts/imposter-newsession.sh:*)
+  - Bash(curl:*)
+models:
+  claude: haiku      # low-complexity; single non-streaming curl, no deep reasoning
+  copilot: gpt-5.4-mini
+  codex: gpt-5.4-mini
 ---
 
 # Imposter New Session
