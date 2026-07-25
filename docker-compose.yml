@@ -17,9 +17,10 @@ services:
       # Load appsettings.Development.json (the debug request dumps live behind its
       # Serilog `SmoothLlmImposter` Debug override). Drop this line to run Production-quiet.
       ASPNETCORE_ENVIRONMENT: Development
-      # In-band routing probe (HLD 010). Default true; set to false to disable the
-      # --who? / --newsession switch family and the session translation dictionary.
-      IMPOSTER_WHO_MESSAGE_ENABLED: "true"
+      # In-band routing switches (HLD 010): --who? probe + --newsession mint.
+      # Default true; set to false to disable BOTH switches AND the session
+      # translation dictionary on the forward path (LADR-04 / LADR-06).
+      IMPOSTER_WHO_MESSAGE_ENABLED: ${IMPOSTER_WHO_MESSAGE_ENABLED:-true}
       # Upstream provider secrets — providers are keyed by NAME (HLD 007), not index,
       # so these survive any reordering of appsettings.json. The shipped imposters are
       # openrouter-anthropic, openrouter-openai, opencode-go-anthropic, opencode-go-openai; the two *-default real providers are

@@ -81,8 +81,7 @@ A request whose last user message is exactly `--who?` or `--newsession` (trimmed
   intentionally deferred.
 - **`DescribeAuth` return value is the auth-scheme vocabulary.** The same tokens the
   log emits (`Bearer` / `ApiKey` / `caller-passthrough` / `none`) appear in the
-  `who?` reply today; the same tokens will appear in the `--who?` reply once
-  the trigger-literal change lands. Do not invent a parallel vocabulary.
+  `--who?` reply. Do not invent a parallel vocabulary.
 - **`--newsession` requires a caller-supplied session id** (header or body field per
   the HLD 009 resolution order). A `--newsession` request with no caller-supplied
   id does **not** match — the responder returns no match and the request forwards

@@ -65,14 +65,14 @@ requests receive a `type:"message"` object with one `text` content block and
 ### 3. Streaming exclusion
 
 Requests with `stream: true` are **not** intercepted, even when the last user message
-is a configured switch (today `who?`; future `--who?` / `--newsession`). SSE synthesis
+is a configured switch (`--who?` or `--newsession`). SSE synthesis
 would require fabricating the chunked delta protocol per dialect for negligible
 benefit; streaming callers who want a probe can simply send it as a non-streaming
 request.
 
 **Acceptance criteria / DoD**
 
-- `stream: true` + `who?` (or `--who?` / `--newsession` once implemented) reaches the
+- `stream: true` + `--who?` or `--newsession` reaches the
   upstream stub in integration tests.
 - No SSE synthesis code exists in the short-circuit path.
 
@@ -92,8 +92,8 @@ option in the codebase today.
 
 **Acceptance criteria / DoD**
 
-- A default boot (no config override) intercepts `who?`.
-- `IMPOSTER_WHO_MESSAGE_ENABLED=false` causes a `who?` request to be forwarded.
+- A default boot (no config override) intercepts `--who?`.
+- `IMPOSTER_WHO_MESSAGE_ENABLED=false` causes an `--who?` request to be forwarded.
 - An invalid env value (e.g. `yes_please`) does not crash boot and is logged at Warning.
 
 ### 5. Transparency preserved

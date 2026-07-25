@@ -11,8 +11,14 @@ internal sealed class InMemorySessionTranslationDictionary : ISessionTranslation
 {
     private readonly ConcurrentDictionary<string, string> _map = new(StringComparer.Ordinal);
 
-    public bool TryTranslate(string callerId, out string? syntheticId)
+    public bool TryTranslate(string? callerId, out string? syntheticId)
     {
+        if (string.IsNullOrWhiteSpace(callerId))
+        {
+            syntheticId = null;
+            return false;
+        }
+
         if (_map.TryGetValue(callerId, out var value))
         {
             syntheticId = value;
@@ -23,8 +29,14 @@ internal sealed class InMemorySessionTranslationDictionary : ISessionTranslation
         return false;
     }
 
-    public bool TryAdd(string callerId, out string? syntheticId)
+    public bool TryAdd(string? callerId, out string? syntheticId)
     {
+        if (string.IsNullOrWhiteSpace(callerId))
+        {
+            syntheticId = null;
+            return false;
+        }
+
         // First-write wins: only generate the synthetic id if no mapping exists yet.
         // ConcurrentDictionary.GetOrAdd would generate the value even when the key already
         // exists, so we check first to avoid minting unused ids.

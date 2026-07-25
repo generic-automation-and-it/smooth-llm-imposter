@@ -155,10 +155,7 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
                 return true;
             }
 
-            _logger.LogDebug(
-                "WhoMessage: no match — last user text '{LastUserText}' does not equal any switch {Switches}",
-                trimmed.Length > 64 ? trimmed[..64] + "..." : trimmed,
-                string.Join(", ", Switches));
+            _logger.LogDebug("WhoMessage: no match — last user text (value redacted) does not equal any switch {Switches}", string.Join(", ", Switches));
             return false;
         }
     }
