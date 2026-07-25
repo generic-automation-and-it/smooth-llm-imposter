@@ -35,9 +35,13 @@ consistent with the live-upstream
 [`OpencodeToolNormalizationEvalTests.cs`](../../../tests/SmoothLlmImposter.Upstream.EvalTest/OpencodeToolNormalizationEvalTests.cs).
 OpenRouter targets keep the provider-prefixed slug the OpenRouter API expects (here `tencent/hy3`).
 
-Inbound API model names used above match the client/provider wire IDs: OpenAI documents
-[`gpt-5.6-luna`](https://developers.openai.com/api/docs/models/gpt-5.6-luna), and xAI documents
-[`grok-4.5`](https://docs.x.ai/docs/models) (aliases include `grok-4.5-latest`).
+Inbound API model names (the `From` column above) are imposter-side aliases — they are what
+clients send to the proxy. The `To` column names the upstream wire ID, which is the identifier
+the upstream provider uses on its own API. For the OpenAI row `gpt-5.6-luna → grok-4.5`, the imposter
+accepts the OpenAI-style alias and forwards to xAI; see
+[OpenAI's model index](https://platform.openai.com/docs/models) for the imposter-side namespace
+and [xAI's model index](https://docs.x.ai/docs/models) for the upstream wire ID (aliases include
+`grok-4.5-latest`).
 
 Session identity forwarding is **off** for the OpenCode Go providers in this workspace script
 (`OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING=none` and `OPENCODE_GO_OPENAI_SESSION_FORWARDING=none`,
@@ -290,9 +294,9 @@ sudo docker info >/dev/null 2>&1 || {
 }
 
 # Conductor injects these only into the workspace lifecycle, not snapshot
-# construction. Fall back from OPENCODE_GO_API_KEY to OPENCODE_API_KEY so
-# either name supplies the shared OpenCode Go key; OPENROUTER_API_KEY feeds
-# the OpenRouter Anthropic-dialect haiku route.
+# construction. Fall back from OPENCODE_GO_API_KEY to OPENCODE_API_KEY so either
+# name supplies the shared OpenCode Go key; OPENROUTER_API_KEY feeds the
+# OpenRouter Anthropic-dialect haiku route.
 export OPENCODE_GO_API_KEY="${OPENCODE_GO_API_KEY:-${OPENCODE_API_KEY:-}}"
 : "${OPENCODE_GO_API_KEY:?Set OPENCODE_API_KEY in the workspace environment.}"
 # Export so docker `-e OPENROUTER_API_KEY` can inherit the value (name-only pass-through).
