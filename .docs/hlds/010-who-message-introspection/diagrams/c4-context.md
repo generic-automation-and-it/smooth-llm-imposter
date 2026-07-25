@@ -9,7 +9,7 @@ behavior of the proxy.
 
 ```mermaid
 C4Context
-    title SmoothLlmImposter — System Context (HLD 010 overlay)
+    title SmoothLlmImposter — System Context (HLD 010 overlay; C1 mirrors HLD 001 as of 2026-07-25 — see `.docs/hlds/001-llm-imposter-routing/diagrams/c4-context.md`)
 
     Person(agent, "Agent client", "Sends chat requests; may probe with `who?`.")
     Person(human, "Human client", "Sends chat requests via SDK.")
@@ -83,7 +83,10 @@ Per `references/diagram-selection.md`:
   dependency, so C1 is a re-statement of HLD 001's with a note.
 - **Sequence** — included because the probe adds a new branch to the request flow;
   readers need to see where the short-circuit sits relative to the forwarder.
-- **Flowchart** — included because the decision gate has 5 short-circuit predicates;
+- **Flowchart** — included because the decision gate has 5 short-circuit predicates
+  (feature enabled, `stream:false`, last user message exists, content is string or
+  text-part array, equals `who?` after trim — the 3rd and 4th are each sub-decisions
+  on parsing the last user message);
   a flowchart makes the "fail transparent" property visible at a glance.
 - **Container / Component / ER / Class** — not included. The probe adds no new
   container, no new persistent entity, and no class hierarchy worth diagramming.

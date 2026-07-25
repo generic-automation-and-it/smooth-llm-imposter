@@ -25,8 +25,8 @@ keeps the rule trivially stateable.
 ## Alternatives Considered
 
 - **Synthesize SSE per dialect** — rejected: high maintenance cost, high drift risk
-  against `ChatToResponsesStreamTransformer`, no benefit a non-streaming probe cannot
-  deliver.
+  against the per-dialect upstream SSE transformers (OpenAI Chat Completions stream
+  and Anthropic Messages stream), no benefit a non-streaming probe cannot deliver.
 - **Synthesize SSE for OpenAI only** (simpler protocol) — rejected: asymmetric behavior
   across dialects is harder to document and test than a uniform pass-through rule.
 - **Detect SSE by Accept header** — rejected: the forwarder keys off the body's `stream`

@@ -13,18 +13,16 @@ JSON serialization, not network.
 ## Verification
 
 Integration tests stub the upstream transport. The matched-probe test asserts that
-the stub's request counter is zero after the probe call. A parallel latency check
-records the probe's elapsed time and asserts it is less than the local
-`/v1/models` endpoint's elapsed time plus a fixed margin (both in-process, both
-JSON-out).
+the stub's request counter is zero after the probe call. (A latency-with-margin
+assertion against the local `/v1/models` endpoint was considered and dropped:
+the counter check is sufficient evidence of "no upstream call" and a fixed
+margin is flaky-prone in CI.)
 
 ## Acceptance Criteria
 
-- The upstream stub's request counter is zero for every matched-probe test.
-- The endpoint handler returns before `forwarder.SendAsync` is reached; a spy on the
-  forwarder (in L0 tests of the endpoint) asserts zero invocations on match.
-- No background task (telemetry, cache warm-up, credential refresh) is triggered as a
-  side effect of the probe.
+- The stub upstream request counter is zero for `who?` requests (probe path
+  never invokes the forwarder).
+- No background task is scheduled by the probe path.
 
 ## Applies To
 

@@ -120,7 +120,17 @@ internal static class RoutingEndpoints
             logger.LogDebug("Short-circuited who-message probe for {Dialect} model '{Model}'", dialect, plan.InboundModel);
             context.Response.StatusCode = StatusCodes.Status200OK;
             context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync(whoResponseJson!, cancellationToken);
+            try
+            {
+                await context.Response.WriteAsync(whoResponseJson!, cancellationToken);
+            }
+            catch (Exception ex) when (cancellationToken.IsCancellationRequested && ex is OperationCanceledException or IOException)
+            {
+                // Caller disconnected between the feature-gate check and WriteAsync. The status line may
+                // already be on the wire; there is nothing left to write and nothing to retry. Mirrors the
+                // forward-path guard (lines below) for the same scenario.
+                return;
+            }
             return;
         }
 
