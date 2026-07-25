@@ -4,7 +4,7 @@
 
 Stateless same-dialect LLM router: reads the inbound `model`, rewrites it to a configured upstream
 ("imposter") or passes through to the dialect's default provider, optionally injecting prompt caching,
-and streams the response back. Design rationale lives in `.docs/hld/001-llm-imposter-routing/`
+and streams the response back. Design rationale lives in `docs/hlds/001-llm-imposter-routing/`
 (`README.md` index → `diagrams/`, `nfrs/`, `ladrs/` subfolders).
 
 ## Non-Negotiables
@@ -309,6 +309,7 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-07-25 | Updated the feature-context design links to the visible `docs/hlds/` tree after the repository docs-folder rename. | #86 |
 | 2026-07-25 | HLD 010 who-message introspection: last-user-message `--who?` (exact, trimmed, non-streaming) short-circuits the forward path with a dialect-shaped synthetic reply naming the resolved route and auth scheme. `ImposterRouter.DescribeAuth` promoted to `internal static` so the reply, log, and outbound header share one source of truth. Gated on `Imposter:WhoMessage:Enabled` (default `true`, env `IMPOSTER_WHO_MESSAGE_ENABLED`). Fifth sanctioned request-inspection class, the only one that reads `messages` content or synthesizes a response. | HLD 010 |
 | 2026-07-24 | HLD 009: opt-in `SessionForwarding` (fourth request-rewrite class) stamps resolved session identity on matched imposter routes (`session_id` body + `x-opencode-session` header; Anthropic header-only). Routing log adds `session=captured|derived|none`. | #72 |
 | 2026-07-24 | HLD 009 review follow-up: `session_id`/`x-opencode-session` added to the forwarder drop set (resolver consumes them; `ApplySessionIdentity` is the sole writer); resolver single-parses the body for capture + fingerprint inputs; opt-in predicate centralized as `SessionForwardingPolicy.IsOptedIn` (Domain) consulted by router and transformers; `SessionIdentity.LogToken` is exhaustive via `UnreachableException`. | #73 |

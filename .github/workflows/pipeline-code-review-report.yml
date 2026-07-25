@@ -107,6 +107,6 @@ jobs:
       # runner: self-hosted          # uncomment for private-network gateways
       # mandatory_context_files: >-  # override the context files resolved in YOUR repo
       #   AGENTS.md
-      #   .docs/wiki/ci.md
-      # agents_md_exempt_paths: '.docs/release-notes'
+      #   docs/wiki/ci.md
+      # agents_md_exempt_paths: 'docs/release-notes'
     secrets: inherit

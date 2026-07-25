@@ -2,7 +2,7 @@
 
 This file provides guidance for AI coding agents working in the SmoothLlmImposter repository.
 
-> **Note on remaining `Project` placeholders.** This repo was scaffolded from a template. The functional/buildable identifiers (solution, projects, namespaces, folders) have been renamed to `SmoothLlmImposter`. Lowercase `project` references and examples still remaining in `.agents/rules/**` and `.docs/**` prose are deferred template cleanup, not real references — replace them opportunistically when touching those files.
+> **Note on remaining `Project` placeholders.** This repo was scaffolded from a template. The functional/buildable identifiers (solution, projects, namespaces, folders) have been renamed to `SmoothLlmImposter`. Lowercase `project` references and examples still remaining in `.agents/rules/**` and `docs/**` prose are deferred template cleanup, not real references — replace them opportunistically when touching those files.
 
 ## Project Overview
 
@@ -23,14 +23,14 @@ Keep `*_AGENTS.md` files synchronised with code and documentation changes. Funct
 ### Placement Rules
 
 - Functional feature context belongs close to the feature code.
-- Cross-cutting concerns belong under `.docs/hlds/02-nfrs/` or the nearest `*_AGENTS.md`.
+- Cross-cutting concerns belong under `docs/hlds/02-nfrs/` or the nearest `*_AGENTS.md`.
 - Avoid creating duplicate context files that restate the same plan at multiple levels without adding new information.
 
 ## Implementation Docs
 
 All planned work is tracked as worktasks under `.context/work-tasks/` (gitignored — local only). Use `/create worktask` to scaffold a new one from the template.
 
-Setup docs in `.docs/wiki/setup.md` and `.docs/wiki/setups/` should keep client base-url examples aligned with
+Setup docs in `docs/wiki/setup.md` and `docs/wiki/setups/` should keep client base-url examples aligned with
 the run mode's published host port, including Codex `openai_base_url` and `ANTHROPIC_BASE_URL` examples where
 the guide is meant to be used by agent clients.
 Conductor sandbox setup docs should keep general snapshot tooling (including Docker CLI + Compose v2) separate
@@ -81,7 +81,7 @@ xunit.v3 · Shouldly · Bogus. Tiers (the distinction drives where a test belong
 - **L0** `*.UnitTest` — no I/O, all in-process (Domain / Application / Infrastructure / Host).
 - **L2** `SmoothLlmImposter.Host.IntegrationTest` — boots the real Host in-process via `WebApplicationFactory` and swaps the `imposter-upstream` HTTP client for a stub transport. No DB, no containers — this router is stateless and key-less.
 
-Shared fixtures live in `tests/SmoothLlmImposter.TestFramework/`. CI provisions a single WireMock service container (`127.0.0.1:19091`) for integration tests that stub upstream LLM endpoints over HTTP. See `.docs/wiki/testing.md`.
+Shared fixtures live in `tests/SmoothLlmImposter.TestFramework/`. CI provisions a single WireMock service container (`127.0.0.1:19091`) for integration tests that stub upstream LLM endpoints over HTTP. See `docs/wiki/testing.md`.
 
 ## Style and Dependencies
 
@@ -89,13 +89,13 @@ Authoritative stack and coding conventions for AI coders are in `.agents/rules/p
 
 ## Architecture Decisions (NFRs)
 
-Human-facing reviewer documentation lives in `.docs/wiki/`. Detailed high-level designs, non-functional requirements, and lightweight architecture decision records live under `.docs/hlds/`.
+Human-facing reviewer documentation lives in `docs/wiki/`. Detailed high-level designs, non-functional requirements, and lightweight architecture decision records live under `docs/hlds/`.
 
-The [`README.md` → How it works](README.md#how-it-works) **HLD table is the human-facing index** for `.docs/hld/`. **Keep it in sync** — when a new HLD is created, removed, or changes status (Discovery → Accepted → Completed, or → Cancelled), update the table in the same PR. A stale table makes the HLD folder harder to discover and contradicts the Drift Minimization rule below.
+The [`README.md` → How it works](README.md#how-it-works) **HLD table is the human-facing index** for `docs/hlds/`. **Keep it in sync** — when a new HLD is created, removed, or changes status (Discovery → Accepted → Completed, or → Cancelled), update the table in the same PR. A stale table makes the HLD folder harder to discover and contradicts the Drift Minimization rule below.
 
 ## CI/CD
 
-PR gate — `.github/workflows/pr-gate.yml` (triggers: `pull_request` → `main`, `push` → `main`, `workflow_dispatch`): restore → build (Release) → test with coverage via the local action `.github/actions/test-with-coverage`, then publish + upload the coverage report. The job declares one WireMock service container (`127.0.0.1:19091`) as its only external dependency — no PostgreSQL/Redis/Aspire. Full step list, service ports, and local .NET tools: `.docs/wiki/ci.md`.
+PR gate — `.github/workflows/pr-gate.yml` (triggers: `pull_request` → `main`, `push` → `main`, `workflow_dispatch`): restore → build (Release) → test with coverage via the local action `.github/actions/test-with-coverage`, then publish + upload the coverage report. The job declares one WireMock service container (`127.0.0.1:19091`) as its only external dependency — no PostgreSQL/Redis/Aspire. Full step list, service ports, and local .NET tools: `docs/wiki/ci.md`.
 
 Container image publishing — `.github/workflows/publish-image.yml` pushes `ghcr.io/generic-automation-and-it/smooth-llm-imposter` from the repo-root `Dockerfile`. Keep published tags multi-architecture for both `linux/amd64` and `linux/arm64`; QEMU must be configured before Buildx because the Dockerfile runs `dotnet restore` and `dotnet publish` during target-platform builds.
 
@@ -120,6 +120,7 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-07-25: Moved the repository documentation tree from the hidden docs folder to visible `docs/`; path guidance in this root context now points at `docs/wiki/` and `docs/hlds/`.
 - 2026-07-25: HLD 010 `--who?` and `--newsession` switch family implemented — `--who?` short-circuits the forward path with a dialect-shaped synthetic reply naming the inbound model, resolved upstream (or `passthrough`), auth scheme, and session identity; `--newsession` mints a synthetic session id and stores a caller→synthetic mapping in the `ISessionTranslationDictionary` singleton. Forward-path translation seam added. Diagnostic logging added to `WhoMessageResponder` (non-match reasons) and `RoutingEndpoints` (feature-disabled, translation applied). **Breaking change:** Bare `who?` trigger was replaced by `--who?`. LADRs/NFRs → Accepted; HLD → Completed.
 - 2026-07-25: Conductor workspace setup disables OpenCode Go session forwarding (`OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING=none` and `OPENCODE_GO_OPENAI_SESSION_FORWARDING=none`).
 - 2026-07-25: Conductor workspace setup mappings — sonnet/opus-4-6/opus-4-7→opencode-go (qwen3.6-plus/qwen3.7-plus/minimax-m3), haiku→OpenRouter tencent/hy3, gpt-5.4/5.5/5.6-luna→opencode-go (kimi-k2.7-code/glm-5.2/grok-4.5); require OPENROUTER_API_KEY; `openrouter-anthropic` defined fully in script (absent from base image).

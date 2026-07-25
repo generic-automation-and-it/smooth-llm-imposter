@@ -41,10 +41,10 @@ def main() -> None:
         sys.exit(0)
 
     # Map path prefix to the matching .slnx solution folder.
-    if rel.startswith(".docs/adr/"):
-        folder_name = "/.docs/adr/"
-    elif rel.startswith(".docs/nfr/"):
-        folder_name = "/.docs/nfr/"
+    if rel.startswith("docs/adr/"):
+        folder_name = "/docs/adr/"
+    elif rel.startswith("docs/nfr/"):
+        folder_name = "/docs/nfr/"
     else:
         sys.exit(0)
 

@@ -48,7 +48,7 @@ The conflict is resolved **client-side**: configure the Codex/agent profile that
 to **not expose tools whose names violate the upstream's rule** — disable the `_*` connector/plugin tools.
 The dotted built-in `multi_tool_use.parallel` is a Codex/OpenAI parallel-tool-calling artifact that may not
 be fully suppressible; that residual limitation against strict upstreams is **accepted and documented**
-(see `.docs/wiki/setup.md`).
+(see `docs/wiki/setup.md`).
 
 A future centralized fix is recorded — not rejected outright — as a **draft**:
 [LADR-007 (Draft)](LADR-007-in-proxy-tool-name-sanitization.md). Building it requires its own HLD because

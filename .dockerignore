@@ -6,7 +6,7 @@
 **/*.user
 .git/
 .github/
-.docs/
+docs/
 .agents/
 .claude/
 .codex/

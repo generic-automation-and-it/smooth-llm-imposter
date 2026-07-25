@@ -53,7 +53,7 @@ All notable changes to SmoothLlmImposter are documented here.
   the tool-validation matrix against the real `opencode-go` upstream: it proves a raw Codex catalog run
   through the normalizer is accepted (200) and that an un-normalized catalog is still rejected (400).
   Run only by the new secret-gated `.github/workflows/pr-evals-gate.yml` (org `OPENCODE_API_KEY`),
-  **neutral (skipped) when the secret is absent** and **non-blocking** initially. `.docs/wiki/testing.md`
+  **neutral (skipped) when the secret is absent** and **non-blocking** initially. `docs/wiki/testing.md`
   now defines the L3 tier.
 
 ### Fixed
@@ -95,9 +95,9 @@ All notable changes to SmoothLlmImposter are documented here.
   `SmoothLlmImposter.Routing` Serilog category to `Debug` (default `Information`) dumps the full
   inbound request (method, path, query, headers, raw body — auth masked) for every routed call,
   with a link to the
-  [debug logging setup guide](.docs/wiki/setups/logging.debug-smooth-llm-imposter.md).
+  [debug logging setup guide](docs/wiki/setups/logging.debug-smooth-llm-imposter.md).
 - **README — HLD table under How it works.** Replaced the single-link line with a 3-row table
-  indexing the HLDs in `.docs/hld/` (001 Accepted, 002 Accepted, 003 In Discovery) with a
+  indexing the HLDs in `docs/hlds/` (001 Accepted, 002 Accepted, 003 In Discovery) with a
   one-line scope for each, so the README is the human-facing index for the HLD folder.
 - **AGENTS.md — HLD table maintenance note.** New paragraph under
   [AGENTS.md → Architecture Decisions (NFRs)](AGENTS.md#architecture-decisions-nfrs) declares the
@@ -107,21 +107,21 @@ All notable changes to SmoothLlmImposter are documented here.
   the standalone **Tech Stack** and **Project Structure** sections from the root README (the
   content was a near-duplicate of AGENTS.md / `project-overview.instructions.md`); the existing
   **Documentation** table now points readers to the canonical home at
-  [`.docs/wiki/architecture.md`](.docs/wiki/architecture.md) for tech stack and project
+  [`docs/wiki/architecture.md`](docs/wiki/architecture.md) for tech stack and project
   structure.
-- **`.docs/wiki/architecture.md` — populated.** The previously empty placeholder now hosts the
+- **`docs/wiki/architecture.md` — populated.** The previously empty placeholder now hosts the
   Tech Stack table, the Project Structure tree, and a per-layer pointer table to each project's
   `*_AGENTS.md` context file (this is the new canonical home for that content).
 - **README — collapse Getting Started into a Quick start pointer.** Removed the `### Prerequisites`,
   `### Build & run`, and `### Test` subsections — all three duplicate content already in
-  [`.docs/wiki/setup.md`](.docs/wiki/setup.md) and
-  [`.docs/wiki/testing.md`](.docs/wiki/testing.md). Replaced with a single-command `## Quick start`
+  [`docs/wiki/setup.md`](docs/wiki/setup.md) and
+  [`docs/wiki/testing.md`](docs/wiki/testing.md). Replaced with a single-command `## Quick start`
   plus a one-paragraph pointer to the wiki for the full setup, all run modes, and tests.
 - **README — Quick start now runs the published GHCR image.** Replaced the
   `dotnet run` one-liner with the three-block GHCR flow (run published image with
   pass-through `-e NAME` env vars → `export` the three provider secrets → `curl` health + tail
   logs), matching the pattern in
-  [`.docs/wiki/setups/ghcr.run-smooth-llm-imposter.md`](.docs/wiki/setups/ghcr.run-smooth-llm-imposter.md).
+  [`docs/wiki/setups/ghcr.run-smooth-llm-imposter.md`](docs/wiki/setups/ghcr.run-smooth-llm-imposter.md).
   Local `dotnet run` and all other run modes remain one click away in the wiki pointer below.
 - **LLM imposter routing service.** Stateless, key-less router exposing OpenAI (`/v1/chat/completions`,
   `/v1/responses`) and Anthropic (`/v1/messages`) dialect endpoints.
@@ -135,7 +135,7 @@ All notable changes to SmoothLlmImposter are documented here.
   - SSE streamed end-to-end (unbuffered); dialect-shaped error envelopes; provider keys sourced from
     config/env only and never persisted. Caller credentials are forwarded only on the key-less passthrough
     path (see below) — never on matched imposter routes.
-  - `.docs/hld/001-llm-imposter-routing/` HLD and `Features/Routing/ROUTING_AGENTS.md` feature context.
+  - `docs/hlds/001-llm-imposter-routing/` HLD and `Features/Routing/ROUTING_AGENTS.md` feature context.
 - **Transparent header forwarding + key-less catch-all passthrough.** The forwarder now proxies the caller's
   full inbound header set (`CallerHeaders`) to the upstream verbatim, minus a fixed hop-by-hop/content/auth
   set — so `anthropic-beta` (and beta body fields like `context_management`), vendor `x-*` headers, and the
@@ -158,6 +158,7 @@ All notable changes to SmoothLlmImposter are documented here.
   (HLD 001 / HLD 002 LADR-004 parity).
 
 ### Changed
+- Moved the repository documentation tree from the hidden docs folder to visible `docs/` and updated repo-internal references, solution metadata, templates, and agent/tooling paths accordingly.
 - Renamed the template scaffold `Project.*` → `SmoothLlmImposter.*` (solution, projects, namespaces,
   folders) and removed the template notice from `AGENTS.md`.
 - Split HLD 001 into a `README.md` index plus `diagrams/`, `nfrs/`, and `ladrs/` subfolders (one file

@@ -31,7 +31,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   `/responses`), with `wire_api = "responses"` and `requires_openai_auth = true` (Codex then sends its
   ChatGPT/subscription auth, which the router forwards on passthrough or replaces on a matched imposter route).
   `wire_api` stays `responses` even when the matched upstream speaks `chat_completions` — the Host bridges
-  Responses↔Chat (above). The run-mode setup docs under `.docs/wiki/setups/` write this file with that mode's
+  Responses↔Chat (above). The run-mode setup docs under `docs/wiki/setups/` write this file with that mode's
   published port; keep the port and prefix aligned there (root `AGENTS.md` carries this drift rule).
 - **Logging is config-driven.** `Program.cs` sets a baseline `MinimumLevel.Information()` then layers
   `ReadFrom.Configuration` last, so the `Serilog` section in `appsettings.json` / env vars overrides it (the old
@@ -44,7 +44,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   `AuthHeader` (e.g. `api-key`) is masked only in the **forwarder's outbound** dump. So a caller that sends its
   credential in a non-standard inbound header is not masked here — a known Debug-only gap. Enable
   with `Serilog__MinimumLevel__Override__SmoothLlmImposter.Routing=Debug`. See
-  `.docs/wiki/setups/logging.debug-smooth-llm-imposter.md`.
+  `docs/wiki/setups/logging.debug-smooth-llm-imposter.md`.
 - **Process-level last-resort crash logging is wired in `Program.cs`.** The Host subscribes to
   `AppDomain.CurrentDomain.UnhandledException` and `TaskScheduler.UnobservedTaskException` after `builder.Build()`
   so faults that escape request execution still get logged through DI-backed `ILogger` before process teardown.
@@ -90,6 +90,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-07-25 | Updated Host runbook/setup-document references to the visible `docs/wiki/` tree after the repository docs-folder rename. | #86 |
 | 2026-07-24 | `CaptureCallerHeaders` is shared with `PlanAsync` so HLD 009 session identity can be resolved without leaking `HttpContext` downstream. The local SensitiveHeaders set was removed; the inbound dump now consults the shared SensitiveHeaderNames set so the inbound/outbound masks cannot drift. | #72 |
 | 2026-05-30 | Created — minimal runnable Host (`Program.cs`, `appsettings(.Development).json`, `Properties/launchSettings.json`) with empty `Configuration/`, `Endpoints/`, `HealthChecks/`, `Workers/`. | — |
 | 2026-06-19 | Documented the dialect-prefixed routing endpoints (`/openai/**`, `/anthropic/**`, any method) + retained legacy `POST /v1/*`; corrected stale "bare bootstrap" note. | — |

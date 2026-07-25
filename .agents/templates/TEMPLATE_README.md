@@ -18,7 +18,7 @@ This guide explains how to create and maintain `*_AGENTS.md` context files for A
 │   └── Entities/
 │       └── DOMAIN_MODEL_AGENTS.md           # ERD and entity changes
 │
-├── .docs/
+├── docs/
 │   ├── adr/                                 # Architecture Decision Records
 │   ├── nfr/                                 # Non-Functional Requirements
 │   │   └── {CONCERN}_AGENTS.md              # Security, performance, etc.
@@ -41,8 +41,8 @@ Each pull request must either:
 
 This ensures AI context stays synchronized with code changes.
 
-### Rule 2: Non-Functional Concerns → `.docs/nfr/`
-Place infrastructure and cross-cutting concerns in `.docs/nfr/{CONCERN}_AGENTS.md`:
+### Rule 2: Non-Functional Concerns → `docs/nfr/`
+Place infrastructure and cross-cutting concerns in `docs/nfr/{CONCERN}_AGENTS.md`:
 - Security configurations
 - Performance requirements
 - Logging/monitoring setup

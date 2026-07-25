@@ -2,7 +2,7 @@
 #
 # Multi-stage build for the SmoothLlmImposter Host. The published GHCR image is
 # built from this file; you can also build it locally with Docker or Podman. See
-# .docs/wiki/setups/docker.run-smooth-llm-imposter.md for local build
+# docs/wiki/setups/docker.run-smooth-llm-imposter.md for local build
 # instructions.
 
 # ── Build stage ───────────────────────────────────────────────────────────

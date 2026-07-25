@@ -2,7 +2,7 @@
 # Skill: create-hld
 # Deterministic scaffolder for a design-only High-Level Design (HLD) folder.
 #
-# Computes the next NNN index under .docs/hlds/, creates the folder skeleton
+# Computes the next NNN index under docs/hlds/, creates the folder skeleton
 # (README.md, AGENTS.md, diagrams/c4-context.md, ladrs/, nfrs/, optional
 # examples/) by copying the skill's asset templates with placeholder
 # substitution, then prints a JSON object of the created paths.
@@ -28,7 +28,7 @@ Usage:
 
 Arguments:
   <kebab-case-slug>   Lowercase, hyphen-separated, e.g. payments-platform
-                      Produces .docs/hlds/NNN-<slug>/
+                      Produces docs/hlds/NNN-<slug>/
 
 Options:
   --title "..."       Human-readable initiative title for the README H1.
@@ -63,7 +63,7 @@ if ! printf '%s' "$SLUG" | grep -Eq '^[a-z0-9]+(-[a-z0-9]+)*$'; then
 fi
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-HLD_ROOT="$REPO_ROOT/.docs/hlds"
+HLD_ROOT="$REPO_ROOT/docs/hlds"
 mkdir -p "$HLD_ROOT"
 
 # Compute next 3-digit index (max existing NNN + 1, floor 001).

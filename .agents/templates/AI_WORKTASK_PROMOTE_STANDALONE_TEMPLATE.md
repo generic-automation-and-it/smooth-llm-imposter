@@ -384,7 +384,7 @@ Does this plan look correct? Reply 'approved' to proceed, or provide feedback.
    - Record tech stack requirements and integration points
    - Add test references (L0/L1, test sub-folder paths)
 
-2. **Update or create project ADRs** (`.docs/adrs/`):
+2. **Update or create project ADRs** (`docs/adrs/`):
    - For each Phase 3 LADR: create corresponding ADR file if it's a foundational architectural decision
    - Update existing ADRs if implementation changes behavior they document
 

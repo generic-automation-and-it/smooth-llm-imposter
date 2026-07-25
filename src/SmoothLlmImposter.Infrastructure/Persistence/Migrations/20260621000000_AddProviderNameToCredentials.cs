@@ -25,7 +25,7 @@ public partial class AddProviderNameToCredentials : Migration
         // guess: lookups now key by the *configured* provider dictionary key (ProviderRoute.CredentialProviderName).
         // Operators who renamed their default provider key (HLD 007 allows arbitrary keys, e.g. "openai-official")
         // must re-key these rows to match, or the migrated credential will not resolve. See
-        // .docs/wiki/setups/credentials.admin-smooth-llm-imposter.md → "Optional PostgreSQL persistence".
+        // docs/wiki/setups/credentials.admin-smooth-llm-imposter.md → "Optional PostgreSQL persistence".
         // Rolling-deploy caveat: an old (pre-migration) app instance inserting during the window writes
         // ProviderName='' (the column default); the new unique index does not collide with the backfilled
         // rows, and the new app's GetActiveAsync(providerName) never matches '' — so such rows become

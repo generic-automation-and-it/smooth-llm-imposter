@@ -92,7 +92,7 @@ def classify_horizontal_slice(paths):
         layers.append("backend")
     if any("test" in p.lower() or "spec" in p.lower() for p in paths):
         layers.append("tests")
-    if any(p.endswith(".md") or p.startswith((".docs/", "docs/")) for p in paths):
+    if any(p.endswith(".md") or p.startswith(("docs/", "docs/")) for p in paths):
         layers.append("documentation")
     if any(p.startswith((".agents/", ".github/")) for p in paths):
         layers.append("ai-tooling")

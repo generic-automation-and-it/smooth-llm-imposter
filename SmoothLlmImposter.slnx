@@ -45,17 +45,17 @@
     <File Path=".agents/rules/meta/knowledge-conventional-contexts-quality.instructions.md" />
     <File Path=".agents/rules/meta/rules.instructions.md" />
   </Folder>
-  <Folder Name="/.docs/">
+  <Folder Name="/docs/">
     <File Path="README.md" />
   </Folder>
-  <Folder Name="/.docs/wiki/">
-    <File Path=".docs/wiki/ai-tooling.md" />
-    <File Path=".docs/wiki/architecture.md" />
-    <File Path=".docs/wiki/ci.md" />
-    <File Path=".docs/wiki/testing.md" />
+  <Folder Name="/docs/wiki/">
+    <File Path="docs/wiki/ai-tooling.md" />
+    <File Path="docs/wiki/architecture.md" />
+    <File Path="docs/wiki/ci.md" />
+    <File Path="docs/wiki/testing.md" />
   </Folder>
-  <Folder Name="/.docs/hld/" />
-  <Folder Name="/.docs/adr/" />
-  <Folder Name="/.docs/nfr/" />
+  <Folder Name="/docs/hlds/" />
+  <Folder Name="/docs/adr/" />
+  <Folder Name="/docs/nfr/" />
   <File Path="AGENTS.md" />
 </Solution>

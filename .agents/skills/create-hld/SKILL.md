@@ -20,7 +20,7 @@ models:
 
 ## TL;DR
 
-Produce a `.docs/hlds/NNN-<slug>/` folder that captures **intent + spec** for a design at
+Produce a `docs/hlds/NNN-<slug>/` folder that captures **intent + spec** for a design at
 discovery/prototyping phase. The HLD says *what* we are building, *why*, the decisions behind
 it (LADRs), the quality bar it must meet (NFRs), and its architecture (diagrams). It does
 **not** say *how to build it* — no implementation plan, no phasing, no code (except an optional
@@ -47,7 +47,7 @@ it (LADRs), the quality bar it must meet (NFRs), and its architecture (diagrams)
 ## Output structure (the contract)
 
 ```
-.docs/hlds/NNN-<kebab-slug>/
+docs/hlds/NNN-<kebab-slug>/
 ├── README.md            # human entry point: intent + spec (no impl, no code)
 ├── AGENTS.md            # AI-coder guardrails — NO architecture/System-Context section
 ├── diagrams/

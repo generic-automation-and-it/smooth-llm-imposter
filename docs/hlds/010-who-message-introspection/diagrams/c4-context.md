@@ -9,7 +9,7 @@ behavior of the proxy.
 
 ```mermaid
 C4Context
-    title SmoothLlmImposter — System Context (HLD 010 overlay; C1 mirrors HLD 001 as of 2026-07-25 — see `.docs/hlds/001-llm-imposter-routing/diagrams/system-context.md`)
+    title SmoothLlmImposter — System Context (HLD 010 overlay; C1 mirrors HLD 001 as of 2026-07-25 — see `docs/hlds/001-llm-imposter-routing/diagrams/system-context.md`)
 
     Person(agent, "Agent client", "Sends chat requests; may probe with `who?`.")
     Person(human, "Human client", "Sends chat requests via SDK.")

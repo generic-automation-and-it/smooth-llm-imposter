@@ -120,5 +120,5 @@ previously stored credentials.
 ## Related
 
 - [`setup.md`](../setup.md) — base setup; routing config and the imposter-`Secret`/env path (the common case).
-- HLD 002 (credential persistence & overrides) and HLD 003 (authorization override) under `.docs/hld/`.
+- HLD 002 (credential persistence & overrides) and HLD 003 (authorization override) under `docs/hlds/`.
 - `Features/AuthorizationOverride/AUTHORIZATION_OVERRIDE_AGENTS.md` — the toggle slices and endpoint contract.
