@@ -1,12 +1,11 @@
 # AGENTS.md - Who-Message Introspection
 
-AI Context: HLD for the switch-family feature (HLD 010). **IMPLEMENTED** — `who?`, `--who?`, `--newsession`, and the in-memory translation dictionary are live. Updated: 2026-07-25
+AI Context: HLD for the switch-family feature (HLD 010). **IMPLEMENTED** — `--who?`, `--newsession`, and the in-memory translation dictionary are live. Updated: 2026-07-25
 
 ## Implementation status
 
-**All three switches are implemented:**
-- `who?` — original probe: `Imposter: <inbound> → <target> (auth: <scheme>)`
-- `--who?` — extended probe with session info: `Imposter: <inbound> → <target> (auth: <scheme>, session: <id>)`
+**Both switches are implemented:**
+- `--who?` — routing probe: `Imposter: <inbound> → <target> (auth: <scheme>, session: <id>)`
 - `--newsession` — mints a synthetic session id and stores the caller→synthetic mapping in the in-memory translation dictionary
 
 The `ISessionTranslationDictionary` is a process-lifetime `ConcurrentDictionary` registered as a DI singleton. On the forward path, when the plan's session identity matches a dictionary key, the synthetic id replaces the caller id before stamping.
@@ -15,7 +14,7 @@ The `ISessionTranslationDictionary` is a process-lifetime `ConcurrentDictionary`
 
 ## TL;DR
 
-A request whose last user message is exactly `who?`, `--who?`, or `--newsession` (trimmed, case-sensitive, non-streaming) short-circuits the forward path and returns a dialect-shaped synthetic reply. The in-memory translation dictionary (minted by `--newsession`) translates caller-supplied session ids to synthetic ids on the forward path. Intent in [README.md](./README.md), decisions in [ladrs/](./ladrs/), quality spec in [nfrs/](./nfrs/).
+A request whose last user message is exactly `--who?` or `--newsession` (trimmed, case-sensitive, non-streaming) short-circuits the forward path and returns a dialect-shaped synthetic reply. The in-memory translation dictionary (minted by `--newsession`) translates caller-supplied session ids to synthetic ids on the forward path. Intent in [README.md](./README.md), decisions in [ladrs/](./ladrs/), quality spec in [nfrs/](./nfrs/).
 
 ## Non-Negotiables
 
@@ -38,7 +37,7 @@ A request whose last user message is exactly `who?`, `--who?`, or `--newsession`
 - **Reuse `ImposterRouter.DescribeAuth`** (promoted to `internal static`) for the auth
   string. Re-deriving the scheme precedence locally will drift from the forwarder's
   actual header.
-- **Triggers are exact-match `who?`, `--who?`, or `--newsession` after trim, case-sensitive,
+- **Triggers are exact-match `--who?` or `--newsession` after trim, case-sensitive,
   last user message only.** Do not add regex, case-insensitive, or "any message in history"
   variants (LADR-02). Adding a new switch is a localized change to the responder's switch
   table (`WhoMessageResponder.Switches`) — not a new LADR, not a new config node.

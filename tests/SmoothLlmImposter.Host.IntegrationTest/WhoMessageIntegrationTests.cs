@@ -98,7 +98,7 @@ public sealed class WhoMessageIntegrationTests
         HttpClient client = factory.CreateClient();
         int upstreamBefore = factory.Upstream.RequestCount;
 
-        string body = """{"model":"gpt5.4","messages":[{"role":"user","content":"who?"}]}""";
+        string body = """{"model":"gpt5.4","messages":[{"role":"user","content":"--who?"}]}""";
         using HttpResponseMessage response = await client.PostAsync(
             "/openai/v1/chat/completions",
             new StringContent(body, Encoding.UTF8, "application/json"),
@@ -114,7 +114,7 @@ public sealed class WhoMessageIntegrationTests
         JsonNode choice = root["choices"]!.AsArray().Single()!;
         choice["finish_reason"]!.GetValue<string>().ShouldBe("stop");
         string content = choice["message"]!["content"]!.GetValue<string>();
-        content.ShouldBe("Imposter: gpt5.4 → grok-code (auth: ApiKey)");
+        content.ShouldBe("Imposter: gpt5.4 → grok-code (auth: ApiKey, session: null)");
         root["usage"]!["total_tokens"]!.GetValue<int>().ShouldBe(0);
 
         // The forwarder must NOT have been called — zero upstream cost on match (NFR-02).
@@ -128,7 +128,7 @@ public sealed class WhoMessageIntegrationTests
         HttpClient client = factory.CreateClient();
         int upstreamBefore = factory.Upstream.RequestCount;
 
-        string body = """{"model":"gpt5.4","messages":[{"role":"user","content":"who?"}],"stream":true}""";
+        string body = """{"model":"gpt5.4","messages":[{"role":"user","content":"--who?"}],"stream":true}""";
         using HttpResponseMessage response = await client.PostAsync(
             "/openai/v1/chat/completions",
             new StringContent(body, Encoding.UTF8, "application/json"),
@@ -148,7 +148,7 @@ public sealed class WhoMessageIntegrationTests
         HttpClient client = factory.CreateClient();
         int upstreamBefore = factory.Upstream.RequestCount;
 
-        string body = """{"model":"gpt5.4","messages":[{"role":"user","content":"who?"}]}""";
+        string body = """{"model":"gpt5.4","messages":[{"role":"user","content":"--who?"}]}""";
         using HttpResponseMessage response = await client.PostAsync(
             "/openai/v1/chat/completions",
             new StringContent(body, Encoding.UTF8, "application/json"),
@@ -158,7 +158,7 @@ public sealed class WhoMessageIntegrationTests
         // Disabled → the probe never runs; the upstream sees the body verbatim (NFR-01).
         factory.Upstream.RequestCount.ShouldBe(upstreamBefore + 1);
         factory.Upstream.LastRequestBody.ShouldNotBeNull();
-        factory.Upstream.LastRequestBody.ShouldContain("who?");
+        factory.Upstream.LastRequestBody.ShouldContain("--who?");
     }
 
     [Fact]
@@ -189,7 +189,7 @@ public sealed class WhoMessageIntegrationTests
 
         // The claude-haiku-* mapping on anthropic-official rewrites to claude-3-5-haiku-latest. The dialect
         // default scheme is ApiKey (no explicit AuthScheme configured), so DescribeAuth returns "ApiKey".
-        string body = """{"model":"claude-haiku-3","messages":[{"role":"user","content":"who?"}]}""";
+        string body = """{"model":"claude-haiku-3","messages":[{"role":"user","content":"--who?"}]}""";
         using HttpResponseMessage response = await client.PostAsync(
             "/anthropic/v1/messages",
             new StringContent(body, Encoding.UTF8, "application/json"),
@@ -204,7 +204,7 @@ public sealed class WhoMessageIntegrationTests
         root["model"]!.GetValue<string>().ShouldBe("claude-haiku-3");
         JsonNode textBlock = root["content"]!.AsArray().Single()!;
         textBlock["type"]!.GetValue<string>().ShouldBe("text");
-        textBlock["text"]!.GetValue<string>().ShouldBe("Imposter: claude-haiku-3 → claude-3-5-haiku-latest (auth: ApiKey)");
+        textBlock["text"]!.GetValue<string>().ShouldBe("Imposter: claude-haiku-3 → claude-3-5-haiku-latest (auth: ApiKey, session: null)");
         root["usage"]!["input_tokens"]!.GetValue<int>().ShouldBe(0);
         root["usage"]!["output_tokens"]!.GetValue<int>().ShouldBe(0);
 

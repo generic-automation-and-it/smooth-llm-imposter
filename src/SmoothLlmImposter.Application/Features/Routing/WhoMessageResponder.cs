@@ -18,8 +18,7 @@ namespace SmoothLlmImposter.Application.Features.Routing;
 /// <para>
 /// Switch table (HLD 010, LADR-02):
 /// <list type="bullet">
-///   <item><description><c>who?</c> — original probe: <c>Imposter: ... → ... (auth: ...)</c> or <c>Passthrough: ... (auth: ...)</c>.</description></item>
-///   <item><description><c>--who?</c> — extended probe with session info: <c>Imposter: ... → ... (auth: ..., session: ...)</c>.</description></item>
+///   <item><description><c>--who?</c> — routing probe with session info: <c>Imposter: ... → ... (auth: ..., session: ...)</c> or <c>Passthrough: ... (auth: ..., session: ...)</c>.</description></item>
 ///   <item><description><c>--newsession</c> — mint a synthetic session id and store the caller→synthetic mapping. Requires a resolvable caller session id; when absent, no match (forward normally).</description></item>
 /// </list>
 /// </para>
@@ -34,23 +33,21 @@ namespace SmoothLlmImposter.Application.Features.Routing;
 /// </list>
 /// </para>
 /// <para>
-/// NFR-03: the reply exposes only inbound-model, resolved target, auth-scheme name, and (for
-/// <c>--who?</c>) the session identity. No secret, credential, base URL, or provider registry
-/// key ever reaches the output; the auth token comes from <see cref="ImposterRouter.DescribeAuth"/>,
-/// which returns only the scheme name (<c>Bearer</c> / <c>ApiKey</c> / <c>none</c> / <c>caller-passthrough</c>).
+/// NFR-03: the reply exposes only inbound-model, resolved target, auth-scheme name, and the
+/// session identity. No secret, credential, base URL, or provider registry key ever reaches the
+/// output; the auth token comes from <see cref="ImposterRouter.DescribeAuth"/>, which returns only
+/// the scheme name (<c>Bearer</c> / <c>ApiKey</c> / <c>none</c> / <c>caller-passthrough</c>).
 /// </para>
 /// </remarks>
 internal sealed class WhoMessageResponder : IWhoMessageResponder
 {
     /// <summary>
     /// The switch table. Order matters only for readability; the match loop checks every entry.
-    /// <c>who?</c> is at index 0 to make the backward-compatibility intent explicit.
     /// </summary>
-    internal static readonly string[] Switches = ["who?", "--who?", "--newsession"];
+    internal static readonly string[] Switches = ["--who?", "--newsession"];
 
     private const string PassthroughLabel = "passthrough";
-    private const string SwitchWho = "who?";
-    private const string SwitchExtendedWho = "--who?";
+    private const string SwitchWho = "--who?";
     private const string SwitchNewSession = "--newsession";
 
     private readonly ISessionTranslationDictionary _sessionDictionary;
@@ -123,21 +120,14 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
             string trimmed = lastUserText.Trim();
 
             // Match against the switch table.
-            // `who?` and `--who?` return synthetic replies immediately.
+            // `--who?` returns a synthetic reply immediately.
             // `--newsession` mints a synthetic session id (requires caller identity) and returns a
             // confirmation reply. When the caller has no resolvable session id, `--newsession` is a
             // no-match (forward normally) — it is NOT an error.
             if (string.Equals(trimmed, SwitchWho, StringComparison.Ordinal))
             {
                 _logger.LogDebug("WhoMessage: matched switch '{Switch}'", SwitchWho);
-                responseJson = BuildProbeResponse(dialect, plan, includeSession: false);
-                return true;
-            }
-
-            if (string.Equals(trimmed, SwitchExtendedWho, StringComparison.Ordinal))
-            {
-                _logger.LogDebug("WhoMessage: matched switch '{Switch}'", SwitchExtendedWho);
-                responseJson = BuildProbeResponse(dialect, plan, includeSession: true);
+                responseJson = BuildProbeResponse(dialect, plan);
                 return true;
             }
 
@@ -174,13 +164,12 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
     }
 
     /// <summary>
-    /// Builds the probe response for <c>who?</c> and <c>--who?</c>. Both share the same envelope
-    /// shape; <c>--who?</c> adds a <c>session:</c> field to the content text.
+    /// Builds the probe response for <c>--who?</c>. The envelope includes session identity info.
     /// </summary>
-    private string BuildProbeResponse(ApiDialect dialect, RoutePlan plan, bool includeSession)
+    private string BuildProbeResponse(ApiDialect dialect, RoutePlan plan)
     {
         string auth = ImposterRouter.DescribeAuth(plan.Decision, dialect, plan.CredentialOverride);
-        string contentText = BuildContentText(plan, auth, includeSession, plan.SessionIdentity);
+        string contentText = BuildContentText(plan, auth, plan.SessionIdentity);
         string model = string.IsNullOrEmpty(plan.InboundModel) ? PassthroughLabel : plan.InboundModel;
 
         return dialect == ApiDialect.OpenAi
@@ -270,11 +259,9 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
         return null;
     }
 
-    private static string BuildContentText(RoutePlan plan, string auth, bool includeSession, SessionIdentity sessionIdentity)
+    private static string BuildContentText(RoutePlan plan, string auth, SessionIdentity sessionIdentity)
     {
-        string sessionField = includeSession
-            ? $", session: {(sessionIdentity.HasValue ? sessionIdentity.Value : "null")}"
-            : string.Empty;
+        string sessionField = $", session: {(sessionIdentity.HasValue ? sessionIdentity.Value : "null")}";
 
         if (plan.Decision.IsImposter)
         {

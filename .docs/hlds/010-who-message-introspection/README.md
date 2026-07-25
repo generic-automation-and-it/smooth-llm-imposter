@@ -14,7 +14,7 @@
 
 ## TL;DR
 
-Three switches — `who?`, `--who?`, `--newsession` — short-circuit the forward path when the last user message matches exactly (trimmed, case-sensitive, non-streaming). `who?` returns routing + auth info; `--who?` adds session identity; `--newsession` mints a synthetic session id and stores the caller→synthetic mapping in a process-lifetime dictionary that translates session ids on subsequent forwards. Diagnostic logging (Debug level) in `WhoMessageResponder` reports each non-match reason; `RoutingEndpoints` logs when the feature is disabled or a translation is applied.
+Two switches — `--who?`, `--newsession` — short-circuit the forward path when the last user message matches exactly (trimmed, case-sensitive, non-streaming). `--who?` returns routing + auth info + session identity; `--newsession` mints a synthetic session id and stores the caller→synthetic mapping in a process-lifetime dictionary that translates session ids on subsequent forwards. Diagnostic logging (Debug level) in `WhoMessageResponder` reports each non-match reason; `RoutingEndpoints` logs when the feature is disabled or a translation is applied.
 
 ## Intent
 
@@ -32,24 +32,21 @@ dialect-shaped synthetic reply. The whole feature family is config-gated
 
 ### 1. In-band routing probe
 
-A request whose last user message is the exact string `who?` (trimmed) is intercepted
+A request whose last user message is the exact string `--who?` (trimmed) is intercepted
 between the router's plan step and the upstream forwarder. The proxy returns a 200
 chat reply whose content text names the inbound model, the resolved upstream target
-(or `passthrough`), and the resolved auth scheme. No upstream HTTP call is made for
-that request — the probe costs zero upstream tokens and round-trips in the same
-latency class as a local `/v1/models` response. *(A `--who?` / `--newsession`
-switch-family and a `session:<id>` envelope field are part of a proposed
-extension — see the "Implementation status" note above; they are not the live
-contract today.)*
+(or `passthrough`), the resolved auth scheme, and the session identity (or `session:null`).
+No upstream HTTP call is made for that request — the probe costs zero upstream tokens and
+round-trips in the same latency class as a local `/v1/models` response.
 
 **Acceptance criteria / DoD**
 
 - POST to `/openai/v1/chat/completions` or `/anthropic/v1/messages` with last user
-  content `who?` returns HTTP 200 with a synthetic body.
-- The upstream stub in integration tests is never invoked for a matched `who?` request.
+  content `--who?` returns HTTP 200 with a synthetic body.
+- The upstream stub in integration tests is never invoked for a matched `--who?` request.
 - The reply content text matches the format
-  `Imposter: <inbound> → <target> (auth: <scheme>)` for imposter routes, or
-  `Passthrough: <inbound> (auth: <scheme>)` for passthrough.
+  `Imposter: <inbound> → <target> (auth: <scheme>, session: <id>)` for imposter routes, or
+  `Passthrough: <inbound> (auth: <scheme>, session: <id>)` for passthrough.
 
 ### 2. Dialect fidelity
 

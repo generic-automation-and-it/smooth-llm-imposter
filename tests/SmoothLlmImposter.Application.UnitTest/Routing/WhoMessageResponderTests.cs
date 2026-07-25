@@ -69,7 +69,7 @@ public class WhoMessageResponderTests
         var responder = CreateResponder();
         RoutePlan plan = ImposterPlan(OpenAiRoute());
 
-        bool matched = responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("who?"), plan, out string? json);
+        bool matched = responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("--who?"), plan, out string? json);
 
         matched.ShouldBeTrue();
         JsonObject root = JsonNode.Parse(json!)!.AsObject();
@@ -81,7 +81,7 @@ public class WhoMessageResponderTests
         // OpenAI dialect default scheme is Bearer (UpstreamAuthResolver.DefaultSchemeFor) when the
         // provider's AuthScheme is null. If this assertion ever fails on auth-scheme, check the
         // dialect default, not the responder — the responder just echoes DescribeAuth's return.
-        content.ShouldBe($"Imposter: {InboundModel} → {TargetModel} (auth: Bearer)");
+        content.ShouldBe($"Imposter: {InboundModel} → {TargetModel} (auth: Bearer, session: null)");
         root["usage"]!["total_tokens"]!.GetValue<int>().ShouldBe(0);
     }
 
@@ -91,7 +91,7 @@ public class WhoMessageResponderTests
         var responder = CreateResponder();
         RoutePlan plan = ImposterPlan(AnthropicRoute(authScheme: CredentialAuthScheme.ApiKey));
 
-        bool matched = responder.TryBuildResponse(ApiDialect.Anthropic, OpenAiBody("who?"), plan, out string? json);
+        bool matched = responder.TryBuildResponse(ApiDialect.Anthropic, OpenAiBody("--who?"), plan, out string? json);
 
         matched.ShouldBeTrue();
         JsonObject root = JsonNode.Parse(json!)!.AsObject();
@@ -100,7 +100,7 @@ public class WhoMessageResponderTests
         root["stop_reason"]!.GetValue<string>().ShouldBe("end_turn");
         JsonNode textBlock = root["content"]!.AsArray().Single()!;
         textBlock["type"]!.GetValue<string>().ShouldBe("text");
-        textBlock["text"]!.GetValue<string>().ShouldBe($"Imposter: {InboundModel} → {TargetModel} (auth: ApiKey)");
+        textBlock["text"]!.GetValue<string>().ShouldBe($"Imposter: {InboundModel} → {TargetModel} (auth: ApiKey, session: null)");
         root["usage"]!["input_tokens"]!.GetValue<int>().ShouldBe(0);
         root["usage"]!["output_tokens"]!.GetValue<int>().ShouldBe(0);
     }
@@ -112,11 +112,11 @@ public class WhoMessageResponderTests
         // No configured secret + not an imposter route → DescribeAuth reports "caller-passthrough".
         RoutePlan plan = PassthroughPlan(OpenAiRoute(secret: null, isDefault: true));
 
-        bool matched = responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("who?"), plan, out string? json);
+        bool matched = responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("--who?"), plan, out string? json);
 
         matched.ShouldBeTrue();
         string content = JsonNode.Parse(json!)!["choices"]!.AsArray().Single()!["message"]!["content"]!.GetValue<string>();
-        content.ShouldBe($"Passthrough: {InboundModel} (auth: caller-passthrough)");
+        content.ShouldBe($"Passthrough: {InboundModel} (auth: caller-passthrough, session: null)");
     }
 
     [Fact]
@@ -126,12 +126,12 @@ public class WhoMessageResponderTests
         var credential = new RouteCredentialOverride("sk-stored", CredentialAuthScheme.Bearer, BaseUrlOverride: null, AnthropicVersion: null);
         RoutePlan plan = PassthroughPlan(OpenAiRoute(secret: null, isDefault: true), credentialOverride: credential);
 
-        bool matched = responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("who?"), plan, out string? json);
+        bool matched = responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("--who?"), plan, out string? json);
 
         matched.ShouldBeTrue();
         string content = JsonNode.Parse(json!)!["choices"]!.AsArray().Single()!["message"]!["content"]!.GetValue<string>();
         // Passthrough + stored Bearer credential → forwarder writes Bearer; the reply reports the same.
-        content.ShouldBe($"Passthrough: {InboundModel} (auth: Bearer)");
+        content.ShouldBe($"Passthrough: {InboundModel} (auth: Bearer, session: null)");
     }
 
     [Fact]
@@ -143,11 +143,11 @@ public class WhoMessageResponderTests
         var credential = new RouteCredentialOverride("sk-stored", CredentialAuthScheme.ApiKey, BaseUrlOverride: null, AnthropicVersion: null);
         RoutePlan plan = PassthroughPlan(OpenAiRoute(secret: null, isDefault: true), credentialOverride: credential);
 
-        bool matched = responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("who?"), plan, out string? json);
+        bool matched = responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("--who?"), plan, out string? json);
 
         matched.ShouldBeTrue();
         string content = JsonNode.Parse(json!)!["choices"]!.AsArray().Single()!["message"]!["content"]!.GetValue<string>();
-        content.ShouldBe($"Passthrough: {InboundModel} (auth: ApiKey)");
+        content.ShouldBe($"Passthrough: {InboundModel} (auth: ApiKey, session: null)");
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public class WhoMessageResponderTests
         var responder = CreateResponder();
         RoutePlan plan = ImposterPlan(OpenAiRoute());
 
-        responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("  who?  "), plan, out string? json).ShouldBeTrue();
+        responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("  --who?  "), plan, out string? json).ShouldBeTrue();
         json.ShouldNotBeNullOrEmpty();
     }
 
@@ -195,7 +195,7 @@ public class WhoMessageResponderTests
             {"model":"gpt-5.4","messages":[
                 {"role":"user","content":"earlier question"},
                 {"role":"assistant","content":"earlier reply"},
-                {"role":"user","content":"who?"}
+                {"role":"user","content":"--who?"}
             ]}
             """;
         responder.TryBuildResponse(ApiDialect.OpenAi, body, plan, out _).ShouldBeTrue();
@@ -203,7 +203,7 @@ public class WhoMessageResponderTests
         // Trigger appears in history but the last user message is something else → no match.
         string notLast = """
             {"model":"gpt-5.4","messages":[
-                {"role":"user","content":"who?"},
+                {"role":"user","content":"--who?"},
                 {"role":"assistant","content":"some reply"},
                 {"role":"user","content":"now do something else"}
             ]}
@@ -217,8 +217,8 @@ public class WhoMessageResponderTests
         var responder = CreateResponder();
         RoutePlan plan = ImposterPlan(OpenAiRoute());
 
-        // Split across two text parts; concatenated value equals "who?" after trim.
-        string body = OpenAiBodyWithParts(["wh", "o?"]);
+        // Split across two text parts; concatenated value equals "--who?" after trim.
+        string body = OpenAiBodyWithParts(["--wh", "o?"]);
 
         responder.TryBuildResponse(ApiDialect.OpenAi, body, plan, out string? json).ShouldBeTrue();
         json.ShouldNotBeNullOrEmpty();
@@ -230,7 +230,7 @@ public class WhoMessageResponderTests
         var responder = CreateResponder();
         RoutePlan plan = ImposterPlan(OpenAiRoute());
 
-        string body = OpenAiBodyWithParts(["who?"], includeNonText: true);
+        string body = OpenAiBodyWithParts(["--who?"], includeNonText: true);
 
         responder.TryBuildResponse(ApiDialect.OpenAi, body, plan, out string? json).ShouldBeFalse();
         json.ShouldBeNull();
@@ -268,7 +268,7 @@ public class WhoMessageResponderTests
         // Bearer scheme explicitly set so DescribeAuth reports "Bearer" (not the secret value).
         RoutePlan plan = ImposterPlan(OpenAiRoute(secret: SecretValue, authScheme: CredentialAuthScheme.Bearer));
 
-        responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("who?"), plan, out string? json).ShouldBeTrue();
+        responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("--who?"), plan, out string? json).ShouldBeTrue();
 
         json.ShouldNotBeNull();
         json.ShouldNotContain(SecretValue);
@@ -283,10 +283,10 @@ public class WhoMessageResponderTests
         // Imposter route with no configured secret → DescribeAuth returns "none".
         RoutePlan plan = ImposterPlan(OpenAiRoute(secret: null));
 
-        responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("who?"), plan, out string? json).ShouldBeTrue();
+        responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("--who?"), plan, out string? json).ShouldBeTrue();
 
         string content = JsonNode.Parse(json!)!["choices"]!.AsArray().Single()!["message"]!["content"]!.GetValue<string>();
-        content.ShouldBe($"Imposter: {InboundModel} → {TargetModel} (auth: none)");
+        content.ShouldBe($"Imposter: {InboundModel} → {TargetModel} (auth: none, session: null)");
     }
 
     [Fact]
@@ -295,8 +295,8 @@ public class WhoMessageResponderTests
         var responder = CreateResponder();
         RoutePlan plan = ImposterPlan(OpenAiRoute());
 
-        responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("who?"), plan, out string? openAiJson).ShouldBeTrue();
-        responder.TryBuildResponse(ApiDialect.Anthropic, OpenAiBody("who?"), ImposterPlan(AnthropicRoute()), out string? anthropicJson).ShouldBeTrue();
+        responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("--who?"), plan, out string? openAiJson).ShouldBeTrue();
+        responder.TryBuildResponse(ApiDialect.Anthropic, OpenAiBody("--who?"), ImposterPlan(AnthropicRoute()), out string? anthropicJson).ShouldBeTrue();
 
         JsonNode.Parse(openAiJson!)!["id"]!.GetValue<string>().ShouldStartWith("chatcmpl-who-");
         JsonNode.Parse(anthropicJson!)!["id"]!.GetValue<string>().ShouldStartWith("msg_who_");
@@ -319,7 +319,7 @@ public class WhoMessageResponderTests
     // ──────────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void Extended_who_switch_matches_and_includes_session_field()
+    public void Who_switch_matches_and_includes_session_field()
     {
         var responder = CreateResponder();
         var sessionId = new SessionIdentity("caller-session-abc", SessionIdentitySource.Captured);
@@ -333,7 +333,7 @@ public class WhoMessageResponderTests
     }
 
     [Fact]
-    public void Extended_who_switch_without_session_includes_session_null()
+    public void Who_switch_without_session_includes_session_null()
     {
         var responder = CreateResponder();
         RoutePlan plan = ImposterPlan(OpenAiRoute());
@@ -345,21 +345,6 @@ public class WhoMessageResponderTests
         content.ShouldBe($"Imposter: {InboundModel} → {TargetModel} (auth: Bearer, session: null)");
     }
 
-    [Fact]
-    public void Base_who_switch_does_not_include_session_field()
-    {
-        var responder = CreateResponder();
-        var sessionId = new SessionIdentity("caller-session-abc", SessionIdentitySource.Captured);
-        RoutePlan plan = ImposterPlan(OpenAiRoute(), sessionIdentity: sessionId);
-
-        bool matched = responder.TryBuildResponse(ApiDialect.OpenAi, OpenAiBody("who?"), plan, out string? json);
-
-        matched.ShouldBeTrue();
-        string content = JsonNode.Parse(json!)!["choices"]!.AsArray().Single()!["message"]!["content"]!.GetValue<string>();
-        // Base `who?` should NOT include session field even when session identity is present
-        content.ShouldBe($"Imposter: {InboundModel} → {TargetModel} (auth: Bearer)");
-        content.ShouldNotContain("session:");
-    }
 
     // ──────────────────────────────────────────────────────────────────────────────
     // --newsession switch tests
