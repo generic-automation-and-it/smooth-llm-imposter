@@ -7,7 +7,7 @@ Vendored copy of the `/ai-review` consumer skill from `generic-automation-and-it
 ## Non-Negotiables
 
 - **Do not hand-edit the skill logic here to fix bugs.** This is a downstream copy. Changes made locally diverge from upstream and are lost on the next sync. File the fix in the upstream repo, then re-copy.
-- **Only the `ai-review` consumer skill is installed.** The review *generator* (`ai-review-report` skill + its scripts) is intentionally NOT copied — it runs remotely via the reusable GitHub Actions workflow (`.github/workflows/pipeline-code-review-report.yml`, which `uses:` the upstream `pipeline-code-review-report.yml@main`). Do not copy the generator tree in to "complete" the install.
+- **Only the `ai-review` consumer skill is installed.** The review *generator* (`ai-review-report` skill + its scripts) is intentionally NOT copied — it runs remotely via the reusable GitHub Actions workflow (`.github/workflows/pipeline-code-review-report.yml`, pinned to an upstream reusable-workflow SHA). Do not copy the generator tree in to "complete" the install.
 - **Script-path duality:** `SKILL.md` references `.agents/skills/ai-review/scripts/copilot-review.sh` for this copy-install. The `${CLAUDE_PLUGIN_ROOT}/...` variant in `SKILL.md` applies only when the skill runs from the upstream Claude Code plugin (`smooth-ai-review`) — not here. Keep the copy-install path permitted in `.agents/settings.json`.
 
 ## System Context
@@ -15,7 +15,7 @@ Vendored copy of the `/ai-review` consumer skill from `generic-automation-and-it
 ```mermaid
 C4Context
   System(consumer, "ai-review (this skill)", "Parses a posted review; applies fix/skip; routes results")
-  System_Ext(gha, "pipeline-code-review-report.yml@main", "Remote reusable GHA that GENERATES the review on a PR")
+  System_Ext(gha, "pipeline-code-review-report.yml@<pinned-sha>", "Remote reusable GHA that GENERATES the review on a PR")
   System_Ext(analyse, "pipeline-ai-analyse.yml", "Companion low/medium self-fix loop")
   System_Ext(gh, "GitHub PR", "Review threads / PR description / comments")
   Rel(gha, gh, "posts AI review")
@@ -30,8 +30,9 @@ The companion `.github/workflows/pipeline-ai-analyse.yml` runs after `PR Code Re
 ## Key Behaviors
 
 - **Mode auto-detect:** any `N=fix`/`N=skip` arg → execute; otherwise analyse. Analyse always STOPS and never auto-executes.
-- **Source routing:** auto-detects Copilot vs other via `copilot-review.sh detect <pr>`. Copilot → reply/resolve each linked review thread + post a summary comment. Other → append the fix/skip table to the PR description's AI Review Notes (append, never overwrite).
+- **Source routing:** auto-detects Copilot vs other via `copilot-review.sh detect <pr>`. Copilot → reply/resolve each linked review thread + post a summary comment. Other → append the fix/skip table to AI Review Notes **and** write every skipped item into the PR description's Skip Areas / Known Issues bullets (verify bullets after edit before completion).
 - **All deterministic GitHub plumbing** (detect/threads/reply/resolve/summary) lives in `scripts/copilot-review.sh`; the skill keeps only the judgment (parsing + fix/skip + reply text).
+- **Critical/High marker commit:** when a processed review contains any 🔴/🟠 finding (fixed or skipped), execute must produce the final empty commit `ci: /ai-review — processed review responses` so the full review reruns.
 
 ## Changelog
 
@@ -39,3 +40,4 @@ The companion `.github/workflows/pipeline-ai-analyse.yml` runs after `PR Code Re
 |:-----|:-------|:----|
 | 2026-06-20 | Vendored `/ai-review` consumer skill from smooth-ai-report-review; generator kept remote via thin caller workflow. | |
 | 2026-07-05 | Documented the companion self-fix workflow that consumes low/medium review findings and posts an auto-fix summary. | |
+| 2026-07-25 | Synced to upstream `/ai-review` updates: non-Copilot skip-bullet propagation/verification and mandatory critical/high marker-commit behavior. | #78 |
