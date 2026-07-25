@@ -346,7 +346,6 @@ fi
   -e "Imposter__Providers__opencode-go-openai__Dialect=openai" \
   -e "Imposter__Providers__opencode-go-openai__BaseUrl=https://opencode.ai/zen/go" \
   -e "Imposter__Providers__opencode-go-openai__AuthScheme=Bearer" \
-  -e "Imposter__Providers__opencode-go-openai__OpenAiUpstreamApi=chat_completions" \
   -e "Imposter__Providers__opencode-go-openai__Models__0__From=gpt-5.4" \
   -e "Imposter__Providers__opencode-go-openai__Models__0__To=kimi-k2.7-code" \
   -e "Imposter__Providers__opencode-go-openai__Models__1__From=gpt-5.5" \
