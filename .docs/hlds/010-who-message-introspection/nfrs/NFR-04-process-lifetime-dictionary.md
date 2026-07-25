@@ -24,7 +24,7 @@ HLD adds a persistent or evictable store.
 The following L0 and L2 tests cover this NFR (all are runnable in the
 current build):
 
-- L0 test (`WhoMessageResponderTests` — dictionary coverage lives alongside the switch tests; a separate `SessionIdTranslationTests` class is not required):
+- L0 test (`WhoMessageResponderTests`):
   - `--newsession` request with caller id `A` mints synthetic id `S1`.
   - A second `--newsession` request with the same caller id `A` returns the
     **same** synthetic id `S1` (no overwrite).

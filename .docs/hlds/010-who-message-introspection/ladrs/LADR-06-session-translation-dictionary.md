@@ -121,7 +121,7 @@ path: the short-circuit runs before the forwarder; the translation runs after
 - **LADR-05** — the translation does not affect streaming behavior; the
   dictionary is consulted on the same hot path regardless of `stream`.
 - **LADR-03** — the synthetic id appears in the `--who?` envelope's content
-  text (`session:<id>`), so the same id flows from `--newsession` (mint) →
+  text (`session: <id>`), so the same id flows from `--newsession` (mint) →
   `--who?` (display) → forward path (stamp).
 - **NFR-04** — the process-lifetime growth contract; the dictionary does not
   evict.

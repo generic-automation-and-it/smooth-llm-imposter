@@ -35,7 +35,7 @@ dialect-shaped synthetic reply. The whole feature family is config-gated
 A request whose last user message is the exact string `--who?` (trimmed) is intercepted
 between the router's plan step and the upstream forwarder. The proxy returns a 200
 chat reply whose content text names the inbound model, the resolved upstream target
-(or `passthrough`), the resolved auth scheme, and the session identity (or `session:null`).
+(or `passthrough`), the resolved auth scheme, and the session identity (or `session: null`).
 No upstream HTTP call is made for that request — the probe costs zero upstream tokens and
 round-trips in the same latency class as a local `/v1/models` response.
 
@@ -93,7 +93,7 @@ option in the codebase today.
 **Acceptance criteria / DoD**
 
 - A default boot (no config override) intercepts `--who?`.
-- `IMPOSTER_WHO_MESSAGE_ENABLED=false` causes an `--who?` request to be forwarded.
+- `IMPOSTER_WHO_MESSAGE_ENABLED=false` causes a `--who?` request to be forwarded.
 - An invalid env value (e.g. `yes_please`) does not crash boot and is logged at Warning.
 
 ### 5. Transparency preserved

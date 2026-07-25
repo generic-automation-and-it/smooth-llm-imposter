@@ -149,7 +149,7 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
 
                 bool wasInserted = _sessionDictionary.TryAdd(plan.SessionIdentity.Value!, out string? syntheticId);
                 _logger.LogDebug(
-                    "WhoMessage: matched switch '{Switch}' — caller session '{CallerId}' mapped to synthetic '{SyntheticId}' ({MintStatus})",
+                    "WhoMessage: matched switch '{Switch}' — caller session '{CallerSource}' mapped to synthetic '{SyntheticId}' ({MintStatus})",
                     SwitchNewSession,
                     plan.SessionIdentity.LogToken,
                     syntheticId,
