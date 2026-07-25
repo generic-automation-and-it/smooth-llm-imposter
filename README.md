@@ -233,21 +233,21 @@ Two Codex skills ship with this repo so an agent running through the imposter ca
 
 ### Install from the skills marketplace
 
-The marketplace lives at [`skills-marketplace/`](skills-marketplace/) at the repo root and contains exactly these two skills. Install them with the Codex skill-installer:
+The marketplace lives at [`.agents/skills/.marketplace/`](.agents/skills/.marketplace/) and contains exactly these two installable skills. The `.` prefix keeps it out of Claude Code's one-level-deep skill discovery, so the installable copies aren't double-loaded as active skills. Install them with the Codex skill-installer:
 
 ```bash
 # list what is available
 python3 $CODEX_HOME/skills/.system/skill-installer/scripts/list-skills.py \
-  --repo generic-automation-and-it/smooth-llm-imposter --path skills-marketplace
+  --repo generic-automation-and-it/smooth-llm-imposter --path .agents/skills/.marketplace
 # install both
 python3 $CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py \
   --repo generic-automation-and-it/smooth-llm-imposter \
-  --path skills-marketplace/imposter-who --path skills-marketplace/imposter-newsession
+  --path .agents/skills/.marketplace/imposter-who --path .agents/skills/.marketplace/imposter-newsession
 ```
 
 ### Install into another repo, or the root `~/.codex/skills`
 
-- **Into another repo** (vendored, shared with the team): copy the two folders from [`skills-marketplace/`](skills-marketplace/) into `<repo>/.agents/skills/` and commit them. The skill loader discovers any folder one level under `.agents/skills/`.
+- **Into another repo** (vendored, shared with the team): copy the two folders from [`.agents/skills/.marketplace/`](.agents/skills/.marketplace/) into `<repo>/.agents/skills/` and commit them. The skill loader discovers any folder one level under `.agents/skills/`.
 - **Into the root (personal, all your projects):** install into `$CODEX_HOME/skills` (defaults to `~/.codex/skills`) using the skill-installer command above with `--dest "$CODEX_HOME/skills"` — Codex auto-discovers skills there without a per-repo checkout.
 
 Both scripts auto-detect the dialect from `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` and accept `--port` to override the router port without re-setting the env vars.
