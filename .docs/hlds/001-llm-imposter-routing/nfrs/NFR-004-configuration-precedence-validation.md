@@ -7,9 +7,10 @@ Configuration binds from the `Imposter` section; **environment variables overrid
 `appsettings.json`** (env wins). Providers are keyed by **name** (HLD 007), so overrides are
 name-addressed: `Imposter__Providers__openrouter-anthropic__Secret=sk-...`, or the conventional
 `OPENROUTER_API_KEY=sk-...` shared by any dialect-suffixed provider
-(`openrouter-anthropic`, `openrouter-openai`, or a lone `openrouter-anthropic` with no
-sibling/base), filling the `Secret` slot when the per-provider suffixed var is blank
-(conventional > structured > appsettings). Each provider's `AuthScheme`
+(e.g. `openrouter-openai` or a lone `openrouter-anthropic` with no sibling/base), filling the
+`Secret` slot when the per-provider suffixed var is blank.
+
+**Precedence:** conventional > structured > appsettings. Each provider's `AuthScheme`
 (`ApiKey`|`Bearer`, case-insensitive) selects the auth header and defaults by dialect when omitted
 (openai → Bearer, anthropic → ApiKey).
 
