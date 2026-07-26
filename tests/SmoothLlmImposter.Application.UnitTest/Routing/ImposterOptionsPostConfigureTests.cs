@@ -277,6 +277,33 @@ public class ImposterOptionsPostConfigureTests
     }
 
     [Fact]
+    public void Lone_dialect_suffixed_provider_resolves_base_api_key_without_sibling()
+    {
+        // Regression guard (LADR-02/03): a single dialect-suffixed provider with no
+        // sibling and no base provider must resolve its secret from the bare base var
+        // once its own (absent) suffixed var is tried first.
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["OPENROUTER_API_KEY"] = "sk-openrouter"
+            })
+            .Build();
+        var sut = new ImposterOptionsPostConfigure(configuration, new CapturingLogger());
+
+        var options = new ImposterOptions
+        {
+            Providers =
+            {
+                ["openrouter-anthropic"] = new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://openrouter.example", AuthScheme = "Bearer" }
+            }
+        };
+
+        sut.PostConfigure(name: null, options);
+
+        options.Providers["openrouter-anthropic"].Secret.ShouldBe("sk-openrouter");
+    }
+
+    [Fact]
     public void Per_provider_conventional_vars_resolve_to_the_correct_secret_per_scheme()
     {
         // The <PROVIDER>_<SUFFIX> convention for the hyphenated keys: mycompany-anthropic -> MYCOMPANY_ANTHROPIC prefix
