@@ -304,6 +304,34 @@ public class ImposterOptionsPostConfigureTests
     }
 
     [Fact]
+    public void Suffixed_var_still_wins_over_ungated_base_fallback()
+    {
+        // Regression guard: removing the sibling gate in TrySharedProviderSecretPrefix must not
+        // change priority — OPENROUTER_ANTHROPIC_API_KEY (per-provider suffixed) still wins
+        // over OPENROUTER_API_KEY (shared base).
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["OPENROUTER_ANTHROPIC_API_KEY"] = "sk-per-provider",
+                ["OPENROUTER_API_KEY"] = "sk-shared-base"
+            })
+            .Build();
+        var sut = new ImposterOptionsPostConfigure(configuration, new CapturingLogger());
+
+        var options = new ImposterOptions
+        {
+            Providers =
+            {
+                ["openrouter-anthropic"] = new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://openrouter.example", AuthScheme = "ApiKey" }
+            }
+        };
+
+        sut.PostConfigure(name: null, options);
+
+        options.Providers["openrouter-anthropic"].Secret.ShouldBe("sk-per-provider");
+    }
+
+    [Fact]
     public void Per_provider_conventional_vars_resolve_to_the_correct_secret_per_scheme()
     {
         // The <PROVIDER>_<SUFFIX> convention for the hyphenated keys: mycompany-anthropic -> MYCOMPANY_ANTHROPIC prefix
