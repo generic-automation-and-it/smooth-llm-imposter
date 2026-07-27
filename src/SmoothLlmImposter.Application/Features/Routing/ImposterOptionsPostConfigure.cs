@@ -22,10 +22,13 @@ namespace SmoothLlmImposter.Application.Features.Routing;
 /// a personal <c>ANTHROPIC_API_KEY</c> from being sent as a Bearer token (and vice versa) when both a
 /// key and a token are exported. The effective scheme is resolved from the conventional
 /// <c>_AUTH_SCHEME</c> env override, then the bound <see cref="ProviderOptions.AuthScheme"/>, then the
-/// dialect default (openai → Bearer, anthropic → ApiKey). Dialect-suffixed sibling
-/// providers can share the base provider's secret convention when both are configured
-/// (<c>openrouter-openai</c> and <c>openrouter-anthropic</c> may use <c>OPENROUTER_API_KEY</c>, while
-/// retaining their own bound <c>AuthScheme</c>).
+/// dialect default (openai → Bearer, anthropic → ApiKey). Dialect-suffixed providers
+/// always fall back to the base provider's secret convention — a lone
+/// <c>openrouter-anthropic</c> (no <c>openrouter-openai</c> sibling, no base <c>openrouter</c>
+/// provider) resolves <c>OPENROUTER_API_KEY</c> after its own <c>OPENROUTER_ANTHROPIC_API_KEY</c>,
+/// and <c>openrouter-openai</c> + <c>openrouter-anthropic</c> share <c>OPENROUTER_API_KEY</c> — while
+/// retaining their own bound <c>AuthScheme</c>. The fallback is no longer gated on a
+/// sibling/base provider existing (LADR-02/03).
 /// <para>
 /// Runs as an <see cref="IPostConfigureOptions{TOptions}"/>, so it executes after the binder and
 /// <b>before</b> <c>IValidateOptions</c> at <c>Get</c>/<c>ValidateOnStart</c> — a conventionally-supplied
@@ -117,7 +120,7 @@ internal sealed class ImposterOptionsPostConfigure(
             // Secret is reachable via three suffixes whose winner follows the effective auth scheme
             // (Bearer → _AUTH_TOKEN/_AUTHORIZATION_BEARER first; ApiKey → _API_KEY first). Resolved
             // separately so the loop below only handles the non-secret fields.
-            ApplyConventionalSecret(key, options, provider, prefix);
+            ApplyConventionalSecret(key, provider, prefix);
 
             foreach (ConventionalField field in Fields)
             {
@@ -127,7 +130,7 @@ internal sealed class ImposterOptionsPostConfigure(
                     continue;
                 }
 
-                (string variable, string? value) = ResolveConventionalValue(key, options, field, prefix);
+                (string variable, string? value) = ResolveConventionalValue(key, field, prefix);
 
                 // An empty/whitespace conventional value is treated as ABSENT, not as an override (e.g. a
                 // compose `X=${X:-}` with the host var unset writes an empty-but-present var), so it never
@@ -185,7 +188,7 @@ internal sealed class ImposterOptionsPostConfigure(
     /// fallbacks. A blank/whitespace value is treated as absent, so an empty-but-present var neither wins
     /// the slot nor blanks a Secret bound from appsettings.
     /// </summary>
-    private void ApplyConventionalSecret(string key, ImposterOptions options, ProviderOptions provider, string prefix)
+    private void ApplyConventionalSecret(string key, ProviderOptions provider, string prefix)
     {
         string[] order = ResolveEffectiveScheme(provider, prefix) == CredentialAuthScheme.Bearer
             ? BearerSecretSuffixOrder
@@ -194,7 +197,7 @@ internal sealed class ImposterOptionsPostConfigure(
         foreach (string suffix in order)
         {
             ConventionalField field = SecretFieldsBySuffix[suffix];
-            (string variable, string? value) = ResolveConventionalValue(key, options, field, prefix);
+            (string variable, string? value) = ResolveConventionalValue(key, field, prefix);
 
             if (string.IsNullOrWhiteSpace(value))
             {
@@ -239,7 +242,6 @@ internal sealed class ImposterOptionsPostConfigure(
 
     private (string Variable, string? Value) ResolveConventionalValue(
         string key,
-        ImposterOptions options,
         ConventionalField field,
         string prefix)
     {
@@ -256,7 +258,7 @@ internal sealed class ImposterOptionsPostConfigure(
             return (variable, value);
         }
 
-        string? sharedPrefix = TrySharedProviderSecretPrefix(key, options);
+        string? sharedPrefix = TrySharedProviderSecretPrefix(key);
         if (sharedPrefix is null)
         {
             return (variable, null);
@@ -266,7 +268,13 @@ internal sealed class ImposterOptionsPostConfigure(
         return (sharedVariable, configuration[sharedVariable]);
     }
 
-    private static string? TrySharedProviderSecretPrefix(string key, ImposterOptions options)
+    // The bare base prefix (e.g. "openrouter" -> "OPENROUTER") is always a valid secret
+    // fallback for a dialect-suffixed provider ("openrouter-anthropic" -> tries its own
+    // "OPENROUTER_ANTHROPIC_API_KEY" first, then falls back to "OPENROUTER_API_KEY"),
+    // regardless of whether a sibling or base provider is configured. Previously the fallback
+    // was gated on a sibling/base provider existing, which prevented a lone suffixed
+    // provider from resolving its secret from the shared base var (LADR-02/03).
+    private static string? TrySharedProviderSecretPrefix(string key)
     {
         foreach (string suffix in SharedProviderSecretSuffixes)
         {
@@ -275,14 +283,7 @@ internal sealed class ImposterOptionsPostConfigure(
                 continue;
             }
 
-            string baseKey = key[..^suffix.Length];
-            if (options.Providers.ContainsKey(baseKey) ||
-                options.Providers.Keys.Any(providerKey =>
-                    !string.Equals(providerKey, key, StringComparison.OrdinalIgnoreCase) &&
-                    providerKey.StartsWith(baseKey + "-", StringComparison.OrdinalIgnoreCase)))
-            {
-                return ToEnvPrefix(baseKey);
-            }
+            return ToEnvPrefix(key[..^suffix.Length]);
         }
 
         return null;
