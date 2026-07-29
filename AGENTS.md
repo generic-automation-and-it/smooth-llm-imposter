@@ -34,7 +34,9 @@ Setup docs in `.docs/wiki/setup.md` and `.docs/wiki/setups/` should keep client 
 the run mode's published host port, including Codex `openai_base_url` and `ANTHROPIC_BASE_URL` examples where
 the guide is meant to be used by agent clients.
 Conductor sandbox setup docs should keep general snapshot tooling (including Docker CLI + Compose v2) separate
-from SmoothLlmImposter-specific imposter runtime setup.
+from SmoothLlmImposter-specific imposter runtime setup. Agent-tooling steps must be split by scope: anything
+repository-scoped (a tool that records an absolute repo path in its config, or writes into the working tree)
+belongs in the workspace lifecycle, because the snapshot is built before any clone exists.
 Claude/Anthropic setup sections should also document that `claude setup-token` can create a Claude subscription
 token, which users may supply explicitly as an imposter provider `Secret` with the matching `AuthScheme`.
 
@@ -120,6 +122,7 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-07-29: Conductor setup adds GitHub Copilot CLI and `code-review-graph`. The snapshot installs Python 3.12 + a dedicated venv (a `pip install --user` silently yields a 0-node graph — grammar probes run under `python -I`, which drops user site-packages); the workspace runs the repo-scoped `install --platform codex|copilot-cli` and `build`. `claude-code` is skipped because it rewrites tracked files (`CLAUDE.md`, `.claude/skills`, `.agents/settings.json`).
 - 2026-07-25: Conductor build setup removes `OpenAiUpstreamApi=chat_completions` from `opencode-go-openai` — GPT routes now use the Responses API default (no `/responses`→Chat downgrade).
 - 2026-07-25: HLD 010 `--who?` and `--newsession` switch family implemented — `--who?` short-circuits the forward path with a dialect-shaped synthetic reply naming the inbound model, resolved upstream (or `passthrough`), auth scheme, and session identity; `--newsession` mints a synthetic session id and stores a caller→synthetic mapping in the `ISessionTranslationDictionary` singleton. Forward-path translation seam added. Diagnostic logging added to `WhoMessageResponder` (non-match reasons) and `RoutingEndpoints` (feature-disabled, translation applied). **Breaking change:** Bare `who?` trigger was replaced by `--who?`. LADRs/NFRs → Accepted; HLD → Completed.
 - 2026-07-25: Conductor workspace setup disables OpenCode Go session forwarding (`OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING=none` and `OPENCODE_GO_OPENAI_SESSION_FORWARDING=none`).
