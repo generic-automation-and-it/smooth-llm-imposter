@@ -69,12 +69,14 @@ internal sealed class ImposterRouter : IImposterRouter
             ? null
             : await ResolvePassthroughCredentialAsync(dialect, decision.Provider.CredentialProviderName, cancellationToken);
 
+        string routeKind = decision.IsImposter ? "imposter" : "passthrough";
         _logger.LogInformation(
-            "Routed {Dialect} model '{InboundModel}' -> provider '{Provider}' as '{TargetModel}' (imposter={IsImposter}, caching={Caching}, storedCredential={StoredCredential}, auth={Auth}, session={Session})",
+            "Routed {Dialect} model '{InboundModel}' -> provider '{Provider}' as '{TargetModel}' (route={RouteKind}, imposter={IsImposter}, caching={Caching}, storedCredential={StoredCredential}, auth={Auth}, session={Session})",
             dialect,
             model,
             decision.Provider.Name,
             decision.TargetModel,
+            routeKind,
             decision.IsImposter,
             decision.CachingEnabled,
             credentialOverride is not null,
@@ -97,7 +99,7 @@ internal sealed class ImposterRouter : IImposterRouter
         RouteCredentialOverride? credentialOverride = await ResolvePassthroughCredentialAsync(dialect, decision.Provider.CredentialProviderName, cancellationToken);
 
         _logger.LogInformation(
-            "Routed {Dialect} body-less request -> provider '{Provider}' (passthrough, no model, storedCredential={StoredCredential}, auth={Auth}, session={Session})",
+            "Routed {Dialect} body-less request -> provider '{Provider}' (route=passthrough, no model, storedCredential={StoredCredential}, auth={Auth}, session={Session})",
             dialect,
             decision.Provider.Name,
             credentialOverride is not null,

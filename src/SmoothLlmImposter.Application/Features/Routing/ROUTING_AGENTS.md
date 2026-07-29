@@ -158,8 +158,11 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   (headers `session_id`/`x-opencode-session`/`x-session-id`/`conversation_id` → body `prompt_cache_key`/
   `metadata.user_id` → stable fingerprint of caller identity material → none) and stamps OpenAI `session_id`
   plus `x-opencode-session` (Anthropic: header only). Passthrough stays byte-transparent. The routing
-  Information line adds `session=captured|derived|none` and never logs the raw value. The Responses→Chat
-  allowlist carries `session_id`; body stamping is **not** gated on the Responses-only caching branch.
+  Information line adds `route=imposter|passthrough` plus `session=captured|derived|none` and never logs the raw
+  session value. Model-bearing passthrough logs keep the same `model '<inbound>' -> provider ... as '<target>'`
+  shape as matched imposters, with `route=passthrough` and an unchanged target model; body-less passthrough logs
+  explicitly say `no model`. The Responses→Chat allowlist carries `session_id`; body stamping is **not** gated on
+  the Responses-only caching branch.
 - **Request normalization — `CodexToOpenAiSdk` v1** (`Features/Routing/Normalization/`). The seam is a
   `IReadOnlyDictionary<RequestNormalization, IRequestNormalizer>` in `OpenAiRequestTransformer`; adding a profile
   is a new `IRequestNormalizer` + enum value, not a router/forwarder branch. v1 keeps only upstream-valid
@@ -310,6 +313,7 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-07-29 | Routing Information logs now carry `route=imposter|passthrough`. Model-bearing passthrough keeps the inbound/target model fields visible (`as` remains the unchanged inbound model), while body-less passthrough remains explicitly `no model`. | — |
 | 2026-07-25 | HLD 010 who-message introspection: last-user-message `--who?` (exact, trimmed, non-streaming) short-circuits the forward path with a dialect-shaped synthetic reply naming the resolved route and auth scheme. `ImposterRouter.DescribeAuth` promoted to `internal static` so the reply, log, and outbound header share one source of truth. Gated on `Imposter:WhoMessage:Enabled` (default `true`, env `IMPOSTER_WHO_MESSAGE_ENABLED`). Fifth sanctioned request-inspection class, the only one that reads `messages` content or synthesizes a response. | HLD 010 |
 | 2026-07-24 | HLD 009: opt-in `SessionForwarding` (fourth request-rewrite class) stamps resolved session identity on matched imposter routes (`session_id` body + `x-opencode-session` header; Anthropic header-only). Routing log adds `session=captured|derived|none`. | #72 |
 | 2026-07-24 | HLD 009 review follow-up: `session_id`/`x-opencode-session` added to the forwarder drop set (resolver consumes them; `ApplySessionIdentity` is the sole writer); resolver single-parses the body for capture + fingerprint inputs; opt-in predicate centralized as `SessionForwardingPolicy.IsOptedIn` (Domain) consulted by router and transformers; `SessionIdentity.LogToken` is exhaustive via `UnreachableException`. | #73 |

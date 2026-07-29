@@ -195,6 +195,48 @@ public class ImposterRouterTests
     }
 
     [Fact]
+    public async Task Plan_logs_matched_imposter_route_kind_with_inbound_and_target_models()
+    {
+        var logger = new CapturingLogger();
+        ImposterRouter router = Build(logger: logger);
+
+        await router.PlanAsync(ApiDialect.OpenAi, """{"model":"gpt5.4"}""", CallerHeaders.None, TestContext.Current.CancellationToken);
+
+        string joined = string.Join('\n', logger.Messages);
+        joined.ShouldContain("Routed OpenAi model 'gpt5.4' -> provider 'opencode' as 'grok-code'");
+        joined.ShouldContain("route=imposter");
+        joined.ShouldContain("imposter=True");
+    }
+
+    [Fact]
+    public async Task Plan_logs_passthrough_route_kind_with_the_unmatched_inbound_model()
+    {
+        var logger = new CapturingLogger();
+        ImposterRouter router = Build(logger: logger);
+
+        await router.PlanAsync(ApiDialect.OpenAi, """{"model":"gpt5.5"}""", CallerHeaders.None, TestContext.Current.CancellationToken);
+
+        string joined = string.Join('\n', logger.Messages);
+        joined.ShouldContain("Routed OpenAi model 'gpt5.5' -> provider 'openai-official' as 'gpt5.5'");
+        joined.ShouldContain("route=passthrough");
+        joined.ShouldContain("imposter=False");
+    }
+
+    [Fact]
+    public async Task PlanPassthroughAsync_logs_body_less_route_as_no_model()
+    {
+        var logger = new CapturingLogger();
+        ImposterRouter router = Build(logger: logger);
+
+        await router.PlanPassthroughAsync(ApiDialect.OpenAi, CallerHeaders.None, TestContext.Current.CancellationToken);
+
+        string joined = string.Join('\n', logger.Messages);
+        joined.ShouldContain("Routed OpenAi body-less request -> provider 'openai-official'");
+        joined.ShouldContain("route=passthrough");
+        joined.ShouldContain("no model");
+    }
+
+    [Fact]
     public async Task PlanPassthroughAsync_accepts_caller_headers_and_returns_none_session()
     {
         // L0 coverage for the PlanPassthroughAsync signature change (HLD 009): the public interface
