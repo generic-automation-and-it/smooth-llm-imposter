@@ -44,9 +44,11 @@ accepts the OpenAI-style alias and forwards to xAI; see
 [OpenAI's model index](https://platform.openai.com/docs/models) for the imposter-side namespace
 and [xAI's model index](https://docs.x.ai/docs/models) for the upstream wire ID.
 
-Session identity forwarding is **off** for the OpenCode Go providers in this workspace script
-(`OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING=none` and `OPENCODE_GO_OPENAI_SESSION_FORWARDING=none`,
-the per-provider conventional vars), overriding the image default `SessionForwarding: opencode-go`.
+Session identity forwarding is left at the **image default** (`SessionForwarding: opencode-go`) for the
+OpenCode Go providers, so matched routes stamp `session_id` and `x-opencode-session`. The workspace script
+carries the per-provider opt-out (`OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING=none` and
+`OPENCODE_GO_OPENAI_SESSION_FORWARDING=none`) commented out; enabling it means uncommenting the two exports,
+adding both names to `--preserve-env`, and adding the two matching `-e` flags to the `docker run`.
 
 ## Snapshot script (install, configure, and pull the image)
 
@@ -356,11 +358,14 @@ export OPENCODE_GO_API_KEY="${OPENCODE_GO_API_KEY:-${OPENCODE_API_KEY:-}}"
 : "${OPENCODE_GO_API_KEY:?Set OPENCODE_API_KEY in the workspace environment.}"
 # Export so docker `-e OPENROUTER_API_KEY` can inherit the value (name-only pass-through).
 export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in the workspace environment.}"
-# Image default is SessionForwarding=opencode-go on both opencode-go-* providers.
-# Disable per-provider so matched routes do not stamp session_id / x-opencode-session.
-# (Per-provider vars — there is no shared prefix fallback for non-Secret fields.)
-export OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING="${OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING:-none}"
-export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWARDING:-none}"
+# Session forwarding is left at the image default (SessionForwarding=opencode-go
+# on both opencode-go-* providers), so matched routes stamp session_id and
+# x-opencode-session. To disable it, uncomment both exports below and the two
+# matching `-e` flags on the docker run, and add them to --preserve-env.
+# These are per-provider vars — there is no shared prefix fallback for
+# non-Secret fields, so each provider must be set individually.
+# export OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING="${OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING:-none}"
+# export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWARDING:-none}"
 
 # Prefer unprivileged Docker when the snapshot's docker-group membership is
 # active. Otherwise preserve the secrets through sudo so `-e NAME` remains a
@@ -368,7 +373,9 @@ export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWA
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
 elif sudo docker info >/dev/null 2>&1; then
-  DOCKER=(sudo --preserve-env=OPENCODE_GO_API_KEY,OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING,OPENCODE_GO_OPENAI_SESSION_FORWARDING,OPENROUTER_API_KEY docker)
+  # Append OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING,OPENCODE_GO_OPENAI_SESSION_FORWARDING
+  # here when enabling the session-forwarding overrides above.
+  DOCKER=(sudo --preserve-env=OPENCODE_GO_API_KEY,OPENROUTER_API_KEY docker)
 else
   echo "Docker failed to start; inspect /tmp/dockerd.log." >&2
   exit 1
@@ -379,6 +386,12 @@ fi
 # openrouter-* is absent from the published base image, so define the Anthropic
 # OpenRouter provider fully here (same env-var shape, but defines a new provider
 # because the base image omits it).
+#
+# To disable session forwarding, also add these two flags to the `run` below
+# (a `#` comment cannot go inside the backslash-continued argument list — it
+# would comment out every remaining line):
+#   -e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \
+#   -e OPENCODE_GO_OPENAI_SESSION_FORWARDING \
 "${DOCKER[@]}" rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 "${DOCKER[@]}" run -d \
   --name "$CONTAINER_NAME" \
@@ -409,8 +422,6 @@ fi
   -e "Imposter__Providers__opencode-go-openai__Models__2__From=gpt-5.6-luna" \
   -e "Imposter__Providers__opencode-go-openai__Models__2__To=grok-4.5" \
   -e OPENCODE_GO_API_KEY \
-  -e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \
-  -e OPENCODE_GO_OPENAI_SESSION_FORWARDING \
   -e OPENROUTER_API_KEY \
   "$IMAGE" >/dev/null
 
