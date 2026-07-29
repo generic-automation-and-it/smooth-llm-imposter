@@ -4,10 +4,12 @@
 
 This page contains exactly two Conductor scripts for an Amazon Linux 2023 cloud snapshot:
 
-1. The **snapshot script** installs the general CLI tooling and native Docker Engine + Compose; persists
-   `DOCKER_HOST`, `OPENAI_BASE_URL`, and `ANTHROPIC_BASE_URL`; configures Codex; pulls the published
-   SmoothLlmImposter image; and does not require provider credentials.
-2. The **workspace setup script** restarts the Docker daemon after snapshot restoration, reads
+1. The **snapshot script** installs the general CLI tooling (including GitHub Copilot CLI and
+   `code-review-graph`) and native Docker Engine + Compose; persists `DOCKER_HOST`, `OPENAI_BASE_URL`, and
+   `ANTHROPIC_BASE_URL`; configures Codex; pulls the published SmoothLlmImposter image; and does not require
+   provider credentials.
+2. The **workspace setup script** restarts the Docker daemon after snapshot restoration, wires
+   `code-review-graph` into Codex and Copilot CLI and builds the graph for the checked-out repository, reads
    `OPENCODE_API_KEY` and `OPENROUTER_API_KEY` from the workspace environment, creates the configured container
    from the already-pulled image, and waits for the router health endpoint.
 
@@ -42,9 +44,11 @@ accepts the OpenAI-style alias and forwards to xAI; see
 [OpenAI's model index](https://platform.openai.com/docs/models) for the imposter-side namespace
 and [xAI's model index](https://docs.x.ai/docs/models) for the upstream wire ID.
 
-Session identity forwarding is **off** for the OpenCode Go providers in this workspace script
-(`OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING=none` and `OPENCODE_GO_OPENAI_SESSION_FORWARDING=none`,
-the per-provider conventional vars), overriding the image default `SessionForwarding: opencode-go`.
+Session identity forwarding is left at the **image default** (`SessionForwarding: opencode-go`) for the
+OpenCode Go providers, so matched routes stamp `session_id` and `x-opencode-session`. The workspace script
+carries the per-provider opt-out (`OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING=none` and
+`OPENCODE_GO_OPENAI_SESSION_FORWARDING=none`) commented out; enabling it means uncommenting the two exports,
+adding both names to `--preserve-env`, and adding the two matching `-e` flags to the `docker run`.
 
 ## Snapshot script (install, configure, and pull the image)
 
@@ -72,6 +76,28 @@ If adding a Claude personal-subscription provider, `claude setup-token` can mint
 supply explicitly as that provider's `Secret` with the matching `AuthScheme`. See
 [`setup.md` → Minting the tokens](../setup.md#minting-the-tokens).
 
+> **`code-review-graph` behavior.** [`code-review-graph`](https://github.com/tirth8205/code-review-graph) parses
+> the repository with Tree-sitter into a local SQLite graph under `.code-review-graph/` and serves it to agents
+> over MCP. Two constraints shape where its steps run:
+>
+> - **Install it into a virtualenv, not `pip install --user`.** The tool validates each Tree-sitter grammar by
+>   loading it in a subprocess started with `python -I`. Isolated mode removes the per-user site-packages
+>   directory from `sys.path`, so under a `--user` install every grammar probe fails, `build` skips all files,
+>   and it still exits 0 — reporting success while producing a graph with zero nodes and zero edges. Verified on
+>   this repository: the `--user` install yielded `0 nodes, 0 edges`; the venv install yielded `1313 nodes,
+>   6650 edges` with C# parsed. `pipx` also works (it uses venvs internally) but is absent from the Amazon
+>   Linux 2023 repositories.
+> - **`install` and `build` are repository-scoped, so they belong to the workspace lifecycle.** `install` records
+>   an absolute repo path as the MCP server's `cwd`, and `build` writes into the working tree; neither is
+>   meaningful in the snapshot, which has no clone. Only the Python environment itself is snapshot-stable.
+>
+> The workspace configures the `codex` and `copilot-cli` platforms. `claude-code` is deliberately skipped: it
+> mutates tracked files (appending an MCP-tools section to `CLAUDE.md`, generating `.claude/skills`, and adding
+> hooks to `.agents/settings.json`), which conflicts with this repository's AGENTS.md conventions and would
+> leave an uncommitted diff in every workspace. The steps are non-fatal (`|| true`) so a code-intelligence
+> failure never blocks router startup. Both configured platforms write `.code-review-graph/` into the repository;
+> `install` adds that path to `.gitignore` automatically.
+
 > **Codex configuration behavior.** The snapshot replaces the top-level `model_provider` value and the complete
 > `[model_providers.smooth-llm-proxy]` table so Codex reliably selects this router after RTK configuration.
 > Unrelated settings—including MCP servers, RTK configuration, and other provider tables—are preserved. Before
@@ -91,6 +117,8 @@ sudo dnf install -y \
   git \
   python3 \
   python3-pip \
+  python3.12 \
+  python3.12-pip \
   expect \
   'dnf-command(config-manager)' \
   docker
@@ -120,6 +148,20 @@ curl -fsSL https://claude.ai/install.sh | bash
 curl -fsSL https://chatgpt.com/codex/install.sh | sh
 curl -fsSL https://pi.dev/install.sh | sh
 curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh
+# Installs to ~/.local/bin, which the PATH exports below already cover.
+curl -fsSL https://gh.io/copilot-install | bash
+
+# code-review-graph needs Python >= 3.10; Amazon Linux 2023's default python3 is
+# 3.9, so build a dedicated 3.12 virtualenv. A venv (not `pip install --user`) is
+# required: the tool probes each Tree-sitter grammar with `python -I`, and
+# isolated mode drops the per-user site-packages directory from sys.path. Under a
+# --user install every grammar probe fails, so `build` skips all files and still
+# exits 0 — a silent empty graph. Symlink the entry point onto PATH so the
+# workspace lifecycle and interactive shells resolve it without activation.
+python3.12 -m venv "$HOME/.local/crg"
+"$HOME/.local/crg/bin/pip" install --quiet --upgrade pip
+"$HOME/.local/crg/bin/pip" install --quiet code-review-graph
+sudo ln -sf "$HOME/.local/crg/bin/code-review-graph" /usr/local/bin/code-review-graph
 
 echo "--- [3] Persisting and loading the environment ---"
 DOCKER_HOST_VALUE="unix:///var/run/docker.sock"
@@ -292,6 +334,22 @@ sudo docker info >/dev/null 2>&1 || {
   exit 1
 }
 
+# code-review-graph is installed in the snapshot, but both `install` and `build`
+# are repository-scoped: `install` writes a repo-pinned `cwd` into each MCP
+# config, and `build` writes the graph into the working tree. The clone only
+# exists in the workspace, so run both here rather than during snapshot
+# construction. Only codex and copilot-cli are configured — the claude-code
+# platform also rewrites tracked files (it appends instructions to CLAUDE.md,
+# generates .claude/skills, and edits .agents/settings.json), which would leave
+# every workspace with an uncommitted diff.
+if command -v code-review-graph >/dev/null 2>&1 && git -C . rev-parse --git-dir >/dev/null 2>&1; then
+  code-review-graph install --platform codex || true
+  code-review-graph install --platform copilot-cli || true
+  code-review-graph build || true
+else
+  echo "Skipping code-review-graph setup (tool missing or not a git worktree)." >&2
+fi
+
 # Conductor injects these only into the workspace lifecycle, not snapshot
 # construction. Fall back from OPENCODE_GO_API_KEY to OPENCODE_API_KEY so either
 # name supplies the shared OpenCode Go key; OPENROUTER_API_KEY feeds the
@@ -300,11 +358,14 @@ export OPENCODE_GO_API_KEY="${OPENCODE_GO_API_KEY:-${OPENCODE_API_KEY:-}}"
 : "${OPENCODE_GO_API_KEY:?Set OPENCODE_API_KEY in the workspace environment.}"
 # Export so docker `-e OPENROUTER_API_KEY` can inherit the value (name-only pass-through).
 export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in the workspace environment.}"
-# Image default is SessionForwarding=opencode-go on both opencode-go-* providers.
-# Disable per-provider so matched routes do not stamp session_id / x-opencode-session.
-# (Per-provider vars — there is no shared prefix fallback for non-Secret fields.)
-export OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING="${OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING:-none}"
-export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWARDING:-none}"
+# Session forwarding is left at the image default (SessionForwarding=opencode-go
+# on both opencode-go-* providers), so matched routes stamp session_id and
+# x-opencode-session. To disable it, uncomment both exports below and the two
+# matching `-e` flags on the docker run, and add them to --preserve-env.
+# These are per-provider vars — there is no shared prefix fallback for
+# non-Secret fields, so each provider must be set individually.
+# export OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING="${OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING:-none}"
+# export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWARDING:-none}"
 
 # Prefer unprivileged Docker when the snapshot's docker-group membership is
 # active. Otherwise preserve the secrets through sudo so `-e NAME` remains a
@@ -312,7 +373,9 @@ export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWA
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
 elif sudo docker info >/dev/null 2>&1; then
-  DOCKER=(sudo --preserve-env=OPENCODE_GO_API_KEY,OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING,OPENCODE_GO_OPENAI_SESSION_FORWARDING,OPENROUTER_API_KEY docker)
+  # Append OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING,OPENCODE_GO_OPENAI_SESSION_FORWARDING
+  # here when enabling the session-forwarding overrides above.
+  DOCKER=(sudo --preserve-env=OPENCODE_GO_API_KEY,OPENROUTER_API_KEY docker)
 else
   echo "Docker failed to start; inspect /tmp/dockerd.log." >&2
   exit 1
@@ -323,6 +386,12 @@ fi
 # openrouter-* is absent from the published base image, so define the Anthropic
 # OpenRouter provider fully here (same env-var shape, but defines a new provider
 # because the base image omits it).
+#
+# To disable session forwarding, also add these two flags to the `run` below
+# (a `#` comment cannot go inside the backslash-continued argument list — it
+# would comment out every remaining line):
+#   -e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \
+#   -e OPENCODE_GO_OPENAI_SESSION_FORWARDING \
 "${DOCKER[@]}" rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 "${DOCKER[@]}" run -d \
   --name "$CONTAINER_NAME" \
@@ -346,7 +415,6 @@ fi
   -e "Imposter__Providers__opencode-go-openai__Dialect=openai" \
   -e "Imposter__Providers__opencode-go-openai__BaseUrl=https://opencode.ai/zen/go" \
   -e "Imposter__Providers__opencode-go-openai__AuthScheme=Bearer" \
-  -e "Imposter__Providers__opencode-go-openai__OpenAiUpstreamApi=chat_completions" \
   -e "Imposter__Providers__opencode-go-openai__Models__0__From=gpt-5.4" \
   -e "Imposter__Providers__opencode-go-openai__Models__0__To=kimi-k2.7-code" \
   -e "Imposter__Providers__opencode-go-openai__Models__1__From=gpt-5.5" \
@@ -354,8 +422,6 @@ fi
   -e "Imposter__Providers__opencode-go-openai__Models__2__From=gpt-5.6-luna" \
   -e "Imposter__Providers__opencode-go-openai__Models__2__To=grok-4.5" \
   -e OPENCODE_GO_API_KEY \
-  -e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \
-  -e OPENCODE_GO_OPENAI_SESSION_FORWARDING \
   -e OPENROUTER_API_KEY \
   "$IMAGE" >/dev/null
 
