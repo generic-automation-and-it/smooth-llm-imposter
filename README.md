@@ -222,6 +222,36 @@ Full design: [HLD 010 — Who-Message Introspection](.docs/hlds/010-who-message-
 
 ---
 
+## Skills
+
+Two Codex skills ship with this repo so an agent running through the imposter can confirm which upstream model it is really hitting, without spending upstream tokens or relying on the in-band `--who?` / `--newsession` switch (which the router does not synthesize on streaming requests — see [HLD 010](.docs/hlds/010-who-message-introspection/README.md), LADR-05).
+
+| Skill | What it does | Trigger |
+|---|---|---|
+| `imposter-who` | Send a non-streaming `--who?` probe to the router and print `Imposter: in → out (auth, session)`. Zero upstream HTTP calls. | `/imposter-who [--model gpt-5.5 --port 5080]` |
+| `imposter-newsession` | Mint a synthetic session id on the router and map the caller session to it; verify with `/imposter-who`. | `/imposter-newsession --session caller-id [--model gpt-5.5 --port 5080]` |
+
+### Install from the skills marketplace
+
+The marketplace lives at [`.agents/skills/.marketplace/`](.agents/skills/.marketplace/) and contains exactly these two installable skills. The `.`-prefixed parent keeps the catalog out of `ls` output and signals that it is an installable mirror, not part of the active skill tree — Claude Code's one-level-deep discovery would already skip it (it doesn't recurse into subfolders), but the dot makes the intent explicit. Install them with the Codex skill-installer:
+
+```bash
+# list what is available
+python3 $CODEX_HOME/skills/.system/skill-installer/scripts/list-skills.py \
+  --repo generic-automation-and-it/smooth-llm-imposter --path .agents/skills/.marketplace
+# install both
+python3 $CODEX_HOME/skills/.system/skill-installer/scripts/install-skill-from-github.py \
+  --repo generic-automation-and-it/smooth-llm-imposter \
+  --path .agents/skills/.marketplace/imposter-who --path .agents/skills/.marketplace/imposter-newsession
+```
+
+### Install into another repo, or the root `~/.codex/skills`
+
+- **Into another repo** (vendored, shared with the team): copy the two folders from [`.agents/skills/.marketplace/`](.agents/skills/.marketplace/) into `<repo>/.agents/skills/` and commit them. The skill loader discovers any folder one level under `.agents/skills/`.
+- **Into the root (personal, all your projects):** install into `$CODEX_HOME/skills` (defaults to `~/.codex/skills`) using the skill-installer command above with `--dest "$CODEX_HOME/skills"` — Codex auto-discovers skills there without a per-repo checkout.
+
+Both scripts auto-detect the dialect from `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` and accept `--port` to override the router port without re-setting the env vars.
+
 ## Documentation
 
 | Topic | Location |

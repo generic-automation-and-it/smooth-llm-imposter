@@ -1,0 +1,4 @@
+interface:
+  display_name: "Imposter Who"
+  short_description: "Probe the imposter router for the resolved upstream model behind the current harness"
+  default_prompt: "Run the imposter-who probe to discover which upstream model the router resolves the inbound model to."

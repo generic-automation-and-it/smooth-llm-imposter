@@ -1,0 +1,4 @@
+interface:
+  display_name: "Imposter New Session"
+  short_description: "Mint a synthetic upstream session id on the imposter router"
+  default_prompt: "Mint a new synthetic session id on the imposter router and map it to the current caller session."

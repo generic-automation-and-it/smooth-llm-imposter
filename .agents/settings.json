@@ -46,6 +46,8 @@
       "Skill(git-commit-push-pr)",
       "Skill(git-commit-review-push)",
       "Skill(git-sync)",
+      "Skill(imposter-newsession)",
+      "Skill(imposter-who)",
       "Skill(manage-rule-system)",
       "Bash(node:*)",
       "Bash(powershell.exe:*)",
