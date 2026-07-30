@@ -1,8 +1,10 @@
 name: Publish image
 
 # Builds the Host container image from the repo Dockerfile and pushes it to the
-# GitHub Container Registry (GHCR). Runs on every push to main (tagged :latest)
-# and on version tags v* (semver tags), plus manual dispatch.
+# GitHub Container Registry (GHCR). Runs on every push to main (tagged :latest),
+# on version tags v* (semver tags), and on manual dispatch. A manual dispatch
+# never produces the :latest tag — it publishes the user-supplied pre-release
+# version (e.g. 1.0.0-rc.1) so pre-release versions can be cut from any branch.
 
 on:
   push:
@@ -11,6 +13,11 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Pre-release version tag to publish (e.g. 1.0.0-rc.1)"
+        required: true
+        type: string
 
 concurrency:
   group: publish-image-${{ github.ref }}
@@ -52,7 +59,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ inputs.version }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,format=short
