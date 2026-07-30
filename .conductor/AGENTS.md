@@ -43,6 +43,11 @@ at scripts under `.conductor/scripts/`, which start the imposter container and, 
 
 ## Key Behaviors
 
+- **Session forwarding opt-out** — `imposter-container.sh` defaults both
+  `OPENCODE_GO_{ANTHROPIC,OPENAI}_SESSION_FORWARDING` to `none` in the host shell, preserves them through
+  `sudo --preserve-env`, and passes the matching `-e` flags to `docker run` so the container sees them.
+  Matched routes therefore do **not** stamp `session_id` / `x-opencode-session`. To re-enable, comment out
+  both exports, remove both names from `--preserve-env`, and remove the two `-e` flags.
 - **Enabling this in a new workspace.** Nothing to configure beyond secrets: once
   `.conductor/settings.toml` is on the branch a workspace is created from, Conductor runs its `setup` script
   automatically. The only prerequisite is that the workspace has `OPENCODE_API_KEY` and `OPENROUTER_API_KEY`
