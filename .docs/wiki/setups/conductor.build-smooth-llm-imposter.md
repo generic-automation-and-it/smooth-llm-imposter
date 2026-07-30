@@ -28,7 +28,7 @@ It configures these imposter mappings:
 | Anthropic | `claude-sonnet-4-6` | OpenCode Go | `qwen3.6-plus` |
 | Anthropic | `claude-opus-4-6` | OpenCode Go | `qwen3.7-plus` |
 | Anthropic | `claude-opus-4-8` | OpenCode Go | `qwen3.7-max` |
-| Anthropic | `claude-haiku-*` | OpenRouter | `tencent/hy3` |
+| Anthropic | `claude-haiku-*` | OpenRouter | `inclusionai/ling-3.0-flash:free` |
 | OpenAI | `gpt-5.4` | OpenCode Go | `kimi-k2.7-code` |
 | OpenAI | `gpt-5.5` | OpenCode Go | `glm-5.2` |
 | OpenAI | `gpt-5.6-luna` | OpenCode Go | `grok-4.5` |
@@ -39,7 +39,7 @@ illustrative mappings and caching choices in
 truth for this script. OpenCode Go target IDs are bare upstream strings with no `opencode-go/` prefix,
 consistent with the live-upstream
 [`OpencodeToolNormalizationEvalTests.cs`](../../../tests/SmoothLlmImposter.Upstream.EvalTest/OpencodeToolNormalizationEvalTests.cs).
-OpenRouter targets keep the provider-prefixed slug the OpenRouter API expects (here `tencent/hy3`).
+OpenRouter targets keep the provider-prefixed slug the OpenRouter API expects (here `inclusionai/ling-3.0-flash:free`).
 
 Inbound API model names (the `From` column above) are imposter-side aliases — they are what
 clients send to the proxy. The `To` column names the upstream wire ID, which is the identifier
@@ -455,7 +455,7 @@ fi
   -e "Imposter__Providers__openrouter-anthropic__BaseUrl=https://openrouter.ai/api" \
   -e "Imposter__Providers__openrouter-anthropic__AuthScheme=ApiKey" \
   -e "Imposter__Providers__openrouter-anthropic__Models__0__From=claude-haiku-*" \
-  -e "Imposter__Providers__openrouter-anthropic__Models__0__To=tencent/hy3" \
+  -e "Imposter__Providers__openrouter-anthropic__Models__0__To=inclusionai/ling-3.0-flash:free" \
   -e "Imposter__Providers__opencode-go-openai__Dialect=openai" \
   -e "Imposter__Providers__opencode-go-openai__BaseUrl=https://opencode.ai/zen/go" \
   -e "Imposter__Providers__opencode-go-openai__AuthScheme=Bearer" \
