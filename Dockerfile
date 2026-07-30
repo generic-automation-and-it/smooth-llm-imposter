@@ -6,7 +6,7 @@
 # instructions.
 
 # ── Build stage ───────────────────────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /build
 
 # Central build/package management files first, then the source. Restoring the
@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
       -c Release -o /app --no-restore
 
 # ── Runtime stage ─────────────────────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
 WORKDIR /app
 COPY --from=build /app ./
 
@@ -32,6 +32,7 @@ ENV ASPNETCORE_URLS=http://+:5080
 EXPOSE 5080
 USER $APP_UID
 
-# Note: the aspnet runtime image has no curl/wget, so no in-image HEALTHCHECK —
-# probe http://localhost:5080/health from the host instead (see the setup doc).
+# Note: no in-image HEALTHCHECK is defined here (the alpine image does ship wget,
+# but adding one is out of scope) — probe http://localhost:5080/health from the
+# host instead (see the setup doc).
 ENTRYPOINT ["./SmoothLlmImposter.Host"]
