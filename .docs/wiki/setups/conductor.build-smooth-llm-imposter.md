@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-This page contains exactly two Conductor scripts for an Amazon Linux 2023 cloud snapshot:
+This page covers two Conductor script roles (snapshot and workspace) plus their shared source of truth in `.conductor/`:
 
 1. The **snapshot script** installs the general CLI tooling (including GitHub Copilot CLI, `uv`, and
    `code-review-graph`) and native Docker Engine + Compose; persists `DOCKER_HOST`, `OPENAI_BASE_URL`, and
@@ -48,9 +48,9 @@ accepts the OpenAI-style alias and forwards to xAI; see
 [OpenAI's model index](https://platform.openai.com/docs/models) for the imposter-side namespace
 and [xAI's model index](https://docs.x.ai/docs/models) for the upstream wire ID.
 
-Session identity forwarding defaults to the **image default** (`SessionForwarding: opencode-go`) for the
-OpenCode Go providers, so matched routes stamp `session_id` and `x-opencode-session`. The shared workspace
-script actively disables this per-provider (`OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING=none` and
+The image default enables session identity forwarding (`SessionForwarding: opencode-go`) for the OpenCode Go
+providers, so matched routes stamp `session_id` and `x-opencode-session`. The shared workspace script actively
+disables this per-provider (`OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING=none` and
 `OPENCODE_GO_OPENAI_SESSION_FORWARDING=none`) — both exports are uncommented, both names are in `--preserve-env`,
 and both matching `-e` flags are passed to the `docker run`. To re-enable forwarding, comment out the two exports,
 remove both names from `--preserve-env`, and remove the two `-e` flags.
@@ -511,43 +511,12 @@ This only covers the **workspace** script. The **snapshot** script (installing D
 has no `.conductor/settings.toml` equivalent — Conductor snapshots are cloud-environment configuration, not a
 repository setting — so it stays a manually-pasted UI field, documented as the snapshot script above.
 
-`setup.sh` folds in the `code-review-graph` wiring, so `.conductor/settings.toml` is now the source of truth for
-that block rather than a copy-pasted UI field:
+`setup.sh` (see `.conductor/scripts/setup.sh`) installs the four platforms with
+`--no-instructions` on all of them and `--no-skills --no-hooks` on
+`claude-code` only. The project-scoped MCP configs (`.mcp.json`,
+`opencode.jsonc`) are excluded from `git status` via `.git/info/exclude`. See
+the source for the exact `install` flags.
 
-```bash
-# code-review-graph is installed in the snapshot, but both `install` and `build`
-# are repository-scoped: `install` writes a repo-pinned `cwd` into each MCP
-# config, and `build` writes the graph into the working tree. The clone only
-# exists in the workspace, so run both here rather than during snapshot
-# construction.
-#
-# --no-instructions is mandatory on every platform. Without it `install` appends
-# a ~39-line MCP-tools section to CLAUDE.md, which in this repository is a
-# committed symlink to AGENTS.md — the append lands in the root context file.
-#
-# claude-code needs two more guards. Its skills and hooks resolve through the
-# committed `.claude -> .agents` symlink into `.agents/skills/` (81 tracked
-# files) and `.agents/settings.json`. codex, copilot-cli, and opencode write
-# their hooks and plugins under $HOME instead, so they keep those defaults.
-if command -v code-review-graph >/dev/null 2>&1 && git -C . rev-parse --git-dir >/dev/null 2>&1; then
-  for generated in .code-review-graph/ .mcp.json opencode.jsonc; do
-    grep -Fqx "$generated" .git/info/exclude 2>/dev/null ||
-      echo "$generated" >>.git/info/exclude
-  done
-
-  code-review-graph install --platform codex       -y --no-instructions || true
-  code-review-graph install --platform copilot-cli -y --no-instructions || true
-  code-review-graph install --platform opencode    -y --no-instructions || true
-  code-review-graph install --platform claude-code -y --no-instructions \
-    --no-skills --no-hooks || true
-  code-review-graph build || true
-else
-  echo "Skipping code-review-graph setup (tool missing or not a git worktree)." >&2
-fi
-```
-
-The two project-scoped configs it generates (`.mcp.json` from `claude-code`, `opencode.jsonc` from `opencode`) are
-added to `.git/info/exclude` rather than `.gitignore` — repo-local and itself untracked, so it hides them from
-every workspace's diff without editing a tracked file. `.gitignore` still picks up one line
-(`.code-review-graph/`) because `install` appends to it directly rather than consulting `git check-ignore`; that
-behavior predates this script and applies to all platforms.
+The two project-scoped configs (`.mcp.json`, `opencode.jsonc`) plus the
+`.code-review-graph/` directory are added to `.git/info/exclude` rather than
+`.gitignore`, keeping workspace diffs clean without touching a tracked file.

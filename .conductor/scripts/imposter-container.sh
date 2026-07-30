@@ -12,6 +12,10 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 # Background daemons do not survive snapshot restoration or workspace resume.
+if ! sudo -n true 2>/dev/null; then
+  echo "sudo requires a password; configure NOPASSWD for dockerd or run interactively." >&2
+  exit 1
+fi
 if ! sudo docker info >/dev/null 2>&1; then
   sudo nohup dockerd </dev/null >/tmp/dockerd.log 2>&1 &
 
@@ -31,7 +35,7 @@ sudo docker info >/dev/null 2>&1 || {
 # OpenCode Go dialect providers; OPENROUTER_API_KEY feeds the OpenRouter
 # Anthropic-dialect haiku route.
 export OPENCODE_GO_API_KEY="${OPENCODE_GO_API_KEY:-${OPENCODE_API_KEY:-}}"
-: "${OPENCODE_GO_API_KEY:?Set OPENCODE_API_KEY in the workspace environment.}"
+: "${OPENCODE_GO_API_KEY:?Set OPENCODE_API_KEY or OPENCODE_GO_API_KEY in the workspace environment.}"
 # Export so docker `-e OPENROUTER_API_KEY` can inherit the value (name-only pass-through).
 export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in the workspace environment.}"
 # Image default is SessionForwarding=opencode-go on both opencode-go-* providers.
