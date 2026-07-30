@@ -1,8 +1,10 @@
 ---
-applyTo: '**/*.{cs,ts,js,py,go,rs,java,kt,swift}'
-description: >-
-  Use code-review-graph MCP tools for token-efficient
-  codebase exploration and code review.
+description: 'Use code-review-graph MCP tools for token-efficient codebase exploration and code review.'
+globs: "**"
+paths:
+  - "**"
+applyTo: '**'
+alwaysApply: true
 ---
 
 <!-- code-review-graph MCP tools -->
