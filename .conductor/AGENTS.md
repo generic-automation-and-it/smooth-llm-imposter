@@ -33,6 +33,14 @@ at scripts under `.conductor/scripts/`, which start the imposter container and, 
   the workspace environment and fails fast (`:?`) if either is unset — that's Conductor's job to supply, not
   this script's.
 
+## Architecture Decisions
+
+| Decision | Rejected alternative | Why |
+|---|---|---|
+| Extract the container lifecycle into its own file (`imposter-container.sh`), called by both `setup.sh` and `restart-imposter.sh` | Inline the `docker run` separately in each of `[scripts] setup` and `[scripts.run.restart-imposter]` as TOML strings, matching Conductor's own simple `pnpm install`-style example | Two copies of ~30 `-e` flags drift silently — this is exactly how the `opencode-go-anthropic` index-2 collision happened in the personal script this replaced. |
+| Commit `.conductor/settings.toml` + `.conductor/scripts/*.sh` | Keep the workspace script only in `.conductor/settings.local.toml` (as it existed before this change) | `settings.local.toml` is machine-local; every teammate had to hand-paste the script into their own workspace to get it at all. |
+| Keep `code-review-graph install --platform claude-code` (flag-gated) rather than excluding the platform entirely | Skip `claude-code` outright, as the original wiki doc did, because default `install` mutates tracked files | `--no-instructions --no-skills --no-hooks` gets the same safety (only writes untracked `.mcp.json`) without losing the fourth platform's code-intelligence coverage. |
+
 ## Key Behaviors
 
 - **Enabling this in a new workspace.** Nothing to configure beyond secrets: once
@@ -73,14 +81,6 @@ at scripts under `.conductor/scripts/`, which start the imposter container and, 
   still appends `.code-review-graph/` to the tracked `.gitignore` directly (all platforms, predates this
   script) — that one line is expected to show up as a diff in every workspace.
 
-## Architecture Decisions
-
-| Decision | Rejected alternative | Why |
-|---|---|---|
-| Extract the container lifecycle into its own file (`imposter-container.sh`), called by both `setup.sh` and `restart-imposter.sh` | Inline the `docker run` separately in each of `[scripts] setup` and `[scripts.run.restart-imposter]` as TOML strings, matching Conductor's own simple `pnpm install`-style example | Two copies of ~30 `-e` flags drift silently — this is exactly how the `opencode-go-anthropic` index-2 collision happened in the personal script this replaced. |
-| Commit `.conductor/settings.toml` + `.conductor/scripts/*.sh` | Keep the workspace script only in `.conductor/settings.local.toml` (as it existed before this change) | `settings.local.toml` is machine-local; every teammate had to hand-paste the script into their own workspace to get it at all. |
-| Keep `code-review-graph install --platform claude-code` (flag-gated) rather than excluding the platform entirely | Skip `claude-code` outright, as the original wiki doc did, because default `install` mutates tracked files | `--no-instructions --no-skills --no-hooks` gets the same safety (only writes untracked `.mcp.json`) without losing the fourth platform's code-intelligence coverage. |
-
 ## Migration Plans
 
 Any teammate's pre-existing `.conductor/settings.local.toml` that duplicates this shared script's container
@@ -93,3 +93,4 @@ manual cleanup step per teammate, not something this script can detect or warn a
 | Date | Change | Ref |
 | :---- | :---- | :---- |
 | 2026-07-30 | Initial version. Extracted the workspace setup script (previously personal-only, in `.conductor/settings.local.toml`) into shared `.conductor/settings.toml` + `.conductor/scripts/{setup,restart-imposter,imposter-container}.sh`. Fixed a real bug found while extracting: `opencode-go-anthropic` provider index `2` was defined twice (`claude-opus-4-7→minimax-m3` then `claude-opus-4-8→qwen3.7-max`), silently dropping `opus-4-7` from routing since Docker's env map keeps the later `-e` for a repeated name. Resolved as `opus-4-8→qwen3.7-max`, `opus-4-7` dropped (not kept as a third index) — confirmed with repo owner. | — |
+| 2026-07-30 | Fix section ordering: move `Architecture Decisions` before `Key Behaviors` per quality standards. | — |
