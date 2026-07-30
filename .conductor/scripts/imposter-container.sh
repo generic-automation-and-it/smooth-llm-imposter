@@ -84,7 +84,7 @@ fi
   -e "Imposter__Providers__openrouter-anthropic__BaseUrl=https://openrouter.ai/api" \
   -e "Imposter__Providers__openrouter-anthropic__AuthScheme=ApiKey" \
   -e "Imposter__Providers__openrouter-anthropic__Models__0__From=claude-haiku-*" \
-  -e "Imposter__Providers__openrouter-anthropic__Models__0__To=tencent/hy3" \
+  -e "Imposter__Providers__openrouter-anthropic__Models__0__To=inclusionai/ling-3.0-flash:free" \
   -e "Imposter__Providers__opencode-go-openai__Dialect=openai" \
   -e "Imposter__Providers__opencode-go-openai__BaseUrl=https://opencode.ai/zen/go" \
   -e "Imposter__Providers__opencode-go-openai__AuthScheme=Bearer" \

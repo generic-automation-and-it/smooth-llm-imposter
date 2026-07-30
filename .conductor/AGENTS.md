@@ -76,6 +76,11 @@ at scripts under `.conductor/scripts/`, which start the imposter container and, 
 - **Idempotent recreate, not incremental update.** Every run (`setup` or `restart-imposter`) does
   `docker rm -f` then `docker run -d` unconditionally — there's no update-in-place path, no volumes to lose,
   and no state carried between recreations beyond what's baked into the image + the `-e` flags.
+- **Current imposter model mappings** (single source of truth: the `-e` flags in `imposter-container.sh`):
+  `claude-sonnet-4-6`/`claude-opus-4-6`/`claude-opus-4-8` → OpenCode Go `qwen3.6-plus`/`qwen3.7-plus`/`qwen3.7-max`;
+  `claude-haiku-*` → OpenRouter Anthropic `inclusionai/ling-3.0-flash:free`; `gpt-5.4`/`gpt-5.5`/`gpt-5.6-luna` →
+  OpenCode Go `kimi-k2.7-code`/`glm-5.2`/`grok-4.5`. OpenRouter targets keep the provider-prefixed slug
+  (e.g. `inclusionai/ling-3.0-flash:free`) the OpenRouter API expects.
 - **The MCP servers `code-review-graph install` configures all invoke `uvx code-review-graph serve`**,
   regardless of platform. If a workspace's snapshot doesn't have `uv` on `PATH`, the generated MCP configs are
   written successfully but the servers themselves cannot start — `code-review-graph build` still exits 0 in
@@ -99,3 +104,4 @@ manual cleanup step per teammate, not something this script can detect or warn a
 | :---- | :---- | :---- |
 | 2026-07-30 | Initial version. Extracted the workspace setup script (previously personal-only, in `.conductor/settings.local.toml`) into shared `.conductor/settings.toml` + `.conductor/scripts/{setup,restart-imposter,imposter-container}.sh`. Fixed a real bug found while extracting: `opencode-go-anthropic` provider index `2` was defined twice (`claude-opus-4-7→minimax-m3` then `claude-opus-4-8→qwen3.7-max`), silently dropping `opus-4-7` from routing since Docker's env map keeps the later `-e` for a repeated name. Resolved as `opus-4-8→qwen3.7-max`, `opus-4-7` dropped (not kept as a third index) — confirmed with repo owner. | — |
 | 2026-07-30 | Fix section ordering: move `Architecture Decisions` before `Key Behaviors` per quality standards. | — |
+| 2026-07-30 | Swapped the OpenRouter Anthropic (`openrouter-anthropic`) haiku route target from `tencent/hy3` to `inclusionai/ling-3.0-flash:free` in `imposter-container.sh` (`Imposter__Providers__openrouter-anthropic__Models__0__To`) and documented the current model mappings in Key Behaviors. | — |
