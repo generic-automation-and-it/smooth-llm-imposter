@@ -1,5 +1,5 @@
 ---
-applyTo: '**'
+applyTo: '**/*.{cs,ts,js,py,go,rs,java,kt,swift}'
 description: >-
   Use code-review-graph MCP tools for token-efficient
   codebase exploration and code review.
@@ -26,6 +26,8 @@ Fall back to file/search tools **only** when the graph doesn't
 cover what you need.
 
 ### Key Tools
+
+See [`.github/CODE_REVIEW_GRAPH_AGENTS.md`](./CODE_REVIEW_GRAPH_AGENTS.md) for the canonical tool reference. The following summary is provided for inline lookup:
 
 | Tool | Use when |
 | ------ | ---------- |

@@ -74,7 +74,7 @@ dotnet run --project src/SmoothLlmImposter.Host     # run the router locally
 
 Target a single test project directly when needed (e.g. `dotnet test tests/SmoothLlmImposter.Domain.UnitTest`); `ls tests/` lists them. Tests are infra-free (no Docker/DB) — integration tests stub the upstream transport in-process.
 
-Container builds intentionally mirror the repo-root layout inside the SDK stage (`src/SmoothLlmImposter.*` under a non-`/src` working directory). When editing `Dockerfile`, keep `SmoothLlmImposter.slnx`, `Directory.*.props`, `NuGet.Config`, and `src/` in their repo-root-relative positions so solution/project references and central package props continue to resolve. Both stages use `-alpine` variants (`.NET 10`); Alpine ships `wget` (no `curl`), and the image is ~131 MB (~45% smaller than the prior Debian base).
+Container builds intentionally mirror the repo-root layout inside the SDK stage (`src/SmoothLlmImposter.*` under a non-`/src` working directory). When editing `Dockerfile`, keep `SmoothLlmImposter.slnx`, `Directory.*.props`, `NuGet.Config`, and `src/` in their repo-root-relative positions so solution/project references and central package props continue to resolve.
 
 ## Test Framework
 
@@ -100,6 +100,8 @@ The [`README.md` → How it works](README.md#how-it-works) **HLD table is the hu
 PR gate — `.github/workflows/pr-gate.yml` (triggers: `pull_request` → `main`, `push` → `main`, `workflow_dispatch`): restore → build (Release) → test with coverage via the local action `.github/actions/test-with-coverage`, then publish + upload the coverage report. The job declares one WireMock service container (`127.0.0.1:19091`) as its only external dependency — no PostgreSQL/Redis/Aspire. Full step list, service ports, and local .NET tools: `.docs/wiki/ci.md`.
 
 Container image publishing — `.github/workflows/publish-image.yml` pushes `ghcr.io/generic-automation-and-it/smooth-llm-imposter` from the repo-root `Dockerfile`. Keep published tags multi-architecture for both `linux/amd64` and `linux/arm64`; QEMU must be configured before Buildx because the Dockerfile runs `dotnet restore` and `dotnet publish` during target-platform builds.
+
+**Container base image:** Both `Dockerfile` stages use `-alpine` variants (`.NET 10`); the published image is ~131 MB (~45% smaller than the prior Debian base). Alpine ships `wget` (no `curl`), so the Dockerfile's debug-tool comment was updated accordingly. Verified multi-platform build still succeeds for `linux/amd64` and `linux/arm64`.
 
 ## Git Constraints
 

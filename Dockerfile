@@ -32,7 +32,7 @@ ENV ASPNETCORE_URLS=http://+:5080
 EXPOSE 5080
 USER $APP_UID
 
-# Note: no in-image HEALTHCHECK is defined here (the alpine image does ship wget,
-# but adding one is out of scope) — probe http://localhost:5080/health from the
-# host instead (see the setup doc).
+# No in-image HEALTHCHECK is defined (deferred — the alpine base ships wget,
+# so a future change could add one in-image; for now probe
+# http://localhost:5080/health from the host, see the setup doc).
 ENTRYPOINT ["./SmoothLlmImposter.Host"]
