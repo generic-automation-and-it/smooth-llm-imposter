@@ -48,11 +48,12 @@ accepts the OpenAI-style alias and forwards to xAI; see
 [OpenAI's model index](https://platform.openai.com/docs/models) for the imposter-side namespace
 and [xAI's model index](https://docs.x.ai/docs/models) for the upstream wire ID.
 
-Session identity forwarding is left at the **image default** (`SessionForwarding: opencode-go`) for the
-OpenCode Go providers, so matched routes stamp `session_id` and `x-opencode-session`. The workspace script
-carries the per-provider opt-out (`OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING=none` and
-`OPENCODE_GO_OPENAI_SESSION_FORWARDING=none`) commented out; enabling it means uncommenting the two exports,
-adding both names to `--preserve-env`, and adding the two matching `-e` flags to the `docker run`.
+Session identity forwarding defaults to the **image default** (`SessionForwarding: opencode-go`) for the
+OpenCode Go providers, so matched routes stamp `session_id` and `x-opencode-session`. The shared workspace
+script actively disables this per-provider (`OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING=none` and
+`OPENCODE_GO_OPENAI_SESSION_FORWARDING=none`) — both exports are uncommented, both names are in `--preserve-env`,
+and both matching `-e` flags are passed to the `docker run`. To re-enable forwarding, comment out the two exports,
+remove both names from `--preserve-env`, and remove the two `-e` flags.
 
 ## Snapshot script (install, configure, and pull the image)
 
@@ -410,14 +411,12 @@ export OPENCODE_GO_API_KEY="${OPENCODE_GO_API_KEY:-${OPENCODE_API_KEY:-}}"
 : "${OPENCODE_GO_API_KEY:?Set OPENCODE_API_KEY in the workspace environment.}"
 # Export so docker `-e OPENROUTER_API_KEY` can inherit the value (name-only pass-through).
 export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in the workspace environment.}"
-# Session forwarding is left at the image default (SessionForwarding=opencode-go
-# on both opencode-go-* providers), so matched routes stamp session_id and
-# x-opencode-session. To disable it, uncomment both exports below and the two
-# matching `-e` flags on the docker run, and add them to --preserve-env.
+# Session forwarding is actively disabled per-provider (see imposter-container.sh
+# lines 40-41) so matched routes do not stamp session_id / x-opencode-session.
 # These are per-provider vars — there is no shared prefix fallback for
 # non-Secret fields, so each provider must be set individually.
-# export OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING="${OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING:-none}"
-# export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWARDING:-none}"
+export OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING="${OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING:-none}"
+export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWARDING:-none}"
 
 # Prefer unprivileged Docker when the snapshot's docker-group membership is
 # active. Otherwise preserve the secrets through sudo so `-e NAME` remains a
@@ -425,9 +424,7 @@ export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in the w
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
 elif sudo docker info >/dev/null 2>&1; then
-  # Append OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING,OPENCODE_GO_OPENAI_SESSION_FORWARDING
-  # here when enabling the session-forwarding overrides above.
-  DOCKER=(sudo --preserve-env=OPENCODE_GO_API_KEY,OPENROUTER_API_KEY docker)
+  DOCKER=(sudo --preserve-env=OPENCODE_GO_API_KEY,OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING,OPENCODE_GO_OPENAI_SESSION_FORWARDING,OPENROUTER_API_KEY docker)
 else
   echo "Docker failed to start; inspect /tmp/dockerd.log." >&2
   exit 1
@@ -439,11 +436,6 @@ fi
 # OpenRouter provider fully here (same env-var shape, but defines a new provider
 # because the base image omits it).
 #
-# To disable session forwarding, also add these two flags to the `run` below
-# (a `#` comment cannot go inside the backslash-continued argument list — it
-# would comment out every remaining line):
-#   -e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \
-#   -e OPENCODE_GO_OPENAI_SESSION_FORWARDING \
 "${DOCKER[@]}" rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 "${DOCKER[@]}" run -d \
   --name "$CONTAINER_NAME" \
@@ -475,6 +467,8 @@ fi
   -e "Imposter__Providers__opencode-go-openai__Models__2__To=grok-4.5" \
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \
+  -e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \
+  -e OPENCODE_GO_OPENAI_SESSION_FORWARDING \
   "$IMAGE" >/dev/null
 
 for _ in $(seq 1 30); do
@@ -493,6 +487,10 @@ exit 1
 The workspace must expose `OPENCODE_API_KEY` and `OPENROUTER_API_KEY`; no provider secret is required or
 expected while constructing the snapshot. Re-running the workspace script recreates the container so current
 provider settings and the current workspace secrets always take effect.
+
+> **The `docker run` invocation above is identical to `.conductor/scripts/imposter-container.sh`.**
+> Use the shared script for any non-exploratory setup; the manual copy is shown only
+> to explain each flag. **Do not** diverge from the shared script — it is the source of truth.
 
 ## Shared Conductor script (recommended over the manual paste-in above)
 
