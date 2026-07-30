@@ -89,6 +89,8 @@ fi
   -e "Imposter__Providers__opencode-go-openai__Models__2__To=grok-4.5" \
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \
+  -e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \
+  -e OPENCODE_GO_OPENAI_SESSION_FORWARDING \
   "$IMAGE" >/dev/null
 
 for _ in $(seq 1 30); do
