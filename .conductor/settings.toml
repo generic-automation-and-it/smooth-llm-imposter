@@ -1,0 +1,9 @@
+"$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
+
+[scripts]
+setup = "./.conductor/scripts/setup.sh"
+run_mode = "nonconcurrent"
+
+[scripts.run.restart-imposter]
+command = "./.conductor/scripts/restart-imposter.sh"
+icon = "refresh-cw"
