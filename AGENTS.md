@@ -122,6 +122,34 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-07-30: Added `.conductor/AGENTS.md`, the functional context file for the shared Conductor scripts
+  described in the entry below — non-negotiables (single-source `docker run`, required `code-review-graph`
+  flags, `run_mode`), setup/trigger instructions, the local-macOS-unverified caveat, and the
+  `settings.local.toml` precedence gotcha (Conductor resolves settings per-value across layers per its own
+  docs; a local `setup` value wins over this file's silently, so verify which one ran rather than assume).
+- 2026-07-30: Added `.conductor/settings.toml` (committed, shared) so the workspace setup script — Docker
+  container lifecycle plus the `code-review-graph` wiring documented below — reaches every teammate on clone
+  instead of living only in each person's gitignored `.conductor/settings.local.toml`. The container `docker run`
+  invocation lives once, in `.conductor/scripts/imposter-container.sh`; `setup.sh` (the `[scripts] setup`
+  entrypoint) runs code-review-graph wiring then calls it, and `restart-imposter.sh` (the new
+  `[scripts.run.restart-imposter]` on-demand trigger) calls it directly — recreates the container without
+  rerunning code-review-graph or recreating the workspace, for a new image tag, a rotated
+  `OPENCODE_API_KEY`/`OPENROUTER_API_KEY`, or a crash-looped container. `run_mode = "nonconcurrent"`: the
+  container uses a fixed name and a fixed host port, so two workspaces racing setup/restart at once would
+  collide. While extracting this, found the source `settings.local.toml` defined `opencode-go-anthropic`
+  provider index 2 twice (`claude-opus-4-7→minimax-m3`, then a differently-indented `claude-opus-4-8→qwen3.7-max`)
+  — Docker's env map keeps the later `-e` for a repeated name, so `claude-opus-4-7` was silently unrouted.
+  Confirmed with the user: `opus-4-8→qwen3.7-max` is intentional; `opus-4-7` is dropped, not added as a third
+  index. Updated the mapping table and embedded script in the wiki doc to match. Verified end-to-end: `bash -n`
+  on all three new scripts, `.conductor/settings.toml` validated against the real
+  `settings.repo.schema.json` (via `jsonschema`), and `setup.sh` run for real in this sandbox — code-review-graph
+  installed on all four platforms (215 files / 1326 nodes / 6861 edges), and the container came up healthy on
+  `127.0.0.1:5080`. That run used this sandbox's real credentials and Docker daemon (inherited from the shell
+  environment, not scoped to a throwaway clone) and recreated the workspace's already-running
+  `smooth-llm-imposter` container — the intended restart behavior, not an isolated test, but worth knowing since
+  it mutated live local state rather than a disposable one.
+- 2026-07-30: Conductor workspace setup wires `code-review-graph` into two more platforms — `opencode` and `claude-code` — alongside the existing `codex` and `copilot-cli`. `claude-code` was previously excluded for mutating tracked files; `--no-skills --no-hooks` removes that (its skills/hooks otherwise resolve through the committed `.claude -> .agents` symlink into `.agents/skills/` and `.agents/settings.json`). `--no-instructions` is now passed to **all four**: by default `install` appends a ~39-line section to `CLAUDE.md`, which is a committed symlink to `AGENTS.md`, so the append lands in the root context file — dormant today only because the lifecycle has no TTY. The two project-scoped configs (`.mcp.json`, `opencode.jsonc`) are added to `.git/info/exclude` rather than `.gitignore`, keeping workspace diffs clean without touching a tracked file. Known residue: `install` still appends `.code-review-graph/` to `.gitignore` because it greps that file instead of consulting `git check-ignore`. Verified in a throwaway clone: all four configured, `AGENTS.md`/`.agents/settings.json` untouched, graph built at 215 files / 1326 nodes / 6861 edges.
+- 2026-07-30: Conductor snapshot setup installs `uv` (astral.sh) alongside the other CLI tooling in step [2]. The installer is piped into `env UV_NO_MODIFY_PATH=1 sh` rather than bare `sh`: the variable must be set on the *right* side of the pipe, since a `VAR=x curl ... | sh` prefix only reaches `curl`. Without it the installer defaults to `NO_MODIFY_PATH=0` and appends its own PATH line to `.bashrc`/`.zshrc`, competing with step [3], which is the single owner of those files. Verified on AL2023: installs `uv` + `uvx` to `~/.local/bin` (already covered by the step [3] PATH exports) with all shell rc files unchanged. This is a functional fix, not a convenience: every `code-review-graph install` writes an MCP config whose command is `uvx code-review-graph serve`, for all platforms, regardless of how the tool itself was installed. The snapshot's venv + `/usr/local/bin` symlink only satisfies `build`, so before this change the MCP server could not start while `build` still reported success — a graph no agent could query. Confirmed post-change with a stdio `initialize` handshake against `uvx code-review-graph serve` (server v3.4.5 responded).
 - 2026-07-29: Conductor workspace setup no longer overrides OpenCode Go session forwarding — it uses the image default (`SessionForwarding: opencode-go`), so matched routes stamp `session_id` / `x-opencode-session`. The per-provider opt-out ships commented out; re-enabling it requires the two exports, both names in `--preserve-env`, and the two `-e` flags. The `-e` flags are documented above the `docker run` rather than inline, because a `#` comment inside a backslash-continued argument list comments out every remaining line.
 - 2026-07-29: Conductor setup adds GitHub Copilot CLI and `code-review-graph`. The snapshot installs Python 3.12 + a dedicated venv (a `pip install --user` silently yields a 0-node graph — grammar probes run under `python -I`, which drops user site-packages); the workspace runs the repo-scoped `install --platform codex|copilot-cli` and `build`. `claude-code` is skipped because it rewrites tracked files (`CLAUDE.md`, `.claude/skills`, `.agents/settings.json`).
 - 2026-07-25: Conductor build setup removes `OpenAiUpstreamApi=chat_completions` from `opencode-go-openai` — GPT routes now use the Responses API default (no `/responses`→Chat downgrade). **Superseded 2026-07-29** — the image's `appsettings.json` already ships that value, so the change was a redundant-override cleanup, not an API switch; GPT-route behavior (`/v1/chat/completions`) is unchanged.
