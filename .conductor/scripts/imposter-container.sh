@@ -12,23 +12,27 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 # Background daemons do not survive snapshot restoration or workspace resume.
-if ! sudo -n true 2>/dev/null; then
-  echo "sudo requires a password; configure NOPASSWD for dockerd or run interactively." >&2
-  exit 1
-fi
-if ! sudo docker info >/dev/null 2>&1; then
-  sudo nohup dockerd </dev/null >/tmp/dockerd.log 2>&1 &
+# Test the unprivileged Docker socket first; only require passwordless sudo
+# if the privileged path is actually needed.
+if ! docker info >/dev/null 2>&1; then
+  if ! sudo -n true 2>/dev/null; then
+    echo "sudo requires a password; configure NOPASSWD for dockerd or run interactively." >&2
+    exit 1
+  fi
+  if ! sudo docker info >/dev/null 2>&1; then
+    sudo nohup dockerd </dev/null >/tmp/dockerd.log 2>&1 &
 
-  for _ in $(seq 1 30); do
-    sudo docker info >/dev/null 2>&1 && break
-    sleep 1
-  done
-fi
+    for _ in $(seq 1 30); do
+      sudo docker info >/dev/null 2>&1 && break
+      sleep 1
+    done
+  fi
 
-sudo docker info >/dev/null 2>&1 || {
-  echo "Docker failed to start; inspect /tmp/dockerd.log." >&2
-  exit 1
-}
+  sudo docker info >/dev/null 2>&1 || {
+    echo "Docker failed to start; inspect /tmp/dockerd.log." >&2
+    exit 1
+  }
+fi
 
 # Conductor injects these only into the workspace lifecycle, not snapshot
 # construction. Alias OPENCODE_API_KEY to the shared prefix resolved by both

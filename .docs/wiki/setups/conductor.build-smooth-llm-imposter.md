@@ -513,10 +513,11 @@ repository setting — so it stays a manually-pasted UI field, documented as the
 
 `setup.sh` (see `.conductor/scripts/setup.sh`) installs the four platforms with
 `--no-instructions` on all of them and `--no-skills --no-hooks` on
-`claude-code` only. The project-scoped MCP configs (`.mcp.json`,
-`opencode.jsonc`) are excluded from `git status` via `.git/info/exclude`. See
-the source for the exact `install` flags.
-
-The two project-scoped configs (`.mcp.json`, `opencode.jsonc`) plus the
-`.code-review-graph/` directory are added to `.git/info/exclude` rather than
-`.gitignore`, keeping workspace diffs clean without touching a tracked file.
+`claude-code` only. The two project-scoped configs (`.mcp.json`,
+`opencode.jsonc`) plus the `.code-review-graph/` directory are seeded into
+`.git/info/exclude` so they never appear as untracked paths. Note:
+`code-review-graph install` still appends one `.code-review-graph/` line to the
+tracked `.gitignore` directly (predates this script, applies to all platforms)
+— `.git/info/exclude` wins precedence, so the resulting behavior is correct,
+but the `.gitignore` modification is expected to show up as a diff in every
+workspace. See the source for the exact `install` flags.
