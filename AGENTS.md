@@ -124,6 +124,20 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-07-30: `opencode-go-openai` switched from `chat_completions` to `responses` in
+  `appsettings.json`, `appsettings.Development.json`, and the Conductor `imposter-container.sh` env overrides
+  (the override line was removed). OpenCode Go's `zen/go` endpoint serves `/v1/responses` for the GPT-routed
+  upstream targets (`kimi-k2.7-code`, `glm-5.2`, `grok-4.5`), so the `/responses`→Chat downgrade is no longer
+  needed for those routes. This fixes the proxy-side 400 `Responses input item type 'additional_tools' cannot be
+  downgraded to Chat Completions` on Codex `/responses` requests for `gpt-5.6-luna` (and similarly `gpt-5.4`/`gpt-5.5`):
+  the proxy now forwards `/v1/responses` verbatim, `ToChatCompletions` never runs, and Responses-native input
+  item types pass through untouched. `RequestNormalization` for `opencode-go-openai` now resolves to `None`
+  (the `responses` default), which is correct — the Codex-to-OpenAI-SDK normalizer targets the Chat Completions
+  tool contract and is forbidden on a `responses` provider by the validator. The `openrouter-openai` provider in
+  `appsettings.Development.json` stays `chat_completions` since OpenRouter does not expose `/responses`. Verified
+  end-to-end: upstream probed with `curl /v1/responses` (HTTP 200, real response for `grok-4.5`), local proxy
+  reproduces the 400 on the old config and returns 200 on the new config, and `gpt-5.5` (`glm-5.2`) confirmed 200
+  through the proxy. `setup.md` example updated to describe the new `opencode-go-openai` responses config.
 - 2026-07-30: Added `.conductor/AGENTS.md`, the functional context file for the shared Conductor scripts
   described in the entry below — non-negotiables (single-source `docker run`, required `code-review-graph`
   flags, `run_mode`), setup/trigger instructions, the local-macOS-unverified caveat, and the

@@ -199,10 +199,12 @@ selected config/profile through Smooth, regardless of whether the active model i
 model selected later with `/model`; Codex login, model-catalog refresh, web search, MCP servers, connectors, and
 cloud tasks are separate network paths.
 
-Keep `wire_api = "responses"` for Codex even when a matched imposter provider uses
-`OpenAiUpstreamApi = "chat_completions"` (for example `opencode-go-openai`). Smooth downgrades the outbound
-`/responses` request to Chat Completions for that upstream and translates the Chat response stream back into
-Responses events for Codex.
+Keep `wire_api = "responses"` for Codex. When a matched imposter provider uses
+`OpenAiUpstreamApi = "chat_completions"` (for OpenAI-compatible upstreams that lack `/responses`), Smooth
+downgrades the outbound `/responses` request to Chat Completions for that upstream and translates the Chat
+response stream back into Responses events for Codex. `opencode-go-openai` is configured for the Responses API
+(`OpenAiUpstreamApi = "responses"`) since the OpenCode Go gateway serves `/v1/responses` directly, so no
+downgrade runs for those routes.
 
 For generic OpenAI-compatible SDK/API-key clients, keep `/v1` in the client base URL because those clients append
 bare paths like `/responses`, `/chat/completions`, and `/models`:
