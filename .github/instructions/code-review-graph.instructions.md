@@ -29,6 +29,8 @@ cover what you need.
 
 ### Key Tools
 
+See [`.github/CODE_REVIEW_GRAPH_AGENTS.md`](./CODE_REVIEW_GRAPH_AGENTS.md) for the canonical tool reference. The following summary is provided for inline lookup:
+
 | Tool | Use when |
 | ------ | ---------- |
 | `detect_changes_tool` | Risk-scored change analysis |
