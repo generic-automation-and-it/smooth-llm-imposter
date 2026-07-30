@@ -34,5 +34,6 @@ USER $APP_UID
 
 # No in-image HEALTHCHECK is defined (deferred — the alpine base ships wget,
 # so a future change could add one in-image; for now probe
-# http://localhost:5080/health from the host, see the setup doc).
+# http://localhost:5080/health from the host, see
+# .docs/wiki/setups/docker.run-smooth-llm-imposter.md).
 ENTRYPOINT ["./SmoothLlmImposter.Host"]

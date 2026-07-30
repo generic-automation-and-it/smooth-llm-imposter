@@ -101,7 +101,7 @@ PR gate — `.github/workflows/pr-gate.yml` (triggers: `pull_request` → `main`
 
 Container image publishing — `.github/workflows/publish-image.yml` pushes `ghcr.io/generic-automation-and-it/smooth-llm-imposter` from the repo-root `Dockerfile`. Keep published tags multi-architecture for both `linux/amd64` and `linux/arm64`; QEMU must be configured before Buildx because the Dockerfile runs `dotnet restore` and `dotnet publish` during target-platform builds. The `:latest` tag is emitted only on an automatic `push` to `main`; a manual `workflow_dispatch` run (allowed from any branch) skips `:latest` and instead publishes a user-supplied pre-release version tag (e.g. `1.0.0-rc.1`) via the required `version` input, plus the short-SHA tag.
 
-**Container base image:** Both `Dockerfile` stages use `-alpine` variants (`.NET 10`); the published image is ~131 MB (~45% smaller than the prior Debian base). Alpine ships `wget` (no `curl`), so the Dockerfile's debug-tool comment was updated accordingly. Verified multi-platform build still succeeds for `linux/amd64` and `linux/arm64`.
+**Container base image:** Both `Dockerfile` stages use `-alpine` variants (`.NET 10`); the published image is ~131 MB (~45% smaller than the prior Debian base). Alpine ships `wget` (no `curl`), so the Dockerfile's HEALTHCHECK comment was updated accordingly. Verified multi-platform build still succeeds for `linux/amd64` and `linux/arm64`.
 
 ## Git Constraints
 
@@ -124,7 +124,7 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
-- 2026-07-30: Dockerfile switched both stages from Debian to `-alpine` .NET 10 base images (`sdk:10.0-alpine`, `aspnet:10.0-alpine`). Image size dropped from ~240 MB to ~131 MB (~45% reduction). No trimming, self-contained, or GC-mode changes — base-image swap only. Alpine ships `wget` (no `curl`), so the Dockerfile's debug-tool comment was updated accordingly. Verified with smoke tests.
+- 2026-07-30: Dockerfile switched both stages from Debian to `-alpine` .NET 10 base images (`sdk:10.0-alpine`, `aspnet:10.0-alpine`). Image size dropped from ~240 MB to ~131 MB (~45% reduction). No trimming, self-contained, or GC-mode changes — base-image swap only. Alpine ships `wget` (no `curl`), so the Dockerfile's HEALTHCHECK comment was updated accordingly. Verified with smoke tests.
 - 2026-07-30: Added `.code-review-graph/` to `.gitignore` and created `.github/instructions/code-review-graph.instructions.md` for Copilot MCP tool usage.
 - 2026-07-29: Conductor workspace setup no longer overrides OpenCode Go session forwarding — it uses the image default (`SessionForwarding: opencode-go`), so matched routes stamp `session_id` / `x-opencode-session`. The per-provider opt-out ships commented out; re-enabling it requires the two exports, both names in `--preserve-env`, and the two `-e` flags. The `-e` flags are documented above the `docker run` rather than inline, because a `#` comment inside a backslash-continued argument list comments out every remaining line.
 - 2026-07-29: Conductor setup adds GitHub Copilot CLI and `code-review-graph`. The snapshot installs Python 3.12 + a dedicated venv (a `pip install --user` silently yields a 0-node graph — grammar probes run under `python -I`, which drops user site-packages); the workspace runs the repo-scoped `install --platform codex|copilot-cli` and `build`. `claude-code` is skipped because it rewrites tracked files (`CLAUDE.md`, `.claude/skills`, `.agents/settings.json`).

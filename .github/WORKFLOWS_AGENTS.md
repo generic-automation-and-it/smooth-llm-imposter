@@ -52,6 +52,6 @@ C4Context
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
-| 2026-07-30 | [#95] Dockerfile base images switched from Debian to `-alpine` .NET 10 variants (`sdk:10.0-alpine`, `aspnet:10.0-alpine`). Verified multi-platform build still succeeds; image ~131 MB (was ~240 MB). Alpine ships busybox utilities including `wget`; `curl` is not in the base, so the Dockerfile's debug-tool comment was updated accordingly. (Verified via `docker run --rm mcr.microsoft.com/dotnet/aspnet:10.0-alpine sh -c 'which wget curl'`.) | |
+| 2026-07-30 | [#95] Dockerfile base images switched from Debian to `-alpine` .NET 10 variants (`sdk:10.0-alpine`, `aspnet:10.0-alpine`). Verified multi-platform build still succeeds; image ~131 MB (was ~240 MB). Alpine ships busybox utilities including `wget`; `curl` is not in the base, so the Dockerfile's HEALTHCHECK comment was updated accordingly. (Verified via `docker run --rm mcr.microsoft.com/dotnet/aspnet:10.0-alpine sh -c 'which wget curl'`.) | |
 | 2026-07-04 | Created workflow context for multi-architecture GHCR publishing (QEMU-before-Buildx, `setup-qemu-action` v4); recorded why the emulated-build job timeout, scoped GHA cache, and Dockerfile NuGet cache mount exist, and that first-tag cold cache is intentional. | #58 |
 | 2026-07-25 | Added review-workflow caller pinning note: keep reusable `uses:` and `tools_ref` aligned to the same upstream SHA. | #78 |
