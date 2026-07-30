@@ -74,7 +74,7 @@ dotnet run --project src/SmoothLlmImposter.Host     # run the router locally
 
 Target a single test project directly when needed (e.g. `dotnet test tests/SmoothLlmImposter.Domain.UnitTest`); `ls tests/` lists them. Tests are infra-free (no Docker/DB) — integration tests stub the upstream transport in-process.
 
-Container builds intentionally mirror the repo-root layout inside the SDK stage (`src/SmoothLlmImposter.*` under a non-`/src` working directory). When editing `Dockerfile`, keep `SmoothLlmImposter.slnx`, `Directory.*.props`, `NuGet.Config`, and `src/` in their repo-root-relative positions so solution/project references and central package props continue to resolve.
+Container builds intentionally mirror the repo-root layout inside the SDK stage (`src/SmoothLlmImposter.*` under a non-`/src` working directory). When editing `Dockerfile`, keep `SmoothLlmImposter.slnx`, `Directory.*.props`, `NuGet.Config`, and `src/` in their repo-root-relative positions so solution/project references and central package props continue to resolve. Both stages use `-alpine` variants (`.NET 10`); Alpine ships `wget` (no `curl`), and the image is ~131 MB (~45% smaller than the prior Debian base).
 
 ## Test Framework
 
@@ -122,6 +122,8 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-07-30: Dockerfile switched both stages from Debian to `-alpine` .NET 10 base images (`sdk:10.0-alpine`, `aspnet:10.0-alpine`). Image size dropped from ~240 MB to ~131 MB (~45% reduction). No trimming, self-contained, or GC-mode changes — base-image swap only. Alpine ships `wget` (no `curl`), so the Dockerfile's debug-tool comment was updated accordingly. Verified with smoke tests.
+- 2026-07-30: Added `.code-review-graph/` to `.gitignore` and created `.github/code-review-graph.instruction.md` for Copilot MCP tool usage.
 - 2026-07-29: Conductor workspace setup no longer overrides OpenCode Go session forwarding — it uses the image default (`SessionForwarding: opencode-go`), so matched routes stamp `session_id` / `x-opencode-session`. The per-provider opt-out ships commented out; re-enabling it requires the two exports, both names in `--preserve-env`, and the two `-e` flags. The `-e` flags are documented above the `docker run` rather than inline, because a `#` comment inside a backslash-continued argument list comments out every remaining line.
 - 2026-07-29: Conductor setup adds GitHub Copilot CLI and `code-review-graph`. The snapshot installs Python 3.12 + a dedicated venv (a `pip install --user` silently yields a 0-node graph — grammar probes run under `python -I`, which drops user site-packages); the workspace runs the repo-scoped `install --platform codex|copilot-cli` and `build`. `claude-code` is skipped because it rewrites tracked files (`CLAUDE.md`, `.claude/skills`, `.agents/settings.json`).
 - 2026-07-25: Conductor build setup removes `OpenAiUpstreamApi=chat_completions` from `opencode-go-openai` — GPT routes now use the Responses API default (no `/responses`→Chat downgrade). **Superseded 2026-07-29** — the image's `appsettings.json` already ships that value, so the change was a redundant-override cleanup, not an API switch; GPT-route behavior (`/v1/chat/completions`) is unchanged.
