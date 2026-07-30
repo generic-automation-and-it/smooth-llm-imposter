@@ -48,7 +48,7 @@ The `build-and-test` job declares a single GitHub Actions service container — 
 - **Triggers:** `push` → `main` (tagged `:latest`), `push` tags `v*` (semver tags), and manual `workflow_dispatch`.
 - **Permissions:** `contents: read`, `packages: write` (pushes to GHCR with the job's `GITHUB_TOKEN`).
 - **Image:** `ghcr.io/<owner>/smooth-llm-imposter` (from `github.repository`), built from the repo `Dockerfile` (multi-stage, non-root, listens on `5080`).
-- **Tags** (via `docker/metadata-action`): `latest` on the default branch, `{{version}}` + `{{major}}.{{minor}}` on `v*` tags, and a short-`sha` tag for traceability.
+- **Tags** (via `docker/metadata-action`): `latest` on the default branch, `{{version}}` + `{{major}}.{{minor}}` on `v*` tags, the user-supplied pre-release `version` (e.g. `1.0.0-rc.1`) on manual `workflow_dispatch`, and a short-`sha` tag for traceability.
 - **Caching:** GitHub Actions build cache (`type=gha`, `mode=max`).
 - **One-time:** the first push creates a **private** package — an org owner sets it public (or consumers `docker login ghcr.io`). See [`setups/ghcr.run-smooth-llm-imposter.md`](setups/ghcr.run-smooth-llm-imposter.md).
 

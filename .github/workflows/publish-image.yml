@@ -15,9 +15,10 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Pre-release version tag to publish (e.g. 1.0.0-rc.1)"
+        description: 'Pre-release version tag (e.g. 1.0.0-rc.1). Must be a semver-compatible identifier without the leading "v".'
         required: true
         type: string
+        pattern: '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
 
 concurrency:
   group: publish-image-${{ github.ref }}
