@@ -16,6 +16,9 @@
 #               OPENCODE_REVIEW_REPORT_MODEL_SECONDARY      = gpt-5.4
 #               OPENCODE_REVIEW_REPORT_MODEL_ORCHESTRATOR   = gpt-5.4-mini
 #               OPENCODE_REVIEW_REPORT_DISABLE_CLAUDE_CODE  = 1                            (Claude Code support is off by default)
+#               OPENCODE_CLI_VERSION                      = <version>                    (supply-chain provenance)
+#               OPENCODE_TOOL_CODE_REVIEW_GRAPH_VERSION   = <version>                    (supply-chain provenance)
+#               OPENCODE_TOOL_RTK_VERSION                 = <version>                    (supply-chain provenance)
 #   These resolve against the CALLER repo/org automatically.
 
 name: PR Code Review Report
