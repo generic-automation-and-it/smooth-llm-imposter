@@ -60,16 +60,15 @@ else
   exit 1
 fi
 
-# Create/recreate the container now that workspace secrets exist. The image
-# was pulled into the snapshot, so do not contact GHCR here. openrouter-* is
-# absent from the published base image, so define the Anthropic OpenRouter
-# provider fully here (same env-var shape, but defines a new provider because
-# the base image omits it).
+# Create/recreate the container now that workspace secrets exist. --pull=always
+# checks GHCR for a newer image on every start. openrouter-* is absent from the
+# published base image, so define the Anthropic OpenRouter provider fully here
+# (same env-var shape, but defines a new provider because the base image omits it).
 "${DOCKER[@]}" rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 "${DOCKER[@]}" run -d \
   --name "$CONTAINER_NAME" \
   --restart unless-stopped \
-  --pull=never \
+  --pull=always \
   -p "127.0.0.1:${PORT}:5080" \
   -e "Imposter__Providers__opencode-go-anthropic__Dialect=anthropic" \
   -e "Imposter__Providers__opencode-go-anthropic__BaseUrl=https://opencode.ai/zen/go" \
@@ -87,6 +86,7 @@ fi
   -e "Imposter__Providers__openrouter-anthropic__Models__0__To=inclusionai/ling-3.0-flash:free" \
   -e "Imposter__Providers__opencode-go-openai__Dialect=openai" \
   -e "Imposter__Providers__opencode-go-openai__BaseUrl=https://opencode.ai/zen/go" \
+  -e "Imposter__Providers__opencode-go-openai__OpenAiUpstreamApi=responses" \
   -e "Imposter__Providers__opencode-go-openai__AuthScheme=Bearer" \
   -e "Imposter__Providers__opencode-go-openai__Models__0__From=gpt-5.4" \
   -e "Imposter__Providers__opencode-go-openai__Models__0__To=kimi-k2.7-code" \

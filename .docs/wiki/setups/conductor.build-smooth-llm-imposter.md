@@ -328,17 +328,17 @@ PY
 sudo docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 ```
 
-> **Known limitation.** Workspace startup uses `--pull=never`, so the `:latest` image is fixed at snapshot-build
-> time. Republishing `smooth-llm-imposter:latest` to GHCR does not propagate to existing snapshots or their
-> workspaces; rebuild the snapshot to advance the image. Provider mappings and credentials are bound later when
-> the workspace creates the container, so those can change without rebuilding the snapshot.
+> **Image pull behavior.** Workspace startup uses `--pull=always`, so Docker checks GHCR for a newer
+> `smooth-llm-imposter:latest` on every container start and pulls it if available. Provider mappings and
+> credentials are bound when the workspace creates the container, so those can change independently of the
+> image.
 
 ## Workspace setup script (create and start the container)
 
-Use this as the Conductor workspace lifecycle. It does not reconfigure Codex or pull the image because those
-credential-independent steps are complete in the snapshot. It restarts `dockerd`, requires the workspace-only
-`OPENCODE_API_KEY` and `OPENROUTER_API_KEY`, and supplies the provider mappings and secrets while creating the
-container.
+Use this as the Conductor workspace lifecycle. It does not reconfigure Codex because that
+credential-independent step is complete in the snapshot. It restarts `dockerd`, requires the workspace-only
+`OPENCODE_API_KEY` and `OPENROUTER_API_KEY`, supplies the provider mappings and secrets while creating the
+container, and checks GHCR for a newer image via `--pull=always`.
 
 ```bash
 #!/usr/bin/env bash
@@ -440,7 +440,7 @@ fi
 "${DOCKER[@]}" run -d \
   --name "$CONTAINER_NAME" \
   --restart unless-stopped \
-  --pull=never \
+  --pull=always \
   -p "127.0.0.1:${PORT}:5080" \
   -e "Imposter__Providers__opencode-go-anthropic__Dialect=anthropic" \
   -e "Imposter__Providers__opencode-go-anthropic__BaseUrl=https://opencode.ai/zen/go" \
@@ -458,6 +458,7 @@ fi
   -e "Imposter__Providers__openrouter-anthropic__Models__0__To=inclusionai/ling-3.0-flash:free" \
   -e "Imposter__Providers__opencode-go-openai__Dialect=openai" \
   -e "Imposter__Providers__opencode-go-openai__BaseUrl=https://opencode.ai/zen/go" \
+  -e "Imposter__Providers__opencode-go-openai__OpenAiUpstreamApi=responses" \
   -e "Imposter__Providers__opencode-go-openai__AuthScheme=Bearer" \
   -e "Imposter__Providers__opencode-go-openai__Models__0__From=gpt-5.4" \
   -e "Imposter__Providers__opencode-go-openai__Models__0__To=kimi-k2.7-code" \
