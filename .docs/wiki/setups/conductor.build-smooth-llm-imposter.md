@@ -129,6 +129,10 @@ supply explicitly as that provider's `Secret` with the matching `AuthScheme`. Se
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ "$CONDUCTOR_IS_LOCAL" = "1" ]; then
+  exit 0
+fi
+
 PORT="${PORT:-5080}"
 IMAGE="${SMOOTH_LLM_IMAGE:-ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest}"
 
@@ -283,6 +287,10 @@ image via `--pull=always`.
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
+
+if [ "$CONDUCTOR_IS_LOCAL" = "1" ]; then
+  exit 0
+fi
 
 PORT="${PORT:-5080}"
 IMAGE="${SMOOTH_LLM_IMAGE:-ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest}"

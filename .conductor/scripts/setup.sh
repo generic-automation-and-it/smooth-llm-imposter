@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ "$CONDUCTOR_IS_LOCAL" = "1" ]; then
+  exit 0
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PORT="${PORT:-5080}"
 CODEX_CONFIG="$HOME/.codex/config.toml"
