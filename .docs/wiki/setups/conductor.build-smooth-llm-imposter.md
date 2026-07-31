@@ -388,6 +388,13 @@ fi
 # define the Anthropic OpenRouter provider fully here (same env-var shape, but
 # defines a new provider because the base image omits it).
 #
+# To stop OpenCode session token usage: uncomment the two exports above, add
+# OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING and OPENCODE_GO_OPENAI_SESSION_FORWARDING
+# to --preserve-env, and add "-e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \" /
+# "-e OPENCODE_GO_OPENAI_SESSION_FORWARDING \" below, just before "$IMAGE". Do NOT
+# add a "#"-commented placeholder line inside the docker run continuation below —
+# a "#" mid-backslash-continuation swallows the rest of that logical line
+# (including any trailing "\"), which silently drops "$IMAGE" from the command.
 "${DOCKER[@]}" rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 "${DOCKER[@]}" run -d \
   --name "$CONTAINER_NAME" \
@@ -425,11 +432,6 @@ fi
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \
   "$IMAGE" >/dev/null
-  # Uncomment the next two -e lines (and move them above, just before "$IMAGE") to stop
-  # OpenCode session token usage. Also uncomment the exports above and add both names to
-  # --preserve-env.
-  # -e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \
-  # -e OPENCODE_GO_OPENAI_SESSION_FORWARDING \
 
 for _ in $(seq 1 30); do
   if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then

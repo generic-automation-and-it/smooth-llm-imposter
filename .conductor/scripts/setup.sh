@@ -24,12 +24,15 @@ CODEX_CONFIG="$HOME/.codex/config.toml"
 # --- Configure Codex ---------------------------------------------------------
 # Replace only Codex's selected provider and SmoothLlmImposter's own table.
 # Preserve every unrelated setting, including MCP servers and RTK config.
-echo "--- Configuring Codex ---"
-mkdir -p "$(dirname "$CODEX_CONFIG")"
-touch "$CODEX_CONFIG"
-[ -f "$CODEX_CONFIG.bak" ] || cp -p "$CODEX_CONFIG" "$CODEX_CONFIG.bak"
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 not found; skipping Codex configuration." >&2
+else
+  echo "--- Configuring Codex ---"
+  mkdir -p "$(dirname "$CODEX_CONFIG")"
+  touch "$CODEX_CONFIG"
+  [ -f "$CODEX_CONFIG.bak" ] || cp -p "$CODEX_CONFIG" "$CODEX_CONFIG.bak"
 
-python3 - "$CODEX_CONFIG" "$PORT" <<'PY'
+  python3 - "$CODEX_CONFIG" "$PORT" <<'PY'
 from pathlib import Path
 import os
 import re
@@ -82,6 +85,7 @@ tmp_path = config_path.with_suffix(config_path.suffix + ".tmp")
 tmp_path.write_text(text)
 os.replace(tmp_path, config_path)
 PY
+fi
 
 # Verify the write landed — catches a silent regex miss before the user hits
 # a runtime "provider not found" error. Two checks: the active provider is

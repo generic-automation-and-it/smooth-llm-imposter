@@ -362,6 +362,35 @@ public class ImposterOptionsPostConfigureTests
     }
 
     [Fact]
+    public void Provider_key_without_known_dialect_suffix_does_not_resolve_shared_base_secret()
+    {
+        // Negative regression: a provider key whose trailing segment is not a recognized dialect
+        // suffix (e.g. "my-provider-custom" — "custom" is neither "anthropic" nor "openai") must
+        // NOT resolve its Secret from an unrelated shared base var. CUSTOM_API_KEY is not a known
+        // dialect base, so the key's Secret slot stays empty.
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["OPENCODE_GO_API_KEY"] = "sk-opencode",
+                ["CUSTOM_API_KEY"] = "sk-custom"
+            })
+            .Build();
+        var sut = new ImposterOptionsPostConfigure(configuration, new CapturingLogger());
+
+        var options = new ImposterOptions
+        {
+            Providers =
+            {
+                ["my-provider-custom"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://custom.example", AuthScheme = "Bearer" }
+            }
+        };
+
+        sut.PostConfigure(name: null, options);
+
+        options.Providers["my-provider-custom"].Secret.ShouldBeNullOrEmpty();
+    }
+
+    [Fact]
     public void Per_provider_conventional_vars_resolve_to_the_correct_secret_per_scheme()
     {
         // The <PROVIDER>_<SUFFIX> convention for the hyphenated keys: mycompany-anthropic -> MYCOMPANY_ANTHROPIC prefix
