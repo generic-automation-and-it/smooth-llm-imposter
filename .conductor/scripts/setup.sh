@@ -2,7 +2,65 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PORT="${PORT:-5080}"
+CODEX_CONFIG="$HOME/.codex/config.toml"
 
+# --- Configure Codex ---------------------------------------------------------
+# Replace only Codex's selected provider and SmoothLlmImposter's own table.
+# Preserve every unrelated setting, including MCP servers and RTK config.
+echo "--- Configuring Codex ---"
+mkdir -p "$(dirname "$CODEX_CONFIG")"
+touch "$CODEX_CONFIG"
+cp -p "$CODEX_CONFIG" "$CODEX_CONFIG.bak"
+
+python3 - "$CODEX_CONFIG" "$PORT" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+config_path = Path(sys.argv[1])
+port = sys.argv[2]
+text = config_path.read_text()
+
+provider_line = 'model_provider = "smooth-llm-proxy"'
+first_table = re.search(r"(?m)^\[", text)
+prefix_end = first_table.start() if first_table else len(text)
+prefix = text[:prefix_end]
+suffix = text[prefix_end:]
+
+if re.search(r"(?m)^model_provider\s*=", prefix):
+    prefix = re.sub(
+        r'(?m)^model_provider\s*=.*$',
+        provider_line,
+        prefix,
+        count=1,
+    )
+else:
+    prefix = f"{provider_line}\n\n{prefix}"
+
+text = prefix + suffix
+smooth_table = f"""[model_providers.smooth-llm-proxy]
+name = "Smooth LLM Imposter"
+base_url = "http://127.0.0.1:{port}/openai"
+wire_api = "responses"
+requires_openai_auth = true
+request_max_retries = 3
+stream_max_retries = 10
+stream_idle_timeout_ms = 300000
+"""
+
+table_pattern = re.compile(
+    r"(?ms)^\[model_providers\.smooth-llm-proxy\]\s*\n.*?(?=^\[|\Z)"
+)
+if table_pattern.search(text):
+    text = table_pattern.sub(smooth_table + "\n", text, count=1)
+else:
+    text = text.rstrip() + "\n\n" + smooth_table
+
+config_path.write_text(text)
+PY
+
+# --- code-review-graph -------------------------------------------------------
 # code-review-graph is installed in the snapshot, but both `install` and `build`
 # are repository-scoped: `install` writes a repo-pinned `cwd` into each MCP
 # config, and `build` writes the graph into the working tree. The clone only

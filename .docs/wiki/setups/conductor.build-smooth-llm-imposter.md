@@ -125,19 +125,12 @@ supply explicitly as that provider's `Secret` with the matching `AuthScheme`. Se
 > writes a `.git/hooks/pre-commit` hook that refreshes the graph; it lives inside `.git`, so it never appears in
 > a diff, but it does run on every commit made in the workspace.
 
-> **Codex configuration behavior.** The snapshot replaces the top-level `model_provider` value and the complete
-> `[model_providers.smooth-llm-proxy]` table so Codex reliably selects this router after RTK configuration.
-> Unrelated settings—including MCP servers, RTK configuration, and other provider tables—are preserved. Before
-> replacement, the script writes the previous file to `~/.codex/config.toml.bak`; snapshot rebuilds replace that
-> backup with the configuration present at the start of the latest rebuild.
-
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 
 PORT="${PORT:-5080}"
 IMAGE="${SMOOTH_LLM_IMAGE:-ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest}"
-CODEX_CONFIG="$HOME/.codex/config.toml"
 
 echo "--- [1] Installing system and Docker packages ---"
 sudo dnf install -y \
@@ -267,60 +260,6 @@ sudo docker --version
 sudo docker compose version
 sudo docker pull "$IMAGE"
 
-echo "--- [6] Configuring Codex ---"
-mkdir -p "$(dirname "$CODEX_CONFIG")"
-touch "$CODEX_CONFIG"
-cp -p "$CODEX_CONFIG" "$CODEX_CONFIG.bak"
-
-# Replace only Codex's selected provider and SmoothLlmImposter's own table.
-# Preserve every unrelated setting, including MCP servers and RTK config.
-python3 - "$CODEX_CONFIG" "$PORT" <<'PY'
-from pathlib import Path
-import re
-import sys
-
-config_path = Path(sys.argv[1])
-port = sys.argv[2]
-text = config_path.read_text()
-
-provider_line = 'model_provider = "smooth-llm-proxy"'
-first_table = re.search(r"(?m)^\[", text)
-prefix_end = first_table.start() if first_table else len(text)
-prefix = text[:prefix_end]
-suffix = text[prefix_end:]
-
-if re.search(r"(?m)^model_provider\s*=", prefix):
-    prefix = re.sub(
-        r'(?m)^model_provider\s*=.*$',
-        provider_line,
-        prefix,
-        count=1,
-    )
-else:
-    prefix = f"{provider_line}\n\n{prefix}"
-
-text = prefix + suffix
-smooth_table = f"""[model_providers.smooth-llm-proxy]
-name = "Smooth LLM Imposter"
-base_url = "http://127.0.0.1:{port}/openai"
-wire_api = "responses"
-requires_openai_auth = true
-request_max_retries = 3
-stream_max_retries = 10
-stream_idle_timeout_ms = 300000
-"""
-
-table_pattern = re.compile(
-    r"(?ms)^\[model_providers\.smooth-llm-proxy\]\s*\n.*?(?=^\[|\Z)"
-)
-if table_pattern.search(text):
-    text = table_pattern.sub(smooth_table + "\n", text, count=1)
-else:
-    text = text.rstrip() + "\n\n" + smooth_table
-
-config_path.write_text(text)
-PY
-
 # Container creation belongs to the later credential-aware workspace lifecycle.
 # Keep only the image in the snapshot.
 sudo docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
@@ -333,10 +272,13 @@ sudo docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 
 ## Workspace setup script (create and start the container)
 
-Use this as the Conductor workspace lifecycle. It does not reconfigure Codex because that
-credential-independent step is complete in the snapshot. It restarts `dockerd`, requires the workspace-only
-`OPENCODE_API_KEY` and `OPENROUTER_API_KEY`, supplies the provider mappings and secrets while creating the
-container, and checks GHCR for a newer image via `--pull=always`.
+Use this as the Conductor workspace lifecycle. `setup.sh` configures Codex (writes the
+`[model_providers.smooth-llm-proxy]` table and `model_provider` value into `~/.codex/config.toml`,
+preserving unrelated settings like MCP servers and RTK config — the previous file is backed up to
+`~/.codex/config.toml.bak`), runs code-review-graph wiring, then delegates to `imposter-container.sh`
+which restarts `dockerd`, requires the workspace-only `OPENCODE_API_KEY` and `OPENROUTER_API_KEY`,
+supplies the provider mappings and secrets while creating the container, and checks GHCR for a newer
+image via `--pull=always`.
 
 ```bash
 #!/usr/bin/env bash
