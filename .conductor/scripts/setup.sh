@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
+# Three top-level sections, in order:
+#   1. Local-workspace short-circuit (CONDUCTOR_IS_LOCAL=1 → no-op exit; the
+#      user's Docker Desktop is already running the imposter container).
+#   2. Codex configuration — write ~/.codex/config.toml so Codex routes every
+#      model request through this imposter.
+#   3. code-review-graph wiring (MCP configs per AI platform) followed by
+#      delegating to imposter-container.sh, which owns the docker run.
 set -euo pipefail
 
+# Conductor sets CONDUCTOR_IS_LOCAL=1 when the script is invoked from a local
+# Mac/Conductor desktop workspace (not a cloud sandbox). The local machine
+# already has Docker Desktop and the imposter container up — this script
+# would only clobber that setup. See `.conductor/AGENTS.md` ("Precedence
+# gotcha" + this file's role entry).
 if [ "$CONDUCTOR_IS_LOCAL" = "1" ]; then
   exit 0
 fi
@@ -15,10 +27,11 @@ CODEX_CONFIG="$HOME/.codex/config.toml"
 echo "--- Configuring Codex ---"
 mkdir -p "$(dirname "$CODEX_CONFIG")"
 touch "$CODEX_CONFIG"
-cp -p "$CODEX_CONFIG" "$CODEX_CONFIG.bak"
+[ -f "$CODEX_CONFIG.bak" ] || cp -p "$CODEX_CONFIG" "$CODEX_CONFIG.bak"
 
 python3 - "$CODEX_CONFIG" "$PORT" <<'PY'
 from pathlib import Path
+import os
 import re
 import sys
 
@@ -54,15 +67,33 @@ stream_idle_timeout_ms = 300000
 """
 
 table_pattern = re.compile(
-    r"(?ms)^\[model_providers\.smooth-llm-proxy\]\s*\n.*?(?=^\[|\Z)"
+    r"(?ms)^\[model_providers\.smooth-llm-proxy\]\s*\n"
+    r"(?:(?!^\[[^\]]+\]).)*"
+    r"(?=\Z|^\[)"
 )
 if table_pattern.search(text):
     text = table_pattern.sub(smooth_table + "\n", text, count=1)
 else:
     text = text.rstrip() + "\n\n" + smooth_table
 
-config_path.write_text(text)
+# Atomic write: stage to a sibling tmp file, then os.replace into place so a
+# SIGKILL/reboot mid-write never leaves a half-written config.toml.
+tmp_path = config_path.with_suffix(config_path.suffix + ".tmp")
+tmp_path.write_text(text)
+os.replace(tmp_path, config_path)
 PY
+
+# Verify the write landed — catches a silent regex miss before the user hits
+# a runtime "provider not found" error. Two checks: the active provider is
+# ours, and our [model_providers.*] table exists.
+if ! grep -Fqx 'model_provider = "smooth-llm-proxy"' "$CODEX_CONFIG"; then
+  echo "Codex provider line not found in $CODEX_CONFIG after write — aborting before container start." >&2
+  exit 1
+fi
+if ! grep -Fqx '[model_providers.smooth-llm-proxy]' "$CODEX_CONFIG"; then
+  echo "Codex provider table not found in $CODEX_CONFIG after write — aborting before container start." >&2
+  exit 1
+fi
 
 # --- code-review-graph -------------------------------------------------------
 # code-review-graph is installed in the snapshot, but both `install` and `build`

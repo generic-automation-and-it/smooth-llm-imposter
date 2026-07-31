@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Conductor sets CONDUCTOR_IS_LOCAL=1 when the script is invoked from a local
+# Mac/Conductor desktop workspace (not a cloud sandbox); both run scripts
+# short-circuit on it so they no-op on the local developer's machine, where
+# the imposter container is already started by the user's own Docker Desktop.
+# See `.conductor/AGENTS.md` ("Precedence gotcha" + this file's role entry).
 if [ "$CONDUCTOR_IS_LOCAL" = "1" ]; then
   exit 0
 fi
@@ -65,9 +70,12 @@ else
 fi
 
 # Create/recreate the container now that workspace secrets exist. --pull=always
-# checks GHCR for a newer image on every start. openrouter-* is absent from the
-# published base image, so define the Anthropic OpenRouter provider fully here
-# (same env-var shape, but defines a new provider because the base image omits it).
+# re-checks GHCR for a newer image on every start (network round-trip; a slow
+# or unreachable registry will block container creation — start with the
+# network available or pin SMOOTH_LLM_IMAGE to a known tag). openrouter-* is
+# absent from the published base image, so define the Anthropic OpenRouter
+# provider fully here (same env-var shape, but defines a new provider because
+# the base image omits it).
 "${DOCKER[@]}" rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 "${DOCKER[@]}" run -d \
   --name "$CONTAINER_NAME" \

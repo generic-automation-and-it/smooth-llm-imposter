@@ -59,6 +59,12 @@ Use this as the Conductor snapshot lifecycle script. Conductor lifecycle logs id
 Linux 2023 (for example, `/home/vercel-sandbox`), so it uses DNF4 and native Docker rather than Homebrew,
 Linuxbrew, or Colima.
 
+> **`CONDUCTOR_IS_LOCAL=1` short-circuits both scripts.** Conductor sets this environment variable in the
+> local Mac/desktop workspace lifecycle (not the cloud sandbox). The local developer's Docker Desktop is
+> already running the imposter container, so the snapshot/workspace scripts no-op with `exit 0` instead of
+> trying to install packages or re-create the container. A no-op exit is therefore the **expected** behavior
+> on a local workspace — not a debugging artifact.
+
 Provider credentials are intentionally absent from snapshot construction: Conductor makes
 `OPENCODE_API_KEY` and `OPENROUTER_API_KEY` available only to the later workspace lifecycle. The snapshot
 therefore performs every credential-independent operation—including Codex configuration and the image
@@ -376,10 +382,11 @@ else
 fi
 
 # Create the container only now, after the workspace secrets exist. The image
-# was pulled into the snapshot, so do not contact GHCR during workspace setup.
-# openrouter-* is absent from the published base image, so define the Anthropic
-# OpenRouter provider fully here (same env-var shape, but defines a new provider
-# because the base image omits it).
+# is normally already cached locally from the snapshot, but --pull=always still
+# re-checks GHCR for a newer tag on every start (picks up rotated or manual
+# dispatch tags). openrouter-* is absent from the published base image, so
+# define the Anthropic OpenRouter provider fully here (same env-var shape, but
+# defines a new provider because the base image omits it).
 #
 "${DOCKER[@]}" rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 "${DOCKER[@]}" run -d \
@@ -417,10 +424,12 @@ fi
   -e "Imposter__Providers__opencode-go-openai-responses__Models__0__To=grok-4.5" \
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \
-  # Uncomment the next two -e lines to stop OpenCode session token usage (also uncomment the exports above and add both names to --preserve-env).
+  "$IMAGE" >/dev/null
+  # Uncomment the next two -e lines (and move them above, just before "$IMAGE") to stop
+  # OpenCode session token usage. Also uncomment the exports above and add both names to
+  # --preserve-env.
   # -e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \
   # -e OPENCODE_GO_OPENAI_SESSION_FORWARDING \
-  "$IMAGE" >/dev/null
 
 for _ in $(seq 1 30); do
   if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then

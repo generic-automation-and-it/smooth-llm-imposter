@@ -67,9 +67,11 @@ at scripts under `.conductor/scripts/`, which start the imposter container and, 
   directly with `sudo nohup` when `docker info` fails, matching the Amazon Linux 2023 cloud sandbox lifecycle
   (no systemd as PID 1) documented in the wiki setup doc. It has only been run in that cloud sandbox. A local
   Mac workspace normally has Docker Desktop already running its own daemon on a different socket path than the
-  hardcoded `unix:///var/run/docker.sock` default, and `--pull=never` assumes the image was already pulled by
-  the (cloud-only) snapshot script. `[scripts] setup` has no `available_in` gate — unlike `[scripts.run.*]` —
-  so it runs unconditionally on every workspace, local or cloud. Until this is verified working on macOS,
+  hardcoded `unix:///var/run/docker.sock` default, and `--pull=always` re-checks GHCR on every container
+  start; the snapshot pulls the image once at snapshot time, but a rotated tag or a manual dispatch will
+  be picked up on the next `setup`/`restart-imposter`. `[scripts] setup` has no `available_in` gate —
+  unlike `[scripts.run.*]` — so it runs unconditionally on every workspace, local or cloud. Until this
+  is verified working on macOS,
   local users who hit failures should override `setup` via a personal `settings.local.toml` (see the
   precedence gotcha above).
 - **Idempotent recreate, not incremental update.** Every run (`setup` or `restart-imposter`) does
@@ -77,9 +79,13 @@ at scripts under `.conductor/scripts/`, which start the imposter container and, 
   and no state carried between recreations beyond what's baked into the image + the `-e` flags.
 - **Current imposter model mappings** (single source of truth: the `-e` flags in `imposter-container.sh`):
   `claude-sonnet-4-6`/`claude-opus-4-6`/`claude-opus-4-8` → OpenCode Go `qwen3.6-plus`/`qwen3.7-plus`/`qwen3.7-max`;
-  `claude-haiku-*` → OpenRouter Anthropic `inclusionai/ling-3.0-flash:free`; `gpt-5.4`/`gpt-5.5`/`gpt-5.6-luna` →
-  OpenCode Go `kimi-k2.7-code`/`glm-5.2`/`grok-4.5`. OpenRouter targets keep the provider-prefixed slug
-  (e.g. `inclusionai/ling-3.0-flash:free`) the OpenRouter API expects.
+  `claude-haiku-*` → OpenRouter Anthropic `inclusionai/ling-3.0-flash:free`; `gpt-5.4`/`gpt-5.5` route via
+  `opencode-go-openai-chat` (`OpenAiUpstreamApi: chat_completions`) → OpenCode Go `kimi-k2.7-code`/`glm-5.2`,
+  and `gpt-5.6-luna` routes via `opencode-go-openai-responses` (`OpenAiUpstreamApi: responses`) → OpenCode Go
+  `grok-4.5`. The two `opencode-go-openai-*` providers are split because `gpt-5.4`/`gpt-5.5` need the
+  Chat-downgrade path today while `gpt-5.6-luna` is held in reserve for future Responses-API support.
+  OpenRouter targets keep the provider-prefixed slug (e.g. `inclusionai/ling-3.0-flash:free`) the OpenRouter
+  API expects.
 - **The MCP servers `code-review-graph install` configures all invoke `uvx code-review-graph serve`**,
   regardless of platform. If a workspace's snapshot doesn't have `uv` on `PATH`, the generated MCP configs are
   written successfully but the servers themselves cannot start — `code-review-graph build` still exits 0 in

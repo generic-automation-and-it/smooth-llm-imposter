@@ -124,28 +124,30 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
-- 2026-07-31: `opencode-go-openai` reverted from `responses` to `chat_completions` in `appsettings.json`,
+- 2026-07-31: The `opencode-go-openai` provider was split into two keys — `opencode-go-openai-chat`
+  (`OpenAiUpstreamApi: chat_completions`, the explicit default) and `opencode-go-openai-responses`
+  (`OpenAiUpstreamApi: responses`, for future `gpt-5.6-luna` testing) — in `appsettings.json`,
   `appsettings.Development.json`, and the Conductor scripts. Confirmed both OpenCode Go (422 on
   Responses-native input types like `additional_tools`) and OpenRouter (404 on `/v1/responses` — endpoint
   not exposed) only serve `/v1/chat/completions`. `gpt-5.6-luna → grok-4.5` is still configured under
-  `opencode-go-openai-responses` for future testing, but currently 422s from providers — Codex requires
-  full Responses API support which no provider reliably offers yet. `gpt-5.4`/`gpt-5.5` stay routed via
-  `opencode-go-openai-chat` on `chat_completions` (proxy handles `/responses`→Chat downgrade).
-  `ROUTING_AGENTS.md` updated with Migration Plans section documenting the provider dependency.
-  `.conductor/scripts/imposter-container.sh` and the embedded `docker run` in
+  `opencode-go-openai-responses` for future testing, but currently returns 422 from OpenCode Go and 404
+  from OpenRouter — Codex requires full Responses API support which no provider reliably offers yet.
+  `gpt-5.4`/`gpt-5.5` stay routed via `opencode-go-openai-chat` on `chat_completions` (proxy handles
+  `/responses`→Chat downgrade). `ROUTING_AGENTS.md` updated with Migration Plans section documenting
+  the provider dependency. `.conductor/scripts/imposter-container.sh` and the embedded `docker run` in
   `.docs/wiki/setups/conductor.build-smooth-llm-imposter.md` — Docker now checks GHCR for a newer
-  `smooth-llm-imposter:latest` on every container start. Related comments and the "Known limitation" note in
-  the wiki doc updated to reflect the new pull behavior. OpenCode Go session forwarding switched from
-  actively disabled (`OPENCODE_GO_{ANTHROPIC,OPENAI}_SESSION_FORWARDING=none` exports + `-e` flags) to
-  using the image default (`SessionForwarding: opencode-go`) — the exports and `-e` flags are commented out
-  with a note that they can be uncommented to stop OpenCode session token usage. Also added explicit
-  `OpenAiUpstreamApi=chat_completions` override for `opencode-go-openai-chat` and `OpenAiUpstreamApi=responses`
-  override for `opencode-go-openai-responses` to both scripts (image default is `responses`; the explicit
-  overrides prevent accidental fallback to the wrong API for either provider). HLD 001
-  (`001-llm-imposter-routing/README.md`) JSON example was not changed — it still shows the legacy
-  `opencode-go-openai` provider with `"chat_completions"` (stale vs. the live compound-provider split,
-  but left in place). BaseUrl stays at `https://opencode.ai/zen/go` — the proxy forwarder already
-  appends `/v1` in its endpoint paths.
+  `smooth-llm-imposter:latest` on every container start. Related comments and the "Image pull behavior"
+  note in the wiki doc updated to reflect the new pull behavior. OpenCode Go session forwarding switched
+  from actively disabled (`OPENCODE_GO_{ANTHROPIC,OPENAI}_SESSION_FORWARDING=none` exports + `-e` flags)
+  to using the image default (`SessionForwarding: opencode-go`) — the exports and `-e` flags are
+  commented out with a note that they can be uncommented to stop OpenCode session token usage. Also
+  added explicit `OpenAiUpstreamApi=chat_completions` override for `opencode-go-openai-chat` and
+  `OpenAiUpstreamApi=responses` override for `opencode-go-openai-responses` to both scripts (image
+  default is `responses`; the explicit overrides prevent accidental fallback to the wrong API for
+  either provider). HLD 001 (`001-llm-imposter-routing/README.md`) JSON example was not changed — it
+  still shows the legacy `opencode-go-openai` provider with `"chat_completions"` (stale vs. the live
+  compound-provider split, but left in place). BaseUrl stays at `https://opencode.ai/zen/go` — the
+  proxy forwarder already appends `/v1` in its endpoint paths.
   All 408 tests pass.
 - 2026-07-30: `opencode-go-openai` switched from `chat_completions` to `responses` in
   `appsettings.json`, `appsettings.Development.json`, and the Conductor `imposter-container.sh` env overrides
