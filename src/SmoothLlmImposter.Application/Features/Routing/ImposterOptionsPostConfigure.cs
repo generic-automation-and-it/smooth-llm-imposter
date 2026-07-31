@@ -274,16 +274,20 @@ internal sealed class ImposterOptionsPostConfigure(
     // regardless of whether a sibling or base provider is configured. Previously the fallback
     // was gated on a sibling/base provider existing, which prevented a lone suffixed
     // provider from resolving its secret from the shared base var (LADR-02/03).
+    //
+    // Uses IndexOf rather than EndsWith so that compound provider keys like
+    // "opencode-go-openai-chat" or "opencode-go-openai-responses" resolve from the same
+    // base as "opencode-go-openai" — the known dialect suffix is found mid-key and
+    // everything from that point onward is stripped.
     private static string? TrySharedProviderSecretPrefix(string key)
     {
         foreach (string suffix in SharedProviderSecretSuffixes)
         {
-            if (!key.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            int index = key.IndexOf(suffix, StringComparison.OrdinalIgnoreCase);
+            if (index > 0)
             {
-                continue;
+                return ToEnvPrefix(key[..index]);
             }
-
-            return ToEnvPrefix(key[..^suffix.Length]);
         }
 
         return null;

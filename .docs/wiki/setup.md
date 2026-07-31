@@ -199,12 +199,17 @@ selected config/profile through Smooth, regardless of whether the active model i
 model selected later with `/model`; Codex login, model-catalog refresh, web search, MCP servers, connectors, and
 cloud tasks are separate network paths.
 
-Keep `wire_api = "responses"` for Codex. When a matched imposter provider uses
-`OpenAiUpstreamApi = "chat_completions"` (for OpenAI-compatible upstreams that lack `/responses`), Smooth
-downgrades the outbound `/responses` request to Chat Completions for that upstream and translates the Chat
-response stream back into Responses events for Codex. `opencode-go-openai` is configured for the Responses API
-(`OpenAiUpstreamApi = "responses"`) since the OpenCode Go gateway serves `/v1/responses` directly, so no
-downgrade runs for those routes.
+Keep `wire_api = "responses"` for Codex. The Codex CLI dropped `wire_api = "chat"` support
+([discussion](https://github.com/openai/codex/discussions/7782)) — it only speaks the Responses API.
+When a matched imposter provider uses `OpenAiUpstreamApi = "chat_completions"` (for OpenAI-compatible
+upstreams that lack `/responses`), Smooth downgrades the outbound `/responses` request to Chat Completions
+and translates the response back. This downgrade rejects Responses-native input types (e.g.
+`additional_tools`). The `gpt-5.6-luna → grok-4.5` route is configured under `opencode-go-openai-responses`
+(`OpenAiUpstreamApi=responses`) for future testing, but currently returns 422 because no provider serves
+`/v1/responses` for these models yet. To re-enable the route when a provider adds `/v1/responses` support,
+follow the "Re-enable by confirming provider support" steps in
+[`ROUTING_AGENTS.md` Migration Plans](../src/SmoothLlmImposter.Application/Features/Routing/ROUTING_AGENTS.md#migration-plans);
+the route will work without further configuration changes.
 
 For generic OpenAI-compatible SDK/API-key clients, keep `/v1` in the client base URL because those clients append
 bare paths like `/responses`, `/chat/completions`, and `/models`:

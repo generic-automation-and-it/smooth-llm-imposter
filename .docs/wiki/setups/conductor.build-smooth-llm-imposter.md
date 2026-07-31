@@ -23,15 +23,15 @@ The setup works from any repository because it uses the published multi-platform
 
 It configures these imposter mappings:
 
-| Dialect | Incoming model | Upstream provider | Upstream model |
-|---|---|---|---|
-| Anthropic | `claude-sonnet-4-6` | OpenCode Go | `qwen3.6-plus` |
-| Anthropic | `claude-opus-4-6` | OpenCode Go | `qwen3.7-plus` |
-| Anthropic | `claude-opus-4-8` | OpenCode Go | `qwen3.7-max` |
-| Anthropic | `claude-haiku-*` | OpenRouter | `inclusionai/ling-3.0-flash:free` |
-| OpenAI | `gpt-5.4` | OpenCode Go | `kimi-k2.7-code` |
-| OpenAI | `gpt-5.5` | OpenCode Go | `glm-5.2` |
-| OpenAI | `gpt-5.6-luna` | OpenCode Go | `grok-4.5` |
+| Dialect | Incoming model | Upstream provider | Upstream model | Upstream API |
+|---|---|---|---|---|
+| Anthropic | `claude-sonnet-4-6` | OpenCode Go | `qwen3.6-plus` | N/A |
+| Anthropic | `claude-opus-4-6` | OpenCode Go | `qwen3.7-plus` | N/A |
+| Anthropic | `claude-opus-4-8` | OpenCode Go | `qwen3.7-max` | N/A |
+| Anthropic | `claude-haiku-*` | OpenRouter | `inclusionai/ling-3.0-flash:free` | N/A |
+| OpenAI | `gpt-5.4` | OpenCode Go | `kimi-k2.7-code` | `chat_completions` |
+| OpenAI | `gpt-5.5` | OpenCode Go | `glm-5.2` | `chat_completions` |
+| OpenAI | `gpt-5.6-luna` | OpenCode Go | `grok-4.5` | `responses` |
 
 These are setup-specific mappings chosen for this Conductor environment. They intentionally differ from the
 illustrative mappings and caching choices in
@@ -49,17 +49,21 @@ accepts the OpenAI-style alias and forwards to xAI; see
 and [xAI's model index](https://docs.x.ai/docs/models) for the upstream wire ID.
 
 The image default enables session identity forwarding (`SessionForwarding: opencode-go`) for the OpenCode Go
-providers, so matched routes stamp `session_id` and `x-opencode-session`. The shared workspace script actively
-disables this per-provider (`OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING=none` and
-`OPENCODE_GO_OPENAI_SESSION_FORWARDING=none`) — both exports are uncommented, both names are in `--preserve-env`,
-and both matching `-e` flags are passed to the `docker run`. To re-enable forwarding, comment out the two exports,
-remove both names from `--preserve-env`, and remove the two `-e` flags.
+providers, so matched routes stamp `session_id` and `x-opencode-session`. The shared workspace script uses this
+default as-is. To stop OpenCode session token usage, uncomment the two exports, add both names to
+`--preserve-env`, and add the two `-e` flags to the `docker run`.
 
 ## Snapshot script (install, configure, and pull the image)
 
 Use this as the Conductor snapshot lifecycle script. Conductor lifecycle logs identify the image as Amazon
 Linux 2023 (for example, `/home/vercel-sandbox`), so it uses DNF4 and native Docker rather than Homebrew,
 Linuxbrew, or Colima.
+
+> **`CONDUCTOR_IS_LOCAL=1` short-circuits both scripts.** Conductor sets this environment variable in the
+> local Mac/desktop workspace lifecycle (not the cloud sandbox). The local developer's Docker Desktop is
+> already running the imposter container, so the snapshot/workspace scripts no-op with `exit 0` instead of
+> trying to install packages or re-create the container. A no-op exit is therefore the **expected** behavior
+> on a local workspace — not a debugging artifact.
 
 Provider credentials are intentionally absent from snapshot construction: Conductor makes
 `OPENCODE_API_KEY` and `OPENROUTER_API_KEY` available only to the later workspace lifecycle. The snapshot
@@ -127,19 +131,16 @@ supply explicitly as that provider's `Secret` with the matching `AuthScheme`. Se
 > writes a `.git/hooks/pre-commit` hook that refreshes the graph; it lives inside `.git`, so it never appears in
 > a diff, but it does run on every commit made in the workspace.
 
-> **Codex configuration behavior.** The snapshot replaces the top-level `model_provider` value and the complete
-> `[model_providers.smooth-llm-proxy]` table so Codex reliably selects this router after RTK configuration.
-> Unrelated settings—including MCP servers, RTK configuration, and other provider tables—are preserved. Before
-> replacement, the script writes the previous file to `~/.codex/config.toml.bak`; snapshot rebuilds replace that
-> backup with the configuration present at the start of the latest rebuild.
-
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ "$CONDUCTOR_IS_LOCAL" = "1" ]; then
+  exit 0
+fi
+
 PORT="${PORT:-5080}"
 IMAGE="${SMOOTH_LLM_IMAGE:-ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest}"
-CODEX_CONFIG="$HOME/.codex/config.toml"
 
 echo "--- [1] Installing system and Docker packages ---"
 sudo dnf install -y \
@@ -269,80 +270,33 @@ sudo docker --version
 sudo docker compose version
 sudo docker pull "$IMAGE"
 
-echo "--- [6] Configuring Codex ---"
-mkdir -p "$(dirname "$CODEX_CONFIG")"
-touch "$CODEX_CONFIG"
-cp -p "$CODEX_CONFIG" "$CODEX_CONFIG.bak"
-
-# Replace only Codex's selected provider and SmoothLlmImposter's own table.
-# Preserve every unrelated setting, including MCP servers and RTK config.
-python3 - "$CODEX_CONFIG" "$PORT" <<'PY'
-from pathlib import Path
-import re
-import sys
-
-config_path = Path(sys.argv[1])
-port = sys.argv[2]
-text = config_path.read_text()
-
-provider_line = 'model_provider = "smooth-llm-proxy"'
-first_table = re.search(r"(?m)^\[", text)
-prefix_end = first_table.start() if first_table else len(text)
-prefix = text[:prefix_end]
-suffix = text[prefix_end:]
-
-if re.search(r"(?m)^model_provider\s*=", prefix):
-    prefix = re.sub(
-        r'(?m)^model_provider\s*=.*$',
-        provider_line,
-        prefix,
-        count=1,
-    )
-else:
-    prefix = f"{provider_line}\n\n{prefix}"
-
-text = prefix + suffix
-smooth_table = f"""[model_providers.smooth-llm-proxy]
-name = "Smooth LLM Imposter"
-base_url = "http://127.0.0.1:{port}/openai"
-wire_api = "responses"
-requires_openai_auth = true
-request_max_retries = 3
-stream_max_retries = 10
-stream_idle_timeout_ms = 300000
-"""
-
-table_pattern = re.compile(
-    r"(?ms)^\[model_providers\.smooth-llm-proxy\]\s*\n.*?(?=^\[|\Z)"
-)
-if table_pattern.search(text):
-    text = table_pattern.sub(smooth_table + "\n", text, count=1)
-else:
-    text = text.rstrip() + "\n\n" + smooth_table
-
-config_path.write_text(text)
-PY
-
 # Container creation belongs to the later credential-aware workspace lifecycle.
 # Keep only the image in the snapshot.
 sudo docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 ```
 
-> **Known limitation.** Workspace startup uses `--pull=never`, so the `:latest` image is fixed at snapshot-build
-> time. Republishing `smooth-llm-imposter:latest` to GHCR does not propagate to existing snapshots or their
-> workspaces; rebuild the snapshot to advance the image. Provider mappings and credentials are bound later when
-> the workspace creates the container, so those can change without rebuilding the snapshot.
+> **Image pull behavior.** Workspace startup uses `--pull=always`, so Docker checks GHCR for a newer
+> `smooth-llm-imposter:latest` on every container start and pulls it if available. Provider mappings and
+> credentials are bound when the workspace creates the container, so those can change independently of the
+> image.
 
 ## Workspace setup script (create and start the container)
 
-Use this as the Conductor workspace lifecycle. It does not reconfigure Codex or pull the image because those
-credential-independent steps are complete in the snapshot. It restarts `dockerd`, requires the workspace-only
-`OPENCODE_API_KEY` and `OPENROUTER_API_KEY`, and supplies the provider mappings and secrets while creating the
-container.
+Use this as the Conductor workspace lifecycle. `setup.sh` configures Codex (writes the
+`[model_providers.smooth-llm-proxy]` table and `model_provider` value into `~/.codex/config.toml`,
+preserving unrelated settings like MCP servers and RTK config — the previous file is backed up to
+`~/.codex/config.toml.bak`), runs code-review-graph wiring, then delegates to `imposter-container.sh`
+which restarts `dockerd`, requires the workspace-only `OPENCODE_API_KEY` and `OPENROUTER_API_KEY`,
+supplies the provider mappings and secrets while creating the container, and checks GHCR for a newer
+image via `--pull=always`.
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
+
+if [ "$CONDUCTOR_IS_LOCAL" = "1" ]; then
+  exit 0
+fi
 
 PORT="${PORT:-5080}"
 IMAGE="${SMOOTH_LLM_IMAGE:-ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest}"
@@ -411,12 +365,9 @@ export OPENCODE_GO_API_KEY="${OPENCODE_GO_API_KEY:-${OPENCODE_API_KEY:-}}"
 : "${OPENCODE_GO_API_KEY:?Set OPENCODE_API_KEY in the workspace environment.}"
 # Export so docker `-e OPENROUTER_API_KEY` can inherit the value (name-only pass-through).
 export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in the workspace environment.}"
-# Session forwarding is actively disabled per-provider (see imposter-container.sh
-# lines 40-41) so matched routes do not stamp session_id / x-opencode-session.
-# These are per-provider vars — there is no shared prefix fallback for
-# non-Secret fields, so each provider must be set individually.
-export OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING="${OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING:-none}"
-export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWARDING:-none}"
+# Uncomment to stop OpenCode session token usage (routes will no longer stamp session_id / x-opencode-session):
+#export OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING="${OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING:-none}"
+#export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWARDING:-none}"
 
 # Prefer unprivileged Docker when the snapshot's docker-group membership is
 # active. Otherwise preserve the secrets through sudo so `-e NAME` remains a
@@ -424,23 +375,31 @@ export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWA
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
 elif sudo docker info >/dev/null 2>&1; then
-  DOCKER=(sudo --preserve-env=OPENCODE_GO_API_KEY,OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING,OPENCODE_GO_OPENAI_SESSION_FORWARDING,OPENROUTER_API_KEY docker)
+  DOCKER=(sudo --preserve-env=OPENCODE_GO_API_KEY,OPENROUTER_API_KEY docker)
 else
   echo "Docker failed to start; inspect /tmp/dockerd.log." >&2
   exit 1
 fi
 
 # Create the container only now, after the workspace secrets exist. The image
-# was pulled into the snapshot, so do not contact GHCR during workspace setup.
-# openrouter-* is absent from the published base image, so define the Anthropic
-# OpenRouter provider fully here (same env-var shape, but defines a new provider
-# because the base image omits it).
+# is normally already cached locally from the snapshot, but --pull=always still
+# re-checks GHCR for a newer tag on every start (picks up rotated or manual
+# dispatch tags). openrouter-* is absent from the published base image, so
+# define the Anthropic OpenRouter provider fully here (same env-var shape, but
+# defines a new provider because the base image omits it).
 #
+# To stop OpenCode session token usage: uncomment the two exports above, add
+# OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING and OPENCODE_GO_OPENAI_SESSION_FORWARDING
+# to --preserve-env, and add "-e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \" /
+# "-e OPENCODE_GO_OPENAI_SESSION_FORWARDING \" below, just before "$IMAGE". Do NOT
+# add a "#"-commented placeholder line inside the docker run continuation below —
+# a "#" mid-backslash-continuation swallows the rest of that logical line
+# (including any trailing "\"), which silently drops "$IMAGE" from the command.
 "${DOCKER[@]}" rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 "${DOCKER[@]}" run -d \
   --name "$CONTAINER_NAME" \
   --restart unless-stopped \
-  --pull=never \
+  --pull=always \
   -p "127.0.0.1:${PORT}:5080" \
   -e "Imposter__Providers__opencode-go-anthropic__Dialect=anthropic" \
   -e "Imposter__Providers__opencode-go-anthropic__BaseUrl=https://opencode.ai/zen/go" \
@@ -456,19 +415,22 @@ fi
   -e "Imposter__Providers__openrouter-anthropic__AuthScheme=ApiKey" \
   -e "Imposter__Providers__openrouter-anthropic__Models__0__From=claude-haiku-*" \
   -e "Imposter__Providers__openrouter-anthropic__Models__0__To=inclusionai/ling-3.0-flash:free" \
-  -e "Imposter__Providers__opencode-go-openai__Dialect=openai" \
-  -e "Imposter__Providers__opencode-go-openai__BaseUrl=https://opencode.ai/zen/go" \
-  -e "Imposter__Providers__opencode-go-openai__AuthScheme=Bearer" \
-  -e "Imposter__Providers__opencode-go-openai__Models__0__From=gpt-5.4" \
-  -e "Imposter__Providers__opencode-go-openai__Models__0__To=kimi-k2.7-code" \
-  -e "Imposter__Providers__opencode-go-openai__Models__1__From=gpt-5.5" \
-  -e "Imposter__Providers__opencode-go-openai__Models__1__To=glm-5.2" \
-  -e "Imposter__Providers__opencode-go-openai__Models__2__From=gpt-5.6-luna" \
-  -e "Imposter__Providers__opencode-go-openai__Models__2__To=grok-4.5" \
+  -e "Imposter__Providers__opencode-go-openai-chat__Dialect=openai" \
+  -e "Imposter__Providers__opencode-go-openai-chat__BaseUrl=https://opencode.ai/zen/go" \
+  -e "Imposter__Providers__opencode-go-openai-chat__OpenAiUpstreamApi=chat_completions" \
+  -e "Imposter__Providers__opencode-go-openai-chat__AuthScheme=Bearer" \
+  -e "Imposter__Providers__opencode-go-openai-chat__Models__0__From=gpt-5.4" \
+  -e "Imposter__Providers__opencode-go-openai-chat__Models__0__To=kimi-k2.7-code" \
+  -e "Imposter__Providers__opencode-go-openai-chat__Models__1__From=gpt-5.5" \
+  -e "Imposter__Providers__opencode-go-openai-chat__Models__1__To=glm-5.2" \
+  -e "Imposter__Providers__opencode-go-openai-responses__Dialect=openai" \
+  -e "Imposter__Providers__opencode-go-openai-responses__BaseUrl=https://opencode.ai/zen/go" \
+  -e "Imposter__Providers__opencode-go-openai-responses__OpenAiUpstreamApi=responses" \
+  -e "Imposter__Providers__opencode-go-openai-responses__AuthScheme=Bearer" \
+  -e "Imposter__Providers__opencode-go-openai-responses__Models__0__From=gpt-5.6-luna" \
+  -e "Imposter__Providers__opencode-go-openai-responses__Models__0__To=grok-4.5" \
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \
-  -e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \
-  -e OPENCODE_GO_OPENAI_SESSION_FORWARDING \
   "$IMAGE" >/dev/null
 
 for _ in $(seq 1 30); do

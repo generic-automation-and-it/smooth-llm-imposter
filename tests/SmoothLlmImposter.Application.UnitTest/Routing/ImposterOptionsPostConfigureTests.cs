@@ -277,6 +277,36 @@ public class ImposterOptionsPostConfigureTests
     }
 
     [Fact]
+    public void Compound_provider_key_resolves_base_secret_via_mid_key_IndexOf()
+    {
+        // Regression: a provider key with more than one dialect segment after the base
+        // (e.g. "opencode-go-openai-chat") must still resolve its secret from the base
+        // OPENCODE_GO_API_KEY via the IndexOf mid-key match — the base prefix "opencode-go"
+        // is found inside the key, stripping both "-openai" and "-chat" suffixes.
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["OPENCODE_GO_API_KEY"] = "sk-opencode"
+            })
+            .Build();
+        var sut = new ImposterOptionsPostConfigure(configuration, new CapturingLogger());
+
+        var options = new ImposterOptions
+        {
+            Providers =
+            {
+                ["opencode-go-openai-chat"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://opencode.example", AuthScheme = "Bearer" },
+                ["opencode-go-openai-responses"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://opencode.example", AuthScheme = "Bearer" }
+            }
+        };
+
+        sut.PostConfigure(name: null, options);
+
+        options.Providers["opencode-go-openai-chat"].Secret.ShouldBe("sk-opencode");
+        options.Providers["opencode-go-openai-responses"].Secret.ShouldBe("sk-opencode");
+    }
+
+    [Fact]
     public void Lone_dialect_suffixed_provider_resolves_base_api_key_without_sibling()
     {
         // Regression guard (LADR-02/03): a single dialect-suffixed provider with no
@@ -329,6 +359,35 @@ public class ImposterOptionsPostConfigureTests
         sut.PostConfigure(name: null, options);
 
         options.Providers["openrouter-anthropic"].Secret.ShouldBe("sk-per-provider");
+    }
+
+    [Fact]
+    public void Provider_key_without_known_dialect_suffix_does_not_resolve_shared_base_secret()
+    {
+        // Negative regression: a provider key whose trailing segment is not a recognized dialect
+        // suffix (e.g. "my-provider-custom" — "custom" is neither "anthropic" nor "openai") must
+        // NOT resolve its Secret from an unrelated shared base var. CUSTOM_API_KEY is not a known
+        // dialect base, so the key's Secret slot stays empty.
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["OPENCODE_GO_API_KEY"] = "sk-opencode",
+                ["CUSTOM_API_KEY"] = "sk-custom"
+            })
+            .Build();
+        var sut = new ImposterOptionsPostConfigure(configuration, new CapturingLogger());
+
+        var options = new ImposterOptions
+        {
+            Providers =
+            {
+                ["my-provider-custom"] = new ProviderOptions { Dialect = "openai", BaseUrl = "https://custom.example", AuthScheme = "Bearer" }
+            }
+        };
+
+        sut.PostConfigure(name: null, options);
+
+        options.Providers["my-provider-custom"].Secret.ShouldBeNullOrEmpty();
     }
 
     [Fact]

@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Conductor sets CONDUCTOR_IS_LOCAL=1 when the script is invoked from a local
+# Mac/Conductor desktop workspace (not a cloud sandbox); both run scripts
+# short-circuit on it so they no-op on the local developer's machine, where
+# the imposter container is already started by the user's own Docker Desktop.
+# See `.conductor/AGENTS.md` ("Precedence gotcha" + this file's role entry).
+if [ "$CONDUCTOR_IS_LOCAL" = "1" ]; then
+  exit 0
+fi
+
 PORT="${PORT:-5080}"
 IMAGE="${SMOOTH_LLM_IMAGE:-ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest}"
 CONTAINER_NAME="smooth-llm-imposter"
@@ -43,10 +52,10 @@ export OPENCODE_GO_API_KEY="${OPENCODE_GO_API_KEY:-${OPENCODE_API_KEY:-}}"
 # Export so docker `-e OPENROUTER_API_KEY` can inherit the value (name-only pass-through).
 export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in the workspace environment.}"
 # Image default is SessionForwarding=opencode-go on both opencode-go-* providers.
-# Disable per-provider so matched routes do not stamp session_id / x-opencode-session.
-# (Per-provider vars — there is no shared prefix fallback for non-Secret fields.)
-export OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING="${OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING:-none}"
-export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWARDING:-none}"
+# Uncomment the exports and -e flags below to stop OpenCode session token usage
+# (matched routes will no longer stamp session_id / x-opencode-session).
+#export OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING="${OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING:-none}"
+#export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWARDING:-none}"
 
 # Prefer unprivileged Docker when the snapshot's docker-group membership is
 # active. Otherwise preserve the secrets through sudo so `-e NAME` remains a
@@ -54,22 +63,33 @@ export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWA
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
 elif sudo docker info >/dev/null 2>&1; then
-  DOCKER=(sudo --preserve-env=OPENCODE_GO_API_KEY,OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING,OPENCODE_GO_OPENAI_SESSION_FORWARDING,OPENROUTER_API_KEY docker)
+  DOCKER=(sudo --preserve-env=OPENCODE_GO_API_KEY,OPENROUTER_API_KEY docker)
 else
   echo "Docker failed to start; inspect /tmp/dockerd.log." >&2
   exit 1
 fi
 
-# Create/recreate the container now that workspace secrets exist. The image
-# was pulled into the snapshot, so do not contact GHCR here. openrouter-* is
+# Create/recreate the container now that workspace secrets exist. --pull=always
+# re-checks GHCR for a newer image on every start (network round-trip; a slow
+# or unreachable registry will block container creation — start with the
+# network available or pin SMOOTH_LLM_IMAGE to a known tag). openrouter-* is
 # absent from the published base image, so define the Anthropic OpenRouter
 # provider fully here (same env-var shape, but defines a new provider because
 # the base image omits it).
+#
+# To stop OpenCode session token usage: uncomment the two exports above (~line
+# 57-58), add OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING and
+# OPENCODE_GO_OPENAI_SESSION_FORWARDING to --preserve-env, and add
+# "-e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \" / "-e OPENCODE_GO_OPENAI_SESSION_FORWARDING \"
+# below, just before "$IMAGE". Do NOT add a "#"-commented placeholder line inside
+# the docker run continuation below — a "#" mid-backslash-continuation swallows
+# the rest of that logical line (including any trailing "\"), which silently
+# drops "$IMAGE" from the command.
 "${DOCKER[@]}" rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 "${DOCKER[@]}" run -d \
   --name "$CONTAINER_NAME" \
   --restart unless-stopped \
-  --pull=never \
+  --pull=always \
   -p "127.0.0.1:${PORT}:5080" \
   -e "Imposter__Providers__opencode-go-anthropic__Dialect=anthropic" \
   -e "Imposter__Providers__opencode-go-anthropic__BaseUrl=https://opencode.ai/zen/go" \
@@ -85,19 +105,22 @@ fi
   -e "Imposter__Providers__openrouter-anthropic__AuthScheme=ApiKey" \
   -e "Imposter__Providers__openrouter-anthropic__Models__0__From=claude-haiku-*" \
   -e "Imposter__Providers__openrouter-anthropic__Models__0__To=inclusionai/ling-3.0-flash:free" \
-  -e "Imposter__Providers__opencode-go-openai__Dialect=openai" \
-  -e "Imposter__Providers__opencode-go-openai__BaseUrl=https://opencode.ai/zen/go" \
-  -e "Imposter__Providers__opencode-go-openai__AuthScheme=Bearer" \
-  -e "Imposter__Providers__opencode-go-openai__Models__0__From=gpt-5.4" \
-  -e "Imposter__Providers__opencode-go-openai__Models__0__To=kimi-k2.7-code" \
-  -e "Imposter__Providers__opencode-go-openai__Models__1__From=gpt-5.5" \
-  -e "Imposter__Providers__opencode-go-openai__Models__1__To=glm-5.2" \
-  -e "Imposter__Providers__opencode-go-openai__Models__2__From=gpt-5.6-luna" \
-  -e "Imposter__Providers__opencode-go-openai__Models__2__To=grok-4.5" \
+  -e "Imposter__Providers__opencode-go-openai-chat__Dialect=openai" \
+  -e "Imposter__Providers__opencode-go-openai-chat__BaseUrl=https://opencode.ai/zen/go" \
+  -e "Imposter__Providers__opencode-go-openai-chat__OpenAiUpstreamApi=chat_completions" \
+  -e "Imposter__Providers__opencode-go-openai-chat__AuthScheme=Bearer" \
+  -e "Imposter__Providers__opencode-go-openai-chat__Models__0__From=gpt-5.4" \
+  -e "Imposter__Providers__opencode-go-openai-chat__Models__0__To=kimi-k2.7-code" \
+  -e "Imposter__Providers__opencode-go-openai-chat__Models__1__From=gpt-5.5" \
+  -e "Imposter__Providers__opencode-go-openai-chat__Models__1__To=glm-5.2" \
+  -e "Imposter__Providers__opencode-go-openai-responses__Dialect=openai" \
+  -e "Imposter__Providers__opencode-go-openai-responses__BaseUrl=https://opencode.ai/zen/go" \
+  -e "Imposter__Providers__opencode-go-openai-responses__OpenAiUpstreamApi=responses" \
+  -e "Imposter__Providers__opencode-go-openai-responses__AuthScheme=Bearer" \
+  -e "Imposter__Providers__opencode-go-openai-responses__Models__0__From=gpt-5.6-luna" \
+  -e "Imposter__Providers__opencode-go-openai-responses__Models__0__To=grok-4.5" \
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \
-  -e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \
-  -e OPENCODE_GO_OPENAI_SESSION_FORWARDING \
   "$IMAGE" >/dev/null
 
 for _ in $(seq 1 30); do
