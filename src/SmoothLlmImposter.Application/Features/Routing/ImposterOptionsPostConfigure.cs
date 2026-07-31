@@ -48,7 +48,7 @@ internal sealed class ImposterOptionsPostConfigure(
     IConfiguration configuration,
     ILogger<ImposterOptionsPostConfigure> logger) : IPostConfigureOptions<ImposterOptions>
 {
-    private static readonly string[] SharedProviderSecretSuffixes = ["-anthropic", "-openai", "-responses"];
+    private static readonly string[] SharedProviderSecretSuffixes = ["-anthropic", "-openai", "-responses", "-chat"];
 
     /// <summary>
     /// The conventional suffix → field surface. <see cref="ConventionalField.PropertyName"/> names the
