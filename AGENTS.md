@@ -128,9 +128,12 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
   `.conductor/scripts/imposter-container.sh` and the embedded `docker run` in
   `.docs/wiki/setups/conductor.build-smooth-llm-imposter.md` — Docker now checks GHCR for a newer
   `smooth-llm-imposter:latest` on every container start. Related comments and the "Known limitation" note in
-  the wiki doc updated to reflect the new pull behavior. Also added explicit `OpenAiUpstreamApi=responses`
-  override to both scripts for `opencode-go-openai` (image default is already `responses`; the explicit
-  override prevents accidental `chat_completions` fallback). HLD 001
+  the wiki doc updated to reflect the new pull behavior. OpenCode Go session forwarding switched from
+  actively disabled (`OPENCODE_GO_{ANTHROPIC,OPENAI}_SESSION_FORWARDING=none` exports + `-e` flags) to
+  using the image default (`SessionForwarding: opencode-go`) — the exports and `-e` flags are commented out
+  with a note that they can be uncommented to stop OpenCode session token usage. Also added explicit
+  `OpenAiUpstreamApi=responses` override to both scripts for `opencode-go-openai` (image default is already
+  `responses`; the explicit override prevents accidental `chat_completions` fallback). HLD 001
   (`001-llm-imposter-routing/README.md`) JSON example corrected: `opencode-go-openai` previously showed
   `"chat_completions"` (stale vs. actual config); updated to `"responses"`. BaseUrl stays at
   `https://opencode.ai/zen/go` — the proxy forwarder already appends `/v1` in its endpoint paths.

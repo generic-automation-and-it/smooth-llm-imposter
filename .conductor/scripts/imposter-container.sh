@@ -43,10 +43,10 @@ export OPENCODE_GO_API_KEY="${OPENCODE_GO_API_KEY:-${OPENCODE_API_KEY:-}}"
 # Export so docker `-e OPENROUTER_API_KEY` can inherit the value (name-only pass-through).
 export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in the workspace environment.}"
 # Image default is SessionForwarding=opencode-go on both opencode-go-* providers.
-# Disable per-provider so matched routes do not stamp session_id / x-opencode-session.
-# (Per-provider vars — there is no shared prefix fallback for non-Secret fields.)
-export OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING="${OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING:-none}"
-export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWARDING:-none}"
+# Comment out the exports and -e flags below to stop OpenCode session token usage
+# (matched routes will no longer stamp session_id / x-opencode-session).
+#export OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING="${OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING:-none}"
+#export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWARDING:-none}"
 
 # Prefer unprivileged Docker when the snapshot's docker-group membership is
 # active. Otherwise preserve the secrets through sudo so `-e NAME` remains a
@@ -54,7 +54,7 @@ export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWA
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
 elif sudo docker info >/dev/null 2>&1; then
-  DOCKER=(sudo --preserve-env=OPENCODE_GO_API_KEY,OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING,OPENCODE_GO_OPENAI_SESSION_FORWARDING,OPENROUTER_API_KEY docker)
+  DOCKER=(sudo --preserve-env=OPENCODE_GO_API_KEY,OPENROUTER_API_KEY docker)
 else
   echo "Docker failed to start; inspect /tmp/dockerd.log." >&2
   exit 1
@@ -96,9 +96,10 @@ fi
   -e "Imposter__Providers__opencode-go-openai__Models__2__To=grok-4.5" \
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \
-  -e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \
-  -e OPENCODE_GO_OPENAI_SESSION_FORWARDING \
   "$IMAGE" >/dev/null
+  # Uncomment below to stop OpenCode session token usage (routes will no longer stamp session_id / x-opencode-session):
+  # -e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING
+  # -e OPENCODE_GO_OPENAI_SESSION_FORWARDING
 
 for _ in $(seq 1 30); do
   if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
