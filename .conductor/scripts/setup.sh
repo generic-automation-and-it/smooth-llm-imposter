@@ -41,7 +41,7 @@ else:
 text = prefix + suffix
 smooth_table = f"""[model_providers.smooth-llm-proxy]
 name = "Smooth LLM Imposter"
-base_url = "http://127.0.0.1:{port}/openai"
+base_url = "http://127.0.0.1:{port}/openai/v1"
 wire_api = "responses"
 requires_openai_auth = true
 request_max_retries = 3
