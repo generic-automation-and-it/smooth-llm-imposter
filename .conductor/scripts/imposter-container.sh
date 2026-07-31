@@ -47,7 +47,7 @@ export OPENCODE_GO_API_KEY="${OPENCODE_GO_API_KEY:-${OPENCODE_API_KEY:-}}"
 # Export so docker `-e OPENROUTER_API_KEY` can inherit the value (name-only pass-through).
 export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in the workspace environment.}"
 # Image default is SessionForwarding=opencode-go on both opencode-go-* providers.
-# Comment out the exports and -e flags below to stop OpenCode session token usage
+# Uncomment the exports and -e flags below to stop OpenCode session token usage
 # (matched routes will no longer stamp session_id / x-opencode-session).
 #export OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING="${OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING:-none}"
 #export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWARDING:-none}"
@@ -105,9 +105,11 @@ fi
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \
   "$IMAGE" >/dev/null
-  # Uncomment below to stop OpenCode session token usage (routes will no longer stamp session_id / x-opencode-session):
-  # -e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING
-  # -e OPENCODE_GO_OPENAI_SESSION_FORWARDING
+  # Uncomment the next two -e lines (and move them above, just before "$IMAGE") to stop
+  # OpenCode session token usage. Also uncomment the exports above and add both names to
+  # --preserve-env.
+  # -e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \
+  # -e OPENCODE_GO_OPENAI_SESSION_FORWARDING \
 
 for _ in $(seq 1 30); do
   if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then

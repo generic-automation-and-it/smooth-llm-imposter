@@ -315,16 +315,16 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   require the full Responses API contract (`/v1/responses` with Responses-native input types like
   `additional_tools`). Both OpenCode Go (`opencode-go-openai`) and OpenRouter (`openrouter-openai`) only
   serve `/v1/chat/completions` — the `/responses`→Chat downgrade rejects Responses-native fields (422 from
-  OpenCode Go, 404 from OpenRouter). Until a provider exposes `/v1/responses` for these models, no
-  `gpt-5.6-*` imposter route is configured. `opencode-go-openai` stays on
-  `OpenAiUpstreamApi: chat_completions` for `gpt-5.4`/`gpt-5.5`. Re-enable by switching to
-  `OpenAiUpstreamApi: responses` and adding the `gpt-5.6-*` model mapping once a provider supports it.
+  OpenCode Go, 404 from OpenRouter). A `gpt-5.6-luna` → `grok-4.5` route is configured under
+  `opencode-go-openai-responses` (`OpenAiUpstreamApi: responses`) for future testing; it currently returns
+  422 because no provider serves `/v1/responses`. `opencode-go-openai` stays on
+  `OpenAiUpstreamApi: chat_completions` for `gpt-5.4`/`gpt-5.5`. Re-enable by confirming provider support.
 
 ## Changelog
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
-| 2026-07-31 | `opencode-go-openai` reverted from `responses` to `chat_completions`. Both OpenCode Go and OpenRouter only serve `/v1/chat/completions` — Codex `gpt-5.6-*` Responses-native input types (422 from OpenCode Go, 404 from OpenRouter) confirmed no provider supports `/v1/responses` yet. `gpt-5.6-*` imposter routes removed; waiting on provider support. Migration Plans section added. | — |
+| 2026-07-31 | `opencode-go-openai` reverted from `responses` to `chat_completions`. Both OpenCode Go and OpenRouter only serve `/v1/chat/completions` — Codex `gpt-5.6-*` Responses-native input types (422 from OpenCode Go, 404 from OpenRouter) confirmed no provider supports `/v1/responses` yet. `gpt-5.6-luna → grok-4.5` route configured under `opencode-go-openai-responses` (`OpenAiUpstreamApi: responses`) for future testing; currently returns 422. Migration Plans section added. | — |
 | 2026-07-29 | Routing Information logs now carry `route=imposter|passthrough`. Model-bearing passthrough keeps the inbound/target model fields visible (`as` remains the unchanged inbound model), while body-less passthrough remains explicitly `no model`. | — |
 | 2026-07-25 | HLD 010 who-message introspection: last-user-message `--who?` (exact, trimmed, non-streaming) short-circuits the forward path with a dialect-shaped synthetic reply naming the resolved route and auth scheme. `ImposterRouter.DescribeAuth` promoted to `internal static` so the reply, log, and outbound header share one source of truth. Gated on `Imposter:WhoMessage:Enabled` (default `true`, env `IMPOSTER_WHO_MESSAGE_ENABLED`). Fifth sanctioned request-inspection class, the only one that reads `messages` content or synthesizes a response. | HLD 010 |
 | 2026-07-24 | HLD 009: opt-in `SessionForwarding` (fourth request-rewrite class) stamps resolved session identity on matched imposter routes (`session_id` body + `x-opencode-session` header; Anthropic header-only). Routing log adds `session=captured|derived|none`. | #72 |

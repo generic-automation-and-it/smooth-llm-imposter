@@ -23,15 +23,15 @@ The setup works from any repository because it uses the published multi-platform
 
 It configures these imposter mappings:
 
-| Dialect | Incoming model | Upstream provider | Upstream model |
-|---|---|---|---|
-| Anthropic | `claude-sonnet-4-6` | OpenCode Go | `qwen3.6-plus` |
-| Anthropic | `claude-opus-4-6` | OpenCode Go | `qwen3.7-plus` |
-| Anthropic | `claude-opus-4-8` | OpenCode Go | `qwen3.7-max` |
-| Anthropic | `claude-haiku-*` | OpenRouter | `inclusionai/ling-3.0-flash:free` |
-| OpenAI | `gpt-5.4` | OpenCode Go | `kimi-k2.7-code` |
-| OpenAI | `gpt-5.5` | OpenCode Go | `glm-5.2` |
-| OpenAI | `gpt-5.6-luna` | OpenCode Go | `grok-4.5` |
+| Dialect | Incoming model | Upstream provider | Upstream model | Upstream API |
+|---|---|---|---|---|
+| Anthropic | `claude-sonnet-4-6` | OpenCode Go | `qwen3.6-plus` | N/A |
+| Anthropic | `claude-opus-4-6` | OpenCode Go | `qwen3.7-plus` | N/A |
+| Anthropic | `claude-opus-4-8` | OpenCode Go | `qwen3.7-max` | N/A |
+| Anthropic | `claude-haiku-*` | OpenRouter | `inclusionai/ling-3.0-flash:free` | N/A |
+| OpenAI | `gpt-5.4` | OpenCode Go | `kimi-k2.7-code` | `chat_completions` |
+| OpenAI | `gpt-5.5` | OpenCode Go | `glm-5.2` | `chat_completions` |
+| OpenAI | `gpt-5.6-luna` | OpenCode Go | `grok-4.5` | `responses` |
 
 These are setup-specific mappings chosen for this Conductor environment. They intentionally differ from the
 illustrative mappings and caching choices in
@@ -417,10 +417,10 @@ fi
   -e "Imposter__Providers__opencode-go-openai-responses__Models__0__To=grok-4.5" \
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \
+  # Uncomment the next two -e lines to stop OpenCode session token usage (also uncomment the exports above and add both names to --preserve-env).
+  # -e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \
+  # -e OPENCODE_GO_OPENAI_SESSION_FORWARDING \
   "$IMAGE" >/dev/null
-  # Uncomment below to stop OpenCode session token usage:
-  # -e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING
-  # -e OPENCODE_GO_OPENAI_SESSION_FORWARDING
 
 for _ in $(seq 1 30); do
   if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then

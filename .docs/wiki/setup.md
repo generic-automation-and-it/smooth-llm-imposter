@@ -204,7 +204,10 @@ Keep `wire_api = "responses"` for Codex. The Codex CLI dropped `wire_api = "chat
 When a matched imposter provider uses `OpenAiUpstreamApi = "chat_completions"` (for OpenAI-compatible
 upstreams that lack `/responses`), Smooth downgrades the outbound `/responses` request to Chat Completions
 and translates the response back. This downgrade rejects Responses-native input types (e.g.
-`additional_tools`), so `gpt-5.6-*` imposter routes are blocked until a provider serves `/v1/responses`.
+`additional_tools`). The `gpt-5.6-luna → grok-4.5` route is configured under `opencode-go-openai-responses`
+(`OpenAiUpstreamApi=responses`) for future testing, but currently returns 422 because no provider serves
+`/v1/responses` for these models yet. When a provider adds `/v1/responses` support, the route will work
+without further configuration changes.
 
 For generic OpenAI-compatible SDK/API-key clients, keep `/v1` in the client base URL because those clients append
 bare paths like `/responses`, `/chat/completions`, and `/models`:
