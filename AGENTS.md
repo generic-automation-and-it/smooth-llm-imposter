@@ -124,7 +124,13 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
-- 2026-07-31: Conductor imposter container switched from `--pull=never` to `--pull=always` in
+- 2026-07-31: `opencode-go-openai` reverted from `responses` to `chat_completions` in `appsettings.json`,
+  `appsettings.Development.json`, and the Conductor scripts. Confirmed both OpenCode Go (422 on
+  Responses-native input types like `additional_tools`) and OpenRouter (404 on `/v1/responses` — endpoint
+  not exposed) only serve `/v1/chat/completions`. All `gpt-5.6-*` imposter routes removed — Codex requires
+  full Responses API support which no provider offers yet. `gpt-5.4`/`gpt-5.5` stay routed via
+  `opencode-go-openai` on `chat_completions` (proxy handles `/responses`→Chat downgrade).
+  `ROUTING_AGENTS.md` updated with Migration Plans section documenting the provider dependency.
   `.conductor/scripts/imposter-container.sh` and the embedded `docker run` in
   `.docs/wiki/setups/conductor.build-smooth-llm-imposter.md` — Docker now checks GHCR for a newer
   `smooth-llm-imposter:latest` on every container start. Related comments and the "Known limitation" note in

@@ -395,20 +395,12 @@ fi
   -e "Imposter__Providers__openrouter-anthropic__Models__0__To=inclusionai/ling-3.0-flash:free" \
   -e "Imposter__Providers__opencode-go-openai__Dialect=openai" \
   -e "Imposter__Providers__opencode-go-openai__BaseUrl=https://opencode.ai/zen/go" \
-  -e "Imposter__Providers__opencode-go-openai__OpenAiUpstreamApi=responses" \
+  -e "Imposter__Providers__opencode-go-openai__OpenAiUpstreamApi=chat_completions" \
   -e "Imposter__Providers__opencode-go-openai__AuthScheme=Bearer" \
   -e "Imposter__Providers__opencode-go-openai__Models__0__From=gpt-5.4" \
   -e "Imposter__Providers__opencode-go-openai__Models__0__To=kimi-k2.7-code" \
   -e "Imposter__Providers__opencode-go-openai__Models__1__From=gpt-5.5" \
   -e "Imposter__Providers__opencode-go-openai__Models__1__To=glm-5.2" \
-  -e "Imposter__Providers__opencode-go-openai__Models__2__From=gpt-5.6-luna" \
-  -e "Imposter__Providers__opencode-go-openai__Models__2__To=grok-4.5" \
-  -e "Imposter__Providers__openrouter-openai__Dialect=openai" \
-  -e "Imposter__Providers__openrouter-openai__BaseUrl=https://openrouter.ai/api" \
-  -e "Imposter__Providers__openrouter-openai__AuthScheme=ApiKey" \
-  -e "Imposter__Providers__openrouter-openai__OpenAiUpstreamApi=responses" \
-  -e "Imposter__Providers__openrouter-openai__Models__0__From=gpt-5.6-terra" \
-  -e "Imposter__Providers__openrouter-openai__Models__0__To=x-ai/grok-4.5" \
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \
   "$IMAGE" >/dev/null
