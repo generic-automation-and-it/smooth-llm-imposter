@@ -259,6 +259,9 @@ jobs:
       OPENCODE_GO_ANTHROPIC_API_KEY: ${{ secrets.OPENCODE_GO_ANTHROPIC_API_KEY }}
       OPENCODE_OPENROUTER_API_KEY: ${{ secrets.OPENCODE_OPENROUTER_API_KEY }}
       OPENCODE_REVIEW_REPORT_DISABLE_CLAUDE_CODE: ${{ vars.OPENCODE_REVIEW_REPORT_DISABLE_CLAUDE_CODE || '1' }}
+      OPENCODE_CLI_VERSION: ${{ vars.OPENCODE_CLI_VERSION || '' }}
+      OPENCODE_TOOL_CODE_REVIEW_GRAPH_VERSION: ${{ vars.OPENCODE_TOOL_CODE_REVIEW_GRAPH_VERSION || '' }}
+      OPENCODE_TOOL_RTK_VERSION: ${{ vars.OPENCODE_TOOL_RTK_VERSION || '' }}
       PR_NUMBER: ${{ needs.guard.outputs.pr_number }}
       MEDIUM_SECTION: ${{ needs.guard.outputs.medium_section }}
       LOW_SECTION: ${{ needs.guard.outputs.low_section }}

@@ -124,6 +124,7 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-07-31: Added supply-chain provenance version vars: `OPENCODE_CLI_VERSION`, `OPENCODE_TOOL_CODE_REVIEW_GRAPH_VERSION`, `OPENCODE_TOOL_RTK_VERSION` to `pipeline-ai-analyse.yml` env block (reading from repo vars). `pipeline-code-review-report.yml` documents the vars in its config comments (thin caller, env exports live in the upstream reusable workflow).
 - 2026-07-31: The `opencode-go-openai` provider was split into two keys — `opencode-go-openai-chat`
   (`OpenAiUpstreamApi: chat_completions`, the explicit default) and `opencode-go-openai-responses`
   (`OpenAiUpstreamApi: responses`, for future `gpt-5.6-luna` testing) — in `appsettings.json`,
