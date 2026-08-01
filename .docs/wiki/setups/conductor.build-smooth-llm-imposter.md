@@ -283,13 +283,10 @@ sudo docker pull "$IMAGE"
 sudo docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 ```
 
-> **Image pull behavior.** Workspace startup runs a separate `docker pull` before recreating the container,
-> so Docker still checks GHCR for a newer `smooth-llm-imposter:latest` on every start — but a failed pull is
-> tolerated and falls back to the locally cached image instead of aborting. It is deliberately **not**
-> `docker run --pull=always`: that returns `exit 125` when the registry is unreachable even though the image
-> is cached locally, and the unconditional `docker rm -f` has already run by then, so a transient GHCR or DNS
-> failure would leave the workspace with no container at all. Provider mappings and credentials are bound
-> when the workspace creates the container, so those can change independently of the image.
+> **Image pull behavior.** Workspace startup runs `docker pull` before recreating the container. If the pull
+> fails (GHCR/DNS blip), the script falls back to the locally cached image. If no local copy exists either,
+> the script exits 1 **before** the `docker rm -f`, so the running container (if any) is preserved. The
+> container itself uses the default `--pull=missing`, so a missing local tag does not also try the registry.
 
 ## Workspace setup script (create and start the container)
 
@@ -307,6 +304,11 @@ while creating the container.
 > answers `docker info`, rather than after the ~minute of Codex and code-review-graph work that had been
 > giving a restarting daemon time to finish restoring containers and networking. Observed result: pull and
 > run both succeed, then the daemon disappears during the health wait.
+
+> **Note on the script below.** This is a *flattened, paste-in copy* of the canonical script at
+> `.conductor/scripts/imposter-container.sh`. The Conductor settings file references that path. Any
+> non-trivial change (new env var, new flag, new failure mode) must be made there first, and this copy
+> updated in lockstep. The two will silently drift otherwise.
 
 ```bash
 #!/usr/bin/env bash

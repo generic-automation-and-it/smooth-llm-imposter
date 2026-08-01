@@ -11,6 +11,15 @@ set -euo pipefail
 # Checks the daemon before the container: when dockerd is the thing that died,
 # `docker logs` answers "Cannot connect to the Docker daemon" and that error
 # silently takes the place of the container output you came for.
+#
+# No CONDUCTOR_IS_LOCAL guard: logs are safe to tail on both local and
+# cloud workspaces, and a Mac operator pressing the button without a
+# running container gets a graceful "No container named X exists".
+#
+# No --preserve-env for secrets here — `docker logs` does not need them.
+# If a future change adds a secret-using command (e.g. an HTTP call to the
+# router), add the matching name to a `--preserve-env=...` flag on the
+# sudo fallback below, the same way `imposter-container.sh` does.
 CONTAINER_NAME="smooth-llm-imposter"
 TAIL="${TAIL:-200}"
 

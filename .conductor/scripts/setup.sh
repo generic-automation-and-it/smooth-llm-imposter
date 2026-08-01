@@ -23,6 +23,12 @@ set -euo pipefail
 # hand from a plain shell (where Conductor injects nothing) does not abort on
 # `set -u` with "CONDUCTOR_IS_LOCAL: unbound variable" before doing any work.
 # See `.conductor/AGENTS.md` ("Precedence gotcha" + this file's role entry).
+#
+# Local-flow note: when this guard fires, setup exits 0 and the actual
+# container work is then driven by Conductor's `auto_run_after_setup` hook,
+# which fires `restart-imposter.sh` and therefore `imposter-container.sh`.
+# On cloud `auto_run_after_setup` is a no-op (per the Conductor schema) and
+# this script continues past the guard into the full inline path.
 if [ "${CONDUCTOR_IS_LOCAL:-0}" = "1" ]; then
   exit 0
 fi

@@ -111,6 +111,10 @@ at scripts under `.conductor/scripts/`, which start the imposter container and, 
   (no systemd as PID 1), so nothing survives a VM restart on its own — `--restart unless-stopped` only helps
   once a daemon is back. The run script is therefore the mechanism that re-establishes the container, which
   is why it is `default = true` and `auto_run_after_setup = true`.
+  - The `default = true` flag on `restart-imposter` makes the restart button prominent in the Conductor UI so
+    a user can re-establish the container after a cloud micro-VM restart. The companion
+    `auto_run_after_setup = true` only fires on new **local** workspaces (per the Conductor schema), so on
+    cloud it is a no-op — recovery on cloud is user-initiated via the prominent run button.
 - **Current imposter model mappings** (single source of truth: the `-e` flags in `imposter-container.sh`):
   `claude-sonnet-4-6`/`claude-opus-4-6`/`claude-opus-4-8` → OpenCode Go `qwen3.6-plus`/`qwen3.7-plus`/`qwen3.7-max`;
   `claude-haiku-*` → OpenRouter Anthropic `inclusionai/ling-3.0-flash:free`; `gpt-5.4`/`gpt-5.5` route via
