@@ -178,6 +178,25 @@ manual cleanup step per teammate, not something this script can detect or warn a
 
 This section contains SmoothLlmImposter-specific details that do not ship with the kit.
 
+### Publishing the kit
+
+- **Releases on this repository are immutable, so the workflow must create a draft, attach assets, then
+  publish.** Assets can only be attached before publication. Publishing on create — `action-gh-release`
+  with the default `draft: false` — fails every upload with *"Cannot upload asset … to an immutable
+  release"*, and because the action creates the release *before* uploading, the failure leaves a published,
+  permanently asset-less release behind. Never collapse `Create draft release with assets` and
+  `Publish the release` back into one step.
+- **`make_latest` belongs on the publish step, not the action.** The action applies it at creation, while
+  the release is still a draft, where it does nothing. `install.sh` with no `--ref` resolves through
+  `/releases/latest`, so if nothing ever claims latest the default install path has nothing to find.
+- **`v0.0.1` and `v1.0.0` are burned and can never be used again.** Both were published asset-less by the
+  bug above. Deleting the release *and* its tag does **not** free the name — GitHub permanently reserves a
+  tag once an immutable release has used it, and republishing fails with `tag_name was used by an immutable
+  release` / `Cannot create ref due to creations being restricted`. That deletion was attempted and wasted;
+  do not retry it. Versioning resumed at `v0.0.2`.
+- A draft prerelease emits `release.published` on publication, not `release.prereleased` — relevant to
+  anything subscribing downstream.
+
 ### Current imposter model mappings
 
 | Dialect | Incoming model | Upstream provider | Upstream model | Upstream API |
@@ -224,3 +243,5 @@ default as-is. To stop OpenCode session token usage, uncomment the two exports, 
 | 2026-08-01 | **Reverted within the same day: hoisting the container start to the front of `setup.sh`.** Field result on a restarted micro VM: `docker pull` and `docker run` both succeeded, then the daemon went unreachable during the 30s health wait, and the failure path's bare `docker logs` reported "Cannot connect to the Docker daemon" — swallowing the container logs. Two lessons kept in the code: the ordering is now explicitly pinned (see Non-Negotiables), and failures print a daemon-first `diagnose()` bundle to the terminal instead of writing files an operator on a remote sandbox cannot read. Root cause of the daemon death is still unconfirmed — `/tmp/dockerd.log` was empty, which means that daemon was not started by this script. | — |
 | 2026-08-01 | Packaged the kit for reuse: `.conductor/install.sh` (vendoring installer, `--ref`, `--check`) and `.github/workflows/publish-conductor-kit.yml` (tarball + SHA256SUMS on a GitHub Release). `.conductor/AGENTS.md` split into generic kit context and repo-specific context. **The scripts ship as-is** — an attempt to generalise them (replacing the `-e Imposter__Providers__*` flags with an `Imposter__*` environment pass-through, plus a worktree fix and conditional claude-code flags) was reverted in full: the pass-through silently dropped every route, and a kit that routes nothing until the consumer configures it is a worse product. See the Architecture Decisions row and the two Key Behaviors entries recording what was learned and what defect remains open. | — |
 | 2026-08-01 | Fix `publish-conductor-kit.yml`: split release creation and publication into two steps. The action cannot upload assets to a published release on an immutable-release repository, and the previous single-step create+upload burned v0.0.1 and v1.0.0 (permanently asset-less, irreparable). Create as draft, upload assets into the draft, then `gh release edit --draft=false` with `make_latest` placed on the publish step (drafts cannot be latest). | #108 |
+| 2026-08-01 | Two facts learned while fixing the release workflow, beyond the split itself: deleting a release **and** its tag does NOT free the version — GitHub reserves a tag name permanently once an immutable release has used it (`tag_name was used by an immutable release`), so that cleanup attempt on v0.0.1/v1.0.0 was wasted; and the fix is proven end to end — `v0.0.2` published with all three assets and the documented `curl … --ref v0.0.2` install verified in a scratch directory. | #108 |
+| 2026-08-01 | Trimmed comments across `install.sh`, the four kit scripts and the release workflow — 33-71% comment lines down to 13-17%. Rationale that belongs in this file was removed from the code rather than duplicated. Verified comments-only: the non-comment diff against `main` for `.conductor/scripts/` is empty. | — |

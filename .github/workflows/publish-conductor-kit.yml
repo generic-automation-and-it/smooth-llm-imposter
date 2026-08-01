@@ -1,11 +1,8 @@
 name: Publish conductor kit
 
-# Builds the .conductor kit as a versioned tarball and attaches it to a
-# GitHub Release. Runs on every push of a version tag v* (semver tags),
-# and on manual dispatch with a required version input for pre-releases.
-# A manual dispatch never produces the :latest tag — it publishes the
-# user-supplied pre-release version (e.g. 1.0.0-rc.1) so pre-release
-# kits can be cut from any branch.
+# Builds the .conductor kit as a versioned tarball and attaches it to a GitHub
+# Release: on a v* tag push, or via manual dispatch for a pre-release from any
+# branch. Only a tag push is marked latest.
 
 on:
   push:
@@ -43,9 +40,7 @@ jobs:
             VERSION="${GITHUB_REF#refs/tags/v}"
           fi
 
-          # Validated here, not via a `pattern:` key on the input — workflow_dispatch
-          # inputs support description/required/default/type/options only, so a
-          # `pattern:` is silently ignored and enforces nothing.
+          # Not a `pattern:` on the input — workflow_dispatch ignores that key.
           if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'; then
             echo "::error::Version '$VERSION' is not semver (expected e.g. 1.2.3 or 1.0.0-rc.1, no leading v)."
             exit 1
@@ -59,50 +54,31 @@ jobs:
           TAG="${{ steps.version.outputs.tag }}"
           TARBALL="conductor-kit-${VERSION}.tar.gz"
 
-          # The tarball is rooted at `.conductor/`; install.sh extracts it with
-          # --strip-components=1 into the target kit directory, so these paths
-          # land as scripts/, settings.toml, … inside the consumer's .conductor/.
-          #
-          # The scripts ship AS-IS, provider mappings included. That is the
-          # point: a consuming repo installs the kit and gets a working router
-          # with no further configuration. A repo that wants different routes
-          # edits its own copy of imposter-container.sh, or overrides PORT /
-          # SMOOTH_LLM_IMAGE via the environment.
+          # Rooted at `.conductor/`; install.sh strips that prefix. Scripts ship
+          # AS-IS, mappings included, so a consumer gets a working router.
           tar -czf "$TARBALL" \
             .conductor/scripts \
             .conductor/settings.toml \
             .conductor/AGENTS.md \
             .conductor/install.sh
 
-          # Generate SHA256 checksums.
           sha256sum "$TARBALL" > SHA256SUMS
 
           echo "Built $TARBALL ($(wc -c < "$TARBALL") bytes)"
           cat SHA256SUMS
 
-      # Two steps, and the split is mandatory on this repository.
-      #
-      # Releases here are IMMUTABLE, which means assets can only be attached
-      # while a release is still unpublished. Creating the release published
-      # (draft: false) and uploading in the same action fails with
-      # "Cannot upload asset … to an immutable release" — and because the
-      # release itself is created first, the failure leaves a published,
-      # permanently asset-less release behind. That is how v0.0.1 and v1.0.0
-      # were burned; neither can ever be repaired, only superseded.
-      #
-      # So: create as a draft, upload the assets into the draft, then publish
-      # it in a second step. Note for anything downstream — a draft prerelease
-      # emits `release.published` on publication, not `release.prereleased`.
+      # The draft/publish split is mandatory: releases here are IMMUTABLE, so
+      # assets attach only before publication. Publishing on create leaves a
+      # permanently asset-less release behind — that burned v0.0.1 and v1.0.0.
+      # Downstream note: a draft prerelease emits release.published.
       - name: Create draft release with assets
         uses: softprops/action-gh-release@v2
         with:
           draft: true
           tag_name: ${{ steps.version.outputs.tag }}
           name: Conductor kit ${{ steps.version.outputs.tag }}
-          # install.sh is attached alongside the tarball, not only inside it.
-          # It is the bootstrap: a consumer needs it *before* they have the
-          # tarball, so a release that ships only the archive leaves the
-          # documented `curl …/releases/download/<tag>/install.sh` URL a 404.
+          # install.sh ships alongside the tarball, not only inside it — it is
+          # the bootstrap, needed before the archive exists locally.
           files: |
             conductor-kit-${{ steps.version.outputs.version }}.tar.gz
             SHA256SUMS
@@ -110,15 +86,9 @@ jobs:
           prerelease: ${{ github.event_name == 'workflow_dispatch' }}
           fail_on_unmatched_files: true
 
-      # Publishing is what makes the release immutable, so it has to happen
-      # after the assets are in. `make_latest` is set here rather than on the
-      # action above, because the action applies it at creation time — while
-      # the release is still a draft, where it has no effect.
-      #
-      # A tag push is a real release and must be marked latest: install.sh with
-      # no --ref resolves through /releases/latest, so if nothing is ever latest
-      # the default install path has nothing to find. A workflow_dispatch
-      # pre-release must not claim it.
+      # make_latest belongs here, not on the action: the action applies it at
+      # creation, while the release is still a draft. install.sh with no --ref
+      # resolves through /releases/latest, so something must claim it.
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
