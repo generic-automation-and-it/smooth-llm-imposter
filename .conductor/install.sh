@@ -63,11 +63,21 @@ fi
 if [ -n "$REF" ]; then
   TAG="$REF"
 else
-  echo "Resolving latest release tag..." >&2
-  TAG=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" |
-    awk -F'"' '/"tag_name"/{print $4; exit}')
+  echo "Resolving latest release..." >&2
+  # `|| true`: /releases/latest 404s when there is no stable release (it ignores
+  # pre-releases), and a bare `curl -fsSL` aborts under `set -e` before the
+  # message below can explain why.
+  TAG=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null |
+    awk -F'"' '/"tag_name"/{print $4; exit}' || true)
   if [ -z "$TAG" ]; then
-    echo "Failed to resolve the latest release tag." >&2
+    NEWEST=$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=1" 2>/dev/null |
+      awk -F'"' '/"tag_name"/{print $4; exit}' || true)
+    echo "No stable release available." >&2
+    if [ -n "$NEWEST" ]; then
+      echo "Newest is $NEWEST, a pre-release — install it explicitly: --ref $NEWEST" >&2
+    else
+      echo "This repository has no releases yet." >&2
+    fi
     exit 1
   fi
   echo "Latest release: $TAG" >&2
@@ -133,7 +143,15 @@ if [ -f "$KIT_VERSION_FILE" ]; then
   cp -R "$KIT_DIR" "${KIT_DIR}.bak.$(date +%s)"
 fi
 mkdir -p "$KIT_DIR"
-cp -R "$STAGE_DIR/." "$KIT_DIR/"
+# Replace by unlink+rename, never `cp` in place. An upgrade overwrites this very
+# script while bash is still reading it; truncating the inode makes the running
+# shell execute garbage ("line 147: e: command not found"). Unlinking leaves the
+# open inode alive until the process exits.
+find "$STAGE_DIR" -mindepth 1 -maxdepth 1 | while IFS= read -r item; do
+  name="$(basename "$item")"
+  rm -rf "${KIT_DIR:?}/$name"
+  mv "$item" "$KIT_DIR/$name"
+done
 
 # Stamp the installed version.
 echo "$TAG" > "$KIT_VERSION_FILE"
