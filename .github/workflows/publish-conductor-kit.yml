@@ -1,23 +1,30 @@
 name: Publish conductor kit
 
-# Builds the .conductor kit as a versioned tarball and attaches it to a GitHub
-# Release: on a v* tag push, or via manual dispatch for a pre-release from any
-# branch. Only a tag push is marked latest.
+# Publishes the .conductor kit as a GitHub Release when a change to the kit
+# lands on main, or via manual dispatch for a pre-release from any branch.
+#
+# The version comes from .conductor/VERSION, not a tag: bump it in the PR that
+# changes the kit. Pushes that touch the kit without a bump are a no-op, not a
+# failure — releases here are immutable, so republishing an existing version
+# cannot work and must not fail the build either.
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+    paths:
+      - ".conductor/**"
+      - ".github/workflows/publish-conductor-kit.yml"
   workflow_dispatch:
     inputs:
       version:
-        description: 'Pre-release version tag (e.g. 1.0.0-rc.1). Must be a semver-compatible identifier without the leading "v".'
+        description: 'Pre-release version (e.g. 1.0.0-rc.1), no leading "v". Overrides .conductor/VERSION.'
         required: true
         type: string
 
 concurrency:
   group: publish-conductor-kit-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -33,11 +40,13 @@ jobs:
 
       - name: Determine version
         id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VERSION="${{ inputs.version }}"
           else
-            VERSION="${GITHUB_REF#refs/tags/v}"
+            VERSION="$(tr -d '[:space:]' < .conductor/VERSION)"
           fi
 
           # Not a `pattern:` on the input — workflow_dispatch ignores that key.
@@ -45,20 +54,30 @@ jobs:
             echo "::error::Version '$VERSION' is not semver (expected e.g. 1.2.3 or 1.0.0-rc.1, no leading v)."
             exit 1
           fi
+
+          # Already released → skip. Immutable releases cannot be replaced, and
+          # a kit change that deliberately ships no new version is not an error.
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "::notice::v$VERSION is already released — bump .conductor/VERSION to publish a new one."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Build kit tarball
+        if: steps.version.outputs.skip != 'true'
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          TAG="${{ steps.version.outputs.tag }}"
-          TARBALL="conductor-kit-${VERSION}.tar.gz"
+          TARBALL="conductor-kit-${{ steps.version.outputs.version }}.tar.gz"
 
           # Rooted at `.conductor/`; install.sh strips that prefix. Scripts ship
           # AS-IS, mappings included, so a consumer gets a working router.
           tar -czf "$TARBALL" \
             .conductor/scripts \
             .conductor/settings.toml \
+            .conductor/VERSION \
             .conductor/AGENTS.md \
             .conductor/install.sh
 
@@ -72,10 +91,12 @@ jobs:
       # permanently asset-less release behind — that burned v0.0.1 and v1.0.0.
       # Downstream note: a draft prerelease emits release.published.
       - name: Create draft release with assets
+        if: steps.version.outputs.skip != 'true'
         uses: softprops/action-gh-release@v2
         with:
           draft: true
           tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           name: Conductor kit ${{ steps.version.outputs.tag }}
           # install.sh ships alongside the tarball, not only inside it — it is
           # the bootstrap, needed before the archive exists locally.
@@ -90,6 +111,7 @@ jobs:
       # creation, while the release is still a draft. install.sh with no --ref
       # resolves through /releases/latest, so something must claim it.
       - name: Publish the release
+        if: steps.version.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

@@ -166,7 +166,8 @@ Then commit `.conductor/` and give that workspace `OPENCODE_API_KEY` and `OPENRO
 
 | Property | Behaviour |
 |---|---|
-| Distribution | GitHub Release — `conductor-kit-<version>.tar.gz` + `SHA256SUMS` + `install.sh`, published by [`publish-conductor-kit.yml`](.github/workflows/publish-conductor-kit.yml) on a `v*` tag |
+| Distribution | GitHub Release — `conductor-kit-<version>.tar.gz` + `SHA256SUMS` + `install.sh`, published by [`publish-conductor-kit.yml`](.github/workflows/publish-conductor-kit.yml) automatically when a change to `.conductor/**` lands on `main` |
+| Cutting a release | Bump [`.conductor/VERSION`](.conductor/VERSION) in the same PR as the kit change. Merging publishes it and marks it latest. A kit change without a bump publishes nothing — that is a no-op, not a failure |
 | Install style | **Vendored** — files are copied into `.conductor/` and committed. Nothing is fetched at runtime, so a registry outage can never break a workspace lifecycle |
 | Versioning | `.conductor/.kit-version` records the installed tag; re-run the installer to update |
 | Authentication | None — the repository is public |
