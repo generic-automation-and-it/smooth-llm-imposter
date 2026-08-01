@@ -145,7 +145,7 @@ echo "Extracting into $KIT_DIR" >&2
 STAGE_DIR="$TMP_DIR/stage"
 mkdir -p "$STAGE_DIR"
 tar -xzf "$TMP_DIR/$TARBALL" -C "$STAGE_DIR" --strip-components=1
-if [ -d "$KIT_DIR" ]; then
+if [ -f "$KIT_VERSION_FILE" ]; then
   if [ -t 0 ]; then
     printf 'Existing .conductor found. Overwrite (local edits will be lost)? [y/N] ' >&2
     read -r ans
