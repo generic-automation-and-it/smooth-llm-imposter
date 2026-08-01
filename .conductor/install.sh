@@ -1,44 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Vendoring installer for the .conductor kit.
-# Downloads a release tarball from GitHub, extracts it into .conductor/,
-# and stamps the installed version in .conductor/.kit-version.
+# Vendoring installer for the .conductor kit: downloads a release tarball,
+# extracts it into .conductor/, stamps .conductor/.kit-version. Nothing is
+# fetched at runtime — the lifecycle scripts must work offline.
 #
-# The lifecycle scripts (setup.sh, restart-imposter.sh, imposter-logs.sh)
-# reference files under .conductor/scripts/ by relative path — they never
-# fetch anything at runtime. The kit is a one-time install, not a runtime
-# dependency. This avoids reintroducing the class of failure that the
-# --pull=always bug exposed: a network blip during setup destroying the
-# working container.
+# Run from the root of the target repo. No authentication needed (public repo).
 #
-# Usage — run from the root of the repo you want the kit installed into:
-#
-#   # latest release, bootstrapping from the default branch (works before any
-#   # release exists, and needs no knowledge of tag names)
 #   curl -fsSL https://raw.githubusercontent.com/generic-automation-and-it/smooth-llm-imposter/main/.conductor/install.sh | bash
-#
-#   # pin a version — the installer is also attached to each release, so either
-#   # source works once a release exists
-#   curl -fsSL https://github.com/generic-automation-and-it/smooth-llm-imposter/releases/download/v1.0.0/install.sh | bash -s -- --ref v1.0.0
-#
-#   # report the installed version
+#   curl -fsSL .../releases/download/vX.Y.Z/install.sh | bash -s -- --ref vX.Y.Z
 #   bash .conductor/install.sh --check
 #
-# The repository is public, so none of these need authentication.
+# v0.0.1 and v1.0.0 are permanently asset-less — do not pin to them.
 
-# Resolve where the kit belongs. Two invocation styles, and they behave very
-# differently:
-#
-#   bash .conductor/install.sh    → BASH_SOURCE[0] is set; the kit is the
-#                                   directory this file already lives in.
-#   curl … | bash                 → BASH_SOURCE[0] is UNSET. Under `set -u` a
-#                                   bare reference aborts, and the naive
-#                                   `dirname` fallback yields "." — which would
-#                                   drop the kit in the repo root instead of
-#                                   .conductor/. Target $PWD/.conductor instead.
-#
-# Override with INSTALL_DIR=/path when installing somewhere non-standard.
+# Piped (`curl … | bash`), BASH_SOURCE is unset: a bare reference aborts under
+# `set -u`, and a dirname fallback would drop the kit in the repo root.
+# Override with INSTALL_DIR=/path.
 if [ -n "${BASH_SOURCE[0]:-}" ]; then
   KIT_DIR="${INSTALL_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 else
@@ -82,16 +59,25 @@ if [ "$CHECK_ONLY" = "1" ]; then
   exit 0
 fi
 
-# Resolve the tag to download. --ref pins an explicit version;
-# otherwise we fetch the latest release tag via the GitHub API.
+# --ref pins a version; otherwise resolve the latest release.
 if [ -n "$REF" ]; then
   TAG="$REF"
 else
-  echo "Resolving latest release tag..." >&2
-  TAG=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" |
-    awk -F'"' '/"tag_name"/{print $4; exit}')
+  echo "Resolving latest release..." >&2
+  # `|| true`: /releases/latest 404s when there is no stable release (it ignores
+  # pre-releases), and a bare `curl -fsSL` aborts under `set -e` before the
+  # message below can explain why.
+  TAG=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null |
+    awk -F'"' '/"tag_name"/{print $4; exit}' || true)
   if [ -z "$TAG" ]; then
-    echo "Failed to resolve the latest release tag." >&2
+    NEWEST=$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=1" 2>/dev/null |
+      awk -F'"' '/"tag_name"/{print $4; exit}' || true)
+    echo "No stable release available." >&2
+    if [ -n "$NEWEST" ]; then
+      echo "Newest is $NEWEST, a pre-release — install it explicitly: --ref $NEWEST" >&2
+    else
+      echo "This repository has no releases yet." >&2
+    fi
     exit 1
   fi
   echo "Latest release: $TAG" >&2
@@ -106,16 +92,13 @@ DOWNLOAD_URL="$BASE_URL/${TAG}/$TARBALL"
 
 echo "Downloading $TARBALL from $DOWNLOAD_URL" >&2
 
-# Download to a temporary directory next to .conductor so the extract
-# is atomic: either the whole kit lands, or nothing changes.
+# Staged next to the kit so a failed download changes nothing.
 TMP_DIR="$(mktemp -d "${KIT_DIR}/.install-tmp-XXXXXX")"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 curl -fsSL "$DOWNLOAD_URL" -o "$TMP_DIR/$TARBALL"
 
-# Verify the checksum if SHA256SUMS is available. macOS has no sha256sum — it
-# ships `shasum -a 256` — and this installer is expected to run on developer
-# Macs as well as Linux sandboxes.
+# macOS has no sha256sum, only `shasum -a 256`.
 if command -v sha256sum >/dev/null 2>&1; then
   SHA_CMD=(sha256sum)
 elif command -v shasum >/dev/null 2>&1; then
@@ -129,10 +112,8 @@ if [ ${#SHA_CMD[@]} -eq 0 ]; then
   echo "WARNING: no sha256sum/shasum available; skipping checksum verification." >&2
 elif curl -fsSL "$SHA_URL" -o "$TMP_DIR/SHA256SUMS" 2>/dev/null; then
   echo "Verifying checksum..." >&2
-  # Check the exit status of the checker on JUST our tarball. The previous
-  # version piped into `grep -q "$TARBALL"`, which matches the filename whether
-  # the line says OK or FAILED, and made a multi-file SHA256SUMS fail because
-  # entries for files we never downloaded are reported missing.
+  # Exit status on JUST our tarball: grepping the checker's output would match
+  # OK and FAILED alike, and other entries are files we never downloaded.
   ( cd "$TMP_DIR" && grep -F " $TARBALL" SHA256SUMS > only-ours.sums \
       && "${SHA_CMD[@]}" -c only-ours.sums >/dev/null ) || {
     echo "Checksum verification FAILED for $TARBALL — refusing to install." >&2
@@ -143,14 +124,8 @@ else
   echo "WARNING: SHA256SUMS not found for this release; skipping checksum verification." >&2
 fi
 
-# Extract. The tarball is rooted at `.conductor/`, so --strip-components=1
-# removes that prefix and the contents land directly in $KIT_DIR.
-#
-# Staged, then swapped file-by-file: extracting straight into a live $KIT_DIR
-# means a failure part-way leaves a half-updated kit — scripts from two
-# versions calling each other. Staging does not make this a true atomic
-# rename (the swap is per-file), but it does mean a download or tar failure
-# changes nothing at all.
+# Tarball is rooted at `.conductor/`, so strip that prefix. Staged then copied,
+# so a tar failure cannot leave a half-updated kit of two versions.
 echo "Extracting into $KIT_DIR" >&2
 STAGE_DIR="$TMP_DIR/stage"
 mkdir -p "$STAGE_DIR"
@@ -168,7 +143,15 @@ if [ -f "$KIT_VERSION_FILE" ]; then
   cp -R "$KIT_DIR" "${KIT_DIR}.bak.$(date +%s)"
 fi
 mkdir -p "$KIT_DIR"
-cp -R "$STAGE_DIR/." "$KIT_DIR/"
+# Replace by unlink+rename, never `cp` in place. An upgrade overwrites this very
+# script while bash is still reading it; truncating the inode makes the running
+# shell execute garbage ("line 147: e: command not found"). Unlinking leaves the
+# open inode alive until the process exits.
+find "$STAGE_DIR" -mindepth 1 -maxdepth 1 | while IFS= read -r item; do
+  name="$(basename "$item")"
+  rm -rf "${KIT_DIR:?}/$name"
+  mv "$item" "$KIT_DIR/$name"
+done
 
 # Stamp the installed version.
 echo "$TAG" > "$KIT_VERSION_FILE"

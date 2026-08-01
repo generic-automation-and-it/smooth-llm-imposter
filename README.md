@@ -155,8 +155,8 @@ The `.conductor/` lifecycle scripts (start the router container, configure Codex
 # latest release
 curl -fsSL https://raw.githubusercontent.com/generic-automation-and-it/smooth-llm-imposter/main/.conductor/install.sh | bash
 
-# pin a version
-curl -fsSL https://raw.githubusercontent.com/generic-automation-and-it/smooth-llm-imposter/main/.conductor/install.sh | bash -s -- --ref v1.0.0
+# pin a version (any published release tag — see the Releases page)
+curl -fsSL https://raw.githubusercontent.com/generic-automation-and-it/smooth-llm-imposter/main/.conductor/install.sh | bash -s -- --ref vX.Y.Z
 
 # what's installed here?
 bash .conductor/install.sh --check
@@ -166,7 +166,8 @@ Then commit `.conductor/` and give that workspace `OPENCODE_API_KEY` and `OPENRO
 
 | Property | Behaviour |
 |---|---|
-| Distribution | GitHub Release — `conductor-kit-<version>.tar.gz` + `SHA256SUMS` + `install.sh`, published by [`publish-conductor-kit.yml`](.github/workflows/publish-conductor-kit.yml) on a `v*` tag |
+| Distribution | GitHub Release — `conductor-kit-<version>.tar.gz` + `SHA256SUMS` + `install.sh`, published by [`publish-conductor-kit.yml`](.github/workflows/publish-conductor-kit.yml) automatically when a change to `.conductor/**` lands on `main` |
+| Cutting a release | Bump [`.conductor/VERSION`](.conductor/VERSION) in the same PR as the kit change. Merging publishes it and marks it latest. A kit change without a bump publishes nothing — that is a no-op, not a failure |
 | Install style | **Vendored** — files are copied into `.conductor/` and committed. Nothing is fetched at runtime, so a registry outage can never break a workspace lifecycle |
 | Versioning | `.conductor/.kit-version` records the installed tag; re-run the installer to update |
 | Authentication | None — the repository is public |

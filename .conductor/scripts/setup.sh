@@ -1,34 +1,12 @@
 #!/usr/bin/env bash
-# Three top-level sections, in order:
-#   1. Local-workspace short-circuit (CONDUCTOR_IS_LOCAL=1 → no-op exit; the
-#      user's Docker Desktop is already running the imposter container).
-#   2. Codex configuration — write ~/.codex/config.toml so Codex routes every
-#      model request through this imposter.
-#   3. code-review-graph wiring (MCP configs per AI platform) followed by
-#      delegating to imposter-container.sh, which owns the docker run.
-#
-# The container start stays LAST. Hoisting it to the front was tried and
-# reverted: on a freshly restarted micro VM it put `docker pull` / `rm -f` /
-# `run` about a second after the daemon first answered `docker info`, instead of
-# after the ~minute of Codex and code-review-graph work that had been giving a
-# restarting daemon time to finish restoring containers and networking. The
-# router came up and the daemon then vanished mid-health-check. Until that is
-# understood, do not reorder this again.
+# Local short-circuit, then Codex config, then code-review-graph, then the
+# container. The container stays LAST: hoisting it was tried and reverted —
+# on a restarted VM the daemon vanished mid-health-check. Do not reorder.
 set -euo pipefail
 
-# Conductor sets CONDUCTOR_IS_LOCAL=1 when the script is invoked from a local
-# Mac/Conductor desktop workspace (not a cloud sandbox). The local machine
-# already has Docker Desktop and the imposter container up — this script
-# would only clobber that setup. Defaulted to 0 so that running this file by
-# hand from a plain shell (where Conductor injects nothing) does not abort on
-# `set -u` with "CONDUCTOR_IS_LOCAL: unbound variable" before doing any work.
-# See `.conductor/AGENTS.md` ("Precedence gotcha" + this file's role entry).
-#
-# Local-flow note: when this guard fires, setup exits 0 and the actual
-# container work is then driven by Conductor's `auto_run_after_setup` hook,
-# which fires `restart-imposter.sh` and therefore `imposter-container.sh`.
-# On cloud `auto_run_after_setup` is a no-op (per the Conductor schema) and
-# this script continues past the guard into the full inline path.
+# Local workspaces already have Docker Desktop running the container; setup
+# would only clobber it, and auto_run_after_setup drives the container instead.
+# Defaulted so a hand-run in a plain shell does not abort under `set -u`.
 if [ "${CONDUCTOR_IS_LOCAL:-0}" = "1" ]; then
   exit 0
 fi
@@ -38,8 +16,7 @@ PORT="${PORT:-5080}"
 CODEX_CONFIG="$HOME/.codex/config.toml"
 
 # --- Configure Codex ---------------------------------------------------------
-# Replace only Codex's selected provider and SmoothLlmImposter's own table.
-# Preserve every unrelated setting, including MCP servers and RTK config.
+# Replaces only the selected provider and our own table; everything else stays.
 if ! command -v python3 >/dev/null 2>&1; then
   echo "python3 not found; skipping Codex configuration." >&2
 else
@@ -95,17 +72,14 @@ if table_pattern.search(text):
 else:
     text = text.rstrip() + "\n\n" + smooth_table
 
-# Atomic write: stage to a sibling tmp file, then os.replace into place so a
-# SIGKILL/reboot mid-write never leaves a half-written config.toml.
+# Atomic: a kill mid-write must not leave a half-written config.toml.
 tmp_path = config_path.with_suffix(config_path.suffix + ".tmp")
 tmp_path.write_text(text)
 os.replace(tmp_path, config_path)
 PY
 fi
 
-# Verify the write landed — catches a silent regex miss before the user hits
-# a runtime "provider not found" error. Two checks: the active provider is
-# ours, and our [model_providers.*] table exists.
+# Catches a silent regex miss before it becomes a runtime "provider not found".
 if ! grep -Fqx 'model_provider = "smooth-llm-proxy"' "$CODEX_CONFIG"; then
   echo "Codex provider line not found in $CODEX_CONFIG after write — aborting before container start." >&2
   exit 1
@@ -116,23 +90,12 @@ if ! grep -Fqx '[model_providers.smooth-llm-proxy]' "$CODEX_CONFIG"; then
 fi
 
 # --- code-review-graph -------------------------------------------------------
-# code-review-graph is installed in the snapshot, but both `install` and `build`
-# are repository-scoped: `install` writes a repo-pinned `cwd` into each MCP
-# config, and `build` writes the graph into the working tree. The clone only
-# exists in the workspace, so run both here rather than during snapshot
-# construction.
-#
-# --no-instructions is mandatory on every platform. Without it `install` appends
-# a ~39-line MCP-tools section to CLAUDE.md, which in this repository is a
-# committed symlink to AGENTS.md — the append lands in the root context file.
-#
-# claude-code needs two more guards. Its skills and hooks resolve through the
-# committed `.claude -> .agents` symlink into `.agents/skills/` (81 tracked
-# files) and `.agents/settings.json`. codex, copilot-cli, and opencode write
-# their hooks and plugins under $HOME instead, so they keep those defaults.
+# install/build are repo-scoped, so they run here rather than in the snapshot.
+# --no-instructions is mandatory everywhere: without it `install` appends to
+# CLAUDE.md, a committed symlink to AGENTS.md. claude-code needs --no-skills
+# --no-hooks too, because .claude is a symlink into tracked .agents/.
 if command -v code-review-graph >/dev/null 2>&1 && git -C . rev-parse --git-dir >/dev/null 2>&1; then
-  # Repo-local and untracked, so these never appear in a workspace diff and,
-  # unlike .gitignore, the file itself is not under version control.
+  # Untracked and repo-local, so they never show up in a workspace diff.
   for generated in .code-review-graph/ .mcp.json opencode.jsonc; do
     grep -Fqx "$generated" .git/info/exclude 2>/dev/null ||
       echo "$generated" >>.git/info/exclude
