@@ -1,6 +1,6 @@
 ---
 name: git-commit-review-push
-description: Commit current changes with conventional commits format, append the /ai-review trigger to the final commit, and push to remote repository. Use when committing and pushing changes so the pushed PR gets a full AI review.
+description: Commit current changes with conventional commits format, ensure the /ai-review trigger is present on the final commit (preserving any Git trailer block), and push to remote repository. Use when committing and pushing changes so the pushed PR gets a full AI review.
 allowed-tools:
   - Bash(git add:*)
   - Bash(git commit:*)
@@ -55,6 +55,12 @@ Commit current changes using conventional commits format, embed the `/ai-review`
      fi
    }
    ```
+
+   The paragraph-splitting `awk` snippet uses `RS=""` (paragraph-record mode) and therefore
+   requires GNU `awk` (`gawk`). BSD/macOS `/usr/bin/awk` rejects `RS=""` as a gawk extension
+   and degrades to character mode, which prints the whole message twice and can break the
+   trailer block. On macOS run `brew install gawk` and either alias `awk=gawk` for the shell
+   session or invoke the snippet with an explicit `gawk ...` instead of `awk ...`.
 
    `%B` includes the subject and body, unlike `%b`, so subject triggers are recognized. The
    fallback echoes the full commit message, detects whether it has a final trailer block, and
