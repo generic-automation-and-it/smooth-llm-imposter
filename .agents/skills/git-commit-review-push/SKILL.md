@@ -22,7 +22,7 @@ Commit current changes using conventional commits format, embed the `/ai-review`
 2. If there are changes, analyze the diff and group it into **logical units of work** (chunks). Commit each chunk separately with a [Conventional Commits](https://www.conventionalcommits.org) message — `<type>[optional scope]: <description>` with type one of `feat`/`fix`/`chore`/`docs`/`refactor`/`test`/`ci`/`perf`/`build`; subject lowercase, imperative, no trailing period, ≤ 72 chars:
    - If a commit message was provided as an argument, use it (single-chunk commit)
    - Otherwise generate an appropriate conventional commit message per chunk from the staged diff
-3. **Review trigger (mandatory)**: the **last** chunk commit — or the only commit when there is a single chunk — MUST end with `/ai-review` as the final line of the commit message body. The review gate (`pipeline-code-review-report.yml`) greps PR commit messages for `/ai-review` and forces a full PR review when found. Keep the subject line clean; the trigger goes in the body:
+3. **Review trigger (mandatory)**: the **last** chunk commit — or the only commit when there is a single chunk — MUST contain `/ai-review`. The review gate (`pipeline-code-review-report.yml`) greps the whole PR commit message for `/ai-review` and forces a full PR review when found, so its position and any trailing text are irrelevant. Keep the subject line clean and place the trigger in the body above any Git trailer block:
 
    ```
    feat(auth): add user authentication system
@@ -30,28 +30,36 @@ Commit current changes using conventional commits format, embed the `/ai-review`
    /ai-review
    ```
 
+   The gate also accepts a trigger in the subject (`ci: /ai-review`) or with trailing text
+   (`/ai-review — full sweep after the provider swap`).
+
    Earlier chunk commits must NOT carry the trigger — only the final one.
-4. If a commit was made in step 2, verify the trigger is the final non-empty line of the
-   commit body before pushing. The check wraps a merge-commit guard (merge commits return
-   branch lists from `%b`, not a usable body) around the awk verification and an optional
-   amend:
+4. If a commit was made in step 2, verify the trigger before pushing with the same
+   whole-message matcher used by the review gate. If it is missing, amend it above a final
+   Git trailer block so trailers retain their meaning:
 
    ```bash
-   parents="$(git log -1 --format=%P | wc -w)"
-   subject="$(git log -1 --format=%s)"
-   if [ "$parents" -gt 1 ] || [[ "$subject" == Merge* ]]; then
-     echo "Merge commit detected; skipping /ai-review verification."
-   else
-     git log -1 --format='%b' | awk 'NF { last=$0 } END { exit (last ~ "/ai-review[[:space:]]*$") ? 0 : 1 }' || {
-       git log -1 --format='%B'
+   git log -1 --format='%B' | grep -qiE '/ai-review' || {
+     git log -1 --format='%B'
+     if git log -1 --format='%B' | git interpret-trailers --parse | grep -q .; then
+       git log -1 --format='%B' | awk '
+         BEGIN { RS=""; ORS="\n\n" }
+         { para[NR]=$0 }
+         END {
+           for (i = 1; i < NR; i++) print para[i]
+           print "/ai-review"
+           printf "%s\n", para[NR]
+         }' | git commit --amend -F -
+     else
        git commit --amend -m "$(git log -1 --format='%B')" -m "/ai-review"
-     }
-   fi
+     fi
+   }
    ```
 
-   The regex tolerates trailing whitespace / CRLF. If the awk check fails, the `|| { ... }` branch
-   echoes the full commit message (diagnoses missing-vs-misplaced trigger) then amends using `%B`
-   (not `%s`) to preserve trailers.
+   `%B` includes the subject and body, unlike `%b`, so subject triggers are recognized. The
+   fallback echoes the full commit message, detects whether it has a final trailer block, and
+   inserts the trigger before that block. For a message without trailers, the simpler amend form
+   remains equivalent.
 5. If there are no changes to commit, skip to step 6
 6. **If `--issue <number>` was passed** — rename the local branch before pushing (see Branch Rename below)
 7. Push to remote repository using `git push` (use `git push --set-upstream origin <new-branch>` if the branch was renamed)
