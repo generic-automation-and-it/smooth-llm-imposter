@@ -6,14 +6,30 @@
 #      model request through this imposter.
 #   3. code-review-graph wiring (MCP configs per AI platform) followed by
 #      delegating to imposter-container.sh, which owns the docker run.
+#
+# The container start stays LAST. Hoisting it to the front was tried and
+# reverted: on a freshly restarted micro VM it put `docker pull` / `rm -f` /
+# `run` about a second after the daemon first answered `docker info`, instead of
+# after the ~minute of Codex and code-review-graph work that had been giving a
+# restarting daemon time to finish restoring containers and networking. The
+# router came up and the daemon then vanished mid-health-check. Until that is
+# understood, do not reorder this again.
 set -euo pipefail
 
 # Conductor sets CONDUCTOR_IS_LOCAL=1 when the script is invoked from a local
 # Mac/Conductor desktop workspace (not a cloud sandbox). The local machine
 # already has Docker Desktop and the imposter container up — this script
-# would only clobber that setup. See `.conductor/AGENTS.md` ("Precedence
-# gotcha" + this file's role entry).
-if [ "$CONDUCTOR_IS_LOCAL" = "1" ]; then
+# would only clobber that setup. Defaulted to 0 so that running this file by
+# hand from a plain shell (where Conductor injects nothing) does not abort on
+# `set -u` with "CONDUCTOR_IS_LOCAL: unbound variable" before doing any work.
+# See `.conductor/AGENTS.md` ("Precedence gotcha" + this file's role entry).
+#
+# Local-flow note: when this guard fires, setup exits 0 and the actual
+# container work is then driven by Conductor's `auto_run_after_setup` hook,
+# which fires `restart-imposter.sh` and therefore `imposter-container.sh`.
+# On cloud `auto_run_after_setup` is a no-op (per the Conductor schema) and
+# this script continues past the guard into the full inline path.
+if [ "${CONDUCTOR_IS_LOCAL:-0}" = "1" ]; then
   exit 0
 fi
 
