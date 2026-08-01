@@ -93,16 +93,14 @@ fi
 # daemon is the thing that died, and its "Cannot connect to the Docker daemon"
 # error silently replaces the container logs you actually wanted.
 #
-# diagnose() must distinguish three states, in this order:
-#   1. daemon is up                    -> container status + tail
-#   2. daemon is down, we started it   -> container status + log tail
-#                                         + dockerd process check
-#                                         + dmesg OOM tail
-#   3. daemon is down, we did NOT start it -> container status + log tail
-#                                            + note that dockerd output
-#                                              is owned by sandbox boot
-# Reordering or renaming any of these branches will silently mis-attribute
-# the cause; keep the comment in sync with the code below.
+# Decision tree:
+#   (i) daemon up → container status + container log tail
+#  (ii) daemon down → 'container logs unavailable' + dockerd process check
+#       then, regardless of who started it:
+#         (a) DOCKERD_LOG non-empty → tail it
+#         (b) DOCKERD_LOG empty + we started it → 'died without writing'
+#         (c) DOCKERD_LOG empty + we did not start it → 'sandbox boot owns the log'
+#  (vi) always check dmesg for OOM lines.
 diagnose() {
   echo "================ imposter diagnostics ================" >&2
   if "${DOCKER[@]}" info >/dev/null 2>&1; then
