@@ -180,6 +180,17 @@ This section contains SmoothLlmImposter-specific details that do not ship with t
 
 ### Publishing the kit
 
+- **Releases publish on merge to `main`, path-filtered to `.conductor/**`, with the version read from
+  `.conductor/VERSION`.** There is no release tag to push — bump `VERSION` in the same PR as the kit change
+  and merging publishes it; the workflow creates the tag from the merge commit. `workflow_dispatch` still
+  cuts a pre-release from any branch.
+- **A kit change without a `VERSION` bump must stay a no-op, not a failure.** Most `.conductor/**` changes
+  (a comment, a doc line) do not warrant a release, and an immutable release cannot be republished anyway,
+  so the version step checks `gh release view` first and skips every later step when the version exists.
+  Do not "fix" that skip into an error.
+- **Never run `install.sh` with its own repo as the target.** `KIT_DIR` resolves from `BASH_SOURCE`, so
+  `bash .conductor/install.sh --ref vX` inside this repo installs a release *over the working tree* and
+  silently reverts uncommitted kit work. Test installs in a scratch directory, or set `INSTALL_DIR`.
 - **Releases on this repository are immutable, so the workflow must create a draft, attach assets, then
   publish.** Assets can only be attached before publication. Publishing on create — `action-gh-release`
   with the default `draft: false` — fails every upload with *"Cannot upload asset … to an immutable
