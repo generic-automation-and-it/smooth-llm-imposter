@@ -57,6 +57,10 @@ This section describes the kit's repo-agnostic behavior. It ships with the kit i
   exists, the tail of its log if this script started it, and any kernel OOM lines. Never end a failure path
   with a bare `docker logs`: when the daemon is what died, its "Cannot connect to the Docker daemon" error
   silently replaces the container output the operator came for.
+- **`code-review-graph install --platform claude-code` keeps `--no-skills --no-hooks` alongside
+  `--no-instructions`.** They are required because the consuming repo ships a `.claude → .agents` symlink;
+  without them `install` rewrites tracked files (`CLAUDE.md`, `.claude/skills`, `.agents/settings.json`).
+  Removing the symlink guards would silently re-introduce that mutation across every workspace.
 
 ### Architecture Decisions
 
@@ -141,10 +145,10 @@ This section describes the kit's repo-agnostic behavior. It ships with the kit i
   --git-path info/exclude` is the portable resolution (plus `mkdir -p` on its parent, which is not
   guaranteed to exist). A fix was written and then reverted along with the rest of the generalisation work;
   it is unrelated to packaging and should land on its own.
-- **`--no-skills --no-hooks` on `claude-code` assumes this repo's layout.** They exist because `.claude` is
-  a committed symlink into `.agents`. A consuming repo without that symlink gets those features suppressed
-  for no reason — harmless, but not what it would choose. Gate on the symlink if the kit ever needs to be
-  polite about it.
+- **`--no-skills --no-hooks` on `claude-code` assumes this repo's layout.** A consuming repo without the
+  `.claude → .agents` symlink gets those features suppressed for no reason — harmless, but not what it
+  would choose. Gate on the symlink if the kit ever needs to be polite about it. (The invariant that those
+  flags MUST stay is enforced under Non-Negotiables.)
 - **The MCP servers `code-review-graph install` configures all invoke `uvx code-review-graph serve`**,
   regardless of platform. If a workspace's snapshot doesn't have `uv` on `PATH`, the generated MCP configs are
   written successfully but the servers themselves cannot start — `code-review-graph build` still exits 0 in
@@ -185,6 +189,9 @@ This section contains SmoothLlmImposter-specific details that do not ship with t
 | OpenAI | `gpt-5.4` | OpenCode Go | `kimi-k2.7-code` | `chat_completions` |
 | OpenAI | `gpt-5.5` | OpenCode Go | `glm-5.2` | `chat_completions` |
 | OpenAI | `gpt-5.6-luna` | OpenCode Go | `grok-4.5` | `responses` |
+
+_For the live route mappings, see `.conductor/scripts/imposter-container.sh` — this table is regenerated
+from the script's `-e Imposter__Providers__*` exports on each kit release and is not the source of truth._
 
 These are setup-specific mappings chosen for this Conductor environment. They intentionally differ from the
 illustrative mappings and caching choices in

@@ -79,7 +79,7 @@ if [ -n "$REF" ]; then
 else
   echo "Resolving latest release tag..." >&2
   TAG=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" |
-    python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])")
+    awk -F'"' '/"tag_name"/{print $4; exit}')
   if [ -z "$TAG" ]; then
     echo "Failed to resolve the latest release tag." >&2
     exit 1
@@ -87,6 +87,10 @@ else
   echo "Latest release: $TAG" >&2
 fi
 
+case "$TAG" in
+  v*) ;;
+  *) TAG="v$TAG" ;;
+esac
 TARBALL="conductor-kit-${TAG#v}.tar.gz"
 DOWNLOAD_URL="$BASE_URL/${TAG}/$TARBALL"
 
@@ -141,6 +145,15 @@ echo "Extracting into $KIT_DIR" >&2
 STAGE_DIR="$TMP_DIR/stage"
 mkdir -p "$STAGE_DIR"
 tar -xzf "$TMP_DIR/$TARBALL" -C "$STAGE_DIR" --strip-components=1
+if [ -d "$KIT_DIR" ]; then
+  if [ -t 0 ]; then
+    printf 'Existing .conductor found. Overwrite (local edits will be lost)? [y/N] ' >&2
+    read -r ans
+    case "$ans" in y|Y|yes|YES) ;; *) echo "Aborted." >&2; exit 1 ;; esac
+  fi
+  cp -R "$KIT_DIR" "${KIT_DIR}.bak.$(date +%s)"
+fi
+mkdir -p "$KIT_DIR"
 cp -R "$STAGE_DIR/." "$KIT_DIR/"
 
 # Stamp the installed version.
