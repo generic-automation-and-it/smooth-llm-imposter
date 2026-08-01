@@ -124,6 +124,21 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-08-01: Kit release workflow fixed — it could never attach assets. Releases on this repo are
+  **immutable**, so assets attach only *before* publication; `action-gh-release` created the release
+  already published and every upload was rejected with "Cannot upload asset … to an immutable release".
+  Because the action creates the release before uploading, the failure left `v0.0.1` and `v1.0.0`
+  published with **no assets**, and those tag names are now permanently reserved — deleting the release
+  *and* its tag does not free them (`tag_name was used by an immutable release`), so that cleanup attempt
+  was wasted effort. Fix: create with `draft: true`, attach assets to the draft, publish in a second step
+  via `gh release edit --draft=false`. `make_latest` moved onto the publish step, because the action
+  applies it at creation while the release is still a draft — and `install.sh` with no `--ref` resolves
+  through `/releases/latest`. Proven end to end: `v0.0.2` published with all three assets, and the
+  documented `curl … --ref v0.0.2` install verified in a scratch directory (checksum OK, kit extracted,
+  version stamped). Immutable releases are the correct repository setting; the workflow was wrong.
+  Separately, comment density across `install.sh`, the four kit scripts and the workflow was cut from
+  33-71% to 13-17%, with the removed rationale living in `.conductor/AGENTS.md` instead — verified
+  comments-only, the non-comment diff against `main` for `.conductor/scripts/` is empty.
 - 2026-08-01: Conductor scripts made restart-survivable, after a report that the imposter did not come back
   following a micro-VM restart. `imposter-container.sh` no longer passes `--pull=always` — it does a
   failure-tolerant `docker pull` *before* the unconditional `docker rm -f`, because `--pull=always` returns

@@ -1,20 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# The container lifecycle only. Deliberately NOT gated on CONDUCTOR_IS_LOCAL:
-# `restart-imposter` is an explicit manual trigger, and a trigger that exits 0
-# without printing anything is worse than one that tries and fails loudly. Only
-# `setup.sh` short-circuits on a local workspace, because the work it does
-# beyond this script (Codex config, code-review-graph) is what must not clobber
-# a local developer's machine. See `.conductor/AGENTS.md`.
+# Container lifecycle only. No CONDUCTOR_IS_LOCAL guard, deliberately: a manual
+# trigger must always act and report. See .conductor/AGENTS.md.
 
 PORT="${PORT:-5080}"
 IMAGE="${SMOOTH_LLM_IMAGE:-ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest}"
 CONTAINER_NAME="smooth-llm-imposter"
 DOCKERD_LOG="/tmp/dockerd.log"
-# Set when this script is the one that spawned dockerd. If it is not, an empty
-# or absent DOCKERD_LOG means "someone else owns that daemon", not "the daemon
-# said nothing" — the diagnostics below depend on telling those two apart.
+# Lets diagnose() distinguish "the daemon said nothing" from "not our daemon".
 DOCKERD_STARTED_BY_US=0
 
 if ! command -v docker >/dev/null 2>&1; then
@@ -22,27 +16,21 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
-# Daemon bootstrap is Linux-only. The cloud sandbox has no systemd as PID 1, so
-# dockerd does not survive snapshot restoration or a micro-VM restart and has to
-# be started by hand. On macOS there is no dockerd binary — Docker Desktop owns
-# the daemon and the CLI resolves its socket through the active docker context,
-# which exporting DOCKER_HOST would override with a path Docker Desktop does not
-# necessarily publish.
+# Linux-only: no systemd as PID 1, so dockerd must be started by hand after a
+# restart. On macOS Docker Desktop owns it, and exporting DOCKER_HOST would
+# override the docker context that resolves its socket.
 if [ "$(uname -s)" = "Linux" ]; then
   export DOCKER_HOST="${DOCKER_HOST:-unix:///var/run/docker.sock}"
 
-  # Test the unprivileged Docker socket first; only require passwordless sudo
-  # if the privileged path is actually needed.
+  # Unprivileged socket first; only need sudo if that fails.
   if ! docker info >/dev/null 2>&1; then
     if ! sudo -n true 2>/dev/null; then
       echo "sudo requires a password; configure NOPASSWD for dockerd or run interactively." >&2
       exit 1
     fi
     if ! sudo -n docker info >/dev/null 2>&1; then
-      # setsid detaches the daemon into its own session, so it cannot be reaped
-      # along with this script's process group when the caller (a Conductor run
-      # script, or a terminal the user closes) goes away. nohup alone only
-      # covers SIGHUP.
+      # setsid, not just nohup: nohup covers SIGHUP but not a process-group
+      # teardown when the caller exits.
       sudo -n setsid nohup dockerd </dev/null >"$DOCKERD_LOG" 2>&1 &
       DOCKERD_STARTED_BY_US=1
 
@@ -60,23 +48,17 @@ if [ "$(uname -s)" = "Linux" ]; then
   fi
 fi
 
-# Conductor injects these only into the workspace lifecycle, not snapshot
-# construction. Alias OPENCODE_API_KEY to the shared prefix resolved by both
-# OpenCode Go dialect providers; OPENROUTER_API_KEY feeds the OpenRouter
-# Anthropic-dialect haiku route.
+# Injected by Conductor into the workspace lifecycle only.
 export OPENCODE_GO_API_KEY="${OPENCODE_GO_API_KEY:-${OPENCODE_API_KEY:-}}"
 : "${OPENCODE_GO_API_KEY:?Set OPENCODE_API_KEY or OPENCODE_GO_API_KEY in the workspace environment.}"
-# Export so docker `-e OPENROUTER_API_KEY` can inherit the value (name-only pass-through).
+# Exported so `-e NAME` forwards the value without putting it on the command line.
 export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in the workspace environment.}"
-# Image default is SessionForwarding=opencode-go on both opencode-go-* providers.
-# Uncomment the exports and -e flags below to stop OpenCode session token usage
-# (matched routes will no longer stamp session_id / x-opencode-session).
+# Uncomment (plus --preserve-env and the -e flags) to stop OpenCode session
+# token usage. Image default is SessionForwarding=opencode-go.
 #export OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING="${OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING:-none}"
 #export OPENCODE_GO_OPENAI_SESSION_FORWARDING="${OPENCODE_GO_OPENAI_SESSION_FORWARDING:-none}"
 
-# Prefer unprivileged Docker when the snapshot's docker-group membership is
-# active. Otherwise preserve the secrets through sudo so `-e NAME` remains a
-# name-only pass-through and the values do not appear in the command line.
+# Prefer unprivileged docker; through sudo, preserve the secrets by name.
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
 elif sudo -n docker info >/dev/null 2>&1; then
@@ -86,28 +68,9 @@ else
   exit 1
 fi
 
-# Everything this script can learn about a failure, printed to the terminal.
-# The workspace it runs in is a remote cloud sandbox with no convenient
-# filesystem access, so a diagnostic that only writes a file is a diagnostic
-# nobody reads. Checks the daemon FIRST: `docker logs` is worthless when the
-# daemon is the thing that died, and its "Cannot connect to the Docker daemon"
-# error silently replaces the container logs you actually wanted.
-#
-# Decision tree:
-#   (i) daemon up → container status + container log tail
-#  (ii) daemon down → 'container logs unavailable' + dockerd process check
-#       then, regardless of who started it:
-#         (a) DOCKERD_LOG non-empty → tail it
-#         (b) DOCKERD_LOG empty + we started it → 'died without writing'
-#         (c) DOCKERD_LOG empty + we did not start it → 'sandbox boot owns the log'
-#  (iii) when the daemon is down, also scan dmesg for OOM / "killed
-#        process" lines (the grep matches "out of memory", "oom-kill",
-#        and "killed process" — the last is intentionally broader
-#        than OOM, to catch SIGKILL events that may have brought
-#        dockerd down).
-#
-#  Reordering or renaming any of these branches will silently mis-attribute
-#  the cause; keep the comment in sync with the code below.
+# Prints to the terminal, because the operator has no filesystem access.
+# Daemon checked FIRST: a bare `docker logs` reports "Cannot connect to the
+# Docker daemon" in exactly the case that matters, hiding the real cause.
 diagnose() {
   echo "================ imposter diagnostics ================" >&2
   if "${DOCKER[@]}" info >/dev/null 2>&1; then
@@ -141,15 +104,9 @@ diagnose() {
   echo "======================================================" >&2
 }
 
-# Refresh the image BEFORE touching the running container, and tolerate failure.
-# `docker run --pull=always` (the previous behaviour) turns an unreachable or
-# slow registry into a hard exit 125 even when the image is already cached
-# locally — and by then `docker rm -f` has already destroyed the working
-# container, so a transient GHCR/DNS hiccup took the router down and left
-# nothing in its place. That window is widest exactly when this script is most
-# likely to run: right after a micro-VM restart, while the network is still
-# coming up. Pulling separately means a failed pull costs freshness, not uptime;
-# `docker run` below then uses the default --pull=missing.
+# Pull BEFORE `docker rm -f`, and tolerate failure. Never use
+# `docker run --pull=always`: it exits 125 on an unreachable registry even with
+# the image cached, after the container has already been destroyed.
 if ! "${DOCKER[@]}" pull "$IMAGE"; then
   echo "Image pull failed; falling back to the locally cached image." >&2
   if ! "${DOCKER[@]}" image inspect "$IMAGE" >/dev/null 2>&1; then
@@ -159,20 +116,9 @@ if ! "${DOCKER[@]}" pull "$IMAGE"; then
   fi
 fi
 
-# Create/recreate the container now that workspace secrets exist and the image
-# is as fresh as the network allowed. openrouter-* is absent from the published
-# base image, so define the Anthropic OpenRouter provider fully here (same
-# env-var shape, but defines a new provider because the base image omits it).
-#
-# To stop OpenCode session token usage: uncomment the two
-# OPENCODE_GO_*_SESSION_FORWARDING exports above, add
-# OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING and
-# OPENCODE_GO_OPENAI_SESSION_FORWARDING to --preserve-env, and add
-# "-e OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING \" / "-e OPENCODE_GO_OPENAI_SESSION_FORWARDING \"
-# below, just before "$IMAGE". Do NOT add a "#"-commented placeholder line inside
-# the docker run continuation below — a "#" mid-backslash-continuation swallows
-# the rest of that logical line (including any trailing "\"), which silently
-# drops "$IMAGE" from the command.
+# openrouter-* is absent from the published image, so it is defined in full here.
+# Never put a "#" comment inside the backslash continuation below: it swallows
+# the rest of the logical line, silently dropping "$IMAGE".
 "${DOCKER[@]}" rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 "${DOCKER[@]}" run -d \
   --name "$CONTAINER_NAME" \
