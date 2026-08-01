@@ -124,6 +124,33 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-08-01: Conductor scripts made restart-survivable, after a report that the imposter did not come back
+  following a micro-VM restart. `imposter-container.sh` no longer passes `--pull=always` — it does a
+  failure-tolerant `docker pull` *before* the unconditional `docker rm -f`, because `--pull=always` returns
+  `exit 125` when the registry is unreachable even though the image is cached locally, so a transient GHCR/DNS
+  blip destroyed the working container and refused to recreate it (verified both before and after the change).
+  The `CONDUCTOR_IS_LOCAL` short-circuit was removed from `imposter-container.sh` and stays only in
+  `setup.sh`, now read as `${CONDUCTOR_IS_LOCAL:-0}` — under `set -u` a bare reference aborted any hand-run
+  with `unbound variable`, and a manual `restart-imposter` trigger that exits 0 silently is worse than one
+  that tries and reports. The Linux-only daemon bootstrap and `DOCKER_HOST` default are now gated on
+  `uname -s` so the container path can work against Docker Desktop on macOS (written, not yet run there).
+  `dockerd` is now started under `setsid` (previously only `nohup`, which covers SIGHUP but not a
+  process-group teardown). `.conductor/settings.toml` gained `default = true` on the run script plus
+  `auto_run_after_setup = true`: `[scripts] setup` fires only on workspace *creation* and Conductor's
+  repo-settings schema has no resume hook, so without a default run script nothing re-established the
+  container after a restart. A second trigger, `imposter-logs` (`.conductor/scripts/imposter-logs.sh`),
+  follows `docker logs -f` on the container after checking the daemon is up.
+  Reordering `setup.sh` to start the container *before* Codex/`code-review-graph` was tried and **reverted**
+  the same day: on a restarted micro VM it moved `docker pull`/`rm -f`/`run` to about a second after the
+  daemon first answered `docker info`, and the daemon then vanished mid-health-check. The ordering is now
+  pinned with a comment, the health wait tolerates a daemon blip (`--restart unless-stopped` brings the
+  container back), and failures print a daemon-first `diagnose()` bundle — container status, `docker logs
+  --tail 100`, whether a `dockerd` process exists, its log tail, kernel OOM lines — to the terminal, because
+  the operator works in a remote sandbox without filesystem access. The prior code ended its failure path
+  with a bare `docker logs`, which answers "Cannot connect to the Docker daemon" in exactly the case that
+  matters and silently discards the container output. Root cause of the daemon death is still unconfirmed.
+  `.conductor/AGENTS.md` and `.docs/wiki/setups/conductor.build-smooth-llm-imposter.md` (including its
+  embedded paste-in copy) updated to match.
 - 2026-07-31: Added supply-chain provenance version vars: `OPENCODE_CLI_VERSION`, `OPENCODE_TOOL_CODE_REVIEW_GRAPH_VERSION`, `OPENCODE_TOOL_RTK_VERSION` to `pipeline-ai-analyse.yml` env block (reading from repo vars). `pipeline-code-review-report.yml` documents the vars in its config comments (thin caller, env exports live in the upstream reusable workflow).
 - 2026-07-31: The `opencode-go-openai` provider was split into two keys — `opencode-go-openai-chat`
   (`OpenAiUpstreamApi: chat_completions`, the explicit default) and `opencode-go-openai-responses`

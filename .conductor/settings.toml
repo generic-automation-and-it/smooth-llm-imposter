@@ -3,7 +3,13 @@
 [scripts]
 setup = "./.conductor/scripts/setup.sh"
 run_mode = "nonconcurrent"
+auto_run_after_setup = true
 
 [scripts.run.restart-imposter]
 command = "./.conductor/scripts/restart-imposter.sh"
+default = true
 icon = "refresh-cw"
+
+[scripts.run.imposter-logs]
+command = "./.conductor/scripts/imposter-logs.sh"
+icon = "scroll-text"

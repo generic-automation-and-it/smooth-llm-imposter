@@ -8,14 +8,16 @@ This page covers two Conductor script roles (snapshot and workspace) plus their 
    `code-review-graph`) and native Docker Engine + Compose; persists `DOCKER_HOST`, `OPENAI_BASE_URL`, and
    `ANTHROPIC_BASE_URL`; configures Codex; pulls the published SmoothLlmImposter image; and does not require
    provider credentials.
-2. The **workspace setup script** restarts the Docker daemon after snapshot restoration, wires
-   `code-review-graph` into Codex, Copilot CLI, OpenCode, and Claude Code and builds the graph for the
-   checked-out repository, reads
-   `OPENCODE_API_KEY` and `OPENROUTER_API_KEY` from the workspace environment, creates the configured container
-   from the already-pulled image, and waits for the router health endpoint. It is also available as a shared,
+2. The **workspace setup script** restarts the Docker daemon after snapshot restoration, configures Codex,
+   wires `code-review-graph` into Codex, Copilot CLI, OpenCode, and Claude Code and builds the graph for the
+   checked-out repository, then reads `OPENCODE_API_KEY` and `OPENROUTER_API_KEY` from the workspace
+   environment, creates the configured container from the already-pulled image, and waits for the router
+   health endpoint — printing a full daemon-and-container diagnostic to the terminal if it never gets one.
+   It is also available as a shared,
    committed Conductor script (`.conductor/settings.toml` + `.conductor/scripts/`) — see
-   [Shared Conductor script](#shared-conductor-script-recommended-over-the-manual-paste-in-above) — plus an
-   on-demand `restart-imposter` trigger to recreate the container without recreating the workspace.
+   [Shared Conductor script](#shared-conductor-script-recommended-over-the-manual-paste-in-above) — plus
+   on-demand `restart-imposter` and `imposter-logs` triggers that recreate the container, and follow its
+   logs, without recreating the workspace.
 
 The setup works from any repository because it uses the published multi-platform image:
 
@@ -59,11 +61,15 @@ Use this as the Conductor snapshot lifecycle script. Conductor lifecycle logs id
 Linux 2023 (for example, `/home/vercel-sandbox`), so it uses DNF4 and native Docker rather than Homebrew,
 Linuxbrew, or Colima.
 
-> **`CONDUCTOR_IS_LOCAL=1` short-circuits both scripts.** Conductor sets this environment variable in the
-> local Mac/desktop workspace lifecycle (not the cloud sandbox). The local developer's Docker Desktop is
-> already running the imposter container, so the snapshot/workspace scripts no-op with `exit 0` instead of
-> trying to install packages or re-create the container. A no-op exit is therefore the **expected** behavior
-> on a local workspace — not a debugging artifact.
+> **`CONDUCTOR_IS_LOCAL=1` short-circuits the automatic lifecycle scripts only.** Conductor sets this
+> environment variable in the local Mac/desktop workspace lifecycle (not the cloud sandbox). The local
+> developer's Docker Desktop is already running the imposter container, so the snapshot and setup scripts
+> no-op with `exit 0` instead of installing packages or re-creating the container. A no-op exit is therefore
+> the **expected** behavior on a local workspace — not a debugging artifact. The `restart-imposter` trigger
+> and `imposter-container.sh` deliberately carry **no** such guard: a manual trigger that exits silently is
+> worse than one that tries and reports, so pressing it does the work on a Mac too. Both scripts read the
+> variable as `${CONDUCTOR_IS_LOCAL:-0}`, because under `set -u` a bare reference aborts with
+> `unbound variable` whenever the script is run by hand from a shell Conductor did not populate.
 
 Provider credentials are intentionally absent from snapshot construction: Conductor makes
 `OPENCODE_API_KEY` and `OPENROUTER_API_KEY` available only to the later workspace lifecycle. The snapshot
@@ -135,7 +141,9 @@ supply explicitly as that provider's `Secret` with the matching `AuthScheme`. Se
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ "$CONDUCTOR_IS_LOCAL" = "1" ]; then
+# Defaulted: under `set -u` a bare reference aborts with "unbound variable"
+# whenever this runs in a shell Conductor did not populate.
+if [ "${CONDUCTOR_IS_LOCAL:-0}" = "1" ]; then
   exit 0
 fi
 
@@ -275,10 +283,13 @@ sudo docker pull "$IMAGE"
 sudo docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 ```
 
-> **Image pull behavior.** Workspace startup uses `--pull=always`, so Docker checks GHCR for a newer
-> `smooth-llm-imposter:latest` on every container start and pulls it if available. Provider mappings and
-> credentials are bound when the workspace creates the container, so those can change independently of the
-> image.
+> **Image pull behavior.** Workspace startup runs a separate `docker pull` before recreating the container,
+> so Docker still checks GHCR for a newer `smooth-llm-imposter:latest` on every start — but a failed pull is
+> tolerated and falls back to the locally cached image instead of aborting. It is deliberately **not**
+> `docker run --pull=always`: that returns `exit 125` when the registry is unreachable even though the image
+> is cached locally, and the unconditional `docker rm -f` has already run by then, so a transient GHCR or DNS
+> failure would leave the workspace with no container at all. Provider mappings and credentials are bound
+> when the workspace creates the container, so those can change independently of the image.
 
 ## Workspace setup script (create and start the container)
 
@@ -286,42 +297,67 @@ Use this as the Conductor workspace lifecycle. `setup.sh` configures Codex (writ
 `[model_providers.smooth-llm-proxy]` table and `model_provider` value into `~/.codex/config.toml`,
 preserving unrelated settings like MCP servers and RTK config — the previous file is backed up to
 `~/.codex/config.toml.bak`), runs code-review-graph wiring, then delegates to `imposter-container.sh`
-which restarts `dockerd`, requires the workspace-only `OPENCODE_API_KEY` and `OPENROUTER_API_KEY`,
-supplies the provider mappings and secrets while creating the container, and checks GHCR for a newer
-image via `--pull=always`.
+which starts `dockerd` if needed (Linux only), requires the workspace-only `OPENCODE_API_KEY` and
+`OPENROUTER_API_KEY`, refreshes the image from GHCR, and supplies the provider mappings and secrets
+while creating the container.
+
+> **Do not move the container start to the front.** It was tried — the router is what every other step
+> exists to serve, so gating it behind best-effort tooling looks wrong — and reverted the same day. On a
+> freshly restarted micro VM it puts `docker pull` / `rm -f` / `run` about a second after the daemon first
+> answers `docker info`, rather than after the ~minute of Codex and code-review-graph work that had been
+> giving a restarting daemon time to finish restoring containers and networking. Observed result: pull and
+> run both succeed, then the daemon disappears during the health wait.
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ "$CONDUCTOR_IS_LOCAL" = "1" ]; then
+# Defaulted so that running this by hand from a plain shell — where Conductor
+# injects nothing — does not abort on `set -u` before doing any work.
+if [ "${CONDUCTOR_IS_LOCAL:-0}" = "1" ]; then
   exit 0
 fi
 
 PORT="${PORT:-5080}"
 IMAGE="${SMOOTH_LLM_IMAGE:-ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest}"
 CONTAINER_NAME="smooth-llm-imposter"
-export DOCKER_HOST="${DOCKER_HOST:-unix:///var/run/docker.sock}"
+DOCKERD_LOG="/tmp/dockerd.log"
+# Set when this script is the one that spawned dockerd. If it is not, an empty
+# or absent DOCKERD_LOG means "someone else owns that daemon", not "the daemon
+# said nothing".
+DOCKERD_STARTED_BY_US=0
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "Docker is missing. Build this workspace from the documented snapshot." >&2
   exit 1
 fi
 
-# Background daemons do not survive snapshot restoration.
-if ! sudo docker info >/dev/null 2>&1; then
-  sudo nohup dockerd </dev/null >/tmp/dockerd.log 2>&1 &
+# Daemon bootstrap is Linux-only: background daemons do not survive snapshot
+# restoration or a micro-VM restart. On macOS there is no dockerd binary —
+# Docker Desktop owns the daemon and the CLI resolves its socket through the
+# active docker context, which exporting DOCKER_HOST would override.
+if [ "$(uname -s)" = "Linux" ]; then
+  export DOCKER_HOST="${DOCKER_HOST:-unix:///var/run/docker.sock}"
 
-  for _ in $(seq 1 30); do
-    sudo docker info >/dev/null 2>&1 && break
-    sleep 1
-  done
+  if ! sudo -n docker info >/dev/null 2>&1; then
+    # setsid detaches the daemon into its own session, so it cannot be reaped
+    # along with this script's process group when the caller (a Conductor run
+    # script, or a terminal the user closes) goes away. nohup only covers SIGHUP.
+    sudo -n setsid nohup dockerd </dev/null >"$DOCKERD_LOG" 2>&1 &
+    DOCKERD_STARTED_BY_US=1
+
+    for _ in $(seq 1 30); do
+      sudo -n docker info >/dev/null 2>&1 && break
+      sleep 1
+    done
+  fi
+
+  sudo -n docker info >/dev/null 2>&1 || {
+    echo "Docker failed to start." >&2
+    [ -s "$DOCKERD_LOG" ] && { echo "--- last 40 lines of $DOCKERD_LOG ---" >&2; tail -40 "$DOCKERD_LOG" >&2; }
+    exit 1
+  }
 fi
-
-sudo docker info >/dev/null 2>&1 || {
-  echo "Docker failed to start; inspect /tmp/dockerd.log." >&2
-  exit 1
-}
 
 # code-review-graph is installed in the snapshot, but both `install` and `build`
 # are repository-scoped: `install` writes a repo-pinned `cwd` into each MCP
@@ -374,19 +410,72 @@ export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in the w
 # name-only pass-through and the values do not appear in the command line.
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
-elif sudo docker info >/dev/null 2>&1; then
-  DOCKER=(sudo --preserve-env=OPENCODE_GO_API_KEY,OPENROUTER_API_KEY docker)
+elif sudo -n docker info >/dev/null 2>&1; then
+  DOCKER=(sudo -n --preserve-env=OPENCODE_GO_API_KEY,OPENROUTER_API_KEY docker)
 else
-  echo "Docker failed to start; inspect /tmp/dockerd.log." >&2
+  echo "Docker is not reachable; on Linux the daemon is down, on macOS start Docker Desktop." >&2
   exit 1
 fi
 
-# Create the container only now, after the workspace secrets exist. The image
-# is normally already cached locally from the snapshot, but --pull=always still
-# re-checks GHCR for a newer tag on every start (picks up rotated or manual
-# dispatch tags). openrouter-* is absent from the published base image, so
-# define the Anthropic OpenRouter provider fully here (same env-var shape, but
-# defines a new provider because the base image omits it).
+# Everything this script can learn about a failure, printed to the terminal.
+# The workspace it runs in is a remote cloud sandbox with no convenient
+# filesystem access, so a diagnostic that only writes a file is a diagnostic
+# nobody reads. Checks the daemon FIRST: `docker logs` is worthless when the
+# daemon is the thing that died, and its "Cannot connect to the Docker daemon"
+# error silently replaces the container logs you actually wanted.
+diagnose() {
+  echo "================ imposter diagnostics ================" >&2
+  if "${DOCKER[@]}" info >/dev/null 2>&1; then
+    echo "[daemon]    reachable" >&2
+    echo "[container] $("${DOCKER[@]}" ps -a --filter "name=^/${CONTAINER_NAME}$" \
+      --format '{{.Status}} | image {{.Image}}' 2>/dev/null || echo 'not found')" >&2
+    echo "[container] last 100 log lines:" >&2
+    "${DOCKER[@]}" logs --tail 100 "$CONTAINER_NAME" 2>&1 | sed 's/^/    /' >&2 || true
+  else
+    echo "[daemon]    UNREACHABLE at ${DOCKER_HOST:-the default socket}." >&2
+    echo "[daemon]    The container cannot outlive its daemon, so this — not the" >&2
+    echo "[daemon]    router — is the failure. Container logs are unavailable." >&2
+    if pgrep -x dockerd >/dev/null 2>&1; then
+      echo "[daemon]    a dockerd process exists but is not answering" >&2
+    else
+      echo "[daemon]    no dockerd process is running (it exited or was killed)" >&2
+    fi
+    if [ -s "$DOCKERD_LOG" ]; then
+      echo "[daemon]    last 40 lines of $DOCKERD_LOG:" >&2
+      tail -40 "$DOCKERD_LOG" | sed 's/^/    /' >&2
+    elif [ "$DOCKERD_STARTED_BY_US" = "1" ]; then
+      echo "[daemon]    $DOCKERD_LOG is empty — the daemon died without writing anything" >&2
+    else
+      echo "[daemon]    this script did not start that daemon, so $DOCKERD_LOG is not" >&2
+      echo "[daemon]    its log; the sandbox boot owns it and its output is elsewhere" >&2
+    fi
+    echo "[kernel]    recent OOM/kill messages (empty means no OOM kill):" >&2
+    { dmesg 2>/dev/null || sudo -n dmesg 2>/dev/null || true; } |
+      grep -iE "out of memory|oom-kill|killed process" | tail -10 | sed 's/^/    /' >&2 || true
+  fi
+  echo "======================================================" >&2
+}
+
+# Refresh the image BEFORE touching the running container, and tolerate failure.
+# `docker run --pull=always` (the previous behaviour) turns an unreachable or
+# slow registry into a hard exit 125 even when the image is already cached
+# locally — and `docker rm -f` has destroyed the working container by then, so a
+# transient GHCR/DNS hiccup takes the router down and leaves nothing in its
+# place. That window is widest exactly when this script is most likely to run:
+# right after a micro-VM restart, while the network is still coming up.
+if ! "${DOCKER[@]}" pull "$IMAGE"; then
+  echo "Image pull failed; falling back to the locally cached image." >&2
+  if ! "${DOCKER[@]}" image inspect "$IMAGE" >/dev/null 2>&1; then
+    echo "No local copy of $IMAGE either — leaving the existing container untouched." >&2
+    diagnose
+    exit 1
+  fi
+fi
+
+# Create the container only now, after the workspace secrets exist and the image
+# is as fresh as the network allowed. openrouter-* is absent from the published
+# base image, so define the Anthropic OpenRouter provider fully here (same
+# env-var shape, but defines a new provider because the base image omits it).
 #
 # To stop OpenCode session token usage: uncomment the two exports above, add
 # OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING and OPENCODE_GO_OPENAI_SESSION_FORWARDING
@@ -399,7 +488,6 @@ fi
 "${DOCKER[@]}" run -d \
   --name "$CONTAINER_NAME" \
   --restart unless-stopped \
-  --pull=always \
   -p "127.0.0.1:${PORT}:5080" \
   -e "Imposter__Providers__opencode-go-anthropic__Dialect=anthropic" \
   -e "Imposter__Providers__opencode-go-anthropic__BaseUrl=https://opencode.ai/zen/go" \
@@ -433,16 +521,29 @@ fi
   -e OPENROUTER_API_KEY \
   "$IMAGE" >/dev/null
 
-for _ in $(seq 1 30); do
+# Wait for health, tolerating a daemon that goes away mid-wait. `--restart
+# unless-stopped` brings the container back once a daemon returns, so a daemon
+# blip is recoverable and must not be reported as a dead router — but it does
+# need saying out loud, because it is a completely different fault from the
+# container failing to serve.
+daemon_blipped=0
+for _ in $(seq 1 60); do
   if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
+    if [ "$daemon_blipped" = "1" ]; then
+      echo "Note: the Docker daemon was briefly unreachable during startup; the container recovered." >&2
+    fi
     echo "SmoothLlmImposter is ready on http://127.0.0.1:$PORT"
     exit 0
+  fi
+  if ! "${DOCKER[@]}" info >/dev/null 2>&1; then
+    [ "$daemon_blipped" = "1" ] || echo "Docker daemon went unreachable while waiting for health; still waiting..." >&2
+    daemon_blipped=1
   fi
   sleep 1
 done
 
-echo "SmoothLlmImposter did not become healthy." >&2
-"${DOCKER[@]}" logs "$CONTAINER_NAME" >&2
+echo "SmoothLlmImposter did not become healthy after 60s." >&2
+diagnose
 exit 1
 ```
 
@@ -464,10 +565,11 @@ Conductor script, so pulling this branch is enough; see
 
 | File | Role |
 |---|---|
-| `.conductor/settings.toml` | Committed. Points `[scripts] setup` and `[scripts.run.restart-imposter]` at the files below. `run_mode = "nonconcurrent"`, because the container uses a fixed name and a fixed host port (`127.0.0.1:5080` by default) — two workspaces racing setup or restart at once would collide over both. |
-| `.conductor/scripts/imposter-container.sh` | The container lifecycle only: ensure the Docker daemon, validate `OPENCODE_API_KEY`/`OPENROUTER_API_KEY`, `docker rm -f` + `docker run -d` with the full provider mapping, wait for `/health`. Shared by both scripts below so the `docker run` invocation exists in exactly one place. |
-| `.conductor/scripts/setup.sh` | The `[scripts] setup` entrypoint — code-review-graph wiring (see below) followed by `imposter-container.sh`. Runs once when a workspace is created. |
-| `.conductor/scripts/restart-imposter.sh` | The `[scripts.run.restart-imposter]` entrypoint — just `imposter-container.sh`, no code-review-graph step. An on-demand trigger, runnable anytime without recreating the workspace: after pulling a new image tag, rotating `OPENCODE_API_KEY`/`OPENROUTER_API_KEY`, or recovering a crash-looped container. |
+| `.conductor/settings.toml` | Committed. Points `[scripts] setup` and `[scripts.run.restart-imposter]` at the files below. `run_mode = "nonconcurrent"`, because the container uses a fixed name and a fixed host port (`127.0.0.1:5080` by default) — two workspaces racing setup or restart at once would collide over both. `auto_run_after_setup = true` plus `default = true` on the run script make starting the imposter Conductor's *run* action, not just a button someone has to remember: `setup` only ever fires when a workspace is created, so without a default run script nothing re-establishes the container on a later resume. |
+| `.conductor/scripts/imposter-container.sh` | The container lifecycle only: ensure the Docker daemon (Linux only), validate `OPENCODE_API_KEY`/`OPENROUTER_API_KEY`, pull the image (non-fatal), `docker rm -f` + `docker run -d` with the full provider mapping, wait for `/health`, and on failure print a daemon-first diagnostic bundle to the terminal. Shared by both scripts below so the `docker run` invocation exists in exactly one place. No `CONDUCTOR_IS_LOCAL` guard — see the note near the top of this page. |
+| `.conductor/scripts/setup.sh` | The `[scripts] setup` entrypoint — Codex configuration and code-review-graph wiring (see below), followed by `imposter-container.sh`. Runs once when a workspace is created. Do not reorder; see the warning above the workspace script. |
+| `.conductor/scripts/restart-imposter.sh` | The `[scripts.run.restart-imposter]` entrypoint — just `imposter-container.sh`, no Codex or code-review-graph step. The default run script, and an on-demand trigger runnable anytime without recreating the workspace: after a VM restart, pulling a new image tag, rotating `OPENCODE_API_KEY`/`OPENROUTER_API_KEY`, or recovering a crash-looped container. |
+| `.conductor/scripts/imposter-logs.sh` | The `[scripts.run.imposter-logs]` entrypoint — `docker logs -f` on the container, after checking that the daemon is reachable and the container exists. A separate trigger because `-f` blocks forever, and a button beats expecting the operator to know the container name and whether `docker` or `sudo docker` works in this sandbox. |
 
 This only covers the **workspace** script. The **snapshot** script (installing Docker/dotnet/`uv`/etc., image-level)
 has no `.conductor/settings.toml` equivalent — Conductor snapshots are cloud-environment configuration, not a
