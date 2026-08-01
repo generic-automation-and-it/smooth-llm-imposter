@@ -155,9 +155,13 @@ echo "Extracting into $KIT_DIR" >&2
 STAGE_DIR="$TMP_DIR/stage"
 mkdir -p "$STAGE_DIR"
 tar -xzf "$TMP_DIR/$TARBALL" -C "$STAGE_DIR" --strip-components=1
+# .kit-version is the canonical "installed by this script" marker; an
+# unrelated .conductor/ directory is left to a blind overwrite.
 if [ -f "$KIT_VERSION_FILE" ]; then
   if [ -t 0 ]; then
-    printf 'Existing .conductor found. Overwrite (local edits will be lost)? [y/N] ' >&2
+    existing=$(cat "$KIT_VERSION_FILE" 2>/dev/null || echo unknown)
+    printf 'Existing kit (%s) found in %s. Overwrite (local edits will be lost)? [y/N] ' \
+      "$existing" "$KIT_DIR" >&2
     read -r ans
     case "$ans" in y|Y|yes|YES) ;; *) echo "Aborted." >&2; exit 1 ;; esac
   fi
