@@ -19,8 +19,13 @@ set -euo pipefail
 #   curl -fsSL https://raw.githubusercontent.com/generic-automation-and-it/smooth-llm-imposter/main/.conductor/install.sh | bash
 #
 #   # pin a version — the installer is also attached to each release, so either
-#   # source works once a release exists
-#   curl -fsSL https://github.com/generic-automation-and-it/smooth-llm-imposter/releases/download/v1.0.0/install.sh | bash -s -- --ref v1.0.0
+#   # source works once a release with assets exists
+#   curl -fsSL https://github.com/generic-automation-and-it/smooth-llm-imposter/releases/download/vX.Y.Z/install.sh | bash -s -- --ref vX.Y.Z
+#
+#   # NOTE: v0.0.1 and v1.0.0 are published but carry NO assets — the release
+#   # workflow uploaded after publishing, which an immutable-release repository
+#   # rejects. Immutability means they cannot be repaired, only superseded.
+#   # Do not pin to either.
 #
 #   # report the installed version
 #   bash .conductor/install.sh --check

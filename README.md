@@ -155,8 +155,8 @@ The `.conductor/` lifecycle scripts (start the router container, configure Codex
 # latest release
 curl -fsSL https://raw.githubusercontent.com/generic-automation-and-it/smooth-llm-imposter/main/.conductor/install.sh | bash
 
-# pin a version
-curl -fsSL https://raw.githubusercontent.com/generic-automation-and-it/smooth-llm-imposter/main/.conductor/install.sh | bash -s -- --ref v1.0.0
+# pin a version (any published release tag — see the Releases page)
+curl -fsSL https://raw.githubusercontent.com/generic-automation-and-it/smooth-llm-imposter/main/.conductor/install.sh | bash -s -- --ref vX.Y.Z
 
 # what's installed here?
 bash .conductor/install.sh --check
