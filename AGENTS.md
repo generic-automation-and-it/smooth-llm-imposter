@@ -156,7 +156,11 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
   into `.conductor/`, verifies SHA256, stages before swapping) and
   `.github/workflows/publish-conductor-kit.yml` (tarball + `SHA256SUMS` attached to a GitHub Release
   on a `v*` tag; `workflow_dispatch` publishes a pre-release from any branch). `.conductor/AGENTS.md`
-  split into generic kit context and repo-specific context.
+  split into generic kit context and repo-specific context. `README.md` documents the remote install
+  under Quick start. `install.sh` is attached to each Release **as its own asset**, not only inside the
+  tarball — it is the bootstrap, so a consumer needs it before they have the archive; shipping only the
+  archive left the documented `releases/download/<tag>/install.sh` URL a 404. The pre-release bootstrap
+  is `raw.githubusercontent.com/.../main/.conductor/install.sh`, which needs no tag to exist.
   An attempt to make the kit repo-agnostic first — replacing the hardcoded `-e Imposter__Providers__*`
   flags with an `Imposter__*` environment pass-through — was **reverted in full**, along with the
   `setup.sh` worktree fix and conditional claude-code flags that rode with it. The pass-through was

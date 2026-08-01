@@ -12,10 +12,20 @@ set -euo pipefail
 # --pull=always bug exposed: a network blip during setup destroying the
 # working container.
 #
-# Usage:
-#   curl -fsSL https://github.com/generic-automation-and-it/smooth-llm-imposter/releases/download/<tag>/install.sh | bash
-#   curl -fsSL https://github.com/generic-automation-and-it/smooth-llm-imposter/releases/download/<tag>/install.sh | bash -s -- --ref <tag>
+# Usage — run from the root of the repo you want the kit installed into:
+#
+#   # latest release, bootstrapping from the default branch (works before any
+#   # release exists, and needs no knowledge of tag names)
+#   curl -fsSL https://raw.githubusercontent.com/generic-automation-and-it/smooth-llm-imposter/main/.conductor/install.sh | bash
+#
+#   # pin a version — the installer is also attached to each release, so either
+#   # source works once a release exists
+#   curl -fsSL https://github.com/generic-automation-and-it/smooth-llm-imposter/releases/download/v1.0.0/install.sh | bash -s -- --ref v1.0.0
+#
+#   # report the installed version
 #   bash .conductor/install.sh --check
+#
+# The repository is public, so none of these need authentication.
 
 # Resolve where the kit belongs. Two invocation styles, and they behave very
 # differently:

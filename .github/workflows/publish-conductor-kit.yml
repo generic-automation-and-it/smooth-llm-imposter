@@ -85,9 +85,14 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Conductor kit ${{ steps.version.outputs.tag }}
+          # install.sh is attached alongside the tarball, not only inside it.
+          # It is the bootstrap: a consumer needs it *before* they have the
+          # tarball, so a release that ships only the archive leaves the
+          # documented `curl …/releases/download/<tag>/install.sh` URL a 404.
           files: |
             conductor-kit-${{ steps.version.outputs.version }}.tar.gz
             SHA256SUMS
+            .conductor/install.sh
           # A tag push is a real release and must be marked latest — install.sh
           # with no --ref resolves via /releases/latest, so if nothing is ever
           # latest the default install path fails. The previous condition
