@@ -100,7 +100,14 @@ fi
 #         (a) DOCKERD_LOG non-empty → tail it
 #         (b) DOCKERD_LOG empty + we started it → 'died without writing'
 #         (c) DOCKERD_LOG empty + we did not start it → 'sandbox boot owns the log'
-#  (vi) always check dmesg for OOM lines.
+#  (iii) when the daemon is down, also scan dmesg for OOM / "killed
+#        process" lines (the grep matches "out of memory", "oom-kill",
+#        and "killed process" — the last is intentionally broader
+#        than OOM, to catch SIGKILL events that may have brought
+#        dockerd down).
+#
+#  Reordering or renaming any of these branches will silently mis-attribute
+#  the cause; keep the comment in sync with the code below.
 diagnose() {
   echo "================ imposter diagnostics ================" >&2
   if "${DOCKER[@]}" info >/dev/null 2>&1; then
