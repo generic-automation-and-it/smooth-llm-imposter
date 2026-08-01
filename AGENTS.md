@@ -151,6 +151,30 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
   matters and silently discards the container output. Root cause of the daemon death is still unconfirmed.
   `.conductor/AGENTS.md` and `.docs/wiki/setups/conductor.build-smooth-llm-imposter.md` (including its
   embedded paste-in copy) updated to match.
+- 2026-08-01: Packaged the `.conductor` kit for distribution to other repos, **shipping the scripts
+  as-is**. Added `.conductor/install.sh` (vendoring installer with `--ref` and `--check`; extracts
+  into `.conductor/`, verifies SHA256, stages before swapping) and
+  `.github/workflows/publish-conductor-kit.yml` (tarball + `SHA256SUMS` attached to a GitHub Release
+  on a `v*` tag; `workflow_dispatch` publishes a pre-release from any branch). `.conductor/AGENTS.md`
+  split into generic kit context and repo-specific context. `README.md` documents the remote install
+  under Quick start. `install.sh` is attached to each Release **as its own asset**, not only inside the
+  tarball — it is the bootstrap, so a consumer needs it before they have the archive; shipping only the
+  archive left the documented `releases/download/<tag>/install.sh` URL a 404. The pre-release bootstrap
+  is `raw.githubusercontent.com/.../main/.conductor/install.sh`, which needs no tag to exist.
+  An attempt to make the kit repo-agnostic first — replacing the hardcoded `-e Imposter__Providers__*`
+  flags with an `Imposter__*` environment pass-through — was **reverted in full**, along with the
+  `setup.sh` worktree fix and conditional claude-code flags that rode with it. The pass-through was
+  broken in two independent ways: `grep -oE '^Imposter__[A-Za-z0-9_]+'` truncated every key at its
+  first hyphen (provider names all contain them), forwarding a non-existent variable so every route
+  silently vanished; and `done < <(…)` cannot work in this sandbox because there is no `/dev/fd`. The
+  deeper problem was product shape, not implementation: a kit that routes nothing until the consumer
+  authors and places a mapping file is worse than one that works on install. Provider keys also cannot
+  be expressed as shell variables at all (`export 'Imposter__Providers__opencode-go-anthropic__…'` →
+  "not a valid identifier"), which the externalisation design had not accounted for.
+  Two items are left open and recorded in `.conductor/AGENTS.md`: `setup.sh` still writes
+  `.git/info/exclude` by literal path, which aborts setup inside a git worktree (i.e. every local Mac
+  workspace), and whether a user-level `~/.conductor/settings.toml` reaches a cloud sandbox remains
+  untested.
 - 2026-07-31: Added supply-chain provenance version vars: `OPENCODE_CLI_VERSION`, `OPENCODE_TOOL_CODE_REVIEW_GRAPH_VERSION`, `OPENCODE_TOOL_RTK_VERSION` to `pipeline-ai-analyse.yml` env block (reading from repo vars). `pipeline-code-review-report.yml` documents the vars in its config comments (thin caller, env exports live in the upstream reusable workflow).
 - 2026-07-31: The `opencode-go-openai` provider was split into two keys — `opencode-go-openai-chat`
   (`OpenAiUpstreamApi: chat_completions`, the explicit default) and `opencode-go-openai-responses`

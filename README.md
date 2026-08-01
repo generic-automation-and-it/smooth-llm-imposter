@@ -144,8 +144,35 @@ Pick the guide that matches how you want to run or work on the router:
 | Compose | Run with `docker compose` / `podman-compose` | [`compose.run-smooth-llm-imposter.md`](.docs/wiki/setups/compose.run-smooth-llm-imposter.md) | Runtime |
 | Developers — Getting Started | Build, run, and test from source (prerequisites, build, test) | [`developers-gettingstarted.md`](.docs/wiki/developers-gettingstarted.md) | Developer |
 | Local debug | Run from source with a debugger attached | [`local-debug.run-smooth-llm-imposter.md`](.docs/wiki/setups/local-debug.run-smooth-llm-imposter.md) | Developer |
-| Conductor | Fresh-sandbox build & routing setup for Conductor workspaces | [`conductor.build-smooth-llm-imposter.md`](.docs/wiki/setups/conductor.build-smooth-llm-imposter.md) | Developer |
+| Conductor | Fresh-sandbox build & routing setup for Conductor workspaces — also installable into other repos, see below | [`conductor.build-smooth-llm-imposter.md`](.docs/wiki/setups/conductor.build-smooth-llm-imposter.md) | Developer |
 | Logging debug | Dump the full inbound request for message-level debugging | [`logging.debug-smooth-llm-imposter.md`](.docs/wiki/setups/logging.debug-smooth-llm-imposter.md) | Developer |
+
+### Conductor kit — install into another repo
+
+The `.conductor/` lifecycle scripts (start the router container, configure Codex, wire `code-review-graph`, plus `restart-imposter` and `imposter-logs` triggers) are packaged as a versioned kit. Run this from the root of the repo you want it in:
+
+```bash
+# latest release
+curl -fsSL https://raw.githubusercontent.com/generic-automation-and-it/smooth-llm-imposter/main/.conductor/install.sh | bash
+
+# pin a version
+curl -fsSL https://raw.githubusercontent.com/generic-automation-and-it/smooth-llm-imposter/main/.conductor/install.sh | bash -s -- --ref v1.0.0
+
+# what's installed here?
+bash .conductor/install.sh --check
+```
+
+Then commit `.conductor/` and give that workspace `OPENCODE_API_KEY` and `OPENROUTER_API_KEY` in its Conductor environment settings. Conductor runs `setup` on the next workspace it creates from that branch; `restart-imposter` is the default run script, so the container is re-established after a restart.
+
+| Property | Behaviour |
+|---|---|
+| Distribution | GitHub Release — `conductor-kit-<version>.tar.gz` + `SHA256SUMS` + `install.sh`, published by [`publish-conductor-kit.yml`](.github/workflows/publish-conductor-kit.yml) on a `v*` tag |
+| Install style | **Vendored** — files are copied into `.conductor/` and committed. Nothing is fetched at runtime, so a registry outage can never break a workspace lifecycle |
+| Versioning | `.conductor/.kit-version` records the installed tag; re-run the installer to update |
+| Authentication | None — the repository is public |
+| Mappings | The scripts ship **as-is**, model mappings included, so a fresh install routes correctly with no further configuration. A repo wanting different routes edits its own copy; `PORT` and `SMOOTH_LLM_IMAGE` stay environment-overridable |
+
+A git submodule pinned to a tag also works and needs no extra tooling, but it is untested here — the `curl` path above is the supported one.
 
 ---
 

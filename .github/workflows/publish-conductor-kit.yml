@@ -1,0 +1,104 @@
+name: Publish conductor kit
+
+# Builds the .conductor kit as a versioned tarball and attaches it to a
+# GitHub Release. Runs on every push of a version tag v* (semver tags),
+# and on manual dispatch with a required version input for pre-releases.
+# A manual dispatch never produces the :latest tag — it publishes the
+# user-supplied pre-release version (e.g. 1.0.0-rc.1) so pre-release
+# kits can be cut from any branch.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Pre-release version tag (e.g. 1.0.0-rc.1). Must be a semver-compatible identifier without the leading "v".'
+        required: true
+        type: string
+
+concurrency:
+  group: publish-conductor-kit-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Build & release kit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+
+          # Validated here, not via a `pattern:` key on the input — workflow_dispatch
+          # inputs support description/required/default/type/options only, so a
+          # `pattern:` is silently ignored and enforces nothing.
+          if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'; then
+            echo "::error::Version '$VERSION' is not semver (expected e.g. 1.2.3 or 1.0.0-rc.1, no leading v)."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build kit tarball
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          TARBALL="conductor-kit-${VERSION}.tar.gz"
+
+          # The tarball is rooted at `.conductor/`; install.sh extracts it with
+          # --strip-components=1 into the target kit directory, so these paths
+          # land as scripts/, settings.toml, … inside the consumer's .conductor/.
+          #
+          # The scripts ship AS-IS, provider mappings included. That is the
+          # point: a consuming repo installs the kit and gets a working router
+          # with no further configuration. A repo that wants different routes
+          # edits its own copy of imposter-container.sh, or overrides PORT /
+          # SMOOTH_LLM_IMAGE via the environment.
+          tar -czf "$TARBALL" \
+            .conductor/scripts \
+            .conductor/settings.toml \
+            .conductor/AGENTS.md \
+            .conductor/install.sh
+
+          # Generate SHA256 checksums.
+          sha256sum "$TARBALL" > SHA256SUMS
+
+          echo "Built $TARBALL ($(wc -c < "$TARBALL") bytes)"
+          cat SHA256SUMS
+
+      - name: Create or update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Conductor kit ${{ steps.version.outputs.tag }}
+          # install.sh is attached alongside the tarball, not only inside it.
+          # It is the bootstrap: a consumer needs it *before* they have the
+          # tarball, so a release that ships only the archive leaves the
+          # documented `curl …/releases/download/<tag>/install.sh` URL a 404.
+          files: |
+            conductor-kit-${{ steps.version.outputs.version }}.tar.gz
+            SHA256SUMS
+            .conductor/install.sh
+          # A tag push is a real release and must be marked latest — install.sh
+          # with no --ref resolves via /releases/latest, so if nothing is ever
+          # latest the default install path fails. The previous condition
+          # compared github.ref to refs/heads/main, but this workflow only ever
+          # runs on refs/tags/v*, so it was never true.
+          # workflow_dispatch publishes a pre-release and must NOT claim latest.
+          prerelease: ${{ github.event_name == 'workflow_dispatch' }}
+          make_latest: ${{ github.event_name == 'push' }}
+          fail_on_unmatched_files: true
