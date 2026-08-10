@@ -124,12 +124,34 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-08-10: HLD 011 review fixes — the feature shipped **inert**. `ProviderOptionsCloner.Clone` omitted
+  `StripEncryptedContent`, and the HLD 008 registry seed (`ProviderRegistryStartupSeeder`, unconditional
+  `IHostedService`) clones every provider before `ProviderCatalog` reads it, so the flag was always `null`
+  on the route and the strip never ran. All 415 tests passed anyway because every test built `ProviderRoute`
+  by hand, bypassing the seed. The existing `ProviderOptionsClonerTests` drift guard — written for exactly
+  this class of bug — filtered `typeof(string) || typeof(bool)`, and `bool?` is neither, so it was blind;
+  the same filter had been widened in `ImposterOptionsPostConfigureTests` but not here. Also fixed:
+  `/admin/providers` DTOs (`ProviderConfigurationResponse`/`Body`) lacked the field, so the flag was
+  unreadable via the API and an upsert of an opted-in provider silently cleared it; and a JSON-`null`
+  `encrypted_content` was treated as ciphertext, dropping the plaintext summary of clients that serialize
+  the property unconditionally. Coverage added at the two hops the original tests skipped —
+  `ProviderCatalogTests` seed-materialization and the L2 `GET → PUT` round-trip; 4 tests fail without the
+  clone fix. HLD 011 itself did not exist: the code and docs cited "HLD 011 / LADR-05" with no such folder,
+  and `LADR-05` collided with unrelated LADR-05s under HLDs 004/008/010. Authored
+  `.docs/hlds/011-zdr-encrypted-content-sanitation/` (README, AGENTS, LADR-01 drop-whole-item, LADR-02
+  independent-opt-in, LADR-03 no-validator-rule, NFR-01 no-decryption/no-logging, NFR-02 default-off
+  transparency, stage-ordering diagram) and repointed every reference to LADR-01. The HLD 007 LADR-02
+  conventional-env table was stale for five suffixes (`_AUTH_TOKEN`, `_AUTH_HEADER`, `_ENABLED`,
+  `_SESSION_FORWARDING`, plus the new `_STRIP_ENCRYPTED_CONTENT`) and is now in sync with
+  `ImposterOptionsPostConfigure.Fields`. The option stays **off by default and is set in no shipped
+  `appsettings*.json`** — it is injected per deployment (`<PROVIDER>_STRIP_ENCRYPTED_CONTENT=true`) and
+  documented in `.docs/wiki/setup.md`. 417 tests pass.
 - 2026-08-09: Added `StripEncryptedContent` per-provider option (HLD 011) — drops OpenAI ZDR
   `encrypted_content` reasoning items on the `/responses` forward path so an upstream that cannot decrypt
   (e.g. LM Studio) no longer rejects with HTTP 400 "Encrypted content is not supported." Independent of
   `OpenAiUpstreamApi` and `RequestNormalization` (not gated on `IsImposter`); composes before the
   `chat_completions` downgrade. The proxy has no decryption key (ZDR holds it server-side only), so it
-  **drops** the whole reasoning item (LADR-05) rather than decode; plaintext/summary reasoning survives
+  **drops** the whole reasoning item (LADR-01) rather than decode; plaintext/summary reasoning survives
   verbatim. Conventional env `_STRIP_ENCRYPTED_CONTENT` per provider. See
   `src/SmoothLlmImposter.Application/Features/Routing/ROUTING_AGENTS.md`.
 - 2026-08-01: Kit release workflow fixed — it could never attach assets. Releases on this repo are

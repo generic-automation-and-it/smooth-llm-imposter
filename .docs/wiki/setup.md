@@ -118,8 +118,16 @@ auth scheme:** a `Bearer` provider prefers `_AUTH_TOKEN` → `_AUTHORIZATION_BEA
 provider prefers `_API_KEY` → `_AUTH_TOKEN` → `_AUTHORIZATION_BEARER` (the off-scheme suffixes stay as
 fallbacks, so a single populated var still authenticates). This keeps a personal `ANTHROPIC_API_KEY` from being
 sent as a Bearer token, and vice versa. Other scalar overrides remain provider-specific or
-structured (`_BASE_URL`, `_AUTH_SCHEME`, `_AUTH_HEADER`, `_DIALECT`, `_IS_DEFAULT`, `_OPENAI_UPSTREAM_API`,
-`_REQUEST_NORMALIZATION`, `_SESSION_FORWARDING`, `_ANTHROPIC_VERSION`). Matching is case-insensitive.
+structured (`_BASE_URL`, `_AUTH_SCHEME`, `_AUTH_HEADER`, `_DIALECT`, `_IS_DEFAULT`, `_ENABLED`,
+`_OPENAI_UPSTREAM_API`, `_REQUEST_NORMALIZATION`, `_SESSION_FORWARDING`, `_STRIP_ENCRYPTED_CONTENT`,
+`_ANTHROPIC_VERSION`). Matching is case-insensitive.
+
+`_STRIP_ENCRYPTED_CONTENT=true` drops OpenAI ZDR `encrypted_content` reasoning items from the forwarded
+`input` array, for an upstream that serves `/responses` but cannot decrypt them (LM Studio answers
+HTTP 400 `Encrypted content is not supported.`). It is **off by default and not set in any shipped
+`appsettings*.json`** — enable it per deployment by injecting the env var for the provider that needs it,
+e.g. `LMSTUDIO_STRIP_ENCRYPTED_CONTENT=true`. It is independent of `_OPENAI_UPSTREAM_API`, so the
+provider stays on `/responses`. Full design: [HLD 011](../hlds/011-zdr-encrypted-content-sanitation/README.md).
 
 `_AUTH_SCHEME` picks the value format **and** the default header (`Bearer` → `Authorization: Bearer <token>`,
 `ApiKey` → `x-api-key: <token>`). `_AUTH_HEADER` overrides only the **header name** — the value format still

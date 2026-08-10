@@ -22,13 +22,23 @@ maps conventional suffixes onto provider fields:
 |------------|----------------|
 | `_API_KEY` | `Secret` |
 | `_AUTHORIZATION_BEARER` | `Secret` (auth-typed alias of `_API_KEY`) |
+| `_AUTH_TOKEN` | `Secret` (Bearer-typed alias, mirrors `ANTHROPIC_AUTH_TOKEN`) |
 | `_BASE_URL` | `BaseUrl` |
 | `_AUTH_SCHEME` | `AuthScheme` |
+| `_AUTH_HEADER` | `AuthHeader` (header **name** only; value format follows `_AUTH_SCHEME`) |
 | `_DIALECT` | `Dialect` |
 | `_IS_DEFAULT` | `IsDefault` |
+| `_ENABLED` | `Enabled` |
 | `_OPENAI_UPSTREAM_API` | `OpenAiUpstreamApi` |
 | `_REQUEST_NORMALIZATION` | `RequestNormalization` |
+| `_SESSION_FORWARDING` | `SessionForwarding` (HLD 009) |
+| `_STRIP_ENCRYPTED_CONTENT` | `StripEncryptedContent` (HLD 011) |
 | `_ANTHROPIC_VERSION` | `AnthropicVersion` |
+
+`ImposterOptionsPostConfigure.Fields` is the source of truth for this table. `_IS_DEFAULT`,
+`_ENABLED`, and `_STRIP_ENCRYPTED_CONTENT` are the boolean suffixes: they are parsed with
+`bool.TryParse` inline (an unparseable value is logged and the bound value is left unchanged)
+rather than through the string-apply delegate.
 
 Matching is **case-insensitive** and the **full field surface** is covered, not just the secret —
 the secret (`_API_KEY`) is simply the most common entry point. The secret accepts a second,
