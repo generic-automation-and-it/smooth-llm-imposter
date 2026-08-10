@@ -4,6 +4,12 @@ All notable changes to SmoothLlmImposter are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **Review workflow unpinned to upstream `main`.** `pipeline-code-review-report.yml` now calls the
+  `smooth-ai-report-review` reusable workflow via `@main` in both the `uses:` ref and `tools_ref` (was a
+  pinned commit SHA). `main` keeps review tooling current without a per-release sync step; this repo does
+  not use action secrets/supply-chain pinning.
+
 ### Added
 - **`AuthHeader` — override the header name the credential is written into.** Some gateways expect the
   credential in a header literally named `api-key`, not the `ApiKey` scheme's default `x-api-key`. Providers
