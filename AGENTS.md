@@ -124,6 +124,12 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-08-10: `pipeline-code-review-report.yml` unpinned from the upstream commit SHA
+  (`aa59e705…`) to `@main` in both the reusable `uses:` and `tools_ref:` — this project does not
+  use action secrets/supply-chain pinning, and `main` keeps the review tooling current without a
+  per-release sync step. `pipeline-ai-analyse.yml` already resolved its tooling checkout via
+  `@main`/`SMOOTH_AI_REVIEW_TOOLS_REF`. Repo PR flow is `/git-commit-push-pr` (commit → push →
+  create/update the ticketed Conventional-Commit PR onto `main`).
 - 2026-08-10: HLD 011 review fixes — the feature shipped **inert**. `ProviderOptionsCloner.Clone` omitted
   `StripEncryptedContent`, and the HLD 008 registry seed (`ProviderRegistryStartupSeeder`, unconditional
   `IHostedService`) clones every provider before `ProviderCatalog` reads it, so the flag was always `null`
