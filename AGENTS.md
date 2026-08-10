@@ -124,6 +124,14 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-08-09: Added `StripEncryptedContent` per-provider option (HLD 011) — drops OpenAI ZDR
+  `encrypted_content` reasoning items on the `/responses` forward path so an upstream that cannot decrypt
+  (e.g. LM Studio) no longer rejects with HTTP 400 "Encrypted content is not supported." Independent of
+  `OpenAiUpstreamApi` and `RequestNormalization` (not gated on `IsImposter`); composes before the
+  `chat_completions` downgrade. The proxy has no decryption key (ZDR holds it server-side only), so it
+  **drops** the whole reasoning item (LADR-05) rather than decode; plaintext/summary reasoning survives
+  verbatim. Conventional env `_STRIP_ENCRYPTED_CONTENT` per provider. See
+  `src/SmoothLlmImposter.Application/Features/Routing/ROUTING_AGENTS.md`.
 - 2026-08-01: Kit release workflow fixed — it could never attach assets. Releases on this repo are
   **immutable**, so assets attach only *before* publication; `action-gh-release` created the release
   already published and every upload was rejected with "Cannot upload asset … to an immutable release".

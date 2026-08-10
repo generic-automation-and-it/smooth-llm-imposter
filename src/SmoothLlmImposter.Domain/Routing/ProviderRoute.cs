@@ -16,6 +16,8 @@ namespace SmoothLlmImposter.Domain.Routing;
 /// (HLD 004); <see cref="RequestNormalization.None"/> (default) forwards the body unchanged.
 /// <see cref="SessionForwarding"/> opts the provider into a proxy-side session-identity stamp
 /// (HLD 009); <see cref="SessionForwarding.None"/> (default) leaves session signals untouched.
+/// <see cref="StripEncryptedContent"/> opts the provider into proxy-side ZDR sanitation (HLD 011);
+/// <c>null</c>/<c>false</c> (default) leaves reasoning items untouched.
 /// </summary>
 public sealed record ProviderRoute(
     string Name,
@@ -31,7 +33,8 @@ public sealed record ProviderRoute(
     bool Enabled = true,
     string? ProviderKey = null,
     string? AuthHeader = null,
-    SessionForwarding SessionForwarding = SessionForwarding.None)
+    SessionForwarding SessionForwarding = SessionForwarding.None,
+    bool? StripEncryptedContent = null)
 {
     /// <summary>
     /// The stable identity used to key credentials and the authorization override — the provider's

@@ -52,6 +52,17 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
             root["session_id"] = sessionIdentity.Value;
         }
 
+        // HLD 011: ZDR sanitation. An opted-in provider drops reasoning items carrying OpenAI
+        // server-side-encrypted encrypted_content before forwarding, so a /responses upstream that cannot
+        // decrypt (e.g. LM Studio) does not 400 with "Encrypted content is not supported." The proxy has no
+        // decryption key (ZDR holds it only on OpenAI servers), so it drops rather than decode. Runs before
+        // ToChatCompletions so the strip likewise composes with the chat_completions downgrade, and is
+        // independent of OpenAiUpstreamApi — a responses provider strips the /responses body verbatim.
+        if (decision.Provider.StripEncryptedContent == true)
+        {
+            StripEncryptedReasoning(root);
+        }
+
         if (decision.Provider.OpenAiUpstreamApi == OpenAiUpstreamApi.ChatCompletions)
         {
             root = ToChatCompletions(root);
@@ -69,6 +80,30 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
         }
 
         return root.ToJsonString();
+    }
+
+    // Drops every input reasoning Item that carries OpenAI ZDR encrypted_content (LADR-05). The whole item
+    // is removed (not just the encrypted_content property): in ZDR mode the ciphertext is all such an item
+    // holds, so a stripped-empty reasoning item would be pointless and risk an upstream rejecting the empty
+    // shape. A reasoning item without encrypted_content — a plain summary / plaintext reasoning item — is
+    // preserved byte-for-byte, keeping the strip scoped strictly to ZDR blocks. Only the top-level "input"
+    // array is walked; other content (instructions, messages, scalar input) is untouched.
+    private static void StripEncryptedReasoning(JsonObject root)
+    {
+        if (root["input"] is not JsonArray inputItems)
+        {
+            return;
+        }
+
+        for (int i = inputItems.Count - 1; i >= 0; i--)
+        {
+            if (inputItems[i] is JsonObject item &&
+                string.Equals(ItemType(item), "reasoning", StringComparison.OrdinalIgnoreCase) &&
+                item.ContainsKey("encrypted_content"))
+            {
+                inputItems.RemoveAt(i);
+            }
+        }
     }
 
     private static JsonObject ToChatCompletions(JsonObject root)

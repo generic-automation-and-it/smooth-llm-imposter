@@ -84,6 +84,7 @@ internal sealed class ImposterOptionsPostConfigure(
         new("_REQUEST_NORMALIZATION", nameof(ProviderOptions.RequestNormalization), static (p, v) => p.RequestNormalization = v),
         new("_SESSION_FORWARDING", nameof(ProviderOptions.SessionForwarding), static (p, v) => p.SessionForwarding = v),
         new("_ANTHROPIC_VERSION", nameof(ProviderOptions.AnthropicVersion), static (p, v) => p.AnthropicVersion = v),
+        new("_STRIP_ENCRYPTED_CONTENT", nameof(ProviderOptions.StripEncryptedContent), static (_, _) => { }),
     ];
 
     // Naming-convention priority for the Secret slot, keyed by effective auth scheme. The scheme-matching
@@ -140,7 +141,9 @@ internal sealed class ImposterOptionsPostConfigure(
                     continue;
                 }
 
-                if (field.PropertyName is nameof(ProviderOptions.IsDefault) or nameof(ProviderOptions.Enabled))
+                if (field.PropertyName is nameof(ProviderOptions.IsDefault)
+                    or nameof(ProviderOptions.Enabled)
+                    or nameof(ProviderOptions.StripEncryptedContent))
                 {
                     if (!bool.TryParse(value, out bool booleanValue))
                     {
@@ -154,13 +157,17 @@ internal sealed class ImposterOptionsPostConfigure(
                         continue;
                     }
 
-                    if (field.PropertyName == nameof(ProviderOptions.IsDefault))
+                    switch (field.PropertyName)
                     {
-                        provider.IsDefault = booleanValue;
-                    }
-                    else
-                    {
-                        provider.Enabled = booleanValue;
+                        case nameof(ProviderOptions.IsDefault):
+                            provider.IsDefault = booleanValue;
+                            break;
+                        case nameof(ProviderOptions.Enabled):
+                            provider.Enabled = booleanValue;
+                            break;
+                        case nameof(ProviderOptions.StripEncryptedContent):
+                            provider.StripEncryptedContent = booleanValue;
+                            break;
                     }
 
                     LogApplied(variable, key, field.PropertyName);
