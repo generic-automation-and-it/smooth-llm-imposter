@@ -201,7 +201,9 @@ public class ImposterOptionsPostConfigureTests
     {
         foreach (ImposterOptionsPostConfigure.ConventionalField field in ImposterOptionsPostConfigure.Fields)
         {
-            bool isBool = field.PropertyName is nameof(ProviderOptions.IsDefault) or nameof(ProviderOptions.Enabled);
+            bool isBool = field.PropertyName is nameof(ProviderOptions.IsDefault)
+                or nameof(ProviderOptions.Enabled)
+                or nameof(ProviderOptions.StripEncryptedContent);
             string value = isBool ? "true" : "v" + field.Suffix;
 
             var (options, _) = Resolve(
@@ -514,7 +516,7 @@ public class ImposterOptionsPostConfigureTests
         // silently lacks a conventional override. Name is the identity (the key), so it is excluded.
         HashSet<string> scalarProperties = typeof(ProviderOptions)
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.PropertyType == typeof(string) || p.PropertyType == typeof(bool))
+            .Where(p => p.PropertyType == typeof(string) || p.PropertyType == typeof(bool) || p.PropertyType == typeof(bool?))
             .Select(p => p.Name)
             .ToHashSet();
         scalarProperties.Remove(nameof(ProviderOptions.Name));

@@ -15,6 +15,7 @@ public sealed record ProviderConfigurationResponse(
     string? OpenAiUpstreamApi,
     string? RequestNormalization,
     string? SessionForwarding,
+    bool? StripEncryptedContent,
     IReadOnlyList<ProviderModelMappingResponse> Models)
 {
     internal static ProviderConfigurationResponse From(string key, ProviderOptions provider) => new(
@@ -30,6 +31,7 @@ public sealed record ProviderConfigurationResponse(
         provider.OpenAiUpstreamApi,
         provider.RequestNormalization,
         provider.SessionForwarding,
+        provider.StripEncryptedContent,
         provider.Models.Select(ProviderModelMappingResponse.FromOptions).ToArray());
 }
 
@@ -45,6 +47,7 @@ public sealed record ProviderConfigurationBody(
     string? OpenAiUpstreamApi,
     string? RequestNormalization,
     string? SessionForwarding,
+    bool? StripEncryptedContent,
     IReadOnlyList<ProviderModelMappingBody>? Models)
 {
     internal ProviderOptions ToProviderOptions(string? secret = null) => new()
@@ -61,6 +64,7 @@ public sealed record ProviderConfigurationBody(
         OpenAiUpstreamApi = OpenAiUpstreamApi,
         RequestNormalization = RequestNormalization,
         SessionForwarding = SessionForwarding,
+        StripEncryptedContent = StripEncryptedContent,
         Models = Models?.Select(static model => new ModelMappingOptions
         {
             From = model.From,

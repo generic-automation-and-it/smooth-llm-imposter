@@ -85,6 +85,30 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   conversion only runs for `chat_completions`). The response side is paired: Chat Completions SSE is translated
   back to Responses SSE on that same downgraded path so Responses clients can keep `wire_api = "responses"`.
   Passthrough/default routes and direct `/chat/completions` callers stay transparent.
+- **ZDR reasoning sanitation (HLD 011) is an independent per-provider opt-in, NOT coupled to
+  `OpenAiUpstreamApi` or `RequestNormalization`.** `StripEncryptedContent: true` drops `reasoning` input
+  items carrying OpenAI server-side-encrypted `encrypted_content` (Codex's Zero Data Retention / stateless-mode
+  replay) on the forward path. The proxy has no decryption key — ZDR holds it only on OpenAI servers — so it
+  **drops** the whole reasoning item (HLD 011 LADR-01), never decodes; a plaintext/summary reasoning item
+  without `encrypted_content` survives byte-for-byte, and a JSON-`null` `encrypted_content` is **not** treated
+  as ciphertext (some clients serialize the property unconditionally, so `ContainsKey` alone is the wrong
+  predicate — it would delete the accompanying summary). It applies on both the `responses` forward path
+  (stripped body forwarded verbatim) and, composed **before** `ToChatCompletions`, the `chat_completions`
+  downgrade. Unlike normalization it is **not** gated on `IsImposter` — it is a plain
+  `decision.Provider.StripEncryptedContent == true` branch in `OpenAiRequestTransformer.Transform`, mirroring
+  `OpenAiUpstreamApi`'s opt-in independence. Env surface: `_STRIP_ENCRYPTED_CONTENT` per provider; **off by
+  default and set in no shipped `appsettings*.json`** — operators inject it per deployment. The
+  `ImposterOptionsValidator` deliberately gained **no** rule for it: the option is valid in every combination
+  of `OpenAiUpstreamApi`/`RequestNormalization` (that orthogonality is the design), and a malformed env value
+  follows the existing `_IS_DEFAULT`/`_ENABLED` log-and-skip semantics rather than failing boot (LADR-03).
+  Fixes upstream HTTP 400 `"Encrypted content is not supported."` (e.g. LM Studio) without leaving
+  `/responses` (a `chat_completions` downgrade would not solve the user's intended use case).
+  **Plumbing is load-bearing:** a new scalar `ProviderOptions` field must also be added to
+  `ProviderOptionsCloner.Clone` (the HLD 008 registry seed clones every provider, so an omission makes the
+  flag unreachable from `ProviderCatalog`) and to both `/admin/providers` DTOs (or an upsert silently clears
+  it). Both were missed on first implementation and the feature was inert while all unit tests passed,
+  because they built `ProviderRoute` by hand — hence the `ProviderCatalogTests` seed-materialization case and
+  the L2 `GET → PUT` round-trip.
 - **Request normalization is OpenAI-imposter-only, request-only, and ON by default for `chat_completions`
   (HLD 004).** A provider's `RequestNormalization` (`CodexToOpenAiSdk` / `None`) selects a normalizer that
   mutates the parsed request body in `OpenAiRequestTransformer` **before** the Responses→Chat conversion. The
@@ -327,6 +351,8 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-08-10 | HLD 011 review fixes: `ProviderOptionsCloner.Clone` now copies `StripEncryptedContent` — it did not, so the HLD 008 registry seed cloned the flag away and the feature was **inert in the real Host** while every test passed (all built `ProviderRoute` by hand). `/admin/providers` DTOs surface the flag in both directions (an upsert previously cleared it). JSON-`null` `encrypted_content` is no longer treated as ciphertext, so a client that serializes the property unconditionally keeps its plaintext summary. `ProviderOptionsClonerTests` drift guard widened to `bool?` (the `typeof(bool)`-only filter is what let the omission through). Added `ProviderCatalogTests` seed-materialization coverage + L2 `GET → PUT` round-trip; 4 tests now fail without the clone fix. HLD 011 + LADR-01/02/03 + NFR-01/02 authored — the implementation had cited a non-existent HLD/LADR. | HLD 011 |
+| 2026-08-09 | HLD 011: `StripEncryptedContent` opt-in drops `reasoning` input items carrying OpenAI ZDR `encrypted_content` on the forward path (whole item removed, LADR-01 — the proxy has no decryption key, ZDR holds it server-side only). Independent of `OpenAiUpstreamApi`/`RequestNormalization` and not gated on `IsImposter`; composes before `ToChatCompletions`. Conventional env `_STRIP_ENCRYPTED_CONTENT` per provider, off by default. Fixes upstream 400 "Encrypted content is not supported." (e.g. LM Studio) without leaving `/responses`. | HLD 011 |
 | 2026-07-31 | `opencode-go-openai` split into two keys — `opencode-go-openai-chat` (`OpenAiUpstreamApi: chat_completions`, the explicit default) and `opencode-go-openai-responses` (`OpenAiUpstreamApi: responses`, for future `gpt-5.6-luna` testing); the value is no longer asserted in `appsettings.json` (`None` resolved at startup, overridden to `chat_completions` by `appsettings.Development.json` and to `chat_completions`/`responses` by the Conductor `-e` overlays for the two compound providers). Both OpenCode Go and OpenRouter only serve `/v1/chat/completions` — Codex `gpt-5.6-*` Responses-native input types (422 from OpenCode Go, 404 from OpenRouter) confirmed no provider supports `/v1/responses` yet. `gpt-5.6-luna → grok-4.5` route configured under `opencode-go-openai-responses` for future testing; currently returns 422 (OpenCode Go) and 404 (OpenRouter). Migration Plans section added. | — |
 | 2026-07-29 | Routing Information logs now carry `route=imposter|passthrough`. Model-bearing passthrough keeps the inbound/target model fields visible (`as` remains the unchanged inbound model), while body-less passthrough remains explicitly `no model`. | — |
 | 2026-07-25 | HLD 010 who-message introspection: last-user-message `--who?` (exact, trimmed, non-streaming) short-circuits the forward path with a dialect-shaped synthetic reply naming the resolved route and auth scheme. `ImposterRouter.DescribeAuth` promoted to `internal static` so the reply, log, and outbound header share one source of truth. Gated on `Imposter:WhoMessage:Enabled` (default `true`, env `IMPOSTER_WHO_MESSAGE_ENABLED`). Fifth sanctioned request-inspection class, the only one that reads `messages` content or synthesizes a response. | HLD 010 |

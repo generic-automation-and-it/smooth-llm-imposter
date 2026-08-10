@@ -47,8 +47,9 @@ the structural change. See [LADR-01](./ladrs/LADR-01-dictionary-keyed-providers.
 A provider keyed `opencode-go` exposes a conventional env prefix `OPENCODE_GO_`, mapping suffixes
 to fields across the **full** scalar surface — `_API_KEY` → `Secret` (with the auth-typed alias
 `_AUTHORIZATION_BEARER` → `Secret`, `_API_KEY` canonical), `_BASE_URL` → `BaseUrl`,
-`_AUTH_SCHEME` → `AuthScheme`, plus `_DIALECT`, `_IS_DEFAULT`, `_OPENAI_UPSTREAM_API`,
-`_REQUEST_NORMALIZATION`, `_ANTHROPIC_VERSION`. Matching is case-insensitive. The convention is
+`_AUTH_SCHEME` → `AuthScheme`, plus `_AUTH_HEADER`, `_DIALECT`, `_IS_DEFAULT`, `_ENABLED`,
+`_OPENAI_UPSTREAM_API`, `_REQUEST_NORMALIZATION`, `_SESSION_FORWARDING`,
+`_STRIP_ENCRYPTED_CONTENT`, `_ANTHROPIC_VERSION`. Matching is case-insensitive. The convention is
 additive — `appsettings.json` and the structured `Imposter__Providers__<name>__*` path keep working
 — and is realized by a startup post-configure step with documented precedence: conventional env >
 structured env > appsettings. Model mappings stay on the structured path. See

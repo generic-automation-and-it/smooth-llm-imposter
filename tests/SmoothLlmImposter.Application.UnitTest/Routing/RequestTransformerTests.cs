@@ -712,6 +712,27 @@ public class RequestTransformerTests
             CachingEnabled: caching,
             IsImposter: true);
 
+    // HLD 011 ZDR-strip decision helpers. StripEncryptedContent is the 15th ProviderRoute positional
+    // argument, after SessionForwarding. The responses decision keeps the body verbatim (only model
+    // rewritten); the chat decision additionally downgrades to Chat Completions.
+    private static RouteDecision StripResponsesDecision(bool strip, bool caching = false) =>
+        new(
+            new ProviderRoute(
+                "p", ApiDialect.OpenAi, new Uri("https://p.example"), null, false, null, [],
+                OpenAiUpstreamApi.Responses, null, RequestNormalization.None, true, null, null, SessionForwarding.None, strip),
+            "grok-code",
+            CachingEnabled: caching,
+            IsImposter: true);
+
+    private static RouteDecision StripChatDecision(bool strip) =>
+        new(
+            new ProviderRoute(
+                "p", ApiDialect.OpenAi, new Uri("https://p.example"), null, false, null, [],
+                OpenAiUpstreamApi.ChatCompletions, null, RequestNormalization.None, true, null, null, SessionForwarding.None, strip),
+            "kimi",
+            CachingEnabled: false,
+            IsImposter: true);
+
     [Fact]
     public void OpenAi_session_forwarding_stamps_session_id_on_opted_in_imposter()
     {
@@ -826,6 +847,125 @@ public class RequestTransformerTests
 
         result["prompt_cache_key"]!.GetValue<string>().ShouldBe("gpt5.4");
         result.ContainsKey("session_id").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void OpenAi_strip_drops_encrypted_reasoning_items_on_responses_path()
+    {
+        // HLD 011: a reasoning item carrying OpenAI ZDR encrypted_content is dropped whole on the /responses
+        // forward path when the provider opts in (StripEncryptedContent=true) — the upstream cannot decrypt
+        // and would otherwise 400 "Encrypted content is not supported."
+        var transformer = OpenAi();
+        string body = """
+        {"model":"gpt5.4","input":[
+          {"type":"reasoning","encrypted_content":[{"type":"encrypted_content","data":"cipher"}],"summary":[]},
+          {"role":"user","content":[{"type":"input_text","text":"hi"}]}
+        ]}
+        """;
+
+        JsonArray input = JsonNode.Parse(transformer.Transform(body, StripResponsesDecision(strip: true), "gpt5.4", NoSession))!["input"]!.AsArray();
+
+        input.Count.ShouldBe(1);
+        input[0]!["role"]!.GetValue<string>().ShouldBe("user");
+    }
+
+    [Fact]
+    public void OpenAi_strip_preserves_plaintext_reasoning_items_when_flag_true()
+    {
+        // A reasoning item WITHOUT encrypted_content (plain summary) is not ZDR and must survive verbatim.
+        var transformer = OpenAi();
+        string body = """
+        {"model":"gpt5.4","input":[
+          {"type":"reasoning","summary":[{"type":"summary_text","text":"thinking"}]},
+          {"role":"user","content":[{"type":"input_text","text":"hi"}]}
+        ]}
+        """;
+
+        JsonArray input = JsonNode.Parse(transformer.Transform(body, StripResponsesDecision(strip: true), "gpt5.4", NoSession))!["input"]!.AsArray();
+
+        input.Count.ShouldBe(2);
+        input[0]!["type"]!.GetValue<string>().ShouldBe("reasoning");
+        input[0]!["summary"]!.AsArray()[0]!["text"]!.GetValue<string>().ShouldBe("thinking");
+    }
+
+    [Fact]
+    public void OpenAi_strip_is_byte_transparent_when_unset()
+    {
+        // Default (StripEncryptedContent null) must leave reasoning items untouched — no behavior change for
+        // real-OpenAI / default providers.
+        var transformer = OpenAi();
+        string body = """
+        {"model":"gpt5.4","input":[
+          {"type":"reasoning","encrypted_content":[{"type":"encrypted_content","data":"cipher"}]},
+          {"role":"user","content":[{"type":"input_text","text":"hi"}]}
+        ]}
+        """;
+
+        JsonArray input = JsonNode.Parse(transformer.Transform(body, StripResponsesDecision(strip: false), "gpt5.4", NoSession))!["input"]!.AsArray();
+
+        input.Count.ShouldBe(2);
+        input[0]!["type"]!.GetValue<string>().ShouldBe("reasoning");
+        input[0]!["encrypted_content"]!.AsArray()[0]!["data"]!.GetValue<string>().ShouldBe("cipher");
+    }
+
+    [Fact]
+    public void OpenAi_strip_keeps_reasoning_items_whose_encrypted_content_is_json_null()
+    {
+        // A client that serializes encrypted_content unconditionally sends JSON null when store:true — that is
+        // not ZDR ciphertext, so the accompanying plaintext summary must not be dropped with it. Presence alone
+        // is the wrong predicate; the value has to be a non-null node.
+        var transformer = OpenAi();
+        string body = """
+        {"model":"gpt5.4","input":[
+          {"type":"reasoning","encrypted_content":null,"summary":[{"type":"summary_text","text":"thinking"}]},
+          {"role":"user","content":[{"type":"input_text","text":"hi"}]}
+        ]}
+        """;
+
+        JsonArray input = JsonNode.Parse(transformer.Transform(body, StripResponsesDecision(strip: true), "gpt5.4", NoSession))!["input"]!.AsArray();
+
+        input.Count.ShouldBe(2);
+        input[0]!["summary"]!.AsArray()[0]!["text"]!.GetValue<string>().ShouldBe("thinking");
+    }
+
+    [Fact]
+    public void OpenAi_strip_composes_with_chat_completions_downgrade()
+    {
+        // Strip runs before ToChatCompletions, so an opted-in chat_completions provider both strips the ZDR
+        // reasoning item and downgrades the surviving transcript to Chat messages (LADR-01 compose).
+        var transformer = OpenAi();
+        string body = """
+        {"model":"gpt5.4","input":[
+          {"type":"reasoning","encrypted_content":[{"type":"encrypted_content","data":"cipher"}]},
+          {"role":"user","content":[{"type":"input_text","text":"hi"}]}
+        ]}
+        """;
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, StripChatDecision(strip: true), "gpt5.4", NoSession))!.AsObject();
+
+        result.ContainsKey("input").ShouldBeFalse();
+        JsonArray messages = result["messages"]!.AsArray();
+        messages.Count.ShouldBe(1);
+        messages[0]!["role"]!.GetValue<string>().ShouldBe("user");
+        messages[0]!["content"]!.GetValue<string>().ShouldBe("hi");
+    }
+
+    [Fact]
+    public void OpenAi_strip_only_targets_encrypted_reasoning_in_input_array()
+    {
+        // Edge coverage: the strip walks only the top-level "input" array and never corrupts instructions,
+        // a scalar input, or a nested reasoning item elsewhere in the body.
+        var transformer = OpenAi();
+        string body = """
+        {"model":"gpt5.4","instructions":"be direct","input":"hi","reasoning":{"effort":"high"}}
+        """;
+
+        JsonObject result = JsonNode.Parse(transformer.Transform(body, StripResponsesDecision(strip: true), "gpt5.4", NoSession))!.AsObject();
+
+        result["instructions"]!.GetValue<string>().ShouldBe("be direct");
+        result["input"]!.GetValue<string>().ShouldBe("hi");
+        // Top-level responses "reasoning" (asking config) is not an input item and is untouched.
+        result["reasoning"]!["effort"]!.GetValue<string>().ShouldBe("high");
     }
 
     [Fact]

@@ -112,6 +112,16 @@ public sealed class ProviderOptions
     /// </summary>
     public string? SessionForwarding { get; set; }
 
+    /// <summary>
+    /// Proxy-side ZDR sanitation (HLD 011), off by default. When <c>true</c>, the forward path drops
+    /// <c>reasoning</c> input items that carry OpenAI server-side-encrypted <c>encrypted_content</c>
+    /// before forwarding, so a <c>/responses</c> upstream that cannot decrypt (e.g. LM Studio) does not
+    /// reject the request with "Encrypted content is not supported." Independent of
+    /// <see cref="OpenAiUpstreamApi"/> — it applies on both the <c>responses</c> and, composed before the
+    /// downgrade, the <c>chat_completions</c> forward path.
+    /// </summary>
+    public bool? StripEncryptedContent { get; set; }
+
     /// <summary>From→to model mappings owned by this provider. Structured-only — not part of the
     /// conventional env surface (HLD 007 LADR-02).</summary>
     public List<ModelMappingOptions> Models { get; init; } = [];

@@ -51,9 +51,11 @@ public sealed class ProviderConfigAdminIntegrationTests
         getJson.ShouldNotContain("secret", Case.Insensitive);
 
         // GET round-trips the seeded SessionForwarding so a regression in the From(...) projection
-        // (which would silently drop a non-null value) surfaces here.
+        // (which would silently drop a non-null value) surfaces here. StripEncryptedContent (HLD 011) rides
+        // the same projection and additionally proves the registry seed's clone preserved it.
         ProviderConfigurationBody body = JsonNode.Parse(getJson)!.Deserialize<ProviderConfigurationBody>(JsonOptions)!;
         body.SessionForwarding.ShouldBe("opencode-go");
+        body.StripEncryptedContent.ShouldBe(true);
 
         using HttpResponseMessage put = await client.PutAsJsonAsync("/admin/providers/opencode-go", body, JsonOptions, Ct);
 
@@ -233,6 +235,7 @@ public sealed class ProviderConfigAdminIntegrationTests
         OpenAiUpstreamApi: "chat_completions",
         RequestNormalization: null,
         SessionForwarding: null,
+        StripEncryptedContent: null,
         Models: models ?? [new ProviderModelMappingBody("gpt5.4", "grok-code", Caching: false)]);
 
     private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
@@ -263,6 +266,7 @@ public sealed class ProviderConfigAdminIntegrationTests
                     ["Imposter:Providers:opencode-go:AuthScheme"] = "ApiKey",
                     ["Imposter:Providers:opencode-go:OpenAiUpstreamApi"] = "chat_completions",
                     ["Imposter:Providers:opencode-go:SessionForwarding"] = "opencode-go",
+                    ["Imposter:Providers:opencode-go:StripEncryptedContent"] = "true",
                     ["Imposter:Providers:opencode-go:Models:0:From"] = "gpt5.4",
                     ["Imposter:Providers:opencode-go:Models:0:To"] = "grok-code"
                 };

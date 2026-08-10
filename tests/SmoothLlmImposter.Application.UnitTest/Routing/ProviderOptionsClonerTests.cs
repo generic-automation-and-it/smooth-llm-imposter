@@ -10,6 +10,8 @@ public class ProviderOptionsClonerTests
     {
         // A new scalar ProviderOptions field must be added to Clone, or a CRUD update silently drops it.
         // Reflection over string/bool properties guards against that drift (AuthHeader was one such field).
+        // Nullable bool is in scope too: StripEncryptedContent shipped as bool? and slipped past a
+        // typeof(bool)-only filter, so the registry seed cloned it away and the feature never activated.
         var source = new ProviderOptions
         {
             Name = "display",
@@ -23,13 +25,16 @@ public class ProviderOptionsClonerTests
             AnthropicVersion = "2023-06-01",
             OpenAiUpstreamApi = "chat_completions",
             RequestNormalization = "codex_to_openai_sdk",
-            SessionForwarding = "opencode-go"
+            SessionForwarding = "opencode-go",
+            StripEncryptedContent = true
         };
 
         ProviderOptions clone = ProviderOptionsCloner.Clone(source);
 
         foreach (PropertyInfo property in typeof(ProviderOptions).GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                     .Where(p => p.PropertyType == typeof(string) || p.PropertyType == typeof(bool)))
+                     .Where(p => p.PropertyType == typeof(string)
+                         || p.PropertyType == typeof(bool)
+                         || p.PropertyType == typeof(bool?)))
         {
             property.GetValue(clone).ShouldBe(property.GetValue(source), $"{property.Name} should be cloned");
         }

@@ -16,6 +16,7 @@ internal static class ProviderOptionsCloner
         OpenAiUpstreamApi = source.OpenAiUpstreamApi,
         RequestNormalization = source.RequestNormalization,
         SessionForwarding = source.SessionForwarding,
+        StripEncryptedContent = source.StripEncryptedContent,
         Models = [.. source.Models.Select(Clone)]
     };
 

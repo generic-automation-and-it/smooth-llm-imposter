@@ -52,6 +52,17 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
             root["session_id"] = sessionIdentity.Value;
         }
 
+        // HLD 011: ZDR sanitation. An opted-in provider drops reasoning items carrying OpenAI
+        // server-side-encrypted encrypted_content before forwarding, so a /responses upstream that cannot
+        // decrypt (e.g. LM Studio) does not 400 with "Encrypted content is not supported." The proxy has no
+        // decryption key (ZDR holds it only on OpenAI servers), so it drops rather than decode. Runs before
+        // ToChatCompletions so the strip likewise composes with the chat_completions downgrade, and is
+        // independent of OpenAiUpstreamApi — a responses provider strips the /responses body verbatim.
+        if (decision.Provider.StripEncryptedContent == true)
+        {
+            StripEncryptedReasoning(root);
+        }
+
         if (decision.Provider.OpenAiUpstreamApi == OpenAiUpstreamApi.ChatCompletions)
         {
             root = ToChatCompletions(root);
@@ -70,6 +81,36 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
 
         return root.ToJsonString();
     }
+
+    // Drops every input reasoning Item that carries OpenAI ZDR encrypted_content (HLD 011 LADR-01). The whole
+    // item is removed (not just the encrypted_content property): in ZDR mode the ciphertext is all such an item
+    // holds, so a stripped-empty reasoning item would be pointless and risk an upstream rejecting the empty
+    // shape. A reasoning item without encrypted_content — a plain summary / plaintext reasoning item — is
+    // preserved byte-for-byte, keeping the strip scoped strictly to ZDR blocks. Only the top-level "input"
+    // array is walked; other content (instructions, messages, scalar input) is untouched.
+    private static void StripEncryptedReasoning(JsonObject root)
+    {
+        if (root["input"] is not JsonArray inputItems)
+        {
+            return;
+        }
+
+        for (int i = inputItems.Count - 1; i >= 0; i--)
+        {
+            if (inputItems[i] is JsonObject item &&
+                string.Equals(ItemType(item), "reasoning", StringComparison.OrdinalIgnoreCase) &&
+                HasEncryptedContent(item))
+            {
+                inputItems.RemoveAt(i);
+            }
+        }
+    }
+
+    // A JSON null encrypted_content is not ZDR ciphertext — some clients serialize the property unconditionally
+    // and leave it null when store:true. Keying the strip on presence alone would delete the accompanying
+    // plaintext summary along with it, so the value must actually be a non-null node.
+    private static bool HasEncryptedContent(JsonObject item) =>
+        item.TryGetPropertyValue("encrypted_content", out JsonNode? encrypted) && encrypted is not null;
 
     private static JsonObject ToChatCompletions(JsonObject root)
     {
