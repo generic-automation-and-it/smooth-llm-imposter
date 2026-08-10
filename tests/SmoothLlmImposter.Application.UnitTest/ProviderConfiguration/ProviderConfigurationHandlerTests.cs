@@ -33,6 +33,7 @@ public class ProviderConfigurationHandlerTests
                     OpenAiUpstreamApi: "chat_completions",
                     RequestNormalization: null,
                     SessionForwarding: "opencode-go",
+                    StripEncryptedContent: true,
                     Models: [new ProviderModelMappingBody("gpt5.4", "grok-code", Caching: true)]),
                 Actor: "test"),
             TestContext.Current.CancellationToken);
@@ -43,10 +44,14 @@ public class ProviderConfigurationHandlerTests
         // SessionForwarding round-trips through the From(...) projection so the response surface mirrors the
         // stored value (regression: prior tests only exercised the null branch).
         response.SessionForwarding.ShouldBe("opencode-go");
+        // HLD 011: same round-trip for StripEncryptedContent. Without it in ToProviderOptions/From, an upsert
+        // of an opted-in provider silently clears the flag and the admin surface cannot read it back.
+        response.StripEncryptedContent.ShouldBe(true);
         registry.TryGet("opencode", out ProviderOptions? stored).ShouldBeTrue();
         stored!.Secret.ShouldBe("sk-existing");
         stored.AuthHeader.ShouldBe("api-key");
         stored.SessionForwarding.ShouldBe("opencode-go");
+        stored.StripEncryptedContent.ShouldBe(true);
         stored.Models.Single().To.ShouldBe("grok-code");
     }
 
@@ -76,6 +81,7 @@ public class ProviderConfigurationHandlerTests
                     OpenAiUpstreamApi: null,
                     RequestNormalization: null,
                     SessionForwarding: "sticky",
+                    StripEncryptedContent: null,
                     Models: []),
                 Actor: "test"),
             TestContext.Current.CancellationToken).AsTask());
@@ -107,6 +113,7 @@ public class ProviderConfigurationHandlerTests
                     OpenAiUpstreamApi: null,
                     RequestNormalization: null,
                     SessionForwarding: null,
+                    StripEncryptedContent: null,
                     Models: []),
                 Actor: "test"),
             TestContext.Current.CancellationToken).AsTask());

@@ -712,7 +712,7 @@ public class RequestTransformerTests
             CachingEnabled: caching,
             IsImposter: true);
 
-    // HLD 011 ZDR-strip decision helpers. StripEncryptedContent is the 13th ProviderRoute positional
+    // HLD 011 ZDR-strip decision helpers. StripEncryptedContent is the 15th ProviderRoute positional
     // argument, after SessionForwarding. The responses decision keeps the body verbatim (only model
     // rewritten); the chat decision additionally downgrades to Chat Completions.
     private static RouteDecision StripResponsesDecision(bool strip, bool caching = false) =>
@@ -870,7 +870,7 @@ public class RequestTransformerTests
     }
 
     [Fact]
-    public void OpenAi_strip_is_byte_transparent_when_flag_true_without_encrypted_content()
+    public void OpenAi_strip_preserves_plaintext_reasoning_items_when_flag_true()
     {
         // A reasoning item WITHOUT encrypted_content (plain summary) is not ZDR and must survive verbatim.
         var transformer = OpenAi();
@@ -909,10 +909,30 @@ public class RequestTransformerTests
     }
 
     [Fact]
+    public void OpenAi_strip_keeps_reasoning_items_whose_encrypted_content_is_json_null()
+    {
+        // A client that serializes encrypted_content unconditionally sends JSON null when store:true — that is
+        // not ZDR ciphertext, so the accompanying plaintext summary must not be dropped with it. Presence alone
+        // is the wrong predicate; the value has to be a non-null node.
+        var transformer = OpenAi();
+        string body = """
+        {"model":"gpt5.4","input":[
+          {"type":"reasoning","encrypted_content":null,"summary":[{"type":"summary_text","text":"thinking"}]},
+          {"role":"user","content":[{"type":"input_text","text":"hi"}]}
+        ]}
+        """;
+
+        JsonArray input = JsonNode.Parse(transformer.Transform(body, StripResponsesDecision(strip: true), "gpt5.4", NoSession))!["input"]!.AsArray();
+
+        input.Count.ShouldBe(2);
+        input[0]!["summary"]!.AsArray()[0]!["text"]!.GetValue<string>().ShouldBe("thinking");
+    }
+
+    [Fact]
     public void OpenAi_strip_composes_with_chat_completions_downgrade()
     {
         // Strip runs before ToChatCompletions, so an opted-in chat_completions provider both strips the ZDR
-        // reasoning item and downgrades the surviving transcript to Chat messages (LADR-05 compose).
+        // reasoning item and downgrades the surviving transcript to Chat messages (LADR-01 compose).
         var transformer = OpenAi();
         string body = """
         {"model":"gpt5.4","input":[

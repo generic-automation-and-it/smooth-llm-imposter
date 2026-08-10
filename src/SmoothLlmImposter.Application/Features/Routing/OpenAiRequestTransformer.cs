@@ -82,8 +82,8 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
         return root.ToJsonString();
     }
 
-    // Drops every input reasoning Item that carries OpenAI ZDR encrypted_content (LADR-05). The whole item
-    // is removed (not just the encrypted_content property): in ZDR mode the ciphertext is all such an item
+    // Drops every input reasoning Item that carries OpenAI ZDR encrypted_content (HLD 011 LADR-01). The whole
+    // item is removed (not just the encrypted_content property): in ZDR mode the ciphertext is all such an item
     // holds, so a stripped-empty reasoning item would be pointless and risk an upstream rejecting the empty
     // shape. A reasoning item without encrypted_content — a plain summary / plaintext reasoning item — is
     // preserved byte-for-byte, keeping the strip scoped strictly to ZDR blocks. Only the top-level "input"
@@ -99,12 +99,18 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
         {
             if (inputItems[i] is JsonObject item &&
                 string.Equals(ItemType(item), "reasoning", StringComparison.OrdinalIgnoreCase) &&
-                item.ContainsKey("encrypted_content"))
+                HasEncryptedContent(item))
             {
                 inputItems.RemoveAt(i);
             }
         }
     }
+
+    // A JSON null encrypted_content is not ZDR ciphertext — some clients serialize the property unconditionally
+    // and leave it null when store:true. Keying the strip on presence alone would delete the accompanying
+    // plaintext summary along with it, so the value must actually be a non-null node.
+    private static bool HasEncryptedContent(JsonObject item) =>
+        item.TryGetPropertyValue("encrypted_content", out JsonNode? encrypted) && encrypted is not null;
 
     private static JsonObject ToChatCompletions(JsonObject root)
     {

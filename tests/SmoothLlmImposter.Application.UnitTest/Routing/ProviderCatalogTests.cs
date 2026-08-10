@@ -38,6 +38,25 @@ public class ProviderCatalogTests
             .ShouldBe(RequestNormalization.None);
 
     [Fact]
+    public void Strip_encrypted_content_flows_through_the_seeded_registry_to_the_route()
+    {
+        // HLD 011: the flag has to survive the registry seed (which clones every ProviderOptions) before it
+        // reaches the route the transformer reads. Materializing through SeededCatalog covers that hop —
+        // asserting on a hand-built ProviderRoute would not, and the omission left the feature inert.
+        ProviderCatalog catalog = ProviderCatalogTestFactory.SeededCatalog(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
+        {
+            ["strip"] = new() { Dialect = "openai", BaseUrl = "https://s.example", StripEncryptedContent = true },
+            ["off"] = new() { Dialect = "openai", BaseUrl = "https://o.example", StripEncryptedContent = false },
+            ["unset"] = new() { Dialect = "openai", BaseUrl = "https://u.example" }
+        });
+
+        IReadOnlyList<ProviderRoute> routes = catalog.ProvidersFor(ApiDialect.OpenAi);
+        routes.Single(r => r.Name == "strip").StripEncryptedContent.ShouldBe(true);
+        routes.Single(r => r.Name == "off").StripEncryptedContent.ShouldBe(false);
+        routes.Single(r => r.Name == "unset").StripEncryptedContent.ShouldBeNull();
+    }
+
+    [Fact]
     public void Auth_header_flows_to_the_route_and_blank_is_normalized_to_null()
     {
         ProviderCatalog catalog = ProviderCatalogTestFactory.SeededCatalog(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
