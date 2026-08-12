@@ -124,6 +124,23 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-08-12: A mid-stream upstream failure now ends the response deliberately instead of escaping the endpoint.
+  Production symptom: `HttpIOException: The response ended prematurely. (ResponseEnded)` from
+  `ChunkedEncodingReadStream` after ~146 s on `POST /anthropic/v1/messages` — the upstream ended a chunked SSE body
+  without its terminating chunk. **Not a proxy timeout**: the `imposter-upstream` client uses
+  `Timeout.InfiniteTimeSpan` and the Polly timeout wraps only `SendAsync` under
+  `HttpCompletionOption.ResponseHeadersRead`, so it stops applying once headers land (and would throw
+  `TimeoutRejectedException`, not `HttpIOException`). The existing mid-stream `catch` is gated on `RequestAborted`,
+  so with the caller still connected the exception escaped to Kestrel *after* `Response.HasStarted` — which can
+  only log a second unhandled stack trace and cut the socket, leaving the client with an unexplained truncation.
+  `RoutingEndpoints` now catches `IOException`/`HttpRequestException` there and, in order: writes a normal
+  dialect-shaped `502` JSON body when nothing had reached the wire; otherwise appends a terminal SSE error frame;
+  otherwise (partially-written non-SSE body) logs only. New `IErrorResponseFactory.CreateStreamErrorFrame` +
+  `StreamErrorFraming` shape that frame — framing is derived from dialect **and path**, not dialect alone, because
+  OpenAI Chat streams carry unnamed `data:` frames while Responses streams carry named `event:` frames with the
+  discriminator inside `data`, and the wrong shape is silently dropped by the SDKs. No `[DONE]`/`message_stop` is
+  emitted, so a client ignoring the frame still sees an abnormal end. 8 new tests (3 L0 framing, 5 L2 —
+  `StreamFailureTests`, all 5 verified failing without the Host change); 425 pass.
 - 2026-08-10: `pipeline-code-review-report.yml` unpinned from the upstream commit SHA
   (`aa59e705…`) to `@main` in both the reusable `uses:` and `tools_ref:` — this project does not
   use action secrets/supply-chain pinning, and `main` keeps the review tooling current without a

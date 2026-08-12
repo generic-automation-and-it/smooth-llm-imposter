@@ -26,6 +26,17 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   `x-opencode-session` stamp). Routing/transform semantics live in Application — see
   `Features/Routing/ROUTING_AGENTS.md`.
 - An un-routed request returns `404` (and a body-less request with no dialect prefix has no model to route).
+- **The streaming relay owns both of its failure directions, and they are not symmetric.** A *caller* abort
+  (`RequestAborted` signalled) returns quietly — nothing is left to deliver. An *upstream/transport* failure while
+  the caller is still connected (`IOException`/`HttpIOException` `ResponseEnded`, or `HttpRequestException`) is
+  logged at Error **and** ends the response deliberately, because after `Response.HasStarted` Kestrel's error
+  handler can only log a second stack trace and cut the socket — the client would see an indistinguishable
+  truncation. Three outcomes, in order: nothing written yet → normal dialect-shaped `502` JSON; SSE started →
+  terminal error frame from `IErrorResponseFactory.CreateStreamErrorFrame` (framing chosen by
+  `StreamErrorFramingFor` from dialect + `/responses` path + the Chat-downgrade flag, since Chat and Responses
+  streams parse incompatible frame shapes); partially-written non-SSE body → log only, since nothing appended can
+  make truncated JSON well-formed. The frame write is itself guarded: the caller can still vanish in the window
+  between the relay failing and this write, before `RequestAborted` flips.
 - **Codex CLI client contract.** Codex drives the proxy through a `~/.codex/config.toml` `model_provider` whose
   `base_url` is the router root **plus the `/openai` dialect prefix** (Codex's Responses client appends
   `/responses`), with `wire_api = "responses"` and `requires_openai_auth = true` (Codex then sends its
@@ -90,6 +101,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-08-12 | Mid-stream **upstream** failures no longer escape into Kestrel's post-`HasStarted` error path (a no-op that logged an unhandled stack and truncated the SSE). `RoutingEndpoints` now ends the response itself: 502 JSON if nothing was written, otherwise a dialect/path-shaped terminal SSE error frame. The pre-existing caller-abort filter is unchanged — only exceptions it does **not** match reach the new handler. | — |
 | 2026-07-24 | `CaptureCallerHeaders` is shared with `PlanAsync` so HLD 009 session identity can be resolved without leaking `HttpContext` downstream. The local SensitiveHeaders set was removed; the inbound dump now consults the shared SensitiveHeaderNames set so the inbound/outbound masks cannot drift. | #72 |
 | 2026-05-30 | Created — minimal runnable Host (`Program.cs`, `appsettings(.Development).json`, `Properties/launchSettings.json`) with empty `Configuration/`, `Endpoints/`, `HealthChecks/`, `Workers/`. | — |
 | 2026-06-19 | Documented the dialect-prefixed routing endpoints (`/openai/**`, `/anthropic/**`, any method) + retained legacy `POST /v1/*`; corrected stale "bare bootstrap" note. | — |

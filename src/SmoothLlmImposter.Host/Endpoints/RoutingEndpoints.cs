@@ -233,11 +233,91 @@ internal static class RoutingEndpoints
                 // TaskCanceledException derives from) or a socket reset on flush (IOException, e.g. Kestrel's
                 // ConnectionResetException); both are benign once the caller is gone, so return quietly instead of
                 // logging an unhandled error + stack trace. The filter is gated on RequestAborted, so a genuine
-                // streaming failure while the caller is still connected still propagates and is logged.
+                // streaming failure while the caller is still connected still propagates to the handler below.
                 return;
+            }
+            catch (Exception ex) when (ex is IOException or HttpRequestException)
+            {
+                // The relay itself broke while the caller was still connected — most often the upstream ending a
+                // chunked body without its terminating chunk (HttpIOException/ResponseEnded), e.g. a provider
+                // gateway culling a stream that went quiet. Letting this escape reaches Kestrel's error handler
+                // after the response has started, which can only log an unhandled stack trace and cut the socket,
+                // so the client sees an indistinguishable truncation. End the response deliberately instead.
+                await EndFailedStreamAsync(
+                    context,
+                    logger,
+                    errors,
+                    StreamErrorFramingFor(dialect, upstreamPath, translateChatToResponses),
+                    dialect,
+                    plan.Decision.Provider.Name,
+                    ex,
+                    cancellationToken);
             }
         }
     }
+
+    // Which SSE shape is already on the wire. Dialect alone is insufficient: an OpenAI caller is mid-Responses-stream
+    // when it asked for /responses (whether forwarded verbatim or downgraded to Chat and translated back), and
+    // mid-Chat-stream otherwise.
+    private static StreamErrorFraming StreamErrorFramingFor(ApiDialect dialect, string upstreamPath, bool translateChatToResponses)
+    {
+        if (dialect == ApiDialect.Anthropic)
+        {
+            return StreamErrorFraming.Anthropic;
+        }
+
+        return translateChatToResponses || upstreamPath.EndsWith("/responses", StringComparison.OrdinalIgnoreCase)
+            ? StreamErrorFraming.OpenAiResponses
+            : StreamErrorFraming.OpenAiChat;
+    }
+
+    private static async Task EndFailedStreamAsync(
+        HttpContext context,
+        ILogger logger,
+        IErrorResponseFactory errors,
+        StreamErrorFraming framing,
+        ApiDialect dialect,
+        string providerName,
+        Exception ex,
+        CancellationToken cancellationToken)
+    {
+        // Neutral wording: the same exception types cover an upstream that died and a caller socket that failed on
+        // flush without RequestAborted having fired yet. The inner message ("The response ended prematurely.")
+        // carries the discriminating detail, and it reaches the client too.
+        string message = $"Streaming response from '{providerName}' failed mid-stream: {ex.Message}";
+        logger.LogError(ex, "Streaming relay for provider {Provider} failed mid-stream", providerName);
+
+        try
+        {
+            // Nothing on the wire yet (the failure hit the first read), so a normal dialect-shaped error body is
+            // still writable and strictly more useful than an SSE frame.
+            if (!context.Response.HasStarted)
+            {
+                await WriteErrorAsync(context, dialect, errors, StatusCodes.Status502BadGateway, message, "upstream_error", cancellationToken);
+                return;
+            }
+
+            // A partially written non-SSE body (e.g. a truncated JSON object) cannot be made well-formed by
+            // appending anything, so the log above is all this path can offer.
+            if (!IsEventStreamResponse(context))
+            {
+                return;
+            }
+
+            // No trailing [DONE]/message_stop: that sentinel means "completed normally", and a client that ignores
+            // the error frame must still observe an abnormal end rather than a silently truncated answer.
+            await context.Response.WriteAsync(errors.CreateStreamErrorFrame(framing, message, "upstream_error"), cancellationToken);
+            await context.Response.Body.FlushAsync(cancellationToken);
+        }
+        catch (Exception writeFailure) when (writeFailure is OperationCanceledException or IOException)
+        {
+            // The caller went away between the relay failing and this write (RequestAborted had not fired when the
+            // filter above ran). Nothing left to deliver, and the cause is already logged.
+        }
+    }
+
+    private static bool IsEventStreamResponse(HttpContext context) =>
+        context.Response.ContentType?.StartsWith("text/event-stream", StringComparison.OrdinalIgnoreCase) == true;
 
     // Debug-only dump of the full inbound request (method, path, query, every header, raw body). Off by default
     // — the SmoothLlmImposter.Routing logger sits at Information unless its minimum level is overridden to Debug.
