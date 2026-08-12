@@ -309,10 +309,16 @@ internal static class RoutingEndpoints
             await context.Response.WriteAsync(errors.CreateStreamErrorFrame(framing, message, "upstream_error"), cancellationToken);
             await context.Response.Body.FlushAsync(cancellationToken);
         }
-        catch (Exception writeFailure) when (writeFailure is OperationCanceledException or IOException)
+        catch (Exception writeFailure)
         {
-            // The caller went away between the relay failing and this write (RequestAborted had not fired when the
-            // filter above ran). Nothing left to deliver, and the cause is already logged.
+            // Deliberately unfiltered. This is a best-effort courtesy write on a connection that is already known to
+            // be broken, so every failure mode has the same correct response: give up. The expected ones are the
+            // caller going away between the relay failing and this write (OperationCanceledException/IOException,
+            // when RequestAborted had not yet fired for the filter above), but a write to a half-dead connection can
+            // also surface as ObjectDisposedException or InvalidOperationException, and letting either escape would
+            // land back in the post-HasStarted Kestrel path this whole handler exists to avoid. The original cause
+            // is already logged above; this one is Debug because it is a consequence, not a new fault.
+            logger.LogDebug(writeFailure, "Could not deliver the terminal error response for provider {Provider}", providerName);
         }
     }
 
