@@ -229,6 +229,14 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   anything not explicitly copied (or converted) is dropped, so each state/behavior field gets a deliberate policy.
 - **Errors are dialect-shaped**: OpenAI `{error:{message,type}}`, Anthropic `{type:"error",error:{type,message}}`.
   Routing failures → 400/404; upstream transport failures → 502.
+- **A stream that fails after its headers are on the wire cannot use those envelopes** — no status code or JSON body
+  is writable any more — so `IErrorResponseFactory.CreateStreamErrorFrame` emits a terminal SSE frame instead.
+  `StreamErrorFraming` (not `ApiDialect`) selects the shape, because the OpenAI dialect streams two incompatible
+  ones: Chat Completions carries **unnamed** `data:` frames, Responses carries **named** `event:` frames with the
+  discriminator inside `data` (`{type,code,message,param}`) rather than nested under `error`. Anthropic reuses its
+  JSON envelope under `event: error`. The frame deliberately omits `[DONE]`/`message_stop`: that sentinel means
+  "completed normally", and a client ignoring the error frame must still observe an abnormal end rather than
+  silently accepting a truncated answer.
 - **`anthropic-version`**: the caller's value is forwarded as-is; `2023-06-01` (or a configured
   `AnthropicVersion`) is supplied only when the caller omitted the header.
 - **Header forwarding** is driven by `CallerHeaders` (the full inbound header set, captured at the Host edge in
@@ -329,9 +337,10 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   real transformer+normalizer is accepted (200), un-normalized is rejected (400). Excluded from `SmoothLlmImposter.slnx`;
   secret-gated on `OPENCODE_API_KEY`, neutral (skipped) when absent; runs only in `pr-evals-gate.yml`.
 - **L2** `Host.IntegrationTest` — full pipeline incl. SSE passthrough, mid-stream caller-disconnect handling
-  (`StreamingDisconnectTests`), and env-over-appsettings override (in-process stub upstream). The disconnect test
-  asserts on the process-global Serilog `Log.Logger` (where request-logging surfaces the escaping exception), so
-  the integration suite runs serially (`DisableTestParallelization` in `GlobalUsings.cs`).
+  (`StreamingDisconnectTests`), mid-stream **upstream** failure (`StreamFailureTests` — per-framing terminal frame,
+  pre-first-byte 502, single handled Error log), and env-over-appsettings override (in-process stub upstream). Both
+  streaming suites assert on the process-global Serilog `Log.Logger` (where request-logging surfaces an escaping
+  exception), so the integration suite runs serially (`DisableTestParallelization` in `GlobalUsings.cs`).
 
 ## Migration Plans
 
@@ -351,6 +360,7 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-08-12 | Added `IErrorResponseFactory.CreateStreamErrorFrame` + `StreamErrorFraming` so a relay failure after response start can still be reported in-band. Framing is path-derived, not dialect-derived — an OpenAI caller mid-`/responses` stream needs a named `event: error` frame while mid-Chat needs an unnamed `data:` frame, and sending the wrong one is silently dropped by the SDK. | — |
 | 2026-08-10 | HLD 011 review fixes: `ProviderOptionsCloner.Clone` now copies `StripEncryptedContent` — it did not, so the HLD 008 registry seed cloned the flag away and the feature was **inert in the real Host** while every test passed (all built `ProviderRoute` by hand). `/admin/providers` DTOs surface the flag in both directions (an upsert previously cleared it). JSON-`null` `encrypted_content` is no longer treated as ciphertext, so a client that serializes the property unconditionally keeps its plaintext summary. `ProviderOptionsClonerTests` drift guard widened to `bool?` (the `typeof(bool)`-only filter is what let the omission through). Added `ProviderCatalogTests` seed-materialization coverage + L2 `GET → PUT` round-trip; 4 tests now fail without the clone fix. HLD 011 + LADR-01/02/03 + NFR-01/02 authored — the implementation had cited a non-existent HLD/LADR. | HLD 011 |
 | 2026-08-09 | HLD 011: `StripEncryptedContent` opt-in drops `reasoning` input items carrying OpenAI ZDR `encrypted_content` on the forward path (whole item removed, LADR-01 — the proxy has no decryption key, ZDR holds it server-side only). Independent of `OpenAiUpstreamApi`/`RequestNormalization` and not gated on `IsImposter`; composes before `ToChatCompletions`. Conventional env `_STRIP_ENCRYPTED_CONTENT` per provider, off by default. Fixes upstream 400 "Encrypted content is not supported." (e.g. LM Studio) without leaving `/responses`. | HLD 011 |
 | 2026-07-31 | `opencode-go-openai` split into two keys — `opencode-go-openai-chat` (`OpenAiUpstreamApi: chat_completions`, the explicit default) and `opencode-go-openai-responses` (`OpenAiUpstreamApi: responses`, for future `gpt-5.6-luna` testing); the value is no longer asserted in `appsettings.json` (`None` resolved at startup, overridden to `chat_completions` by `appsettings.Development.json` and to `chat_completions`/`responses` by the Conductor `-e` overlays for the two compound providers). Both OpenCode Go and OpenRouter only serve `/v1/chat/completions` — Codex `gpt-5.6-*` Responses-native input types (422 from OpenCode Go, 404 from OpenRouter) confirmed no provider supports `/v1/responses` yet. `gpt-5.6-luna → grok-4.5` route configured under `opencode-go-openai-responses` for future testing; currently returns 422 (OpenCode Go) and 404 (OpenRouter). Migration Plans section added. | — |
