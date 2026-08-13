@@ -15,6 +15,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PORT="${PORT:-5080}"
 CODEX_CONFIG="$HOME/.codex/config.toml"
 
+# --- SSH private key ---------------------------------------------------------
+# A cloud sandbox starts with no ~/.ssh, so an injected SSH_PRIVATE_KEY is
+# materialised here for git-over-SSH. Both guards matter: the local Mac owns its
+# own key already, and an absent or empty variable must not truncate an existing
+# id_rsa into a zero-byte file. Defaulted for the same `set -u` reason as above.
+if [ "${CONDUCTOR_IS_LOCAL:-0}" = "0" ] && [ -n "${SSH_PRIVATE_KEY:-}" ]; then
+  echo "--- Installing SSH private key ---"
+  mkdir -p ~/.ssh
+  chmod 700 ~/.ssh
+  printf '%s\n' "$SSH_PRIVATE_KEY" >~/.ssh/id_rsa
+  chmod 600 ~/.ssh/id_rsa
+fi
+
 # --- Configure Codex ---------------------------------------------------------
 # Replaces only the selected provider and our own table; everything else stays.
 if ! command -v python3 >/dev/null 2>&1; then

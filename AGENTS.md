@@ -124,6 +124,14 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-08-13: `.conductor/scripts/setup.sh` now materialises an optional `SSH_PRIVATE_KEY` into `~/.ssh/id_rsa`
+  (`0600`, under a `0700` `~/.ssh`) before the Codex step, so git-over-SSH works in a cloud sandbox that starts
+  with no `~/.ssh` at all. Two guards, both load-bearing: `${CONDUCTOR_IS_LOCAL:-0}` = `0` keeps it away from
+  the developer's own Mac key, and `[ -n "${SSH_PRIVATE_KEY:-}" ]` is what stops the truncating redirect from
+  replacing a working key with a zero-byte file on every workspace that injects no key. The variable is
+  optional — nothing else in the kit needs SSH. The flattened paste-in copy and the script table in
+  `.docs/wiki/setups/conductor.build-smooth-llm-imposter.md` were updated in lockstep, and the guard is
+  recorded as a non-negotiable in `.conductor/AGENTS.md`.
 - 2026-08-12: A mid-stream upstream failure now ends the response deliberately instead of escaping the endpoint.
   Production symptom: `HttpIOException: The response ended prematurely. (ResponseEnded)` from
   `ChunkedEncodingReadStream` after ~146 s on `POST /anthropic/v1/messages` — the upstream ended a chunked SSE body

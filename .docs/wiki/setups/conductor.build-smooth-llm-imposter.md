@@ -290,7 +290,8 @@ sudo docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 
 ## Workspace setup script (create and start the container)
 
-Use this as the Conductor workspace lifecycle. `setup.sh` configures Codex (writes the
+Use this as the Conductor workspace lifecycle. `setup.sh` materialises an SSH private key when one is
+injected (see below), configures Codex (writes the
 `[model_providers.smooth-llm-proxy]` table and `model_provider` value into `~/.codex/config.toml`,
 preserving unrelated settings like MCP servers and RTK config — the previous file is backed up to
 `~/.codex/config.toml.bak`), runs code-review-graph wiring, then delegates to `imposter-container.sh`
@@ -305,6 +306,14 @@ while creating the container.
 > giving a restarting daemon time to finish restoring containers and networking. Observed result: pull and
 > run both succeed, then the daemon disappears during the health wait.
 
+> **SSH private key (`SSH_PRIVATE_KEY`, optional).** When the workspace environment supplies
+> `SSH_PRIVATE_KEY`, `setup.sh` writes it to `~/.ssh/id_rsa` (`0600`, under a `0700` `~/.ssh`) so
+> git-over-SSH works in a sandbox that starts with no `~/.ssh` at all. The step is guarded twice and is a
+> no-op unless **both** hold: the workspace is not local (`CONDUCTOR_IS_LOCAL` is `0`/unset — a local Mac
+> already has the developer's own key) and the variable is non-empty. The empty check is not cosmetic: the
+> redirect truncates, so an unset variable would otherwise replace a working `id_rsa` with a zero-byte file.
+> Nothing else in this setup requires SSH; leave the variable unset if the workspace clones over HTTPS.
+
 > **Note on the script below.** This is a *flattened, paste-in copy* of the canonical script at
 > `.conductor/scripts/imposter-container.sh`. The Conductor settings file references that path. Any
 > non-trivial change (new env var, new flag, new failure mode) must be made there first, and this copy
@@ -318,6 +327,18 @@ set -euo pipefail
 # injects nothing — does not abort on `set -u` before doing any work.
 if [ "${CONDUCTOR_IS_LOCAL:-0}" = "1" ]; then
   exit 0
+fi
+
+# A cloud sandbox starts with no ~/.ssh, so an injected SSH_PRIVATE_KEY is
+# materialised here for git-over-SSH. Both guards matter: the local Mac owns its
+# own key already, and an absent or empty variable must not truncate an existing
+# id_rsa into a zero-byte file.
+if [ "${CONDUCTOR_IS_LOCAL:-0}" = "0" ] && [ -n "${SSH_PRIVATE_KEY:-}" ]; then
+  echo "--- Installing SSH private key ---"
+  mkdir -p ~/.ssh
+  chmod 700 ~/.ssh
+  printf '%s\n' "$SSH_PRIVATE_KEY" >~/.ssh/id_rsa
+  chmod 600 ~/.ssh/id_rsa
 fi
 
 PORT="${PORT:-5080}"
@@ -569,7 +590,7 @@ Conductor script, so pulling this branch is enough; see
 |---|---|
 | `.conductor/settings.toml` | Committed. Points `[scripts] setup` and `[scripts.run.restart-imposter]` at the files below. `run_mode = "nonconcurrent"`, because the container uses a fixed name and a fixed host port (`127.0.0.1:5080` by default) — two workspaces racing setup or restart at once would collide over both. `auto_run_after_setup = true` plus `default = true` on the run script make starting the imposter Conductor's *run* action, not just a button someone has to remember: `setup` only ever fires when a workspace is created, so without a default run script nothing re-establishes the container on a later resume. |
 | `.conductor/scripts/imposter-container.sh` | The container lifecycle only: ensure the Docker daemon (Linux only), validate `OPENCODE_API_KEY`/`OPENROUTER_API_KEY`, pull the image (non-fatal), `docker rm -f` + `docker run -d` with the full provider mapping, wait for `/health`, and on failure print a daemon-first diagnostic bundle to the terminal. Shared by both scripts below so the `docker run` invocation exists in exactly one place. No `CONDUCTOR_IS_LOCAL` guard — see the note near the top of this page. |
-| `.conductor/scripts/setup.sh` | The `[scripts] setup` entrypoint — Codex configuration and code-review-graph wiring (see below), followed by `imposter-container.sh`. Runs once when a workspace is created. Do not reorder; see the warning above the workspace script. |
+| `.conductor/scripts/setup.sh` | The `[scripts] setup` entrypoint — optional `SSH_PRIVATE_KEY` materialisation, Codex configuration, and code-review-graph wiring (see below), followed by `imposter-container.sh`. Runs once when a workspace is created. Do not reorder; see the warning above the workspace script. |
 | `.conductor/scripts/restart-imposter.sh` | The `[scripts.run.restart-imposter]` entrypoint — just `imposter-container.sh`, no Codex or code-review-graph step. The default run script, and an on-demand trigger runnable anytime without recreating the workspace: after a VM restart, pulling a new image tag, rotating `OPENCODE_API_KEY`/`OPENROUTER_API_KEY`, or recovering a crash-looped container. |
 | `.conductor/scripts/imposter-logs.sh` | The `[scripts.run.imposter-logs]` entrypoint — `docker logs -f` on the container, after checking that the daemon is reachable and the container exists. A separate trigger because `-f` blocks forever, and a button beats expecting the operator to know the container name and whether `docker` or `sudo docker` works in this sandbox. |
 
