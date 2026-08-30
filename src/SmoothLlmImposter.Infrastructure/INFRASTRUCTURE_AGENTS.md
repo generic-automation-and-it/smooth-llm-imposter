@@ -22,4 +22,5 @@ Implements the contracts defined in Application — EF Core + PostgreSQL persist
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-08-30 | Upstream pre-header resilience uses 200s, 600s, and 900s attempt timeouts, with two retries after 1s and 2s. | `DependencyInjection` |
 | 2026-05-30 | Created — empty persistence + clients skeleton (`Clients/`, `Extensions/`, `Persistence/{Configurations,Entities,Migrations,Repositories,Stores,Extensions,DesignTime}/`). | — |

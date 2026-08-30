@@ -133,9 +133,10 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   receives a clean upstream path (`/v1/...`).
 - **`imposter-upstream` uses a targeted retry handler, not the standard resilience stack.** SSE streams outlive
   standard timeouts, so the client keeps an infinite timeout bounded by the caller's `CancellationToken`. It
-  retries pre-response outbound transport failures (`HttpRequestException`) three times with fixed 1s, 2s, and
-  5s delays. It does not retry upstream 5xx responses from LLM POSTs, because those may already be processed and
-  billable (see HLD LADR-003).
+  retries pre-response outbound transport failures (`HttpRequestException` or attempt timeout) twice with fixed
+  1s and 2s delays. Header waits are capped at 200s, 600s, then 900s for initial attempt and two retries. It does
+  not retry upstream 5xx responses from LLM POSTs, because those may already be processed and billable (see HLD
+  LADR-003).
 - **All body work stays string-in/string-out in Application; HTTP I/O stays in Host.** Infrastructure is
   `System.Net.Http` only — don't leak `HttpContext` into Application/Infrastructure.
 - **Request transformers materialize detached JSON nodes before mutation.** Parse request bodies through the

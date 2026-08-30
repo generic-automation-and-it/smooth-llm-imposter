@@ -41,16 +41,15 @@ public class DependencyInjectionTests
     }
 
     [Fact]
-    public void Upstream_retry_options_use_three_fixed_delays()
+    public void Upstream_retry_options_use_two_fixed_delays()
     {
         var options = DependencyInjection.CreateUpstreamRetryOptions();
 
-        options.MaxRetryAttempts.ShouldBe(3);
+        options.MaxRetryAttempts.ShouldBe(2);
         options.ShouldRetryAfterHeader.ShouldBeFalse();
         DependencyInjection.GetUpstreamRetryDelay(0).ShouldBe(TimeSpan.FromSeconds(1));
         DependencyInjection.GetUpstreamRetryDelay(1).ShouldBe(TimeSpan.FromSeconds(2));
-        DependencyInjection.GetUpstreamRetryDelay(2).ShouldBe(TimeSpan.FromSeconds(5));
-        DependencyInjection.GetUpstreamRetryDelay(3).ShouldBeNull();
+        DependencyInjection.GetUpstreamRetryDelay(2).ShouldBeNull();
     }
 
     [Fact]
@@ -59,11 +58,10 @@ public class DependencyInjectionTests
         var options = DependencyInjection.CreateUpstreamTimeoutOptions();
 
         options.TimeoutGenerator.ShouldNotBeNull();
-        DependencyInjection.GetUpstreamAttemptTimeout(0).ShouldBe(TimeSpan.FromSeconds(60));
-        DependencyInjection.GetUpstreamAttemptTimeout(1).ShouldBe(TimeSpan.FromSeconds(120));
-        DependencyInjection.GetUpstreamAttemptTimeout(2).ShouldBe(TimeSpan.FromSeconds(300));
-        DependencyInjection.GetUpstreamAttemptTimeout(3).ShouldBe(TimeSpan.FromSeconds(600));
-        DependencyInjection.GetUpstreamAttemptTimeout(4).ShouldBeNull();
+        DependencyInjection.GetUpstreamAttemptTimeout(0).ShouldBe(TimeSpan.FromSeconds(200));
+        DependencyInjection.GetUpstreamAttemptTimeout(1).ShouldBe(TimeSpan.FromSeconds(600));
+        DependencyInjection.GetUpstreamAttemptTimeout(2).ShouldBe(TimeSpan.FromSeconds(900));
+        DependencyInjection.GetUpstreamAttemptTimeout(3).ShouldBeNull();
     }
 
     [Fact]
@@ -96,7 +94,7 @@ public class DependencyInjectionTests
                 Outcome.FromException<HttpResponseMessage>(new TimeoutRejectedException()),
                 0,
                 TimeSpan.FromSeconds(1),
-                TimeSpan.FromSeconds(60)));
+                TimeSpan.FromSeconds(200)));
 
             DependencyInjection.GetUpstreamAttemptNumber(context).ShouldBe(1);
         }
