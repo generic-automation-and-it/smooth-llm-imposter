@@ -20,15 +20,13 @@ public static class DependencyInjection
     [
         TimeSpan.FromSeconds(1),
         TimeSpan.FromSeconds(2),
-        TimeSpan.FromSeconds(5),
     ];
 
     private static readonly TimeSpan[] UpstreamAttemptTimeouts =
     [
-        TimeSpan.FromSeconds(60),
-        TimeSpan.FromSeconds(120),
-        TimeSpan.FromSeconds(300),
+        TimeSpan.FromSeconds(200),
         TimeSpan.FromSeconds(600),
+        TimeSpan.FromSeconds(900),
     ];
 
     /// <summary>
