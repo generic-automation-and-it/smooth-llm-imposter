@@ -116,6 +116,31 @@ if ! "${DOCKER[@]}" pull "$IMAGE"; then
   fi
 fi
 
+# Best-effort trust of the Vercel Sandbox proxy CA inside the container. The
+# Sandbox mounts a per-sandbox proxy CA on the HOST only; a container's
+# isolated trust store does not inherit it (see
+# https://vercel.com/docs/sandbox/concepts/runtimes#proxy-ca-certificates).
+# Under this workspace's default allow-all network policy the firewall never
+# terminates TLS, so this is a no-op today — kept only so a future
+# restrictive network policy (transform/forwardURL rules) doesn't silently
+# break outbound HTTPS from inside the container. Skipped, and never fatal,
+# on any host without that cert (local macOS, non-Vercel environments), so
+# behavior there is unchanged. Regenerated every run, never left stale, since
+# the container is always recreated from scratch alongside it.
+CA_BUNDLE_MOUNT=()
+HOST_PROXY_CA="/etc/pki/ca-trust/source/anchors/vercel-proxy-ca.pem"
+MERGED_CA_BUNDLE="/tmp/smooth-llm-imposter-ca-bundle.crt"
+if [ -s "$HOST_PROXY_CA" ]; then
+  if "${DOCKER[@]}" run --rm --entrypoint cat "$IMAGE" /etc/ssl/certs/ca-certificates.crt \
+      >"$MERGED_CA_BUNDLE" 2>/dev/null && [ -s "$MERGED_CA_BUNDLE" ]; then
+    cat "$HOST_PROXY_CA" >>"$MERGED_CA_BUNDLE"
+    CA_BUNDLE_MOUNT=(-v "$MERGED_CA_BUNDLE:/etc/ssl/certs/ca-certificates.crt:ro")
+  else
+    echo "Could not read the image's CA bundle; skipping proxy CA trust." >&2
+    rm -f "$MERGED_CA_BUNDLE"
+  fi
+fi
+
 # openrouter-* is absent from the published image, so it is defined in full here.
 # Never put a "#" comment inside the backslash continuation below: it swallows
 # the rest of the logical line, silently dropping "$IMAGE".
@@ -124,6 +149,7 @@ fi
   --name "$CONTAINER_NAME" \
   --restart unless-stopped \
   -p "127.0.0.1:${PORT}:5080" \
+  "${CA_BUNDLE_MOUNT[@]}" \
   -e "Imposter__Providers__opencode-go-anthropic__Dialect=anthropic" \
   -e "Imposter__Providers__opencode-go-anthropic__BaseUrl=https://opencode.ai/zen/go" \
   -e "Imposter__Providers__opencode-go-anthropic__AuthScheme=ApiKey" \
