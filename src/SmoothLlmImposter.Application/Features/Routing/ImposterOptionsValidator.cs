@@ -12,6 +12,9 @@ namespace SmoothLlmImposter.Application.Features.Routing;
 /// </summary>
 internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOptions>
 {
+    private const int MinTimeoutSeconds = 1;
+    private const int MaxTimeoutSeconds = 3600;
+
     public ValidateOptionsResult Validate(string? name, ImposterOptions options)
     {
         List<string> failures = [];
@@ -113,6 +116,15 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
             if (!SessionForwardingParser.TryParse(provider.SessionForwarding, out _))
             {
                 failures.Add($"{prefix}:SessionForwarding '{provider.SessionForwarding}' is invalid (expected 'none' or 'opencode-go'; also accepted: 'opencode_go', 'opencodego').");
+            }
+
+            // HLD 012: the base timeout is scaled ×1/×2/×3 across the three attempts, so the cap keeps the
+            // worst-case header wait bounded. 0/negative would disable the header wait entirely, which the
+            // retry handler cannot distinguish from a dead upstream.
+            if (provider.TimeoutSeconds is int timeoutSeconds &&
+                (timeoutSeconds < MinTimeoutSeconds || timeoutSeconds > MaxTimeoutSeconds))
+            {
+                failures.Add($"{prefix}:TimeoutSeconds '{timeoutSeconds}' is out of range (expected {MinTimeoutSeconds}-{MaxTimeoutSeconds} seconds, or omit it for the default).");
             }
 
             for (int j = 0; j < provider.Models.Count; j++)

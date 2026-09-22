@@ -204,7 +204,8 @@ public class ImposterOptionsPostConfigureTests
             bool isBool = field.PropertyName is nameof(ProviderOptions.IsDefault)
                 or nameof(ProviderOptions.Enabled)
                 or nameof(ProviderOptions.StripEncryptedContent);
-            string value = isBool ? "true" : "v" + field.Suffix;
+            bool isInt = field.PropertyName is nameof(ProviderOptions.TimeoutSeconds);
+            string value = isBool ? "true" : isInt ? "450" : "v" + field.Suffix;
 
             var (options, _) = Resolve(
                 new Dictionary<string, string?> { ["OPENCODE_GO" + field.Suffix] = value },
@@ -213,7 +214,7 @@ public class ImposterOptionsPostConfigureTests
 
             PropertyInfo property = typeof(ProviderOptions).GetProperty(field.PropertyName)!;
             object? actual = property.GetValue(options.Providers["opencode-go"]);
-            object expected = isBool ? true : value;
+            object expected = isBool ? true : isInt ? 450 : value;
 
             actual.ShouldBe(expected, $"suffix {field.Suffix} should set {field.PropertyName}");
         }
@@ -516,7 +517,11 @@ public class ImposterOptionsPostConfigureTests
         // silently lacks a conventional override. Name is the identity (the key), so it is excluded.
         HashSet<string> scalarProperties = typeof(ProviderOptions)
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.PropertyType == typeof(string) || p.PropertyType == typeof(bool) || p.PropertyType == typeof(bool?))
+            .Where(p => p.PropertyType == typeof(string)
+                || p.PropertyType == typeof(bool)
+                || p.PropertyType == typeof(bool?)
+                || p.PropertyType == typeof(int)
+                || p.PropertyType == typeof(int?))
             .Select(p => p.Name)
             .ToHashSet();
         scalarProperties.Remove(nameof(ProviderOptions.Name));

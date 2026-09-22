@@ -34,6 +34,7 @@ public class ProviderConfigurationHandlerTests
                     RequestNormalization: null,
                     SessionForwarding: "opencode-go",
                     StripEncryptedContent: true,
+                    TimeoutSeconds: 450,
                     Models: [new ProviderModelMappingBody("gpt5.4", "grok-code", Caching: true)]),
                 Actor: "test"),
             TestContext.Current.CancellationToken);
@@ -47,11 +48,15 @@ public class ProviderConfigurationHandlerTests
         // HLD 011: same round-trip for StripEncryptedContent. Without it in ToProviderOptions/From, an upsert
         // of an opted-in provider silently clears the flag and the admin surface cannot read it back.
         response.StripEncryptedContent.ShouldBe(true);
+        // HLD 012: TimeoutSeconds round-trips the same way — an upsert that dropped it would silently
+        // return a slow provider to the default ladder.
+        response.TimeoutSeconds.ShouldBe(450);
         registry.TryGet("opencode", out ProviderOptions? stored).ShouldBeTrue();
         stored!.Secret.ShouldBe("sk-existing");
         stored.AuthHeader.ShouldBe("api-key");
         stored.SessionForwarding.ShouldBe("opencode-go");
         stored.StripEncryptedContent.ShouldBe(true);
+        stored.TimeoutSeconds.ShouldBe(450);
         stored.Models.Single().To.ShouldBe("grok-code");
     }
 
@@ -82,6 +87,42 @@ public class ProviderConfigurationHandlerTests
                     RequestNormalization: null,
                     SessionForwarding: "sticky",
                     StripEncryptedContent: null,
+                    TimeoutSeconds: null,
+                    Models: []),
+                Actor: "test"),
+            TestContext.Current.CancellationToken).AsTask());
+    }
+
+    [Fact]
+    public async Task Upsert_rejects_an_out_of_range_timeout()
+    {
+        // HLD 012 NFR-01: an admin upsert must not be able to install a timeout the startup validator
+        // would reject — otherwise a restart turns a live provider into a boot failure.
+        var registry = new InMemoryProviderRegistry();
+        registry.Seed(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
+        {
+            ["opencode"] = Provider("openai", "https://opencode.example")
+        });
+
+        var handler = new UpsertProvider.Handler(registry, NullLogger<UpsertProvider.Handler>.Instance);
+
+        await Should.ThrowAsync<ValidationException>(() => handler.Handle(
+            new UpsertProvider.Request(
+                "opencode",
+                new ProviderConfigurationBody(
+                    Name: null,
+                    Dialect: "openai",
+                    BaseUrl: "https://opencode.example",
+                    AuthScheme: null,
+                    AuthHeader: null,
+                    IsDefault: false,
+                    Enabled: true,
+                    AnthropicVersion: null,
+                    OpenAiUpstreamApi: null,
+                    RequestNormalization: null,
+                    SessionForwarding: null,
+                    StripEncryptedContent: null,
+                    TimeoutSeconds: 0,
                     Models: []),
                 Actor: "test"),
             TestContext.Current.CancellationToken).AsTask());
@@ -114,6 +155,7 @@ public class ProviderConfigurationHandlerTests
                     RequestNormalization: null,
                     SessionForwarding: null,
                     StripEncryptedContent: null,
+                    TimeoutSeconds: null,
                     Models: []),
                 Actor: "test"),
             TestContext.Current.CancellationToken).AsTask());

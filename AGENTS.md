@@ -124,6 +124,28 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-09-22: Per-provider upstream timeout (HLD 012). `ProviderOptions.TimeoutSeconds` (`int?`, conventional
+  env `<PROVIDER>_TIMEOUT_SECONDS`, validated 1–3600) sets a provider's **base header timeout**; the resilience
+  handler scales it ×1/×2/×3 across the three forward attempts. The global base moved 200s → **300s**, so the
+  shipped ladder is **300/600/900s** — the first rung was the odd one out, and it is the wait most likely to
+  declare a merely-slow upstream (a local LM Studio loading a large model) dead before any retry. The value is
+  carried per request rather than per client: a named `HttpClient` per provider cannot work because providers
+  are runtime-mutable (HLD 008) and one created through `/admin/providers` after startup would have no
+  registered client — so `UpstreamForwarder` stamps `request.Options` and the Polly `TimeoutGenerator` reads it
+  back via `context.GetRequestMessage()`. **That stamp is the load-bearing hop** — exactly the shape HLD 011
+  shipped inert in — so it has its own test that fails without it. Timing out via a linked `CancellationToken`
+  instead was rejected: it surfaces as `OperationCanceledException`, which the retry predicate does not handle
+  and which is indistinguishable from a caller disconnect. Scope is deliberately time-to-first-byte only; the
+  client keeps `Timeout.InfiniteTimeSpan` so SSE bodies stream unbounded. `0`/negative fails startup rather than
+  falling back, because a discarded override and a too-low one present identically. Both drift guards
+  (`ProviderOptionsClonerTests`, `ImposterOptionsPostConfigureTests` — the latter in both its suffix-mapping and
+  bindable-field forms) were widened to `int`/`int?`; the bindable-field guard caught the missing suffix
+  unprompted. The admin surface gates it twice: the FluentValidation body rule for a field-level 400, and
+  `EnsureValidRegistry`, so a live upsert cannot install a value that would fail the next boot. Set in no
+  shipped `appsettings*.json`. 17 new test cases (L0 ladder/base-resolution, validator range, catalog
+  materialization, forwarder stamp, admin upsert; L2 admin round-trip), 5 of them verified failing with the
+  forwarder stamp and cloner line removed; 442 pass.
+
 - 2026-08-13: `.conductor/scripts/setup.sh` now materialises an optional `SSH_PRIVATE_KEY` into `~/.ssh/id_rsa`
   (`0600`, under a `0700` `~/.ssh`) before the Codex step, so git-over-SSH works in a cloud sandbox that starts
   with no `~/.ssh` at all. Two guards, both load-bearing: `${CONDUCTOR_IS_LOCAL:-0}` = `0` keeps it away from

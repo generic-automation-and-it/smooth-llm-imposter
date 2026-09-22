@@ -49,7 +49,7 @@ to fields across the **full** scalar surface — `_API_KEY` → `Secret` (with t
 `_AUTHORIZATION_BEARER` → `Secret`, `_API_KEY` canonical), `_BASE_URL` → `BaseUrl`,
 `_AUTH_SCHEME` → `AuthScheme`, plus `_AUTH_HEADER`, `_DIALECT`, `_IS_DEFAULT`, `_ENABLED`,
 `_OPENAI_UPSTREAM_API`, `_REQUEST_NORMALIZATION`, `_SESSION_FORWARDING`,
-`_STRIP_ENCRYPTED_CONTENT`, `_ANTHROPIC_VERSION`. Matching is case-insensitive. The convention is
+`_STRIP_ENCRYPTED_CONTENT`, `_TIMEOUT_SECONDS`, `_ANTHROPIC_VERSION`. Matching is case-insensitive. The convention is
 additive — `appsettings.json` and the structured `Imposter__Providers__<name>__*` path keep working
 — and is realized by a startup post-configure step with documented precedence: conventional env >
 structured env > appsettings. Model mappings stay on the structured path. See

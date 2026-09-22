@@ -17,6 +17,7 @@ internal static class ProviderOptionsCloner
         RequestNormalization = source.RequestNormalization,
         SessionForwarding = source.SessionForwarding,
         StripEncryptedContent = source.StripEncryptedContent,
+        TimeoutSeconds = source.TimeoutSeconds,
         Models = [.. source.Models.Select(Clone)]
     };
 
