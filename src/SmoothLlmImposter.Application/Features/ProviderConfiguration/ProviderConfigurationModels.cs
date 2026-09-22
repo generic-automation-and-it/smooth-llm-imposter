@@ -16,6 +16,7 @@ public sealed record ProviderConfigurationResponse(
     string? RequestNormalization,
     string? SessionForwarding,
     bool? StripEncryptedContent,
+    int? TimeoutSeconds,
     IReadOnlyList<ProviderModelMappingResponse> Models)
 {
     internal static ProviderConfigurationResponse From(string key, ProviderOptions provider) => new(
@@ -32,6 +33,7 @@ public sealed record ProviderConfigurationResponse(
         provider.RequestNormalization,
         provider.SessionForwarding,
         provider.StripEncryptedContent,
+        provider.TimeoutSeconds,
         provider.Models.Select(ProviderModelMappingResponse.FromOptions).ToArray());
 }
 
@@ -48,6 +50,7 @@ public sealed record ProviderConfigurationBody(
     string? RequestNormalization,
     string? SessionForwarding,
     bool? StripEncryptedContent,
+    int? TimeoutSeconds,
     IReadOnlyList<ProviderModelMappingBody>? Models)
 {
     internal ProviderOptions ToProviderOptions(string? secret = null) => new()
@@ -65,6 +68,7 @@ public sealed record ProviderConfigurationBody(
         RequestNormalization = RequestNormalization,
         SessionForwarding = SessionForwarding,
         StripEncryptedContent = StripEncryptedContent,
+        TimeoutSeconds = TimeoutSeconds,
         Models = Models?.Select(static model => new ModelMappingOptions
         {
             From = model.From,

@@ -58,10 +58,67 @@ public class DependencyInjectionTests
         var options = DependencyInjection.CreateUpstreamTimeoutOptions();
 
         options.TimeoutGenerator.ShouldNotBeNull();
-        DependencyInjection.GetUpstreamAttemptTimeout(0).ShouldBe(TimeSpan.FromSeconds(200));
+        DependencyInjection.GetUpstreamAttemptTimeout(0).ShouldBe(TimeSpan.FromSeconds(300));
         DependencyInjection.GetUpstreamAttemptTimeout(1).ShouldBe(TimeSpan.FromSeconds(600));
         DependencyInjection.GetUpstreamAttemptTimeout(2).ShouldBe(TimeSpan.FromSeconds(900));
         DependencyInjection.GetUpstreamAttemptTimeout(3).ShouldBeNull();
+    }
+
+    [Fact]
+    public void A_provider_base_timeout_scales_the_whole_attempt_ladder()
+    {
+        // HLD 012: the per-provider base replaces 300s and keeps the ×1/×2/×3 shape, so a slow upstream
+        // gets proportionally longer retries rather than one long attempt followed by short ones.
+        DependencyInjection.GetUpstreamAttemptTimeout(0, 60).ShouldBe(TimeSpan.FromSeconds(60));
+        DependencyInjection.GetUpstreamAttemptTimeout(1, 60).ShouldBe(TimeSpan.FromSeconds(120));
+        DependencyInjection.GetUpstreamAttemptTimeout(2, 60).ShouldBe(TimeSpan.FromSeconds(180));
+        DependencyInjection.GetUpstreamAttemptTimeout(3, 60).ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData(null, 300)]
+    [InlineData(0, 300)]
+    [InlineData(-5, 300)]
+    [InlineData(45, 45)]
+    public void The_attempt_timeout_base_comes_from_the_request_and_falls_back_to_the_default(
+        int? stamped,
+        int expected)
+    {
+        // A non-positive stamp must never reach Polly as a zero timeout (it would fail every attempt
+        // instantly); the validator rejects it at startup and this is the belt-and-braces backstop.
+        ResilienceContext context = ResilienceContextPool.Shared.Get(Ct);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "https://u.example/v1/responses");
+
+        try
+        {
+            if (stamped is int seconds)
+            {
+                request.Options.Set(DependencyInjection.UpstreamTimeoutSecondsKey, seconds);
+            }
+
+            context.SetRequestMessage(request);
+
+            DependencyInjection.GetUpstreamTimeoutSeconds(context).ShouldBe(expected);
+        }
+        finally
+        {
+            ResilienceContextPool.Shared.Return(context);
+        }
+    }
+
+    [Fact]
+    public void Without_a_request_message_the_default_timeout_base_applies()
+    {
+        ResilienceContext context = ResilienceContextPool.Shared.Get(Ct);
+
+        try
+        {
+            DependencyInjection.GetUpstreamTimeoutSeconds(context).ShouldBe(300);
+        }
+        finally
+        {
+            ResilienceContextPool.Shared.Return(context);
+        }
     }
 
     [Fact]
@@ -94,7 +151,7 @@ public class DependencyInjectionTests
                 Outcome.FromException<HttpResponseMessage>(new TimeoutRejectedException()),
                 0,
                 TimeSpan.FromSeconds(1),
-                TimeSpan.FromSeconds(200)));
+                TimeSpan.FromSeconds(300)));
 
             DependencyInjection.GetUpstreamAttemptNumber(context).ShouldBe(1);
         }

@@ -120,7 +120,7 @@ fallbacks, so a single populated var still authenticates). This keeps a personal
 sent as a Bearer token, and vice versa. Other scalar overrides remain provider-specific or
 structured (`_BASE_URL`, `_AUTH_SCHEME`, `_AUTH_HEADER`, `_DIALECT`, `_IS_DEFAULT`, `_ENABLED`,
 `_OPENAI_UPSTREAM_API`, `_REQUEST_NORMALIZATION`, `_SESSION_FORWARDING`, `_STRIP_ENCRYPTED_CONTENT`,
-`_ANTHROPIC_VERSION`). Matching is case-insensitive.
+`_TIMEOUT_SECONDS`, `_ANTHROPIC_VERSION`). Matching is case-insensitive.
 
 `_STRIP_ENCRYPTED_CONTENT=true` drops OpenAI ZDR `encrypted_content` reasoning items from the forwarded
 `input` array, for an upstream that serves `/responses` but cannot decrypt them (LM Studio answers
@@ -128,6 +128,15 @@ HTTP 400 `Encrypted content is not supported.`). It is **off by default and not 
 `appsettings*.json`** — enable it per deployment by injecting the env var for the provider that needs it,
 e.g. `LMSTUDIO_STRIP_ENCRYPTED_CONTENT=true`. It is independent of `_OPENAI_UPSTREAM_API`, so the
 provider stays on `/responses`. Full design: [HLD 011](../hlds/011-zdr-encrypted-content-sanitation/README.md).
+
+`_TIMEOUT_SECONDS=<seconds>` sets that provider's **base upstream header timeout**, which the forwarder
+scales across its three attempts (base, 2×base, 3×base). Unset it defaults to `300`, i.e. the shipped
+300/600/900 s ladder. Raise it for a slow upstream — a local LM Studio loading a large model can need
+several minutes before it answers headers — e.g. `LMSTUDIO_TIMEOUT_SECONDS=900` (→ 900/1800/2700 s).
+Accepted range is 1–3600; anything else fails startup with a message naming the provider. It bounds only
+the wait for **response headers**: once the upstream starts answering, an SSE stream runs as long as the
+caller stays connected. It is set in no shipped `appsettings*.json`. Full design:
+[HLD 012](../hlds/012-per-provider-upstream-timeout/README.md).
 
 `_AUTH_SCHEME` picks the value format **and** the default header (`Bearer` → `Authorization: Bearer <token>`,
 `ApiKey` → `x-api-key: <token>`). `_AUTH_HEADER` overrides only the **header name** — the value format still

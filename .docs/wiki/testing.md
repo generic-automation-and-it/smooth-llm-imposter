@@ -29,6 +29,12 @@ prove). It is kept strictly separate from the hermetic tiers:
   `OpenAiRequestTransformer` + `CodexToOpenAiSdkNormalizer`, sends the result to the live upstream, and
   asserts `200`; a companion case asserts the un-normalized catalog still returns `400` (the upstream
   contract is unchanged, so normalization is genuinely required).
+- **Every request carries `x-opencode-session`.** The upstream rejects session-less traffic with
+  `400 MissingSessionID` (observed 2026-09-22; the gate last passed 2026-08-30), so the eval stamps the
+  same header the proxy sends on a matched `SessionForwarding: opencode-go` route (HLD 009). The
+  un-normalized case additionally asserts its `400` is **not** a `MissingSessionID` — without that guard it
+  passed vacuously, proving nothing about the tool contract while every call was being refused at the
+  envelope.
 
 Run it locally with the key set:
 

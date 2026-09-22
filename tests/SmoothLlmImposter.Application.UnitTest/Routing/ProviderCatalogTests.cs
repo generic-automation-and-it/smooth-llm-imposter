@@ -57,6 +57,23 @@ public class ProviderCatalogTests
     }
 
     [Fact]
+    public void Timeout_seconds_is_materialized_onto_the_route()
+    {
+        // HLD 012: the value has to survive the registry seed's clone and the catalog projection, or the
+        // forwarder stamps nothing and every provider silently runs on the default ladder.
+        ProviderCatalog catalog = ProviderCatalogTestFactory.SeededCatalog(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
+        {
+            ["slow"] = new() { Dialect = "openai", BaseUrl = "https://s.example", TimeoutSeconds = 900 },
+            ["unset"] = new() { Dialect = "openai", BaseUrl = "https://u.example" }
+        });
+
+        IReadOnlyList<ProviderRoute> routes = catalog.ProvidersFor(ApiDialect.OpenAi);
+
+        routes.Single(r => r.Name == "slow").TimeoutSeconds.ShouldBe(900);
+        routes.Single(r => r.Name == "unset").TimeoutSeconds.ShouldBeNull();
+    }
+
+    [Fact]
     public void Auth_header_flows_to_the_route_and_blank_is_normalized_to_null()
     {
         ProviderCatalog catalog = ProviderCatalogTestFactory.SeededCatalog(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)

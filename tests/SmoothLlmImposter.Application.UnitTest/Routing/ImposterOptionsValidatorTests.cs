@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Features.Routing;
 
 namespace SmoothLlmImposter.Application.UnitTest.Routing;
@@ -15,6 +16,33 @@ public class ImposterOptionsValidatorTests
     [Fact]
     public void Valid_configuration_succeeds() =>
         _validator.Validate(null, Options(Valid("a", isDefault: true))).Succeeded.ShouldBeTrue();
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(300)]
+    [InlineData(3600)]
+    public void A_timeout_inside_the_supported_range_is_accepted(int seconds)
+    {
+        var provider = new ProviderOptions { Dialect = "openai", BaseUrl = "https://a.example", TimeoutSeconds = seconds };
+
+        _validator.Validate(null, Options(("a", provider))).Succeeded.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(3601)]
+    public void A_timeout_outside_the_supported_range_fails_fast(int seconds)
+    {
+        // Fail at startup rather than silently falling back to the default: an operator who typed 0 would
+        // otherwise never learn their override was discarded (HLD 012).
+        var provider = new ProviderOptions { Dialect = "openai", BaseUrl = "https://a.example", TimeoutSeconds = seconds };
+
+        ValidateOptionsResult result = _validator.Validate(null, Options(("a", provider)));
+
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("TimeoutSeconds");
+    }
 
     [Fact]
     public void Disabled_default_can_coexist_with_an_enabled_default_for_the_same_dialect()

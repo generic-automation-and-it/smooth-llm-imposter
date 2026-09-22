@@ -18,6 +18,8 @@ namespace SmoothLlmImposter.Domain.Routing;
 /// (HLD 009); <see cref="SessionForwarding.None"/> (default) leaves session signals untouched.
 /// <see cref="StripEncryptedContent"/> opts the provider into proxy-side ZDR sanitation (HLD 011);
 /// <c>null</c>/<c>false</c> (default) leaves reasoning items untouched.
+/// <see cref="TimeoutSeconds"/> overrides the base upstream header timeout for this provider (HLD 012);
+/// <c>null</c> (default) uses the global 300 s base.
 /// </summary>
 public sealed record ProviderRoute(
     string Name,
@@ -34,7 +36,8 @@ public sealed record ProviderRoute(
     string? ProviderKey = null,
     string? AuthHeader = null,
     SessionForwarding SessionForwarding = SessionForwarding.None,
-    bool? StripEncryptedContent = null)
+    bool? StripEncryptedContent = null,
+    int? TimeoutSeconds = null)
 {
     /// <summary>
     /// The stable identity used to key credentials and the authorization override — the provider's

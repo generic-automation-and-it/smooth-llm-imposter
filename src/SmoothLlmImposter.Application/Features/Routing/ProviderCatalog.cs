@@ -45,7 +45,8 @@ internal sealed class ProviderCatalog : IProviderCatalog
                 key,
                 string.IsNullOrWhiteSpace(provider.AuthHeader) ? null : provider.AuthHeader,
                 SessionForwardingParser.Parse(provider.SessionForwarding),
-                provider.StripEncryptedContent);
+                provider.StripEncryptedContent,
+                provider.TimeoutSeconds);
 
             if (!_byDialect.TryGetValue(dialect, out List<ProviderRoute>? routes))
             {

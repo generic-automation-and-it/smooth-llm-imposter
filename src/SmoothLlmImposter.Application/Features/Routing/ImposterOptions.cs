@@ -122,6 +122,17 @@ public sealed class ProviderOptions
     /// </summary>
     public bool? StripEncryptedContent { get; set; }
 
+    /// <summary>
+    /// Per-provider base upstream header timeout in seconds (HLD 012). <c>null</c> (default) uses the
+    /// global 300 s base. The forwarder relays it to the resilience handler, which scales it across the
+    /// three attempts — base ×1, ×2, ×3 (default 300/600/900 s) — so a slow upstream can be given more
+    /// head-room without changing the ladder shape. It bounds only the wait for <b>response headers</b>
+    /// (the client sends with <c>ResponseHeadersRead</c>); once headers arrive an SSE body streams for as
+    /// long as the caller stays connected. Validator range: 1–3600. Conventional env
+    /// <c>&lt;PROVIDER&gt;_TIMEOUT_SECONDS</c>.
+    /// </summary>
+    public int? TimeoutSeconds { get; set; }
+
     /// <summary>From→to model mappings owned by this provider. Structured-only — not part of the
     /// conventional env surface (HLD 007 LADR-02).</summary>
     public List<ModelMappingOptions> Models { get; init; } = [];

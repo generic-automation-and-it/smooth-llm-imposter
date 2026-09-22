@@ -33,12 +33,15 @@ maps conventional suffixes onto provider fields:
 | `_REQUEST_NORMALIZATION` | `RequestNormalization` |
 | `_SESSION_FORWARDING` | `SessionForwarding` (HLD 009) |
 | `_STRIP_ENCRYPTED_CONTENT` | `StripEncryptedContent` (HLD 011) |
+| `_TIMEOUT_SECONDS` | `TimeoutSeconds` (HLD 012) |
 | `_ANTHROPIC_VERSION` | `AnthropicVersion` |
 
 `ImposterOptionsPostConfigure.Fields` is the source of truth for this table. `_IS_DEFAULT`,
 `_ENABLED`, and `_STRIP_ENCRYPTED_CONTENT` are the boolean suffixes: they are parsed with
 `bool.TryParse` inline (an unparseable value is logged and the bound value is left unchanged)
-rather than through the string-apply delegate.
+rather than through the string-apply delegate. `_TIMEOUT_SECONDS` is the one integer suffix and
+is parsed inline the same way (`int.TryParse`; an unparseable value is logged and ignored, an
+out-of-range one fails startup validation).
 
 Matching is **case-insensitive** and the **full field surface** is covered, not just the secret —
 the secret (`_API_KEY`) is simply the most common entry point. The secret accepts a second,

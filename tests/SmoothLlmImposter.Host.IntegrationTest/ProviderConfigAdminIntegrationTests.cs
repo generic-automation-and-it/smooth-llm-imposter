@@ -56,6 +56,7 @@ public sealed class ProviderConfigAdminIntegrationTests
         ProviderConfigurationBody body = JsonNode.Parse(getJson)!.Deserialize<ProviderConfigurationBody>(JsonOptions)!;
         body.SessionForwarding.ShouldBe("opencode-go");
         body.StripEncryptedContent.ShouldBe(true);
+        body.TimeoutSeconds.ShouldBe(450);
 
         using HttpResponseMessage put = await client.PutAsJsonAsync("/admin/providers/opencode-go", body, JsonOptions, Ct);
 
@@ -236,6 +237,7 @@ public sealed class ProviderConfigAdminIntegrationTests
         RequestNormalization: null,
         SessionForwarding: null,
         StripEncryptedContent: null,
+        TimeoutSeconds: null,
         Models: models ?? [new ProviderModelMappingBody("gpt5.4", "grok-code", Caching: false)]);
 
     private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
@@ -267,6 +269,7 @@ public sealed class ProviderConfigAdminIntegrationTests
                     ["Imposter:Providers:opencode-go:OpenAiUpstreamApi"] = "chat_completions",
                     ["Imposter:Providers:opencode-go:SessionForwarding"] = "opencode-go",
                     ["Imposter:Providers:opencode-go:StripEncryptedContent"] = "true",
+                    ["Imposter:Providers:opencode-go:TimeoutSeconds"] = "450",
                     ["Imposter:Providers:opencode-go:Models:0:From"] = "gpt5.4",
                     ["Imposter:Providers:opencode-go:Models:0:To"] = "grok-code"
                 };
