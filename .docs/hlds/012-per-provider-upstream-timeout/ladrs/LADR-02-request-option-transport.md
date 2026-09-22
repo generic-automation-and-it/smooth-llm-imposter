@@ -44,3 +44,9 @@ unavailable, unstamped, or carries a non-positive value.
 - The stamp is the load-bearing hop: drop it and the option is fully configurable, fully
   visible through `/admin/providers`, and completely inert. It is covered by a dedicated test
   (`UpstreamForwarderTimeoutTests`) for exactly the failure mode HLD 011 shipped with.
+- Two framework behaviours this depends on are asserted rather than assumed, in
+  `UpstreamTimeoutPipelineTests`, which drives the real `AddInfrastructure` pipeline with a
+  stalling primary handler: (1) `context.GetRequestMessage()` is populated inside the timeout
+  strategy, and (2) the request the retry re-issues still carries `Options`. If the second ever
+  regressed, a tuned provider would silently get `base / default / default` across its three
+  attempts instead of `base ×1/×2/×3` — configurable, non-inert, and still wrong.

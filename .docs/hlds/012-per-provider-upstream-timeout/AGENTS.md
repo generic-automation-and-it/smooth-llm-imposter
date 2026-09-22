@@ -21,12 +21,15 @@ quality spec in [nfrs/](./nfrs/).
 | Materialization | `ProviderCatalog` → `ProviderRoute.TimeoutSeconds` |
 | Stamp | `UpstreamForwarder.SendAsync` → `request.Options.Set(UpstreamTimeoutSecondsKey, …)` |
 | Ladder | `DependencyInjection.GetUpstreamAttemptTimeout` / `GetUpstreamTimeoutSeconds` |
+| End-to-end proof | `UpstreamTimeoutPipelineTests` — real pipeline, stalling handler, asserts the retry still carries the stamp |
 
 ## Non-Negotiables
 
 - **The forwarder stamp is load-bearing.** Everything else can be wired correctly and the
   feature is still inert without `request.Options.Set(...)` — the exact way HLD 011 shipped
-  dead. `UpstreamForwarderTimeoutTests` exists to fail loudly if it is removed.
+  dead. `UpstreamForwarderTimeoutTests` asserts the stamp and `UpstreamTimeoutPipelineTests`
+  drives the seam through the **real** `AddInfrastructure` pipeline with a stalling primary
+  handler — both fail loudly if it is removed.
 - **A new scalar `ProviderOptions` field must be added to `ProviderOptionsCloner.Clone`.** The
   HLD 008 registry seeder clones every provider before `ProviderCatalog` reads it, so an
   un-cloned field is always `null` on the route. Both drift guards
