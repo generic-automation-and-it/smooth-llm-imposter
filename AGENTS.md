@@ -124,6 +124,24 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-09-22: Review pass on the HLD 012 timeout work — the mechanism is correct, but its only end-to-end
+  proof was inspection. `UpstreamForwarderTimeoutTests` asserted the stamp and `DependencyInjectionTests`
+  called the generator helpers directly; nothing drove Polly, so the seam between them was untested.
+  Added `UpstreamTimeoutPipelineTests` (L0, Infrastructure): builds the real `AddInfrastructure` container,
+  swaps only the primary handler (`ConfigurePrimaryHttpMessageHandler` is additive, so the resilience handler
+  stays), and stalls the first attempt. It asserts two framework behaviours the design leans on and that no
+  other test would catch — `context.GetRequestMessage()` is populated inside the timeout strategy, and the
+  **retried** request still carries `Options`. Without the second, a tuned provider would get
+  `base/default/default` rather than `base ×1/×2/×3`: configurable, non-inert, and still wrong. Both
+  behaviours hold on the shipped `Microsoft.Extensions.Http.Resilience`. Verified load-bearing — with the
+  forwarder stamp removed the test fails (1 upstream call instead of 2). It is wall-clock dependent by
+  nature (a timeout only proves itself by elapsing), kept to ~3 s by the validator's 1 s floor and written
+  without fixed sleeps: the stub waits on its own cancellation token, with a 10 s ceiling that is far above
+  the 1 s budget under test and far below the 300 s default. Also fixed doc drift the original change missed:
+  `INFRASTRUCTURE_AGENTS.md` — the closest context file to `DependencyInjection.cs` — still documented the
+  fixed 200/600/900 s ladder and gained no note of the per-request transport, and HLD 001 LADR-003 still
+  stated 200 s and a 1,700 s worst-case header wait (now base ×6, 1,800 s on the shipped base). 444 pass.
+
 - 2026-09-22: Per-provider upstream timeout (HLD 012). `ProviderOptions.TimeoutSeconds` (`int?`, conventional
   env `<PROVIDER>_TIMEOUT_SECONDS`, validated 1–3600) sets a provider's **base header timeout**; the resilience
   handler scales it ×1/×2/×3 across the three forward attempts. The global base moved 200s → **300s**, so the
