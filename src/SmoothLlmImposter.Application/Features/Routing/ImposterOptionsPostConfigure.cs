@@ -85,6 +85,9 @@ internal sealed class ImposterOptionsPostConfigure(
         new("_SESSION_FORWARDING", nameof(ProviderOptions.SessionForwarding), static (p, v) => p.SessionForwarding = v),
         new("_ANTHROPIC_VERSION", nameof(ProviderOptions.AnthropicVersion), static (p, v) => p.AnthropicVersion = v),
         new("_STRIP_ENCRYPTED_CONTENT", nameof(ProviderOptions.StripEncryptedContent), static (_, _) => { }),
+        // Integer field: applied inline for the same reason as the booleans — parsing plus a Warning on an
+        // unparseable value needs the logger the Apply delegate does not have.
+        new("_TIMEOUT_SECONDS", nameof(ProviderOptions.TimeoutSeconds), static (_, _) => { }),
     ];
 
     // Naming-convention priority for the Secret slot, keyed by effective auth scheme. The scheme-matching
@@ -138,6 +141,23 @@ internal sealed class ImposterOptionsPostConfigure(
                 // blanks a value already bound from appsettings.
                 if (string.IsNullOrWhiteSpace(value))
                 {
+                    continue;
+                }
+
+                if (field.PropertyName == nameof(ProviderOptions.TimeoutSeconds))
+                {
+                    // Out-of-range is rejected by the validator, not here: silently dropping a typo'd
+                    // 0/-5 would ship the global default while the operator believes their value applies.
+                    if (!int.TryParse(value, out int timeoutSeconds))
+                    {
+                        logger.LogWarning(
+                            "Ignoring conventional override {EnvVar} for provider {Provider} field {Field}: value '{Value}' is not a whole number of seconds.",
+                            variable, key, field.PropertyName, value);
+                        continue;
+                    }
+
+                    provider.TimeoutSeconds = timeoutSeconds;
+                    LogApplied(variable, key, field.PropertyName);
                     continue;
                 }
 

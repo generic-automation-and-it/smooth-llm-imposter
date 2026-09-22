@@ -22,17 +22,25 @@ public static class DependencyInjection
         TimeSpan.FromSeconds(2),
     ];
 
-    private static readonly TimeSpan[] UpstreamAttemptTimeouts =
-    [
-        TimeSpan.FromSeconds(200),
-        TimeSpan.FromSeconds(600),
-        TimeSpan.FromSeconds(900),
-    ];
+    /// <summary>
+    /// Base per-attempt header timeout when a provider declares no <c>TimeoutSeconds</c> (HLD 012).
+    /// Scaled by <see cref="UpstreamAttemptTimeoutMultipliers"/> into the default 300/600/900 s ladder.
+    /// </summary>
+    internal const int DefaultUpstreamTimeoutSeconds = 300;
+
+    // Attempt 0 gets the base wait, each retry a proportionally longer one: a first failure is usually a
+    // transport hiccup, while a retry is more often a genuinely slow upstream that needs head-room.
+    private static readonly int[] UpstreamAttemptTimeoutMultipliers = [1, 2, 3];
+
+    // Set by the forwarder from the resolved route; absent ⇒ DefaultUpstreamTimeoutSeconds.
+    internal static readonly HttpRequestOptionsKey<int> UpstreamTimeoutSecondsKey =
+        new("smoothllmimposter-upstream-timeout-seconds");
 
     /// <summary>
     /// Registers the outbound HTTP forwarder and credential persistence. The named client keeps an
     /// infinite timeout for SSE streams and retries pre-response outbound transport failures/timeouts with
-    /// fixed delays and progressively longer per-attempt header timeouts.
+    /// fixed delays and progressively longer per-attempt header timeouts. The per-attempt ladder is derived
+    /// from the route's per-provider base timeout when the forwarder stamped one on the request.
     /// </summary>
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
@@ -83,7 +91,9 @@ public static class DependencyInjection
         new()
         {
             TimeoutGenerator = args => new ValueTask<TimeSpan>(
-                GetUpstreamAttemptTimeout(GetUpstreamAttemptNumber(args.Context)) ?? Timeout.InfiniteTimeSpan),
+                GetUpstreamAttemptTimeout(
+                    GetUpstreamAttemptNumber(args.Context),
+                    GetUpstreamTimeoutSeconds(args.Context)) ?? Timeout.InfiniteTimeSpan),
         };
 
     internal static TimeSpan? GetUpstreamRetryDelay(int attemptNumber) =>
@@ -91,10 +101,25 @@ public static class DependencyInjection
             ? UpstreamRetryDelays[attemptNumber]
             : null;
 
-    internal static TimeSpan? GetUpstreamAttemptTimeout(int attemptNumber) =>
-        attemptNumber >= 0 && attemptNumber < UpstreamAttemptTimeouts.Length
-            ? UpstreamAttemptTimeouts[attemptNumber]
+    internal static TimeSpan? GetUpstreamAttemptTimeout(
+        int attemptNumber,
+        int baseTimeoutSeconds = DefaultUpstreamTimeoutSeconds) =>
+        attemptNumber >= 0 && attemptNumber < UpstreamAttemptTimeoutMultipliers.Length
+            ? TimeSpan.FromSeconds(baseTimeoutSeconds * UpstreamAttemptTimeoutMultipliers[attemptNumber])
             : null;
+
+    /// <summary>
+    /// Reads the per-provider base timeout the forwarder stamped on the outbound request (HLD 012).
+    /// Falls back to <see cref="DefaultUpstreamTimeoutSeconds"/> whenever the request is unavailable or
+    /// carries no override — including a non-positive value, which the validator rejects at startup but
+    /// which must never reach Polly as a zero timeout.
+    /// </summary>
+    internal static int GetUpstreamTimeoutSeconds(ResilienceContext context) =>
+        context.GetRequestMessage() is { } request &&
+        request.Options.TryGetValue(UpstreamTimeoutSecondsKey, out int seconds) &&
+        seconds > 0
+            ? seconds
+            : DefaultUpstreamTimeoutSeconds;
 
     internal static int GetUpstreamAttemptNumber(ResilienceContext context) =>
         context.Properties.TryGetValue(UpstreamAttemptNumberKey, out int attemptNumber)

@@ -12,6 +12,7 @@ public class ProviderOptionsClonerTests
         // Reflection over string/bool properties guards against that drift (AuthHeader was one such field).
         // Nullable bool is in scope too: StripEncryptedContent shipped as bool? and slipped past a
         // typeof(bool)-only filter, so the registry seed cloned it away and the feature never activated.
+        // int/int? joined the filter with TimeoutSeconds (HLD 012) for the same reason.
         var source = new ProviderOptions
         {
             Name = "display",
@@ -26,7 +27,8 @@ public class ProviderOptionsClonerTests
             OpenAiUpstreamApi = "chat_completions",
             RequestNormalization = "codex_to_openai_sdk",
             SessionForwarding = "opencode-go",
-            StripEncryptedContent = true
+            StripEncryptedContent = true,
+            TimeoutSeconds = 450
         };
 
         ProviderOptions clone = ProviderOptionsCloner.Clone(source);
@@ -34,7 +36,9 @@ public class ProviderOptionsClonerTests
         foreach (PropertyInfo property in typeof(ProviderOptions).GetProperties(BindingFlags.Public | BindingFlags.Instance)
                      .Where(p => p.PropertyType == typeof(string)
                          || p.PropertyType == typeof(bool)
-                         || p.PropertyType == typeof(bool?)))
+                         || p.PropertyType == typeof(bool?)
+                         || p.PropertyType == typeof(int)
+                         || p.PropertyType == typeof(int?)))
         {
             property.GetValue(clone).ShouldBe(property.GetValue(source), $"{property.Name} should be cloned");
         }

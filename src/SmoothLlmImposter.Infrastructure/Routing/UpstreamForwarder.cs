@@ -17,7 +17,8 @@ namespace SmoothLlmImposter.Infrastructure.Routing;
 /// <remarks>
 /// The named client uses an infinite <see cref="HttpClient.Timeout"/> and relies on the caller's
 /// <see cref="CancellationToken"/>: SSE streams routinely outlive the standard resilience timeouts. A targeted
-/// retry handler covers pre-response outbound transport failures.
+/// retry handler covers pre-response outbound transport failures, bounded by a per-attempt header timeout
+/// whose base comes from the route (<c>TimeoutSeconds</c>) or, unset, the global default.
 /// </remarks>
 internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, ILogger<UpstreamForwarder> logger)
     : IUpstreamForwarder
@@ -54,6 +55,13 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         string? managedAuthHeader = ApplyAuthentication(request, decision, credentialOverride, dialect, callerHeaders);
         EnsureAnthropicVersion(request, decision, credentialOverride, dialect);
         ApplySessionIdentity(request, decision, sessionIdentity);
+
+        // HLD 012: hand the route's base timeout to the resilience handler, which scales it per attempt.
+        // Unstamped requests fall back to the global default inside the timeout strategy.
+        if (decision.Provider.TimeoutSeconds is int timeoutSeconds && timeoutSeconds > 0)
+        {
+            request.Options.Set(DependencyInjection.UpstreamTimeoutSecondsKey, timeoutSeconds);
+        }
 
         logger.LogDebug("Forwarding to {Provider} at {Target}", decision.Provider.Name, target);
 

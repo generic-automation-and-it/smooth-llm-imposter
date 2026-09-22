@@ -44,6 +44,12 @@ internal static class ProviderConfigurationValidation
             RuleFor(x => x.OpenAiUpstreamApi).Must(static x => OpenAiUpstreamApiParser.TryParse(x, out _)).WithMessage("OpenAiUpstreamApi must be 'responses' or 'chat_completions'.");
             RuleFor(x => x.RequestNormalization).Must(static x => RequestNormalizationParser.TryParse(x, out _)).WithMessage("RequestNormalization must be 'none' or 'codex_to_openai_sdk'.");
             RuleFor(x => x.SessionForwarding).Must(static x => SessionForwardingParser.TryParse(x, out _)).WithMessage("SessionForwarding must be 'none' or 'opencode-go' (also accepted: 'opencode_go', 'opencodego').");
+            // Same 1-3600 range the startup validator enforces (HLD 012 NFR-01). EnsureValidRegistry would
+            // also catch it, but as a whole-registry failure — this gives the caller the offending field.
+            RuleFor(x => x.TimeoutSeconds)
+                .InclusiveBetween(1, 3600)
+                .When(static x => x.TimeoutSeconds.HasValue)
+                .WithMessage("TimeoutSeconds must be between 1 and 3600 seconds, or omitted for the default.");
             RuleFor(x => x.Models).NotNull();
             RuleForEach(x => x.Models).SetValidator(new ProviderModelMappingBodyValidator());
             RuleFor(x => x).Custom(static (body, context) =>

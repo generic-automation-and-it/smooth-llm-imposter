@@ -23,6 +23,7 @@ public sealed class OpencodeToolNormalizationEvalTests
 {
     private const string ChatCompletionsUrl = "https://opencode.ai/zen/go/v1/chat/completions";
     private const string TargetModel = "kimi-k2.7-code";
+    private const string SessionHeaderName = "x-opencode-session";
 
     // A Codex-shaped catalog: a namespace wrapper (GitHub connector), an unsupported tool type, a dotted
     // name, and a valid function — i.e. the exact shapes that 400 the strict upstream before normalization.
@@ -82,10 +83,17 @@ public sealed class OpencodeToolNormalizationEvalTests
         raw["model"] = TargetModel;
 
         using HttpResponseMessage response = await PostAsync(raw.ToJsonString(), apiKey);
+        string body = await SafeBody(response);
 
         response.StatusCode.ShouldBe(
             HttpStatusCode.BadRequest,
-            $"unsupported tool types should still be rejected; upstream returned {(int)response.StatusCode}: {await SafeBody(response)}");
+            $"unsupported tool types should still be rejected; upstream returned {(int)response.StatusCode}: {body}");
+
+        // The 400 must come from the tool contract ("unknown tool type: web_search, currently only function
+        // and plugin are supported"), not from a request the upstream refused before it ever looked at the
+        // tools. Without this guard the test passed vacuously while the upstream was 400ing every call with
+        // MissingSessionID — asserting a status code that proved nothing about normalization being required.
+        body.ShouldNotContain("MissingSessionID", Case.Insensitive, $"the 400 must prove the tool contract, not a rejected request envelope: {body}");
     }
 
     private static ProviderRoute ChatProvider(RequestNormalization normalization) =>
@@ -110,6 +118,12 @@ public sealed class OpencodeToolNormalizationEvalTests
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+        // The upstream began rejecting session-less traffic with 400 MissingSessionID (observed 2026-09-22;
+        // the gate last passed 2026-08-30). This is the same header the proxy stamps on a matched route with
+        // SessionForwarding: opencode-go (HLD 009), so sending one here keeps the eval on the path real
+        // traffic takes. A fresh id per request keeps runs independent.
+        request.Headers.TryAddWithoutValidation(SessionHeaderName, Guid.NewGuid().ToString("N"));
 
         return await client.SendAsync(request, TestContext.Current.CancellationToken);
     }
