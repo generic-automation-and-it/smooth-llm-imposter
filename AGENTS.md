@@ -124,6 +124,21 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-09-22: L3 eval gate fixed — `opencode-go` now rejects session-less traffic with
+  `400 MissingSessionID` ("Request is missing x-opencode-session and cannot be routed efficiently"), so
+  `OpencodeToolNormalizationEvalTests` failed on every run after 2026-08-30. Not a proxy regression: the eval
+  posts directly with its own `HttpClient` and never touches `UpstreamForwarder`; reproduced locally with the
+  same key. `PostAsync` now stamps `x-opencode-session` (fresh `Guid.NewGuid().ToString("N")` per request) —
+  the same header the proxy sends on a matched `SessionForwarding: opencode-go` route (HLD 009), so the eval
+  stays on the path real traffic takes. The worse half was silent: the companion "un-normalized catalog is
+  still rejected" case was **passing vacuously** — it asserts `400` and was getting one for `MissingSessionID`,
+  never reaching the tool contract it exists to prove. It now also asserts the body is not a `MissingSessionID`,
+  verified by removing the header again (both tests fail; previously one went green). The real rejection still
+  reads `unknown tool type: web_search, currently only function and plugin are supported`. Also fixed the
+  review-gate block on HLD 012's `AGENTS.md`: it lacked the mandatory `## Changelog` section, and `Defaults`
+  was renamed to the canonical `Key Behaviors` slot per
+  `knowledge-conventional-contexts-quality.instructions.md`.
+
 - 2026-09-22: Review pass on the HLD 012 timeout work — the mechanism is correct, but its only end-to-end
   proof was inspection. `UpstreamForwarderTimeoutTests` asserted the stamp and `DependencyInjectionTests`
   called the generator helpers directly; nothing drove Polly, so the seam between them was untested.

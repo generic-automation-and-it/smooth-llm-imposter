@@ -45,8 +45,18 @@ quality spec in [nfrs/](./nfrs/).
 - **Keep `ROUTING_AGENTS.md`, the HLD 007 LADR-02 env table, and `setup.md` in sync** with
   `ImposterOptionsPostConfigure.Fields` when a suffix is added — that table has drifted before.
 
-## Defaults
+## Key Behaviors
 
-Shipped in no `appsettings*.json`: the option is unset everywhere and injected per deployment
-(`<PROVIDER>_TIMEOUT_SECONDS=…`). The 300 s base lives in
-`DependencyInjection.DefaultUpstreamTimeoutSeconds`.
+- Shipped in no `appsettings*.json`: the option is unset everywhere and injected per deployment
+  (`<PROVIDER>_TIMEOUT_SECONDS=…`). The 300 s base lives in
+  `DependencyInjection.DefaultUpstreamTimeoutSeconds`.
+- The bound is on **response headers**, not the response. Once headers arrive the body streams
+  unbounded — a mid-stream stall belongs to the terminal-error-frame path, not here.
+- The base scales ×1/×2/×3, so raising it lengthens every rung: worst-case header wait is
+  `base ×6` plus the fixed 1 s + 2 s retry delays.
+
+## Changelog
+
+| Date | Change | Ref |
+| :---- | :---- | :---- |
+| 2026-09-22 | Initial HLD AGENTS.md — 3 LADRs, 1 NFR. Records the per-request stamp as the load-bearing hop and the drift guards that must stay widened to `int`/`int?`. | — |
