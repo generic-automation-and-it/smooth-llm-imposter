@@ -5,9 +5,10 @@
 This page covers two Conductor script roles (snapshot and workspace) plus their shared source of truth in `.conductor/`:
 
 1. The **snapshot script** installs the general CLI tooling (including GitHub Copilot CLI, `uv`, and
-   `code-review-graph`) and native Docker Engine + Compose; persists `DOCKER_HOST`, `OPENAI_BASE_URL`, and
-   `ANTHROPIC_BASE_URL`; configures Codex; pulls the published SmoothLlmImposter image; and does not require
-   provider credentials.
+   `code-review-graph`) and native Docker Engine + Compose; **asserts that the Docker CLI and Compose plugin
+   are actually present**; persists `DOCKER_HOST`, `OPENAI_BASE_URL`, and `ANTHROPIC_BASE_URL`; pre-pulls the
+   published SmoothLlmImposter image; and does not require provider credentials. Codex configuration belongs
+   to the workspace script only, because it writes to `~/.codex/config.toml` and the snapshot has no clone.
 2. The **workspace setup script** restarts the Docker daemon after snapshot restoration, configures Codex,
    wires `code-review-graph` into Codex, Copilot CLI, OpenCode, and Claude Code and builds the graph for the
    checked-out repository, then reads `OPENCODE_API_KEY` and `OPENROUTER_API_KEY` from the workspace
@@ -59,7 +60,21 @@ default as-is. To stop OpenCode session token usage, uncomment the two exports, 
 
 Use this as the Conductor snapshot lifecycle script. Conductor lifecycle logs identify the image as Amazon
 Linux 2023 (for example, `/home/vercel-sandbox`), so it uses DNF4 and native Docker rather than Homebrew,
-Linuxbrew, or Colima.
+Linuxbrew, or Colima. Because [Vercel marks that base a deprecated "legacy
+runtime"](https://vercel.com/docs/sandbox/concepts/runtimes) and new sandboxes default to an apt-based Ubuntu
+managed image, the script **asserts `dnf` is present and exits 1 naming the detected OS** rather than failing
+somewhere inside step [1]. If your sandbox ever reports `Detected: … Ubuntu`, that guard is what you are
+seeing and the script needs an `apt-get` rewrite.
+
+> **The Docker assertions in step [5] are the point of that step, not a formality.** Without them the
+> snapshot can complete *successfully* with no `docker` binary on the image at all: `set -euo pipefail` aborts
+> the build at whichever `dnf` line fails, the workspace is still created from whatever was captured, and the
+> first thing the operator meets is the workspace script's gate — `Docker is missing. Build this workspace
+> from the documented snapshot.` — a message that names the snapshot and offers nothing to act on. Verifying
+> the CLI and the Compose plugin converts that into a snapshot build that fails at the line that caused it.
+> Daemon startup in the same step stays **best-effort**: the lifecycle does not run systemd as PID 1 and
+> nothing survives snapshot restoration, so a daemon that is down at snapshot time is a normal state, and
+> `imposter-container.sh` bootstraps `dockerd` itself on every workspace start.
 
 > **`CONDUCTOR_IS_LOCAL=1` short-circuits the automatic lifecycle scripts only.** Conductor sets this
 > environment variable in the local Mac/desktop workspace lifecycle (not the cloud sandbox). The local
@@ -73,8 +88,9 @@ Linuxbrew, or Colima.
 
 Provider credentials are intentionally absent from snapshot construction: Conductor makes
 `OPENCODE_API_KEY` and `OPENROUTER_API_KEY` available only to the later workspace lifecycle. The snapshot
-therefore performs every credential-independent operation—including Codex configuration and the image
-pull—but does not create the container.
+therefore performs every credential-independent operation—including the image pre-pull—but does not create
+the container, and does not touch `~/.codex/config.toml` (that is workspace-scoped; see
+[`setup.sh`](../../../.conductor/scripts/setup.sh)).
 
 The environment setup also persists these client endpoints in both `~/.bashrc` and `~/.zshrc`:
 
@@ -150,6 +166,18 @@ fi
 PORT="${PORT:-5080}"
 IMAGE="${SMOOTH_LLM_IMAGE:-ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest}"
 
+# Steps [1]-[5] below are dnf/Amazon-Linux-2023-specific throughout. Vercel's
+# runtime docs mark that base a deprecated "legacy runtime"; new sandboxes
+# default to an apt-based Ubuntu managed image instead
+# (https://vercel.com/docs/sandbox/concepts/runtimes). Fail loudly here,
+# rather than deep inside step [1], if a future snapshot silently picks that
+# image up instead.
+if ! command -v dnf >/dev/null 2>&1; then
+  echo "This snapshot script requires a dnf-based image (Amazon Linux 2023)." >&2
+  echo "Detected: $(grep -m1 PRETTY_NAME /etc/os-release 2>/dev/null || echo 'unknown OS'). It needs an apt-get rewrite for a Debian/Ubuntu-based image." >&2
+  exit 1
+fi
+
 echo "--- [1] Installing system and Docker packages ---"
 sudo dnf install -y \
   git \
@@ -157,6 +185,7 @@ sudo dnf install -y \
   python3-pip \
   python3.12 \
   python3.12-pip \
+  python3-pyyaml \
   expect \
   'dnf-command(config-manager)' \
   docker
@@ -181,7 +210,7 @@ sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
 echo "--- [2] Installing general CLI tooling ---"
 curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0
-curl -fsSL https://opencode.ai/install | bash
+curl -fsSL https://opencode.ai/v2/install | bash
 curl -fsSL https://claude.ai/install.sh | bash
 curl -fsSL https://chatgpt.com/codex/install.sh | sh
 curl -fsSL https://pi.dev/install.sh | sh
@@ -238,52 +267,70 @@ export DOCKER_HOST="$DOCKER_HOST_VALUE"
 export OPENAI_BASE_URL="$OPENAI_BASE_URL_VALUE"
 export ANTHROPIC_BASE_URL="$ANTHROPIC_BASE_URL_VALUE"
 
+RTK_BIN="$(command -v rtk)"
+: "${RTK_BIN:?rtk not found on PATH; check step [2] installed it.}"
+
 echo "--- [4] Configuring RTK ---"
 expect -c "
-  spawn sudo HOME=$HOME rtk init -g --auto-patch
+  spawn sudo HOME=$HOME $RTK_BIN init -g --auto-patch
   expect \"Patch existing\"
   send \"y\r\"
   expect eof
 "
-sudo HOME="$HOME" rtk init -g --codex
+sudo HOME="$HOME" "$RTK_BIN" init -g --codex
 rtk telemetry disable
 
-echo "--- [5] Starting Docker and pulling SmoothLlmImposter ---"
+echo "--- [5] Verifying Docker and warming the image cache ---"
+
+# The only proof that step [1]'s `dnf install docker` produced a usable CLI.
+# Hard-fail here, loudly, because without this assertion the snapshot can finish
+# green with no `docker` binary at all: `set -e` aborts the whole build at the
+# failing line, the workspace is still created, and the first thing the operator
+# sees is the workspace script's gate —
+#   "Docker is missing. Build this workspace from the documented snapshot."
+# — which names this script and offers them nothing to act on.
+if ! command -v docker >/dev/null 2>&1; then
+  echo "docker CLI absent after 'dnf install -y docker' — snapshot would be unusable." >&2
+  echo "Confirm the package name for this image: dnf list --available 'docker*'" >&2
+  exit 1
+fi
+docker --version
+if ! docker compose version; then
+  echo "Compose v2 plugin missing or truncated at /usr/local/lib/docker/cli-plugins." >&2
+  echo "Nothing downstream repairs this; re-download the plugin and rebuild." >&2
+  exit 1
+fi
+
+# Daemon startup is best-effort HERE on purpose. The lifecycle does not run
+# systemd as PID 1 and no daemon survives snapshot restoration, so a daemon that
+# is down at snapshot time is not a broken snapshot — imposter-container.sh
+# bootstraps dockerd itself (Linux-only branch) on every workspace start.
 if command -v systemctl >/dev/null 2>&1; then
   sudo systemctl enable --now docker || true
 else
   sudo service docker start || true
 fi
 
-# The lifecycle does not run systemd as PID 1. Start dockerd directly when the
-# service command did not make Docker available, then wait for its socket.
-if ! sudo docker info >/dev/null 2>&1; then
-  sudo nohup dockerd </dev/null >/tmp/dockerd.log 2>&1 &
-  for _ in $(seq 1 30); do
-    sudo docker info >/dev/null 2>&1 && break
-    sleep 1
-  done
-fi
-
-if ! sudo docker info >/dev/null 2>&1; then
-  echo "Docker daemon did not become ready; inspect /tmp/dockerd.log." >&2
-  exit 1
-fi
-
 # New workspace processes should receive this supplementary group. Snapshot
 # commands continue to use sudo because the current shell does not gain new
 # group membership after usermod.
 sudo usermod -aG docker "$USER" || true
-sudo docker --version
-sudo docker compose version
-sudo docker pull "$IMAGE"
+
+# Warm the image so the first workspace start does not pay the download. Failure
+# is survivable: imposter-container.sh pulls again with a cached-image fallback
+# and exits before `docker rm -f` if neither path works.
+if ! sudo docker pull "$IMAGE"; then
+  echo "Warning: could not pre-pull $IMAGE; the workspace setup will retry." >&2
+fi
 
 # Container creation belongs to the later credential-aware workspace lifecycle.
 # Keep only the image in the snapshot.
 sudo docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 ```
 
-> **Image pull behavior.** Workspace startup runs `docker pull` before recreating the container. If the pull
+> **Image pull behavior.** The snapshot pre-pulls the image as a warm-up only, and tolerates failure with a
+> warning — a registry blip during snapshot construction must not fail the build, because the workspace script
+> pulls again anyway. Workspace startup runs `docker pull` before recreating the container. If that pull
 > fails (GHCR/DNS blip), the script falls back to the locally cached image. If no local copy exists either,
 > the script exits 1 **before** the `docker rm -f`, so the running container (if any) is preserved. The
 > container itself uses the default `--pull=missing`, so a missing local tag does not also try the registry.
@@ -596,7 +643,11 @@ Conductor script, so pulling this branch is enough; see
 
 This only covers the **workspace** script. The **snapshot** script (installing Docker/dotnet/`uv`/etc., image-level)
 has no `.conductor/settings.toml` equivalent — Conductor snapshots are cloud-environment configuration, not a
-repository setting — so it stays a manually-pasted UI field, documented as the snapshot script above.
+repository setting — so it stays a manually-pasted UI field, documented as the snapshot script above. That
+makes the fence above the only tracked copy of it, and it has no test and no CI check: a live edit to the
+Conductor UI field drifts from this page silently. When you change the field, paste it back here in the same
+commit, and keep the step `[5]` Docker assertions intact — they are what stops a broken image from being
+captured as a working one.
 
 `setup.sh` (see `.conductor/scripts/setup.sh`) installs the four platforms with
 `--no-instructions` on all of them and `--no-skills --no-hooks` on
