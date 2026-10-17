@@ -34,6 +34,10 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
     dotnet restore src/SmoothLlmImposter.Host/SmoothLlmImposter.Host.csproj -r "$RID" -p:PublishAot=true && \
     dotnet publish src/SmoothLlmImposter.Host/SmoothLlmImposter.Host.csproj \
       -c Release -r "$RID" --self-contained -p:PublishAot=true -p:StripSymbols=true -o /app --no-restore && \
+    # StripSymbols does not suppress the ~57 MB split-symbols .dbg the AOT emit
+    # produces beside the binary — remove it (and the managed pdbs) in this same
+    # layer so it never lands in the image. Verified: with StripSymbols alone the
+    # image still shipped the .dbg.
     rm -f /app/*.dbg /app/*.pdb
 
 # ── Runtime stage ─────────────────────────────────────────────────────────
