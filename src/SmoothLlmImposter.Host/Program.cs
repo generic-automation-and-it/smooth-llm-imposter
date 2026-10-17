@@ -30,10 +30,8 @@ builder.Host.UseSerilog((context, configuration) =>
             .WriteTo.Console(),
         context.Configuration));
 
-builder.Services
-    .AddOptions<ImposterOptions>()
-    .Bind(builder.Configuration.GetSection(ImposterOptions.SectionName))
-    .ValidateOnStart();
+builder.Services.Configure<ImposterOptions>(builder.Configuration.GetSection(ImposterOptions.SectionName));
+builder.Services.AddOptions<ImposterOptions>().ValidateOnStart();
 
 // Source-generated JSON metadata for NativeAOT (see ImposterJsonContext): the minimal-API
 // RequestDelegateGenerator resolves endpoint body/return types through this chain. No-op
