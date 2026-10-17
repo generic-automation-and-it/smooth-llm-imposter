@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using Serilog.Events;
 using SmoothLlmImposter.Application;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Host.Configuration;
@@ -97,12 +98,11 @@ app.MapAuthorizationOverrideEndpoints();
 app.Run();
 
 // Applies the `Serilog:MinimumLevel:Default` and `Serilog:MinimumLevel:Override:*` settings in code.
-// Invalid level names are ignored so a typo degrades to the code default, matching the previous
-// ReadFrom.Configuration behavior of leaving the level untouched on unparsable values.
+// Unparsable level names are ignored, leaving the code default.
 static void ApplySerilogLevels(LoggerConfiguration loggerConfiguration, IConfiguration appConfiguration)
 {
     string? defaultLevel = appConfiguration["Serilog:MinimumLevel:Default"];
-    if (Enum.TryParse<Serilog.Events.LogEventLevel>(defaultLevel, ignoreCase: true, out Serilog.Events.LogEventLevel parsedDefault))
+    if (Enum.TryParse<LogEventLevel>(defaultLevel, ignoreCase: true, out LogEventLevel parsedDefault))
     {
         loggerConfiguration.MinimumLevel.Is(parsedDefault);
     }
@@ -110,7 +110,7 @@ static void ApplySerilogLevels(LoggerConfiguration loggerConfiguration, IConfigu
     foreach (IConfigurationSection levelOverride in appConfiguration.GetSection("Serilog:MinimumLevel:Override").GetChildren())
     {
         if (!string.IsNullOrWhiteSpace(levelOverride.Key) &&
-            Enum.TryParse<Serilog.Events.LogEventLevel>(levelOverride.Value, ignoreCase: true, out Serilog.Events.LogEventLevel level))
+            Enum.TryParse<LogEventLevel>(levelOverride.Value, ignoreCase: true, out LogEventLevel level))
         {
             loggerConfiguration.MinimumLevel.Override(levelOverride.Key, level);
         }

@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Features.Routing;
@@ -507,4 +508,4 @@ internal static class RoutingEndpoints
 /// The wire shape stays <c>{"status":"ok"}</c>.
 /// </summary>
 internal sealed record HealthResponse(
-    [property: System.Text.Json.Serialization.JsonPropertyName("status")] string Status);
+    [property: JsonPropertyName("status")] string Status);
