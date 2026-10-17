@@ -27,10 +27,11 @@ Features/
 
 ## Packages to add when implementing
 
-`Mediator.Abstractions` + `Mediator.SourceGenerator`, `FluentValidation.DependencyInjectionExtensions`, and (for upstream clients) `Refit` — all declared centrally in `Directory.Packages.props`.
+`Mediator.Abstractions` + `Mediator.SourceGenerator`, `FluentValidation` (core only — validators are registered explicitly, one line per request in `DependencyInjection`, because the `FluentValidation.DependencyInjectionExtensions` assembly scanner is trim-unsafe), and (for upstream clients) `Refit` — all declared centrally in `Directory.Packages.props`. `ValidatorRegistrationTests` fails when a `Request` gains a `Validator` without a registration line.
 
 ## Changelog
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
 | 2026-05-30 | Created — empty vertical-slice skeleton (`Features/`, `Common/{Clients,Exceptions,Models,Persistence,Pipelines}/`, `Extensions/`). | — |
+| 2026-10-17 | NativeAOT support: validators registered explicitly in `DependencyInjection` (assembly scanning is trim-unsafe); `JsonArray.Add(JsonObject)` sites cast to `JsonNode` (same overload, no generic code-gen); `ValidatorRegistrationTests` guards the registration list. | — |

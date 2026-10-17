@@ -141,9 +141,12 @@ public sealed class ProviderOptions
 /// <summary>A from→to model rewrite with an optional caching opt-in.</summary>
 public sealed class ModelMappingOptions
 {
-    public string From { get; init; } = string.Empty;
+    // Mutable setters (not init): the configuration binding source generator emits assignments
+    // only for settable properties, so init-only leaves bind on JIT (reflection) but silently
+    // stay default on NativeAOT. Matches every other bindable property in this file.
+    public string From { get; set; } = string.Empty;
 
-    public string To { get; init; } = string.Empty;
+    public string To { get; set; } = string.Empty;
 
-    public bool Caching { get; init; }
+    public bool Caching { get; set; }
 }

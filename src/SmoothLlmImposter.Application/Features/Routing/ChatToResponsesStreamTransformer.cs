@@ -397,10 +397,10 @@ internal sealed class ChatToResponsesStreamTransformer : IChatToResponsesTransfo
 
         if (includeOutput)
         {
-            var output = new JsonArray { CreateMessageItem(state, "completed") };
+            var output = new JsonArray { (JsonNode)CreateMessageItem(state, "completed") };
             foreach (ToolCallState tool in state.ToolCalls.Values.OrderBy(t => t.OutputIndex))
             {
-                output.Add(CreateToolItem(tool, "completed"));
+                output.Add((JsonNode)CreateToolItem(tool, "completed"));
             }
 
             response["output"] = output;
@@ -429,7 +429,7 @@ internal sealed class ChatToResponsesStreamTransformer : IChatToResponsesTransfo
 
         if (includeContent)
         {
-            item["content"] = new JsonArray { CreateOutputTextPart(state.Text.ToString()) };
+            item["content"] = new JsonArray { (JsonNode)CreateOutputTextPart(state.Text.ToString()) };
         }
 
         return item;

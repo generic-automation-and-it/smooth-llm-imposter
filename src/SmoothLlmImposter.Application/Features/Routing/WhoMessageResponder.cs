@@ -298,7 +298,7 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
             ["model"] = model,
             ["choices"] = new JsonArray
             {
-                new JsonObject
+                (JsonNode)new JsonObject
                 {
                     ["index"] = 0,
                     ["message"] = new JsonObject
@@ -333,7 +333,7 @@ internal sealed class WhoMessageResponder : IWhoMessageResponder
             ["role"] = "assistant",
             ["content"] = new JsonArray
             {
-                new JsonObject
+                (JsonNode)new JsonObject
                 {
                     ["type"] = "text",
                     ["text"] = contentText,

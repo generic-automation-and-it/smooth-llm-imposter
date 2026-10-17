@@ -3,6 +3,10 @@
   <PropertyGroup>
     <RootNamespace>SmoothLlmImposter.Host</RootNamespace>
     <UserSecretsId>smoothllmimposter-host</UserSecretsId>
+    <!-- NativeAOT: generate config-binding code for AddOptions().Bind(). Without this, nested
+         collections (notably Providers:*:Models) bind as empty elements on AOT — scalars bind
+         fine, so the host boots with zero imposter routes and no error names the cause. -->
+    <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
   </PropertyGroup>
 
   <ItemGroup>

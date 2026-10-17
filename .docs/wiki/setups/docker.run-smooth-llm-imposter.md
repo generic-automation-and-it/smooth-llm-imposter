@@ -4,7 +4,7 @@
 
 Build the Host image **from source** and run it on `localhost:5080`. There is **no published registry image** —
 this router is stateless and key-less, so you build the image yourself from the repo's [`Dockerfile`](../../../Dockerfile)
-(multi-stage: .NET 10 SDK publish → `aspnet:10.0` runtime, non-root, listening on `5080`). Point any OpenAI- or
+(multi-stage: .NET 10 SDK NativeAOT publish → `runtime-deps:10.0` runtime, non-root, listening on `5080`). Point any OpenAI- or
 Anthropic-dialect client's base URL at `http://localhost:5080`; routing is driven by the **`Imposter`** config
 section exactly as in a `dotnet run`.
 

@@ -38,7 +38,7 @@ internal sealed class OpenAiModelCatalogResponder : IModelCatalogResponder
                     continue;
                 }
 
-                data.Add(new JsonObject
+                data.Add((JsonNode)new JsonObject
                 {
                     ["id"] = mapping.To,
                     ["object"] = "model",
