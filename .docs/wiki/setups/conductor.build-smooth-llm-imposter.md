@@ -271,6 +271,14 @@ RTK_BIN="$(command -v rtk)"
 : "${RTK_BIN:?rtk not found on PATH; check step [2] installed it.}"
 
 echo "--- [4] Configuring RTK ---"
+# rtk's installer places the binary under "$HOME/.local/bin", which is not on
+# sudo's secure_path. A bare `sudo rtk` fails instantly with "command not
+# found" before it can prompt, and the expect block below then fails with a
+# misleading "spawn id ... not open" once its spawned process has already
+# exited. Resolve the absolute path once, outside sudo, and invoke that.
+RTK_BIN="$(command -v rtk)"
+: "${RTK_BIN:?rtk not found on PATH; check step [2] installed it.}"
+
 expect -c "
   spawn sudo HOME=$HOME $RTK_BIN init -g --auto-patch
   expect \"Patch existing\"
@@ -334,6 +342,16 @@ sudo docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 > fails (GHCR/DNS blip), the script falls back to the locally cached image. If no local copy exists either,
 > the script exits 1 **before** the `docker rm -f`, so the running container (if any) is preserved. The
 > container itself uses the default `--pull=missing`, so a missing local tag does not also try the registry.
+
+> **Proxy CA trust (defensive, currently a no-op).** `imposter-container.sh` extracts the image's own CA
+> bundle, appends the Vercel Sandbox proxy CA to it, and bind-mounts the merged bundle over
+> `/etc/ssl/certs/ca-certificates.crt` inside the container — but only when
+> `/etc/pki/ca-trust/source/anchors/vercel-proxy-ca.pem` exists on the host. A container's isolated
+> filesystem does not otherwise inherit that CA. This workspace's default `allow-all` network policy never
+> makes the sandbox firewall terminate TLS, so nothing changes in practice today; the merge exists only so a
+> future restrictive network policy (`transform`/`forwardURL` rules) doesn't silently break outbound HTTPS
+> from inside the container. It is skipped entirely — never fatal — on any host without that cert, e.g. local
+> macOS.
 
 ## Workspace setup script (create and start the container)
 
@@ -542,6 +560,31 @@ if ! "${DOCKER[@]}" pull "$IMAGE"; then
   fi
 fi
 
+# Best-effort trust of the Vercel Sandbox proxy CA inside the container. The
+# Sandbox mounts a per-sandbox proxy CA on the HOST only; a container's
+# isolated trust store does not inherit it (see
+# https://vercel.com/docs/sandbox/concepts/runtimes#proxy-ca-certificates).
+# Under this workspace's default allow-all network policy the firewall never
+# terminates TLS, so this is a no-op today — kept only so a future
+# restrictive network policy (transform/forwardURL rules) doesn't silently
+# break outbound HTTPS from inside the container. Skipped, and never fatal,
+# on any host without that cert (local macOS, non-Vercel environments), so
+# behavior there is unchanged. Regenerated every run, never left stale, since
+# the container is always recreated from scratch alongside it.
+CA_BUNDLE_MOUNT=()
+HOST_PROXY_CA="/etc/pki/ca-trust/source/anchors/vercel-proxy-ca.pem"
+MERGED_CA_BUNDLE="/tmp/smooth-llm-imposter-ca-bundle.crt"
+if [ -s "$HOST_PROXY_CA" ]; then
+  if "${DOCKER[@]}" run --rm --entrypoint cat "$IMAGE" /etc/ssl/certs/ca-certificates.crt \
+      >"$MERGED_CA_BUNDLE" 2>/dev/null && [ -s "$MERGED_CA_BUNDLE" ]; then
+    cat "$HOST_PROXY_CA" >>"$MERGED_CA_BUNDLE"
+    CA_BUNDLE_MOUNT=(-v "$MERGED_CA_BUNDLE:/etc/ssl/certs/ca-certificates.crt:ro")
+  else
+    echo "Could not read the image's CA bundle; skipping proxy CA trust." >&2
+    rm -f "$MERGED_CA_BUNDLE"
+  fi
+fi
+
 # Create the container only now, after the workspace secrets exist and the image
 # is as fresh as the network allowed. openrouter-* is absent from the published
 # base image, so define the Anthropic OpenRouter provider fully here (same
@@ -559,6 +602,7 @@ fi
   --name "$CONTAINER_NAME" \
   --restart unless-stopped \
   -p "127.0.0.1:${PORT}:5080" \
+  "${CA_BUNDLE_MOUNT[@]}" \
   -e "Imposter__Providers__opencode-go-anthropic__Dialect=anthropic" \
   -e "Imposter__Providers__opencode-go-anthropic__BaseUrl=https://opencode.ai/zen/go" \
   -e "Imposter__Providers__opencode-go-anthropic__AuthScheme=ApiKey" \
