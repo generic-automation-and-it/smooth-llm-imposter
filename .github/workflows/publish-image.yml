@@ -5,6 +5,12 @@ name: Publish image
 # on version tags v* (semver tags), and on manual dispatch. A manual dispatch
 # never produces the :latest tag — it publishes the user-supplied pre-release
 # version (e.g. 1.0.0-rc.1) so pre-release versions can be cut from any branch.
+#
+# Multi-arch is built per-architecture on NATIVE runners and merged into one
+# manifest list afterwards. Do NOT go back to a single QEMU-emulated build:
+# the NativeAOT compiler (ILC) crashes under QEMU user-mode emulation
+# (InvalidCastException deep in codegen on the emulated leg), while native
+# builds are green. See HLD-agnostic note in Dockerfile (no $BUILDPLATFORM).
 
 on:
   push:
@@ -33,16 +39,71 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  publish:
-    name: Build & push container image
-    runs-on: ubuntu-latest
+  build:
+    name: Build & push by digest (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            arch: amd64
+            platform: linux/amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+            platform: linux/arm64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ github.workflow }}-${{ matrix.arch }}-${{ github.ref_name }}
+          cache-to: type=gha,mode=max,scope=${{ github.workflow }}-${{ matrix.arch }}-${{ github.ref_name }}
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Merge manifests & tag
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
@@ -66,14 +127,12 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha,format=short
 
-      - name: Build & push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ github.workflow }}-${{ github.ref_name }}
-          cache-to: type=gha,mode=max,scope=${{ github.workflow }}-${{ github.ref_name }}
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
+
+      - name: Inspect manifest
+        run: |
+          docker buildx imagetools inspect "$(jq -r '.tags[0]' <<< "$DOCKER_METADATA_OUTPUT_JSON")"
