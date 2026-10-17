@@ -214,6 +214,19 @@ public sealed class ProviderConfigAdminIntegrationTests
         fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://runtime-opencode.test/v1/chat/completions");
     }
 
+    [Fact]
+    public async Task Invalid_upsert_returns_validation_problem_not_server_error()
+    {
+        using var fixture = new ProviderConfigAppFixture();
+        HttpClient client = AuthenticatedClient(fixture);
+
+        ProviderConfigurationBody invalid = Body(baseUrl: "not-a-url") with { Dialect = "bogus" };
+        using HttpResponseMessage response = await client.PutAsJsonAsync("/admin/providers/bad", invalid, JsonOptions, Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType!.MediaType.ShouldBe("application/problem+json");
+    }
+
     private static HttpClient AuthenticatedClient(ProviderConfigAppFixture fixture)
     {
         HttpClient client = fixture.CreateClient();

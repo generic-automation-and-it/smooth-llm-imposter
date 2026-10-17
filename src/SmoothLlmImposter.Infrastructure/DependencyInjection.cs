@@ -57,7 +57,9 @@ public static class DependencyInjection
         services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
 
         // Stored passthrough credentials default to an in-memory settings-backed store. Only wire the
-        // encrypted EF Core backend when an operator opts in with a connection string.
+        // encrypted EF Core backend when an operator opts in with a connection string. EF Core is not
+        // NativeAOT-compatible, so an AOT host with a connection string fail-fasts here with a clear
+        // message instead of crashing obscurely inside model building.
         string? connectionString = configuration.GetConnectionString("ImposterDb");
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -65,6 +67,13 @@ public static class DependencyInjection
         }
         else
         {
+            if (!System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported)
+            {
+                throw new NotSupportedException(
+                    "The ImposterDb EF Core credential store is not supported in NativeAOT builds. " +
+                    "Run the JIT container/image when database-backed credential persistence is required.");
+            }
+
             services.AddDbContext<ImposterDbContext>(options => options.UseNpgsql(connectionString));
             services.AddScoped<ICredentialStore, CredentialStore>();
         }

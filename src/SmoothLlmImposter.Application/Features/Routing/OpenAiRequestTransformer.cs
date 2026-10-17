@@ -293,7 +293,7 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
                 AddIfPresent(toolObject, function, "parameters");
                 AddIfPresent(toolObject, function, "strict");
 
-                converted.Add(new JsonObject { ["type"] = "function", ["function"] = function });
+                converted.Add((JsonNode)new JsonObject { ["type"] = "function", ["function"] = function });
             }
             else
             {
@@ -337,7 +337,7 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
 
         if (root["instructions"] is { } instructions)
         {
-            messages.Add(new JsonObject
+            messages.Add((JsonNode)new JsonObject
             {
                 ["role"] = "system",
                 ["content"] = ScalarToString(instructions)
@@ -367,7 +367,7 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
 
         if (root["input"] is JsonValue inputValue)
         {
-            messages.Add(new JsonObject
+            messages.Add((JsonNode)new JsonObject
             {
                 ["role"] = "user",
                 ["content"] = ScalarToString(inputValue)
@@ -449,7 +449,7 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
             var toolCalls = new JsonArray();
             foreach ((JsonObject call, _, _) in paired)
             {
-                toolCalls.Add(new JsonObject
+                toolCalls.Add((JsonNode)new JsonObject
                 {
                     ["id"] = call["call_id"]!.DeepClone(),
                     ["type"] = "function",
@@ -461,7 +461,7 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
                 });
             }
 
-            messages.Add(new JsonObject
+            messages.Add((JsonNode)new JsonObject
             {
                 ["role"] = "assistant",
                 ["tool_calls"] = toolCalls
@@ -470,7 +470,7 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
             foreach ((_, JsonObject output, int outputIndex) in paired)
             {
                 consumedToolOutputs.Add(outputIndex);
-                messages.Add(new JsonObject
+                messages.Add((JsonNode)new JsonObject
                 {
                     ["role"] = "tool",
                     ["tool_call_id"] = output["call_id"]!.DeepClone(),
@@ -550,7 +550,7 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
             return;
         }
 
-        messages.Add(new JsonObject
+        messages.Add((JsonNode)new JsonObject
         {
             ["role"] = ToChatRole(StringValue(item["role"])),
             ["content"] = content
@@ -634,7 +634,7 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
                 string.Equals(type, "output_text", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(type, "text", StringComparison.OrdinalIgnoreCase))
             {
-                chatContent.Add(new JsonObject
+                chatContent.Add((JsonNode)new JsonObject
                 {
                     ["type"] = "text",
                     ["text"] = ScalarToString(contentObject["text"])
@@ -643,7 +643,7 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
             else if (string.Equals(type, "input_image", StringComparison.OrdinalIgnoreCase) &&
                 contentObject["image_url"] is { } imageUrl)
             {
-                chatContent.Add(new JsonObject
+                chatContent.Add((JsonNode)new JsonObject
                 {
                     ["type"] = "image_url",
                     ["image_url"] = new JsonObject

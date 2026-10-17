@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Features.Routing;
@@ -23,7 +24,7 @@ internal static class RoutingEndpoints
 
     public static void MapImposterEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+        app.MapGet("/health", () => Results.Ok(new HealthResponse("ok")));
 
         // Local model discovery for the OpenAI dialect (HLD 005). This specific GET route outranks the
         // /openai/{**upstreamPath} catch-all for GET, while every other method on the same path still falls
@@ -500,3 +501,11 @@ internal static class RoutingEndpoints
         _ => "invalid_request_error"
     };
 }
+
+/// <summary>
+/// Typed <c>/health</c> body. A record (not an anonymous type) so the NativeAOT JSON source
+/// generator can provide its metadata via <see cref="Configuration.ImposterJsonContext"/>.
+/// The wire shape stays <c>{"status":"ok"}</c>.
+/// </summary>
+internal sealed record HealthResponse(
+    [property: JsonPropertyName("status")] string Status);
