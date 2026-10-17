@@ -5,7 +5,7 @@
 # .docs/wiki/setups/docker.run-smooth-llm-imposter.md for local build
 # instructions.
 #
-# The build publishes NativeAOT (`-p:PublishAot=true`): a ~40 MB self-contained
+# The build publishes NativeAOT (`-p:PublishAot=true`): a ~25 MB self-contained
 # binary with no .NET runtime in the final image (runtime-deps + icu-libs only).
 # AOT compiles per target platform — do NOT add `--platform=$BUILDPLATFORM` to
 # the build stage: ILC cannot cross-compile, so multi-arch images rely on QEMU
@@ -31,9 +31,10 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
       arm64) RID=linux-musl-arm64 ;; \
       *) echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;; \
     esac && \
-    dotnet restore src/SmoothLlmImposter.Host/SmoothLlmImposter.Host.csproj -r "$RID" && \
+    dotnet restore src/SmoothLlmImposter.Host/SmoothLlmImposter.Host.csproj -r "$RID" -p:PublishAot=true && \
     dotnet publish src/SmoothLlmImposter.Host/SmoothLlmImposter.Host.csproj \
-      -c Release -r "$RID" --self-contained -p:PublishAot=true -o /app --no-restore
+      -c Release -r "$RID" --self-contained -p:PublishAot=true -p:StripSymbols=true -o /app --no-restore && \
+    rm -f /app/*.dbg /app/*.pdb
 
 # ── Runtime stage ─────────────────────────────────────────────────────────
 # runtime-deps (not aspnet): the AOT binary is self-contained and carries
