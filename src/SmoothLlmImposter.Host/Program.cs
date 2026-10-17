@@ -17,19 +17,28 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables();
 
 // Default minimum level is Information (set in code so it holds even with no Serilog config section).
-// ReadFrom.Configuration is layered last so the `Serilog` section in appsettings.json / env vars can override
-// it — e.g. Serilog__MinimumLevel__Override__SmoothLlmImposter.Routing=Debug to enable the full-request dump.
+// The `Serilog:MinimumLevel` settings in appsettings.json / env vars are applied explicitly below —
+// e.g. Serilog__MinimumLevel__Override__SmoothLlmImposter.Routing=Debug enables the full-request dump.
+// ReadFrom.Configuration is deliberately NOT used: its assembly scanning finds no assemblies in a
+// single-file NativeAOT binary, so the documented level-override surface would silently stop working.
 builder.Host.UseSerilog((context, configuration) =>
-    configuration
-        .MinimumLevel.Information()
-        .ReadFrom.Configuration(context.Configuration)
-        .Enrich.FromLogContext()
-        .WriteTo.Console());
+    ApplySerilogLevels(
+        configuration
+            .MinimumLevel.Information()
+            .Enrich.FromLogContext()
+            .WriteTo.Console(),
+        context.Configuration));
 
 builder.Services
     .AddOptions<ImposterOptions>()
     .Bind(builder.Configuration.GetSection(ImposterOptions.SectionName))
     .ValidateOnStart();
+
+// Source-generated JSON metadata for NativeAOT (see ImposterJsonContext): the minimal-API
+// RequestDelegateGenerator resolves endpoint body/return types through this chain. No-op
+// under JIT, load-bearing under AOT.
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.TypeInfoResolverChain.Add(ImposterJsonContext.Default));
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -86,6 +95,27 @@ app.MapCredentialAdminEndpoints();
 app.MapAuthorizationOverrideEndpoints();
 
 app.Run();
+
+// Applies the `Serilog:MinimumLevel:Default` and `Serilog:MinimumLevel:Override:*` settings in code.
+// Invalid level names are ignored so a typo degrades to the code default, matching the previous
+// ReadFrom.Configuration behavior of leaving the level untouched on unparsable values.
+static void ApplySerilogLevels(LoggerConfiguration loggerConfiguration, IConfiguration appConfiguration)
+{
+    string? defaultLevel = appConfiguration["Serilog:MinimumLevel:Default"];
+    if (Enum.TryParse<Serilog.Events.LogEventLevel>(defaultLevel, ignoreCase: true, out Serilog.Events.LogEventLevel parsedDefault))
+    {
+        loggerConfiguration.MinimumLevel.Is(parsedDefault);
+    }
+
+    foreach (IConfigurationSection levelOverride in appConfiguration.GetSection("Serilog:MinimumLevel:Override").GetChildren())
+    {
+        if (!string.IsNullOrWhiteSpace(levelOverride.Key) &&
+            Enum.TryParse<Serilog.Events.LogEventLevel>(levelOverride.Value, ignoreCase: true, out Serilog.Events.LogEventLevel level))
+        {
+            loggerConfiguration.MinimumLevel.Override(levelOverride.Key, level);
+        }
+    }
+}
 
 // Exposed so integration tests can target the entry point via WebApplicationFactory<Program>.
 public partial class Program { }

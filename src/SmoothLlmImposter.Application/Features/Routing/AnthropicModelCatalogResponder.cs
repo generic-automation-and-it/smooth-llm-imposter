@@ -44,7 +44,7 @@ internal sealed class AnthropicModelCatalogResponder : IAnthropicModelCatalogRes
                 // no Models[] and therefore contribute nothing.
                 if (seen.Add(mapping.To))
                 {
-                    data.Add(ModelInfo(mapping.To));
+                    data.Add((JsonNode)ModelInfo(mapping.To));
                 }
             }
         }

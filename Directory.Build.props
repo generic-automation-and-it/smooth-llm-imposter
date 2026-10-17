@@ -5,5 +5,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
+    <!-- NativeAOT probe support (dotnet publish -p:PublishAot=true): third-party packages (EF Core,
+         Npgsql, Serilog, FluentValidation) ship their own trim/AOT warnings that no change in this
+         repo can fix. Scoped to PublishAot builds only — normal builds keep full analysis, and our
+         own IL2026/IL3050 stay errors under AOT. -->
+    <NoWarn Condition="'$(PublishAot)' == 'true'">$(NoWarn);IL2104;IL3053;IL3000;IL3002</NoWarn>
   </PropertyGroup>
 </Project>

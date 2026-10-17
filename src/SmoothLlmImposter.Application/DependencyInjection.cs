@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Common.Pipelines;
 using SmoothLlmImposter.Application.Features.AuthorizationOverride;
 using SmoothLlmImposter.Application.Features.Credentials;
+using SmoothLlmImposter.Application.Features.ProviderConfiguration;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Application.Features.Routing.Normalization;
 
@@ -53,7 +54,25 @@ public static class DependencyInjection
             options.ServiceLifetime = ServiceLifetime.Scoped;
             options.PipelineBehaviors = [typeof(ValidationPipelineBehavior<,>)];
         });
-        services.AddValidatorsFromAssemblyContaining<CreateCredential.Request>(includeInternalTypes: true);
+        // Validators are registered explicitly — one line per request type — instead of
+        // AddValidatorsFromAssemblyContaining. Assembly scanning carries
+        // RequiresUnreferencedCode and breaks NativeAOT trimming. ValidatorRegistrationTests
+        // is the drift guard: it fails when a Request gains a Validator without a line here
+        // (an unregistered request would otherwise skip validation silently).
+        services.AddScoped<IValidator<CreateCredential.Request>, CreateCredential.Validator>();
+        services.AddScoped<IValidator<UpdateCredential.Request>, UpdateCredential.Validator>();
+        services.AddScoped<IValidator<ListCredentials.Request>, ListCredentials.Validator>();
+        services.AddScoped<IValidator<DeleteCredential.Request>, DeleteCredential.Validator>();
+        services.AddScoped<IValidator<GetCredential.Request>, GetCredential.Validator>();
+        services.AddScoped<IValidator<ActivateCredential.Request>, ActivateCredential.Validator>();
+        services.AddScoped<IValidator<ListProviders.Request>, ListProviders.Validator>();
+        services.AddScoped<IValidator<GetProvider.Request>, GetProvider.Validator>();
+        services.AddScoped<IValidator<UpsertProvider.Request>, UpsertProvider.Validator>();
+        services.AddScoped<IValidator<DeleteProvider.Request>, DeleteProvider.Validator>();
+        services.AddScoped<IValidator<SetProviderEnabled.Request>, SetProviderEnabled.Validator>();
+        services.AddScoped<IValidator<GetAuthorizationOverride.Request>, GetAuthorizationOverride.Validator>();
+        services.AddScoped<IValidator<SetAuthorizationOverride.Request>, SetAuthorizationOverride.Validator>();
+        services.AddScoped<IValidator<ClearAuthorizationOverride.Request>, ClearAuthorizationOverride.Validator>();
 
         return services;
     }

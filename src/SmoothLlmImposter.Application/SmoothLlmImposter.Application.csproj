@@ -19,7 +19,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Mediator.Abstractions" />
-    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="FluentValidation" />
   </ItemGroup>
 
   <ItemGroup>
