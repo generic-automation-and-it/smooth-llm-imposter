@@ -91,7 +91,7 @@ dotnet publish src/SmoothLlmImposter.Host -c Release -p:PublishAot=true
 
 The container release path additionally targets Linux musl on both native architectures; a successful host-platform publish is not proof that every container native dependency is packaged correctly.
 
-Target a single test project directly when needed (e.g. `dotnet test tests/SmoothLlmImposter.Domain.UnitTest`); `ls tests/` lists them. Tests are infra-free (no Docker/DB) — integration tests stub the upstream transport in-process.
+Target a single test project directly when needed (e.g. `dotnet test tests/SmoothLlmImposter.Domain.UnitTest`); `ls tests/` lists them. Tests need no Docker or external services — integration tests stub the upstream transport in-process, and the only on-disk database is the L1 tier's temporary SQLite files.
 
 Container builds intentionally mirror the repo-root layout inside the SDK stage (`src/SmoothLlmImposter.*` under a non-`/src` working directory). When editing `Dockerfile`, keep `SmoothLlmImposter.slnx`, `Directory.*.props`, `NuGet.Config`, and `src/` in their repo-root-relative positions so solution/project references and central package props continue to resolve.
 
@@ -100,7 +100,8 @@ Container builds intentionally mirror the repo-root layout inside the SDK stage 
 xunit.v3 · Shouldly · Bogus. Tiers (the distinction drives where a test belongs):
 
 - **L0** `*.UnitTest` — no I/O, all in-process (Domain / Application / Infrastructure / Host).
-- **L2** `SmoothLlmImposter.Host.IntegrationTest` — boots the real Host in-process via `WebApplicationFactory` and swaps the `imposter-upstream` HTTP client for a stub transport. No DB, no containers — this router is stateless and key-less.
+- **L1** `SmoothLlmImposter.Infrastructure.ComponentTest` — real file I/O against temporary on-disk SQLite for the opt-in GitHub Copilot store (schema, transactions, reopen). File-I/O tests belong here, never in a `*.UnitTest` project.
+- **L2** `SmoothLlmImposter.Host.IntegrationTest` — boots the real Host in-process via `WebApplicationFactory` and swaps the `imposter-upstream` HTTP client for a stub transport. No containers; the default route is stateless and key-less, so only opt-in Copilot cases use a database (temporary SQLite).
 
 Shared fixtures live in `tests/SmoothLlmImposter.TestFramework/`. CI provisions a single WireMock service container (`127.0.0.1:19091`) for integration tests that stub upstream LLM endpoints over HTTP. See `.docs/wiki/testing.md`.
 
@@ -142,6 +143,8 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 | Spec-driven | Development approach where machine-readable specifications are the source of truth |
 
 ## Changelog
+
+- 2026-10-20: Test tiers are now L0/L1/L2. Added L1 `Infrastructure.ComponentTest` (temporary on-disk SQLite for the opt-in GitHub Copilot store) and narrowed the "no DB" statements to the default stateless route; the router itself remains key-less unless `ENABLE_GITHUB_COPILOT` is on.
 
 - 2026-10-19: Made .NET 10 NativeAOT the explicit deployment baseline for future changes. Added cross-cutting source-generation/dependency/data-access guardrails and native publish/runtime verification requirements; distinguished JIT development checks from native compatibility and corrected the stale JIT container description. No runtime implementation changed.
 
