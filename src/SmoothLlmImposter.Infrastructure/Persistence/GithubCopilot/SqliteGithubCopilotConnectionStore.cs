@@ -1,4 +1,6 @@
 using Microsoft.Data.Sqlite;
+using SmoothLlmImposter.Application.Common.Persistence;
+using SmoothLlmImposter.Application.Features.GithubCopilot;
 
 namespace SmoothLlmImposter.Infrastructure.Persistence.GithubCopilot;
 
@@ -7,7 +9,7 @@ namespace SmoothLlmImposter.Infrastructure.Persistence.GithubCopilot;
 /// Microsoft.Data.Sqlite directly with parameterized ADO.NET commands and explicit row mapping, so it
 /// stays NativeAOT-compatible: no reflection, no ref-emit, no ORM on this path. No EF Core here.
 /// </summary>
-internal sealed class SqliteGithubCopilotConnectionStore(string connectionString)
+internal sealed class SqliteGithubCopilotConnectionStore(string connectionString) : IGithubCopilotConnectionStore
 {
     private const int SchemaVersion = 1;
 
@@ -65,7 +67,7 @@ internal sealed class SqliteGithubCopilotConnectionStore(string connectionString
         transaction.Commit();
     }
 
-    public void Upsert(GithubCopilotConnectionRow row)
+    public void Upsert(GithubCopilotConnection row)
     {
         using var connection = Open();
         connection.Open();
@@ -93,7 +95,7 @@ internal sealed class SqliteGithubCopilotConnectionStore(string connectionString
         command.ExecuteNonQuery();
     }
 
-    public GithubCopilotConnectionRow? Get(string prefix)
+    public GithubCopilotConnection? Get(string prefix)
     {
         using var connection = Open();
         connection.Open();
@@ -125,7 +127,7 @@ internal sealed class SqliteGithubCopilotConnectionStore(string connectionString
         return command.ExecuteNonQuery();
     }
 
-    private static void AddRowParameters(SqliteCommand command, GithubCopilotConnectionRow row)
+    private static void AddRowParameters(SqliteCommand command, GithubCopilotConnection row)
     {
         command.Parameters.AddWithValue("@Prefix", row.Prefix);
         command.Parameters.AddWithValue("@ConnectionId", row.ConnectionId);
@@ -138,7 +140,7 @@ internal sealed class SqliteGithubCopilotConnectionStore(string connectionString
         command.Parameters.AddWithValue("@Revision", row.Revision);
     }
 
-    private static GithubCopilotConnectionRow ReadRow(SqliteDataReader reader) =>
+    private static GithubCopilotConnection ReadRow(SqliteDataReader reader) =>
         new(
             Prefix: reader.GetString(0),
             ConnectionId: reader.GetString(1),

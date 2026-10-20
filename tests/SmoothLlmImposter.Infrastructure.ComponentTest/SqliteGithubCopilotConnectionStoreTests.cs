@@ -1,7 +1,7 @@
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Primitives;
+using Microsoft.Extensions.Options;
+using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Infrastructure.Persistence.GithubCopilot;
 using Shouldly;
 
@@ -32,7 +32,7 @@ public sealed class SqliteGithubCopilotConnectionStoreTests : IDisposable
 
     private SqliteGithubCopilotConnectionStore NewStore() => new(_connectionString);
 
-    private static GithubCopilotConnectionRow Row(string prefix) =>
+    private static GithubCopilotConnection Row(string prefix) =>
         new(
             Prefix: prefix,
             ConnectionId: Guid.NewGuid().ToString("N"),
@@ -178,49 +178,35 @@ public sealed class SqliteGithubCopilotConnectionStoreTests : IDisposable
         var existing = Row("company1");
         store.Upsert(existing);
 
-        Environment.SetEnvironmentVariable("ENABLE_GITHUB_COPILOT", "true");
-        try
-        {
-            var bootstrap = new GithubCopilotBootstrap(
-                NullLogger<GithubCopilotBootstrap>.Instance,
-                new StubConfiguration(new() { ["GithubCopilot:DatabasePath"] = _databasePath }));
-            await bootstrap.StartAsync(TestContext.Current.CancellationToken);
+        var bootstrap = new GithubCopilotBootstrap(
+            NullLogger<GithubCopilotBootstrap>.Instance,
+            Options.Create(new GithubCopilotOptions { Enabled = true, DatabasePath = _databasePath }),
+            store);
+        await bootstrap.StartAsync(TestContext.Current.CancellationToken);
 
-            var surviving = store.Get("company1");
-            surviving.ShouldNotBeNull();
-            surviving!.ConnectionId.ShouldBe(existing.ConnectionId);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("ENABLE_GITHUB_COPILOT", null);
-        }
+        store.Get("company1")!.ConnectionId.ShouldBe(existing.ConnectionId);
+        CountRows(store).ShouldBe(1);
     }
 
-    private sealed class StubConfiguration(Dictionary<string, string?> values) : IConfiguration
+    [Fact]
+    public async Task Bootstrap_with_feature_disabled_creates_no_database()
     {
-        public string? this[string key] { get => values.GetValueOrDefault(key); set => values[key] = value; }
-        public IEnumerable<IConfigurationSection> GetChildren() => [];
-        public IChangeToken GetReloadToken() => EmptyChangeToken.Instance;
-        public IConfigurationSection GetSection(string key) => new StubSection(key, this);
+        var bootstrap = new GithubCopilotBootstrap(
+            NullLogger<GithubCopilotBootstrap>.Instance,
+            Options.Create(new GithubCopilotOptions { Enabled = false, DatabasePath = _databasePath }),
+            NewStore());
+
+        await bootstrap.StartAsync(TestContext.Current.CancellationToken);
+
+        File.Exists(_databasePath).ShouldBeFalse();
     }
 
-    private sealed class StubSection(string key, IConfiguration root) : IConfigurationSection
+    private static long CountRows(SqliteGithubCopilotConnectionStore store)
     {
-        public string Key { get; } = key;
-        public string Path => Key;
-        public string? Value { get => root[Key]; set => root[Key] = value; }
-        public string? this[string k] { get => root[$"{Key}:{k}"]; set => root[$"{Key}:{k}"] = value; }
-        public IEnumerable<IConfigurationSection> GetChildren() => [];
-        public IChangeToken GetReloadToken() => EmptyChangeToken.Instance;
-        public IConfigurationSection GetSection(string k) => new StubSection($"{Key}:{k}", root);
-    }
-
-    private sealed class EmptyChangeToken : IChangeToken
-    {
-        public static readonly EmptyChangeToken Instance = new();
-        public bool HasChanged => false;
-        public bool ActiveChangeCallbacks => false;
-        public IDisposable RegisterChangeCallback(Action<object?> callback, object? state) =>
-            throw new NotSupportedException();
+        using var connection = store.Open();
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM github_copilot_connections;";
+        return (long)command.ExecuteScalar()!;
     }
 }

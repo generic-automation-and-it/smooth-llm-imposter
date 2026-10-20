@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Events;
 using SmoothLlmImposter.Application;
+using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Host.Configuration;
 using SmoothLlmImposter.Host.Endpoints;
@@ -32,6 +33,8 @@ builder.Host.UseSerilog((context, configuration) =>
 
 builder.Services.Configure<ImposterOptions>(builder.Configuration.GetSection(ImposterOptions.SectionName));
 builder.Services.AddOptions<ImposterOptions>().ValidateOnStart();
+builder.Services.Configure<GithubCopilotOptions>(builder.Configuration.GetSection(GithubCopilotOptions.SectionName));
+builder.Services.AddOptions<GithubCopilotOptions>().ValidateOnStart();
 
 // Source-generated JSON metadata for NativeAOT (see ImposterJsonContext): the minimal-API
 // RequestDelegateGenerator resolves endpoint body/return types through this chain. No-op

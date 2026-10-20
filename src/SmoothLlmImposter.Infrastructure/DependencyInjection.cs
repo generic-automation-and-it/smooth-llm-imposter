@@ -2,9 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http.Resilience;
+using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Timeout;
 using SmoothLlmImposter.Application.Common.Persistence;
+using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Infrastructure.Persistence;
 using SmoothLlmImposter.Infrastructure.Persistence.Stores;
@@ -56,8 +58,16 @@ public static class DependencyInjection
         services.AddSingleton<IUpstreamForwarder, UpstreamForwarder>();
         services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
 
-        // Feature-gated Copilot store bootstrap. No-op when ENABLE_GITHUB_COPILOT is unset/off; when on it
-        // ensures the SQLite schema and runs a startup probe so a NativeAOT image exercises the store early.
+        // Opt-in GitHub Copilot store (R6). Options are bound by the Host and env-mapped by Application;
+        // the singleton is constructed lazily and never touched while disabled, so no database is created.
+        services.AddSingleton<IGithubCopilotConnectionStore>(sp =>
+        {
+            var copilotOptions = sp.GetRequiredService<IOptions<GithubCopilotOptions>>().Value;
+            string databasePath = copilotOptions.DatabasePath
+                ?? Path.Combine(Path.GetTempPath(), $"copilot-{Environment.ProcessId}.db");
+            return new Persistence.GithubCopilot.SqliteGithubCopilotConnectionStore(
+                Persistence.GithubCopilot.SqliteGithubCopilotConnectionStore.BuildConnectionString(databasePath));
+        });
         services.AddHostedService<Persistence.GithubCopilot.GithubCopilotBootstrap>();
 
         // Stored passthrough credentials default to an in-memory settings-backed store. Only wire the
