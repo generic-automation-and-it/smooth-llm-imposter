@@ -21,10 +21,12 @@
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="SmoothLlmImposter.Infrastructure.UnitTest" />
+    <InternalsVisibleTo Include="SmoothLlmImposter.Infrastructure.ComponentTest" />
   </ItemGroup>
 
 </Project>

@@ -15,6 +15,9 @@
     <Project Path="tests/SmoothLlmImposter.Infrastructure.UnitTest/SmoothLlmImposter.Infrastructure.UnitTest.csproj" />
     <Project Path="tests/SmoothLlmImposter.Host.UnitTest/SmoothLlmImposter.Host.UnitTest.csproj" />
   </Folder>
+  <Folder Name="/tests/L1/">
+    <Project Path="tests/SmoothLlmImposter.Infrastructure.ComponentTest/SmoothLlmImposter.Infrastructure.ComponentTest.csproj" />
+  </Folder>
   <Folder Name="/tests/L2/">
     <Project Path="tests/SmoothLlmImposter.Host.IntegrationTest/SmoothLlmImposter.Host.IntegrationTest.csproj" />
   </Folder>

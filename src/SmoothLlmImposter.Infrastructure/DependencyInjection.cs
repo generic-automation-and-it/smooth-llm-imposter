@@ -56,6 +56,10 @@ public static class DependencyInjection
         services.AddSingleton<IUpstreamForwarder, UpstreamForwarder>();
         services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
 
+        // Feature-gated Copilot store bootstrap. No-op when ENABLE_GITHUB_COPILOT is unset/off; when on it
+        // ensures the SQLite schema and runs a startup probe so a NativeAOT image exercises the store early.
+        services.AddHostedService<Persistence.GithubCopilot.GithubCopilotBootstrap>();
+
         // Stored passthrough credentials default to an in-memory settings-backed store. Only wire the
         // encrypted EF Core backend when an operator opts in with a connection string. EF Core is not
         // NativeAOT-compatible, so an AOT host with a connection string fail-fasts here with a clear
