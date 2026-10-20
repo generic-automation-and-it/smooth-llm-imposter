@@ -37,7 +37,7 @@ public sealed class SqliteGithubCopilotConnectionStoreTests : IDisposable
             Prefix: prefix,
             ConnectionId: Guid.NewGuid().ToString("N"),
             GitHubUser: "octocat",
-            ClientId: "Ov23liufWdEaafvAXgiH",
+            ClientId: "00000000001111111111",
             ApiOrigin: "https://api.enterprise.githubcopilot.com",
             AccessTokenCiphertext: "cipher:access:abc",
             RefreshTokenCiphertext: "cipher:refresh:xyz",
@@ -73,7 +73,7 @@ public sealed class SqliteGithubCopilotConnectionStoreTests : IDisposable
         loaded.ShouldNotBeNull();
         loaded!.Prefix.ShouldBe("company1");
         loaded.GitHubUser.ShouldBe("octocat");
-        loaded.ClientId.ShouldBe("Ov23liufWdEaafvAXgiH");
+        loaded.ClientId.ShouldBe("00000000001111111111");
         loaded.ApiOrigin.ShouldBe("https://api.enterprise.githubcopilot.com");
         loaded.AccessTokenCiphertext.ShouldBe("cipher:access:abc");
         loaded.RefreshTokenCiphertext.ShouldBe("cipher:refresh:xyz");
