@@ -4,11 +4,22 @@ This file provides guidance for AI coding agents working in the SmoothLlmImposte
 
 > **Note on remaining `Project` placeholders.** This repo was scaffolded from a template. The functional/buildable identifiers (solution, projects, namespaces, folders) have been renamed to `SmoothLlmImposter`. Lowercase `project` references and examples still remaining in `.agents/rules/**` and `.docs/**` prose are deferred template cleanup, not real references — replace them opportunistically when touching those files.
 
+## TL;DR
+
+.NET 10 NativeAOT LLM router. Every change must preserve compatibility with the published native executable, not just the local JIT host.
+
+## Non-Negotiables
+
+- **NativeAOT is the deployment baseline.** The published container runs a native executable without the .NET JIT runtime. New features, dependencies, data access, serialization, configuration binding, DI, and observability changes must remain compatible with that deployment.
+- **Prefer build-time generation and explicit registration over runtime code generation or assembly scanning.** Follow the Host/Application source-generation contracts for JSON metadata, configuration binding, validators, and generated handlers. A reflection fallback that works under JIT is not evidence of NativeAOT support.
+- **Validate the native artifact when changing an AOT-sensitive path.** Passing `dotnet build`, `dotnet test`, or `dotnet run` alone is insufficient: publish with `PublishAot=true` and exercise the affected behavior on the resulting executable/container. Preserve native-runner verification for both `linux/amd64` and `linux/arm64`, including native-library dependencies. Do not disable AOT or add broad trim/AOT-warning suppressions to hide failures.
+- **AOT data access needs an AOT-compatible provider and mapping path.** If using Dapper in the native Host, use Dapper.AOT's generated supported calls and verify interception; ordinary reflection-based Dapper is not an acceptable implicit fallback. The existing optional EF Core `ImposterDb` backend is JIT-only and explicitly fails under NativeAOT; it does not establish a pattern for new native-runtime features.
+
 ## Project Overview
 
 SmoothLlmImposter is a **stateless, key-less LLM request router**. It exposes OpenAI- and Anthropic-dialect endpoints and, per configuration, redirects an inbound model to an alternate upstream ("imposter") — rewriting the model name and optionally injecting prompt caching — or passes it through to the real provider. Unlike the Smooth Claude Proxy it stores nothing (keys come from config/env only) and routes within a single dialect (no OpenAI⇄Anthropic translation). See `src/SmoothLlmImposter.Application/Features/Routing/ROUTING_AGENTS.md`.
 
-**Tech stack:** .NET 10 · ASP.NET Core minimal APIs · Clean Architecture (Domain / Application / Infrastructure / Host) · `IHttpClientFactory` streaming forwarder (no DB) · Serilog · xunit.v3
+**Tech stack:** .NET 10 NativeAOT · ASP.NET Core minimal APIs · Clean Architecture (Domain / Application / Infrastructure / Host) · `IHttpClientFactory` streaming forwarder (no DB) · Serilog · xunit.v3
 
 ## AI Context Files
 
@@ -72,6 +83,14 @@ dotnet test  SmoothLlmImposter.slnx                 # run all tests
 dotnet run --project src/SmoothLlmImposter.Host     # run the router locally
 ```
 
+These development commands use JIT; they do not prove deployment compatibility. For changes affecting an AOT-sensitive runtime path, also publish and smoke-test the native executable on the host platform:
+
+```bash
+dotnet publish src/SmoothLlmImposter.Host -c Release -p:PublishAot=true
+```
+
+The container release path additionally targets Linux musl on both native architectures; a successful host-platform publish is not proof that every container native dependency is packaged correctly.
+
 Target a single test project directly when needed (e.g. `dotnet test tests/SmoothLlmImposter.Domain.UnitTest`); `ls tests/` lists them. Tests are infra-free (no Docker/DB) — integration tests stub the upstream transport in-process.
 
 Container builds intentionally mirror the repo-root layout inside the SDK stage (`src/SmoothLlmImposter.*` under a non-`/src` working directory). When editing `Dockerfile`, keep `SmoothLlmImposter.slnx`, `Directory.*.props`, `NuGet.Config`, and `src/` in their repo-root-relative positions so solution/project references and central package props continue to resolve.
@@ -101,7 +120,7 @@ PR gate — `.github/workflows/pr-gate.yml` (triggers: `pull_request` → `main`
 
 Container image publishing — `.github/workflows/publish-image.yml` pushes `ghcr.io/generic-automation-and-it/smooth-llm-imposter` from the repo-root `Dockerfile`. Keep published tags multi-architecture for both `linux/amd64` and `linux/arm64`; each arch builds on a native runner and the manifests merge afterwards — never a single QEMU-emulated build, because the NativeAOT compiler crashes under user-mode emulation. The `:latest` tag is emitted only on an automatic `push` to `main`; a manual `workflow_dispatch` run (allowed from any branch) skips `:latest` and instead publishes a user-supplied pre-release version tag (e.g. `1.0.0-rc.1`) via the required `version` input, plus the short-SHA tag.
 
-**Container base image:** Both `Dockerfile` stages use `-alpine` variants (`.NET 10`); the published image is ~131 MB (~45% smaller than the prior Debian base). Alpine ships `wget` (no `curl`), so the Dockerfile's HEALTHCHECK comment was updated accordingly. Verified multi-platform build still succeeds for `linux/amd64` and `linux/arm64`.
+**Container deployment:** The SDK stage uses `sdk:10.0-alpine` and publishes a self-contained NativeAOT executable for the target musl RID. The runtime stage uses `runtime-deps:10.0-alpine` plus `icu-libs`, not the old JIT `aspnet` image. Keep this native deployment and its non-root runtime intact; the existing image has no in-container HEALTHCHECK, so probe `/health` externally.
 
 ## Git Constraints
 
@@ -123,6 +142,8 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 | Spec-driven | Development approach where machine-readable specifications are the source of truth |
 
 ## Changelog
+
+- 2026-10-19: Made .NET 10 NativeAOT the explicit deployment baseline for future changes. Added cross-cutting source-generation/dependency/data-access guardrails and native publish/runtime verification requirements; distinguished JIT development checks from native compatibility and corrected the stale JIT container description. No runtime implementation changed.
 
 - 2026-10-17: NativeAOT publish supported (opt-in: `dotnet publish -p:PublishAot=true`, ~40 MB self-contained binary). It compiled before but crashed at startup — RDG endpoint metadata had no source-gen fallback (`NotSupportedException` on `ProviderConfigurationBody`). Fixed with `ImposterJsonContext` covering all endpoint DTOs, a `HealthResponse` record for `/health` (wire-identical `{"status":"ok"}`), explicit per-request validator registration (assembly scanning is trim-unsafe; `ValidatorRegistrationTests` guards the list), code-applied Serilog levels (replacing `ReadFrom.Configuration`, whose assembly scanning finds nothing in single-file AOT), `(JsonNode)` casts on 19 `JsonArray.Add(JsonObject)` sites, and a clear fail-fast for the EF Core `ImposterDb` path under AOT. AOT publish is warning-clean under `TreatWarningsAsErrors` (third-party package trim codes `NoWarn`-scoped to `PublishAot` builds only); AOT↔JIT live parity verified (`/health`, both `/v1/models`, `--who?` both dialects, admin upsert/get/list/delete, validation 400). 446 tests pass (445 + providers-admin 400 case from review). The `Dockerfile` now ships AOT too (per-`TARGETARCH` musl RIDs on `runtime-deps` + `icu-libs`, ~73 MB vs 131 MB JIT; container smoke-tested non-root, including a real stub-upstream forward + SSE relay). Config binding needed the source generator (`EnableConfigurationBindingGenerator` + `Configure<T>(section)` — `AddOptions().Bind()` is not intercepted) and mutable setters on options leaves (the generator silently skips init-only properties, so `Models[]` bound empty on AOT while JIT worked). Not yet in CI as a probe job. Pre-existing, untouched: `NU1903` audit failures on transitive `System.Security.Cryptography.*` (restore needs `-p:NuGetAudit=false`), and the Serilog request log records `500` on validation failures on both JIT and AOT while the client correctly gets `400`.
 
