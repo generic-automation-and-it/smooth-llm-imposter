@@ -9,13 +9,12 @@ namespace SmoothLlmImposter.Infrastructure.Persistence.GithubCopilot;
 /// Microsoft.Data.Sqlite directly with parameterized ADO.NET commands and explicit row mapping, so it
 /// stays NativeAOT-compatible: no reflection, no ref-emit, no ORM on this path. No EF Core here.
 /// </summary>
-internal sealed class SqliteGithubCopilotConnectionStore(string connectionString) : IGithubCopilotConnectionStore
+internal sealed class SqliteGithubCopilotConnectionStore(string? connectionString) : IGithubCopilotConnectionStore
 {
     private const int SchemaVersion = 1;
 
-    public string ConnectionString => connectionString;
-
-    public SqliteConnection Open() => new(connectionString);
+    public SqliteConnection Open() => new(connectionString ?? throw new InvalidOperationException(
+        $"{GithubCopilotOptions.SectionName}:DatabasePath is not configured; the GitHub Copilot store cannot be opened."));
 
     public void EnsureCreated()
     {

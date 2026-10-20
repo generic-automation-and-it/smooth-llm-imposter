@@ -16,9 +16,10 @@ public sealed class GithubCopilotOptions
     public bool Enabled { get; set; }
 
     /// <summary>
-    /// Filesystem path of the Copilot SQLite database file. Unset falls back to a per-process temp file
-    /// (development only); the Docker deployment points this at the dedicated <c>/data/github-copilot</c>
-    /// volume so credentials survive image replacement (R7).
+    /// Filesystem path of the Copilot SQLite database file (env <c>GithubCopilot__DatabasePath</c>). Required
+    /// when the feature is enabled — there is deliberately no fallback, because a generated path can differ
+    /// between restarts and strand saved connections. The Docker deployment points it at the dedicated
+    /// <c>/data/github-copilot</c> volume so credentials survive image replacement (R7).
     /// </summary>
     public string? DatabasePath { get; set; }
 

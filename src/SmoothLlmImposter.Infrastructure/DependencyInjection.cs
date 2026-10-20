@@ -58,15 +58,17 @@ public static class DependencyInjection
         services.AddSingleton<IUpstreamForwarder, UpstreamForwarder>();
         services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
 
-        // Opt-in GitHub Copilot store (R6). Options are bound by the Host and env-mapped by Application;
-        // the singleton is constructed lazily and never touched while disabled, so no database is created.
+        // Opt-in GitHub Copilot store (R6/R7). Options are bound by the Host and env-mapped/validated by
+        // Application: enabling the feature without DatabasePath fails startup, so there is no fallback
+        // path that could change between restarts and strand saved connections. While disabled the store
+        // has no connection string and is never opened, so no database is created.
         services.AddSingleton<IGithubCopilotConnectionStore>(sp =>
         {
-            var copilotOptions = sp.GetRequiredService<IOptions<GithubCopilotOptions>>().Value;
-            string databasePath = copilotOptions.DatabasePath
-                ?? Path.Combine(Path.GetTempPath(), $"copilot-{Environment.ProcessId}.db");
+            string? databasePath = sp.GetRequiredService<IOptions<GithubCopilotOptions>>().Value.DatabasePath;
             return new Persistence.GithubCopilot.SqliteGithubCopilotConnectionStore(
-                Persistence.GithubCopilot.SqliteGithubCopilotConnectionStore.BuildConnectionString(databasePath));
+                string.IsNullOrWhiteSpace(databasePath)
+                    ? null
+                    : Persistence.GithubCopilot.SqliteGithubCopilotConnectionStore.BuildConnectionString(databasePath));
         });
         services.AddHostedService<Persistence.GithubCopilot.GithubCopilotBootstrap>();
 

@@ -53,6 +53,7 @@ public static class DependencyInjection
         // ENABLE_GITHUB_COPILOT / GITHUB_COPILOT_CLIENT_ID mapping (R6/R10); a malformed flag throws here,
         // surfaced at startup by the Host's ValidateOnStart.
         services.AddSingleton<IPostConfigureOptions<GithubCopilotOptions>, GithubCopilotOptionsPostConfigure>();
+        services.AddSingleton<IValidateOptions<GithubCopilotOptions>, GithubCopilotOptionsValidator>();
 
         services.AddMediator(options =>
         {
