@@ -2,9 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http.Resilience;
+using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Timeout;
 using SmoothLlmImposter.Application.Common.Persistence;
+using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Infrastructure.Persistence;
 using SmoothLlmImposter.Infrastructure.Persistence.Stores;
@@ -55,6 +57,20 @@ public static class DependencyInjection
         services.AddDataProtection();
         services.AddSingleton<IUpstreamForwarder, UpstreamForwarder>();
         services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
+
+        // Opt-in GitHub Copilot store (R6/R7). Options are bound by the Host and env-mapped/validated by
+        // Application: enabling the feature without DatabasePath fails startup, so there is no fallback
+        // path that could change between restarts and strand saved connections. While disabled the store
+        // has no connection string and is never opened, so no database is created.
+        services.AddSingleton<IGithubCopilotConnectionStore>(sp =>
+        {
+            string? databasePath = sp.GetRequiredService<IOptions<GithubCopilotOptions>>().Value.DatabasePath;
+            return new Persistence.GithubCopilot.SqliteGithubCopilotConnectionStore(
+                string.IsNullOrWhiteSpace(databasePath)
+                    ? null
+                    : Persistence.GithubCopilot.SqliteGithubCopilotConnectionStore.BuildConnectionString(databasePath));
+        });
+        services.AddHostedService<Persistence.GithubCopilot.GithubCopilotBootstrap>();
 
         // Stored passthrough credentials default to an in-memory settings-backed store. Only wire the
         // encrypted EF Core backend when an operator opts in with a connection string. EF Core is not

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Common.Pipelines;
 using SmoothLlmImposter.Application.Features.AuthorizationOverride;
 using SmoothLlmImposter.Application.Features.Credentials;
+using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Application.Features.ProviderConfiguration;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Application.Features.Routing.Normalization;
@@ -48,6 +49,11 @@ public static class DependencyInjection
         // routing consumers read the registry directly so runtime CRUD wins after seeding (HLD 008 LADR-04).
         services.AddSingleton<IPostConfigureOptions<ImposterOptions>, ImposterOptionsPostConfigure>();
         services.AddSingleton<IValidateOptions<ImposterOptions>, ImposterOptionsValidator>();
+
+        // ENABLE_GITHUB_COPILOT / GITHUB_COPILOT_CLIENT_ID mapping (R6/R10); a malformed flag throws here,
+        // surfaced at startup by the Host's ValidateOnStart.
+        services.AddSingleton<IPostConfigureOptions<GithubCopilotOptions>, GithubCopilotOptionsPostConfigure>();
+        services.AddSingleton<IValidateOptions<GithubCopilotOptions>, GithubCopilotOptionsValidator>();
 
         services.AddMediator(options =>
         {
