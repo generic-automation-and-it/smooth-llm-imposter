@@ -6,7 +6,7 @@ using SmoothLlmImposter.Application.Common.Clients.GithubCopilot;
 namespace SmoothLlmImposter.Application.Features.GithubCopilot;
 
 /// <summary>
-/// Step 03 — discover the models this account advertises, separated by the Messages/Responses surfaces it
+/// Step 04 — discover the models this account advertises, separated by the Messages/Responses surfaces it
 /// supports. Copilot Chat is not a setup target, so chat-only endpoints are filtered out. Discovery never
 /// creates a mapping, enables a target or reconciles state; the response's <c>message</c> points at the
 /// existing secret-free <c>PUT /admin/providers/&lt;key&gt;</c> step.

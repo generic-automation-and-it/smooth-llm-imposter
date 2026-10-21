@@ -89,7 +89,7 @@ public sealed record GithubCopilotConnectionListResponse(
 /// <summary>Account-advertised model. Discovery never creates mappings, enables targets or reconciles state.</summary>
 public sealed record GithubCopilotModelResponse(string Id, string[] Endpoints, string? Policy);
 
-/// <summary>Model-discovery result (step 03) with the mapping hint that makes the next step self-service.</summary>
+/// <summary>Model-discovery result (step 04) with the mapping hint that makes the next step self-service.</summary>
 public sealed record GithubCopilotModelsDiscoveryResponse(
     string ConnectionId,
     string[] ProviderKeys,
@@ -170,7 +170,7 @@ internal static class GithubCopilotMessages
     public static string List(GithubCopilotConnectionStatus[] connections) =>
         connections.Length == 0
             ? "No GitHub Copilot connections saved. Start one with POST /admin/github-copilot/logins, supplying your OAuth application's clientId."
-            : $"{connections.Length} GitHub Copilot connection(s). GET /admin/github-copilot/connections/<connectionId> reports publication and routing readiness; model discovery is GET .../models.";
+            : $"{connections.Length} GitHub Copilot connection(s). Use a connectionId for GET /admin/github-copilot/connections/<connectionId>/models, then GET .../<connectionId> to verify publication and routing readiness.";
 
     public static string Models(string connectionId, GithubCopilotProviderStatus[] providers) =>
         $"Discovered models for connection {connectionId}. Map a model with PUT /admin/providers/" +

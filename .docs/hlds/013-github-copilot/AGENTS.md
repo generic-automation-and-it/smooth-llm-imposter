@@ -38,6 +38,9 @@ the live own-OAuth-app probe is an external release gate.
 - Refresh-ahead is 10 minutes and runs outside inference; a rotated pair that cannot be saved fails closed
   rather than falling back to a possibly revoked token.
 - The dedicated volume is removed only as an exact, whole-feature action; deleting a provider is not a logout.
+- Docker setup examples use native image architecture and matching listener/published ports. Preserve existing
+  Copilot volume/path on recreation; fresh-install volume examples are not migration instructions. Named
+  configuration keys bind alphabetically, so Docker argument order cannot establish Copilot routing priority.
 - Setup guides prefer config/env mappings supplied at container creation: hydration preserves them, while
   admin PUT is an optional live edit that resets on restart. Initial device consent is still required; a
   configured client ID is not a credential. GET/edit/PUT examples preserve the account-discovered origin rather
@@ -56,5 +59,5 @@ the live own-OAuth-app probe is an external release gate.
 
 | Date | Change | Ref |
 | :---- | :---- | :---- |
-| 2026-10-21 | Clarified Docker-startup mapping provisioning versus optional runtime edits and one-time device consent; setup examples preserve the discovered provider identity. | #126 |
+| 2026-10-21 | Startup mappings/device consent; native Docker, persistent-volume recreation, alphabetic routing precedence | #126 |
 | 2026-10-20 | Initial HLD AGENTS.md — 4 LADRs, 2 NFRs; records the resolved-options gate, ciphertext-only store and published-snapshot inference path. | #126 |

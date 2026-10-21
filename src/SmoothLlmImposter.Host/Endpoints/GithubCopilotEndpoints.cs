@@ -37,9 +37,15 @@ internal static class GithubCopilotEndpoints
             .Produces<GithubCopilotLoginCompleteResponse>(StatusCodes.Status404NotFound)
             .Produces<GithubCopilotLoginCompleteResponse>(StatusCodes.Status503ServiceUnavailable);
 
+        group.MapGet("/connections", ListConnectionsAsync)
+            .WithName("github-copilot-03-list-connections")
+            .WithSummary("03 List connections")
+            .WithDescription("Lists saved connections with their provider keys and readiness so an operator can recover a connection ID after image replacement.")
+            .Produces<GithubCopilotConnectionListResponse>(StatusCodes.Status200OK);
+
         group.MapGet("/connections/{connectionId}/models", DiscoverModelsAsync)
-            .WithName("github-copilot-03-discover-models")
-            .WithSummary("03 Discover supported models")
+            .WithName("github-copilot-04-discover-models")
+            .WithSummary("04 Discover supported models")
             .WithDescription("Lists models the account advertises for the Messages and Responses surfaces. Discovery never creates mappings or enables providers.")
             .Produces<GithubCopilotModelsDiscoveryResponse>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound)
@@ -52,12 +58,6 @@ internal static class GithubCopilotEndpoints
             .WithDescription("Returns publication and per-provider routing readiness. Route inspection only; use the non-streaming --who? probe for a live smoke test.")
             .Produces<GithubCopilotConnectionStatus>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound);
-
-        group.MapGet("/connections", ListConnectionsAsync)
-            .WithName("github-copilot-05-list-connections")
-            .WithSummary("05 List connections")
-            .WithDescription("Lists saved connections with their provider keys and readiness so an operator can recover a connection ID after image replacement.")
-            .Produces<GithubCopilotConnectionListResponse>(StatusCodes.Status200OK);
     }
 
     private static async Task<Ok<GithubCopilotLoginStartResponse>> StartLoginAsync(

@@ -29,5 +29,6 @@ Opt-in GitHub Copilot upstream providers (Anthropic Messages + OpenAI Responses 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-21 | List help points to discovery before readiness verification; discovery step 04 | — |
 | 2026-10-20 | Implemented workflow: login/complete/list/get/models slices, publisher, startup hydration, refresh, D1 ownership in provider CRUD, forwarder path/header policy, Scalar/OpenAPI. | #126 |
 | 2026-10-20 | Created: options + exact env flag contract, ciphertext-only connection contract, L1 persistence tests. Persistence is direct Microsoft.Data.Sqlite — the Dapper.AOT plan was spiked and rejected (no .NET 10 interceptors). | #126 |
