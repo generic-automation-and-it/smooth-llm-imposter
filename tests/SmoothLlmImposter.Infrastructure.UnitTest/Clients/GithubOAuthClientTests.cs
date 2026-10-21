@@ -42,6 +42,22 @@ public class GithubOAuthClientTests
             () => client.RefreshAsync("client", "refresh", TestContext.Current.CancellationToken));
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.RequestTimeout)]
+    public async Task A_server_failure_with_a_parsable_body_is_still_retryable_not_a_grant_verdict(HttpStatusCode status)
+    {
+        // A parsable body would classify as Pending/Success if the status guard were missing, so this is the
+        // case that proves the status arm itself rather than the null-body arm.
+        GithubOAuthClient client = Client(status, """{"error":"authorization_pending"}""");
+
+        await Should.ThrowAsync<GithubCopilotUpstreamException>(
+            () => client.PollTokenAsync("client", "device", TestContext.Current.CancellationToken));
+        await Should.ThrowAsync<GithubCopilotUpstreamException>(
+            () => client.RefreshAsync("client", "refresh", TestContext.Current.CancellationToken));
+    }
+
     [Fact]
     public async Task An_unreadable_success_body_is_retryable()
     {
