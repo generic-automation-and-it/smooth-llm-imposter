@@ -1,6 +1,6 @@
 # LADR-004 — Overrides scoped to the passthrough path only
 
-- **Date / Status:** 2026-06-15 · Accepted
+- **Date / Status:** 2026-06-15 · Accepted (amended 2026-10-20 — narrow managed-Copilot exception, see below)
 
 ## Context
 
@@ -30,3 +30,17 @@ The two requested override behaviours both live on this path:
 - "Override an imposter route's key" is explicitly **out of scope**; changing an imposter key stays a config
   change. This keeps HLD 001's imposter determinism intact.
 - At most one credential per dialect is `IsActive`; activation deactivates siblings transactionally.
+
+## Amendment — managed GitHub Copilot exception (2026-10-20)
+
+HLD 013 adds reserved Copilot provider keys (`github-anthropic`/`github-openai` and `<prefix>-` variants) whose
+matched imposter route resolves a managed token and API origin from the feature's in-memory connection snapshot.
+This is a **narrow, explicit exception** to "matched imposter routes never read stored state", not a reversal:
+
+- The lookup is only for reserved Copilot keys; every other matched route stays config-key-only and DB-free.
+- The token is not a generic credential-store row: it lives in a feature-owned SQLite file with its own Data
+  Protection key ring, is hydrated to an immutable snapshot at startup, and is never read on the inference path.
+- The generic passthrough override behaviours above (active-credential switch, scheme translation) are unchanged
+  and still never apply to matched imposter routes.
+- HLD 001's determinism property is preserved for all config-defined providers; for a Copilot route, the
+  connection revision is the deterministic source of auth and origin, not a hidden override of a configured key.

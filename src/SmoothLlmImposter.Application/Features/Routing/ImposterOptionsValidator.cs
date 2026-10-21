@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Domain.Credentials;
+using SmoothLlmImposter.Domain.GithubCopilot;
 using SmoothLlmImposter.Domain.Routing;
 
 namespace SmoothLlmImposter.Application.Features.Routing;
@@ -140,6 +141,14 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
                     failures.Add($"{prefix}:Models[{j}]:To is required.");
                 }
             }
+
+            // Reserved GitHub Copilot identities (R1/D1) are feature-owned: the suffix fixes the dialect, and
+            // the managed connection supplies the token and origin. A config-seeded pair must satisfy the same
+            // fixed identity a generic PUT is held to, or the host fails startup instead of routing oddly.
+            if (GithubCopilotProfileKey.TryParse(key, out GithubCopilotProfile? profile))
+            {
+                AddReservedKeyFailures(prefix, provider, profile!, failures);
+            }
         }
 
         foreach ((ApiDialect dialect, int count) in defaultsByDialect)
@@ -153,5 +162,60 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         return failures.Count > 0
             ? ValidateOptionsResult.Fail(failures)
             : ValidateOptionsResult.Success;
+    }
+
+    private static void AddReservedKeyFailures(
+        string prefix,
+        ProviderOptions provider,
+        GithubCopilotProfile profile,
+        List<string> failures)
+    {
+        if (!ApiDialectParser.TryParse(provider.Dialect, out ApiDialect dialect) || dialect != profile.Dialect)
+        {
+            failures.Add($"{prefix}:Dialect must be '{profile.Dialect.ToToken()}' for the reserved key '{profile.Key}'.");
+        }
+
+        if (!string.IsNullOrEmpty(provider.Secret))
+        {
+            failures.Add($"{prefix}:Secret must be omitted for a reserved GitHub Copilot provider; the managed connection supplies the token.");
+        }
+
+        if (!CredentialAuthSchemeParser.TryParse(provider.AuthScheme, out CredentialAuthScheme? scheme) ||
+            scheme != CredentialAuthScheme.Bearer)
+        {
+            failures.Add($"{prefix}:AuthScheme must be 'Bearer' for a reserved GitHub Copilot provider.");
+        }
+
+        if (provider.AuthHeader is not null)
+        {
+            failures.Add($"{prefix}:AuthHeader must be omitted for a reserved GitHub Copilot provider (managed auth writes Authorization).");
+        }
+
+        if (provider.IsDefault)
+        {
+            failures.Add($"{prefix}:IsDefault must be false; a reserved GitHub Copilot provider is never the dialect default.");
+        }
+
+        if (!OpenAiUpstreamApiParser.TryParse(provider.OpenAiUpstreamApi, out OpenAiUpstreamApi upstreamApi) ||
+            upstreamApi != OpenAiUpstreamApi.Responses)
+        {
+            failures.Add($"{prefix}:OpenAiUpstreamApi must be 'responses' for a reserved GitHub Copilot provider; Copilot Chat is out of scope.");
+        }
+
+        if (!RequestNormalizationParser.TryParse(provider.RequestNormalization, out RequestNormalization normalization) ||
+            normalization != RequestNormalization.None)
+        {
+            failures.Add($"{prefix}:RequestNormalization must be 'none' for a reserved GitHub Copilot provider.");
+        }
+
+        if (provider.StripEncryptedContent == true)
+        {
+            failures.Add($"{prefix}:StripEncryptedContent cannot be enabled for a reserved GitHub Copilot provider.");
+        }
+
+        if (!GithubCopilotTransportPolicy.IsAllowedOrigin(provider.BaseUrl))
+        {
+            failures.Add($"{prefix}:BaseUrl must be a GitHub-controlled HTTPS Copilot origin (e.g. https://api.githubcopilot.com).");
+        }
     }
 }

@@ -1,0 +1,22 @@
+# GitHub Copilot (opt-in) compose overlay — use with:
+#   docker compose -f docker-compose.yml -f docker-compose.github-copilot.yml up -d
+#
+# Without this file no Copilot storage is created. The volume is named and dedicated: removing it is the
+# only way to delete saved credentials in v1 and it removes every prefix in this installation. Full guide:
+# .docs/wiki/setups/github-copilot.configure-smooth-llm-imposter.md
+services:
+  smooth-llm-imposter:
+    environment:
+      # Opt-in. Absent or blank is off; "true"/"1" is on; anything else fails startup.
+      ENABLE_GITHUB_COPILOT: ${ENABLE_GITHUB_COPILOT:-true}
+      # Required when enabled — deliberately no generated fallback.
+      GithubCopilot__DatabasePath: /data/github-copilot/copilot.db
+      # Optional default OAuth application client ID; operators may supply their own per login.
+      GITHUB_COPILOT_CLIENT_ID: ${GITHUB_COPILOT_CLIENT_ID:-}
+    volumes:
+      # SQLite database + isolated Data Protection key ring (keys/). Recreating the container against this
+      # volume keeps credentials decryptable; disabling the feature keeps the data.
+      - smooth-llm-imposter-copilot:/data/github-copilot
+
+volumes:
+  smooth-llm-imposter-copilot:

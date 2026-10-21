@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Domain.Credentials;
+using SmoothLlmImposter.Domain.GithubCopilot;
 using SmoothLlmImposter.Domain.Routing;
 
 namespace SmoothLlmImposter.Infrastructure.Routing;
@@ -24,6 +25,12 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
     : IUpstreamForwarder
 {
     internal const string HttpClientName = "imposter-upstream";
+
+    /// <summary>
+    /// Managed-Copilot transport. Same resilience pipeline as <see cref="HttpClientName"/> but with automatic
+    /// redirects disabled, so a redirect can never carry the GitHub token to another origin (AC10/R4).
+    /// </summary>
+    internal const string CopilotHttpClientName = "imposter-upstream-copilot";
     private const string DefaultAnthropicVersion = "2023-06-01";
     private const string SessionHeaderName = "x-opencode-session";
 
@@ -40,7 +47,19 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         CancellationToken cancellationToken)
     {
         Uri baseUrl = credentialOverride?.BaseUrlOverride ?? decision.Provider.BaseUrl;
-        string target = baseUrl.AbsoluteUri.TrimEnd('/') + path + (queryString ?? string.Empty);
+
+        // R2/R4: a managed Copilot provider forwards only the same-dialect completion surface, at an
+        // account-discovered GitHub origin. Anything else is refused before the token is attached.
+        GithubCopilotProfile? copilotProfile = ResolveCopilotProfile(decision);
+        string effectivePath = copilotProfile is null ? path : ApplyCopilotPathPolicy(decision, dialect, method, path);
+        if (copilotProfile is not null && !GithubCopilotTransportPolicy.IsAllowedOrigin(baseUrl.AbsoluteUri))
+        {
+            throw new RoutingException(
+                $"Provider '{decision.Provider.Name}' has a base URL that is not an allowed GitHub Copilot HTTPS origin; refusing to send a managed credential there.",
+                statusCode: 500);
+        }
+
+        string target = baseUrl.AbsoluteUri.TrimEnd('/') + effectivePath + (queryString ?? string.Empty);
 
         using var request = new HttpRequestMessage(method, target);
 
@@ -55,6 +74,10 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         string? managedAuthHeader = ApplyAuthentication(request, decision, credentialOverride, dialect, callerHeaders);
         EnsureAnthropicVersion(request, decision, credentialOverride, dialect);
         ApplySessionIdentity(request, decision, sessionIdentity);
+        if (copilotProfile is not null)
+        {
+            ApplyCopilotHeaders(request, dialect);
+        }
 
         // HLD 012: hand the route's base timeout to the resilience handler, which scales it per attempt.
         // Unstamped requests fall back to the global default inside the timeout strategy.
@@ -65,7 +88,8 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
 
         logger.LogDebug("Forwarding to {Provider} at {Target}", decision.Provider.Name, target);
 
-        HttpClient client = httpClientFactory.CreateClient(HttpClientName);
+        HttpClient client = httpClientFactory.CreateClient(
+            copilotProfile is null ? HttpClientName : CopilotHttpClientName);
         // Headers-read completion keeps body-stream failures outside the retry scope, avoiding partial replay.
         return await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
     }
@@ -103,6 +127,49 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
 
             request.Headers.TryAddWithoutValidation(header.Key, header.Value);
         }
+    }
+
+    internal static GithubCopilotProfile? ResolveCopilotProfile(RouteDecision decision) =>
+        GithubCopilotProfileKey.TryParse(decision.Provider.CredentialProviderName, out GithubCopilotProfile? profile)
+            ? profile
+            : null;
+
+    // Copilot serves Anthropic Messages at /v1/messages and OpenAI Responses at /responses only. Chat
+    // Completions and every other path are rejected before forwarding — the proxy adds no cross-dialect bridge.
+    private static string ApplyCopilotPathPolicy(RouteDecision decision, ApiDialect dialect, HttpMethod method, string path)
+    {
+        if (method == HttpMethod.Post && GithubCopilotTransportPolicy.TryResolveUpstreamPath(dialect, path, out string upstreamPath))
+        {
+            return upstreamPath;
+        }
+
+        throw new RoutingException(
+            $"Provider '{decision.Provider.Name}' is a GitHub Copilot {dialect.ToToken()} provider and supports only " +
+            (dialect == ApiDialect.Anthropic ? "POST /v1/messages" : "POST /responses (inbound /responses or /v1/responses)")
+            + "; Copilot Chat/Completions is not supported by this proxy.",
+            statusCode: 400);
+    }
+
+    // Writes the Copilot client metadata headers after dropping caller-relayed values of the same names, so a
+    // caller cannot contradict the managed connection identity. Openai-Intent only applies to Responses.
+    private static void ApplyCopilotHeaders(HttpRequestMessage request, ApiDialect dialect)
+    {
+        SetHeader(request, GithubCopilotTransportPolicy.ApiVersionHeader, GithubCopilotTransportPolicy.ApiVersionValue);
+        SetHeader(request, GithubCopilotTransportPolicy.IntegrationIdHeader, GithubCopilotTransportPolicy.IntegrationIdValue);
+        SetHeader(request, GithubCopilotTransportPolicy.InitiatorHeader, GithubCopilotTransportPolicy.InitiatorValue);
+        request.Headers.UserAgent.Clear();
+        request.Headers.UserAgent.ParseAdd(GithubCopilotTransportPolicy.UserAgentValue);
+
+        if (dialect == ApiDialect.OpenAi)
+        {
+            SetHeader(request, GithubCopilotTransportPolicy.OpenAiIntentHeader, GithubCopilotTransportPolicy.OpenAiIntentValue);
+        }
+    }
+
+    private static void SetHeader(HttpRequestMessage request, string name, string value)
+    {
+        request.Headers.Remove(name);
+        request.Headers.TryAddWithoutValidation(name, value);
     }
 
     // Returns the header name the managed credential was written into (so the Debug dump can mask a

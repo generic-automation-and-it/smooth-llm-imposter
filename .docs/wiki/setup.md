@@ -357,6 +357,9 @@ off by default.
 | `POST` | `/v1/responses` | OpenAI dialect (legacy, unprefixed) |
 | `POST` | `/v1/messages` | Anthropic dialect (legacy, unprefixed) |
 | `POST`/`GET`/`PUT`/`DELETE` | `/admin/credentials[...]` | Stored passthrough-credential admin (auth required) |
+| `POST` | `/admin/github-copilot/logins` · `.../{loginId}/complete` | Opt-in GitHub Copilot device login (auth required; flag on only) |
+| `GET` | `/admin/github-copilot/connections` · `.../{connectionId}` · `.../{connectionId}/models` | Copilot connection status and model discovery (auth required; flag on only) |
+| `GET` | `/scalar/v1` · `/openapi/v1.json` | Scalar UI and OpenAPI contract for the Copilot workflow (flag on only) |
 
 Under a dialect prefix, a request with a JSON body containing a `model` is routed by that model (imposter
 match or default passthrough); a body-less request (e.g. `GET /openai/v1/models`) has no model to match and
@@ -375,3 +378,30 @@ never use this store; they authenticate with their config/env `Secret`.
 
 Full setup (enabling it, admin auth, every endpoint incl. the PUTs, Data Protection keys) lives in the
 dedicated guide: **[`setups/credentials.admin-smooth-llm-imposter.md`](setups/credentials.admin-smooth-llm-imposter.md)**.
+
+## GitHub Copilot (opt-in)
+
+Setting `ENABLE_GITHUB_COPILOT=true`, pointing `GithubCopilot__DatabasePath` at a writable directory and mounting
+a dedicated volume adds GitHub Copilot as an upstream. One device login connects a protocol pair —
+`github-anthropic` + `github-openai`, or `<prefix>-github-anthropic` / `<prefix>-github-openai` — and routing
+stays same-dialect: Anthropic callers reach `/v1/messages`, OpenAI/GPT callers reach `/responses`. Copilot Chat
+and cross-dialect translation are not supported.
+
+Register **your own** GitHub OAuth application with device flow enabled (client ID only, no client secret) and
+follow the ordered workflow:
+
+```
+01 POST /admin/github-copilot/logins               → verification URI + user code
+02 POST .../logins/{loginId}/complete              → poll; 202 pending / 200 connected / 503 saved-not-published
+03 GET  .../connections/{connectionId}/models      → account models by Messages/Responses surface
+04 PUT  /admin/providers/<key>                     → From/To mapping (secret-free, existing surface)
+05 GET  .../connections/{connectionId}             → publication + routing readiness
+```
+
+Every response carries a `message` field naming the next step, so curl is self-service. Credentials live in
+SQLite with an isolated Data Protection key ring inside the dedicated volume; removing that exact volume is the
+only way to delete them in v1, and GitHub-side revocation remains manual.
+
+Full guide — Docker run and compose overlay, every curl, status codes, removal semantics and the threat
+boundary: **[`setups/github-copilot.configure-smooth-llm-imposter.md`](setups/github-copilot.configure-smooth-llm-imposter.md)**.
+Design: [HLD 013](../hlds/013-github-copilot/README.md).

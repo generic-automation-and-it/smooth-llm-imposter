@@ -55,6 +55,20 @@ public static class DependencyInjection
         services.AddSingleton<IPostConfigureOptions<GithubCopilotOptions>, GithubCopilotOptionsPostConfigure>();
         services.AddSingleton<IValidateOptions<GithubCopilotOptions>, GithubCopilotOptionsValidator>();
 
+        // Opt-in GitHub Copilot feature (R1-R10). Everything here is inert while the flag is off: the
+        // published-connection registry stays empty, login/refresh never run, and no Copilot store is opened.
+        // Routing reads only the in-memory snapshot; the SQLite store is touched at startup/login/refresh.
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<IGithubCopilotConnectionRegistry, InMemoryGithubCopilotConnectionRegistry>();
+        services.AddSingleton<IGithubCopilotPrefixGate, GithubCopilotPrefixGate>();
+        services.AddSingleton<IGithubCopilotPublisher, GithubCopilotPublisher>();
+        services.AddSingleton<IGithubCopilotLoginCoordinator, GithubCopilotLoginCoordinator>();
+        services.AddSingleton<IGithubCopilotStartupCoordinator, GithubCopilotStartupCoordinator>();
+        services.AddSingleton<IGithubCopilotRefreshCoordinator, GithubCopilotRefreshCoordinator>();
+        services.AddHostedService<GithubCopilotRefreshService>();
+        services.AddScoped<GithubCopilotConnectionStatusReader>();
+        services.AddScoped<GithubCopilotProviderOwnership>();
+
         services.AddMediator(options =>
         {
             options.ServiceLifetime = ServiceLifetime.Scoped;
@@ -79,6 +93,11 @@ public static class DependencyInjection
         services.AddScoped<IValidator<GetAuthorizationOverride.Request>, GetAuthorizationOverride.Validator>();
         services.AddScoped<IValidator<SetAuthorizationOverride.Request>, SetAuthorizationOverride.Validator>();
         services.AddScoped<IValidator<ClearAuthorizationOverride.Request>, ClearAuthorizationOverride.Validator>();
+        services.AddScoped<IValidator<StartGithubCopilotLogin.Request>, StartGithubCopilotLogin.Validator>();
+        services.AddScoped<IValidator<CompleteGithubCopilotLogin.Request>, CompleteGithubCopilotLogin.Validator>();
+        services.AddScoped<IValidator<ListGithubCopilotConnections.Request>, ListGithubCopilotConnections.Validator>();
+        services.AddScoped<IValidator<GetGithubCopilotConnection.Request>, GetGithubCopilotConnection.Validator>();
+        services.AddScoped<IValidator<DiscoverGithubCopilotModels.Request>, DiscoverGithubCopilotModels.Validator>();
 
         return services;
     }

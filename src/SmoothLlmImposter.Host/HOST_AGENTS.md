@@ -97,6 +97,15 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   adapters only; the Application slices own validation, registry mutation, secret preservation, and enable/disable
   semantics. This boundary is secret-free — do not add `Secret` to Host request/response bodies here.
 
+- **GitHub Copilot endpoints (HLD 013)** live in `Endpoints/GithubCopilotEndpoints.cs`, mapped only when the
+  resolved `GithubCopilotOptions.Enabled` is true (the same post-configure the rest of the feature uses). They are
+  admin-authorized, numbered `01`–`05` in their OpenAPI summaries, and every response envelope carries a plain
+  `message` help field. `Configuration/GithubCopilotExceptionHandler` maps the workflow's failure contracts
+  (reserved-key conflict → 409, feature-disabled mutation → 400, retryable GitHub call → 502); Scalar/OpenAPI are
+  mapped alongside the endpoints and document the `X-Admin-Api-Key` scheme.
+- A managed Copilot route's upstream `401` invalidates only the connection revision the request was planned
+  against (`RoutePlan.Copilot`) — never replay the billable POST, and never treat a 403 as revocation.
+
 ## Changelog
 
 | Date | Change | Ref |
@@ -118,3 +127,4 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 | 2026-07-24 | Re-introduced `opencode-go-*` imposter templates into `appsettings.json` as **inert** entries (no populated `Secret`, no `Models`) so Production env vars can fill them without shipping a second config file. `appsettings.Development.json` keeps the Development-only overrides that supply a real `Secret`. Base config still ships no populated `Secret` and no populated `Models`, so the 2026-07-04 invariant (no secrets, no model rewrites in the Release/Docker image) is preserved. | — |
 | 2026-07-06 | Documented the startup-level `UnhandledException` / `UnobservedTaskException` hooks that log last-resort process faults and flush Serilog before termination, closing the observability gap for crashes outside the request pipeline. | — |
 | 2026-10-17 | NativeAOT support: `ImposterJsonContext` source-gen covers all endpoint DTOs (missing metadata crashed the AOT host at startup); `/health` returns a `HealthResponse` record (wire-identical); Serilog levels applied in code instead of `ReadFrom.Configuration` (assembly scanning finds nothing in single-file AOT); EF `ImposterDb` path fail-fasts under AOT. AOT↔JIT parity verified live (`/health`, both `/v1/models`, `--who?` both dialects, admin upsert/get/list/delete, validation 400). | — |
+| 2026-10-20 | Copilot workflow endpoints, exception mapping, and conditional Scalar/OpenAPI registration; 401 revision invalidation. | #126 |

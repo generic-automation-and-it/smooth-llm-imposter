@@ -4,7 +4,7 @@
 
 Stateless same-dialect LLM router: reads the inbound `model`, rewrites it to a configured upstream
 ("imposter") or passes through to the dialect's default provider, optionally injecting prompt caching,
-and streams the response back. Design rationale lives in `.docs/hld/001-llm-imposter-routing/`
+and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imposter-routing/`
 (`README.md` index → `diagrams/`, `nfrs/`, `ladrs/` subfolders).
 
 ## Non-Negotiables
@@ -363,6 +363,24 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
   `.conductor/scripts/imposter-container.sh` (no base-config block — only the Conductor workspace script
   defines it), since the base image cannot ship per-route provider test fixtures.
 
+
+## Managed GitHub Copilot providers (HLD 013)
+
+- **A matched imposter route whose provider key is a reserved Copilot key resolves its credential from the
+  published snapshot** (`IGithubCopilotConnectionRegistry`), not from config, the credential store or SQLite.
+  `ImposterRouter.ResolveCopilotCredentialOverride` produces a `RouteCredentialOverride` with the snapshot's
+  plaintext token, Bearer scheme, forced Bearer header and `BaseUrlOverride` = the connection's validated origin,
+  and stamps `RoutePlan.Copilot` with the exact `(prefix, revision)` so a late 401 can invalidate only that
+  revision. No usable connection ⇒ `503` (fail closed); caller auth is never borrowed.
+- **Reserved keys are feature-owned identity, not ordinary providers.** `github-anthropic`,
+  `github-openai` and `<prefix>-` variants are recognized by an exact terminal suffix in Domain
+  (`GithubCopilotProfileKey`). Generic upsert/delete/enable consult `GithubCopilotProviderOwnership`; startup and
+  runtime registry validation reject a reserved key whose dialect, Bearer scheme, header, origin, default status,
+  Chat/normalization or encryption-strip settings do not match the fixed identity.
+- **Do not add a path/header branch for Copilot anywhere but `UpstreamForwarder`.** The transport policy
+  (`GithubCopilotTransportPolicy`) maps `/v1/messages` and `/responses`, refuses Chat/other paths, writes the
+  GitHub/Copilot metadata headers and drops relayed values that would contradict the managed connection.
+
 ## Changelog
 
 | Date | Change | Ref |
@@ -413,3 +431,4 @@ and streams the response back. Design rationale lives in `.docs/hld/001-llm-impo
 | 2026-07-02 | Hardened `AuthHeader` validation across startup config and `/admin/providers`: blank/malformed names and transport-owned headers (`Content-*`, `Host`, `Transfer-Encoding`) are rejected before the forwarder can try to write credentials into non-request headers. | #53 review |
 | 2026-07-04 | Amended HLD 008 runtime consumption: `ProviderCatalog` now reads the already-seeded `IProviderRegistry` directly in each scoped catalog instead of forcing per-request `IOptionsSnapshot<ImposterOptions>` binding. This preserves next-request mutation visibility while removing the reflection configuration binder from the request path. | — |
 | 2026-07-26 | Ungated the shared-provider secret base fallback in `ImposterOptionsPostConfigure.TrySharedProviderSecretPrefix`: a lone dialect-suffixed provider (`openrouter-anthropic`) now resolves its `Secret` from the bare base env var (`OPENROUTER_API_KEY`) after its own suffixed var, with no sibling/base-provider requirement. The opencode-go shared-base case is unchanged. Added `Lone_dialect_suffixed_provider_resolves_base_api_key_without_sibling`. Doc comment + `ROUTING_AGENTS.md` Key Behavior updated. | #92 |
+| 2026-10-20 | Managed Copilot credential seam: reserved-profile routes resolve from the published snapshot and stamp `RoutePlan.Copilot`; D1 identity enforced in provider CRUD; path/origin policy in `UpstreamForwarder`. Fixed the stale singular `.docs/hld/001-…` link. | #126 |

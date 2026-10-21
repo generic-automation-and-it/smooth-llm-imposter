@@ -1,7 +1,9 @@
 using FluentValidation;
 using Mediator;
 using Microsoft.Extensions.Logging;
+using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Application.Features.Routing;
+using SmoothLlmImposter.Domain.GithubCopilot;
 
 namespace SmoothLlmImposter.Application.Features.ProviderConfiguration;
 
@@ -16,9 +18,26 @@ public static class SetProviderEnabled
 
     public sealed class Handler(
         IProviderRegistry registry,
+        GithubCopilotProviderOwnership ownership,
         ILogger<Handler> logger) : IRequestHandler<Request, ProviderConfigurationResponse?>
     {
-        public ValueTask<ProviderConfigurationResponse?> Handle(Request request, CancellationToken cancellationToken)
+        public async ValueTask<ProviderConfigurationResponse?> Handle(Request request, CancellationToken cancellationToken)
+        {
+            // D1/D2: Enabled stays operator-editable for a reserved key, but the mutation is feature-owned and
+            // shares the per-prefix gate with login commit/publication so the two cannot lose one another.
+            if (GithubCopilotProviderOwnership.TryGetProfile(request.Key, out GithubCopilotProfile profile))
+            {
+                ownership.EnsureFeatureEnabled();
+                using (await ownership.AcquireAsync(profile.Prefix, cancellationToken))
+                {
+                    return await Apply(request);
+                }
+            }
+
+            return await Apply(request);
+        }
+
+        private ValueTask<ProviderConfigurationResponse?> Apply(Request request)
         {
             if (!registry.TryGet(request.Key, out ProviderOptions? existing))
             {

@@ -18,6 +18,7 @@ internal sealed class SqliteGithubCopilotConnectionStore(string? connectionStrin
 
     public void EnsureCreated()
     {
+        EnsureDataDirectoryExists();
         using var connection = Open();
         connection.Open();
 
@@ -66,6 +67,53 @@ internal sealed class SqliteGithubCopilotConnectionStore(string? connectionStrin
         transaction.Commit();
     }
 
+    public void VerifyWritable()
+    {
+        EnsureDataDirectoryExists();
+        using var connection = Open();
+        connection.Open();
+
+        var probe = new GithubCopilotConnection(
+            Prefix: $"probe-{Guid.NewGuid():N}",
+            ConnectionId: Guid.NewGuid().ToString("N"),
+            GitHubUser: "native-aot",
+            ClientId: "probe",
+            ApiOrigin: "https://api.githubcopilot.com",
+            AccessTokenCiphertext: "cipher:probe",
+            RefreshTokenCiphertext: null,
+            ExpiresAtUtc: null,
+            Revision: 1);
+
+        // Insert + read inside one transaction, then roll back: the write path is exercised without any
+        // durable residue, so a crash mid-probe cannot leave a phantom connection for startup hydration.
+        using var transaction = connection.BeginTransaction();
+
+        using var insert = connection.CreateCommand();
+        insert.Transaction = transaction;
+        insert.CommandText =
+            """
+            INSERT INTO github_copilot_connections
+                (Prefix, ConnectionId, GitHubUser, ClientId, ApiOrigin,
+                 AccessTokenCiphertext, RefreshTokenCiphertext, ExpiresAtUtc, Revision)
+            VALUES
+                (@Prefix, @ConnectionId, @GitHubUser, @ClientId, @ApiOrigin,
+                 @AccessTokenCiphertext, @RefreshTokenCiphertext, @ExpiresAtUtc, @Revision);
+            """;
+        AddRowParameters(insert, probe);
+        insert.ExecuteNonQuery();
+
+        using var read = connection.CreateCommand();
+        read.Transaction = transaction;
+        read.CommandText = "SELECT GitHubUser FROM github_copilot_connections WHERE Prefix = @Prefix;";
+        read.Parameters.AddWithValue("@Prefix", probe.Prefix);
+        if (read.ExecuteScalar() is not string user || user != probe.GitHubUser)
+        {
+            throw new InvalidOperationException("GitHub Copilot SQLite store write probe failed.");
+        }
+
+        transaction.Rollback();
+    }
+
     public void Upsert(GithubCopilotConnection row)
     {
         using var connection = Open();
@@ -111,6 +159,47 @@ internal sealed class SqliteGithubCopilotConnectionStore(string? connectionStrin
 
         using var reader = command.ExecuteReader();
         return reader.Read() ? ReadRow(reader) : null;
+    }
+
+    // SQLite creates the database file but never its parent directory. The Docker volume provides one; a bare
+    // configured path may not, so the feature creates it on first enabled use (never while disabled).
+    private void EnsureDataDirectoryExists()
+    {
+        if (connectionString is null)
+        {
+            return;
+        }
+
+        string dataSource = new SqliteConnectionStringBuilder(connectionString).DataSource;
+        string? directory = Path.GetDirectoryName(Path.GetFullPath(dataSource));
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+    }
+
+    public GithubCopilotConnection[] List()
+    {
+        using var connection = Open();
+        connection.Open();
+
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            """
+            SELECT Prefix, ConnectionId, GitHubUser, ClientId, ApiOrigin,
+                   AccessTokenCiphertext, RefreshTokenCiphertext, ExpiresAtUtc, Revision
+            FROM github_copilot_connections
+            ORDER BY Prefix;
+            """;
+
+        var rows = new List<GithubCopilotConnection>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            rows.Add(ReadRow(reader));
+        }
+
+        return rows.ToArray();
     }
 
     public bool Exists(string prefix) => Get(prefix) is not null;

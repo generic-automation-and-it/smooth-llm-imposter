@@ -150,6 +150,44 @@ public sealed class SqliteGithubCopilotConnectionStoreTests : IDisposable
     }
 
     [Fact]
+    public void EnsureCreated_creates_a_missing_parent_directory()
+    {
+        string nested = Path.Combine(Path.GetTempPath(), $"copilot-nested-{Guid.NewGuid():N}", "data", "copilot.db");
+        try
+        {
+            var store = new SqliteGithubCopilotConnectionStore(SqliteGithubCopilotConnectionStore.BuildConnectionString(nested));
+
+            store.EnsureCreated();
+
+            File.Exists(nested).ShouldBeTrue();
+        }
+        finally
+        {
+            string root = Path.GetDirectoryName(Path.GetDirectoryName(nested)!)!;
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void List_returns_every_row_ordered_by_prefix()
+    {
+        var store = NewStore();
+        EnsureSchema(store);
+        store.Upsert(Row("zeta"));
+        store.Upsert(Row("alpha"));
+
+        GithubCopilotConnection[] rows = store.List();
+
+        rows.Length.ShouldBe(2);
+        rows[0].Prefix.ShouldBe("alpha");
+        rows[1].Prefix.ShouldBe("zeta");
+        rows.ShouldAllBe(row => row.AccessTokenCiphertext == "cipher:access:abc");
+    }
+
+    [Fact]
     public void Delete_removes_the_row_and_Existence_tracks_it()
     {
         var store = NewStore();
@@ -181,11 +219,30 @@ public sealed class SqliteGithubCopilotConnectionStoreTests : IDisposable
         var bootstrap = new GithubCopilotBootstrap(
             NullLogger<GithubCopilotBootstrap>.Instance,
             Options.Create(new GithubCopilotOptions { Enabled = true, DatabasePath = _databasePath }),
-            store);
+            store,
+            new NoopStartupCoordinator());
         await bootstrap.StartAsync(TestContext.Current.CancellationToken);
 
         store.Get("company1")!.ConnectionId.ShouldBe(existing.ConnectionId);
         CountRows(store).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Bootstrap_leaves_no_probe_row_behind()
+    {
+        var store = NewStore();
+        EnsureSchema(store);
+
+        var bootstrap = new GithubCopilotBootstrap(
+            NullLogger<GithubCopilotBootstrap>.Instance,
+            Options.Create(new GithubCopilotOptions { Enabled = true, DatabasePath = _databasePath }),
+            store,
+            new NoopStartupCoordinator());
+        await bootstrap.StartAsync(TestContext.Current.CancellationToken);
+
+        // The writable probe is a rolled-back transaction, so a crash between start and probe cannot leave a
+        // phantom connection for startup hydration to publish.
+        store.List().ShouldBeEmpty();
     }
 
     [Fact]
@@ -194,11 +251,17 @@ public sealed class SqliteGithubCopilotConnectionStoreTests : IDisposable
         var bootstrap = new GithubCopilotBootstrap(
             NullLogger<GithubCopilotBootstrap>.Instance,
             Options.Create(new GithubCopilotOptions { Enabled = false, DatabasePath = _databasePath }),
-            NewStore());
+            NewStore(),
+            new NoopStartupCoordinator());
 
         await bootstrap.StartAsync(TestContext.Current.CancellationToken);
 
         File.Exists(_databasePath).ShouldBeFalse();
+    }
+
+    private sealed class NoopStartupCoordinator : IGithubCopilotStartupCoordinator
+    {
+        public void Start() { }
     }
 
     private static long CountRows(SqliteGithubCopilotConnectionStore store)

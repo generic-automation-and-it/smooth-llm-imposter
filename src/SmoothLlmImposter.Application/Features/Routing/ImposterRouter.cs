@@ -2,7 +2,9 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using SmoothLlmImposter.Application.Common.Persistence;
 using SmoothLlmImposter.Application.Features.AuthorizationOverride;
+using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Domain.Credentials;
+using SmoothLlmImposter.Domain.GithubCopilot;
 using SmoothLlmImposter.Domain.Routing;
 
 namespace SmoothLlmImposter.Application.Features.Routing;
@@ -14,6 +16,8 @@ internal sealed class ImposterRouter : IImposterRouter
     private readonly ISecretProtector _secretProtector;
     private readonly IAuthorizationOverrideSwitch _overrideSwitch;
     private readonly IReadOnlyDictionary<ApiDialect, IRequestTransformer> _transformers;
+    private readonly IGithubCopilotConnectionRegistry _copilotConnections;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<ImposterRouter> _logger;
 
     public ImposterRouter(
@@ -22,6 +26,8 @@ internal sealed class ImposterRouter : IImposterRouter
         ISecretProtector secretProtector,
         IAuthorizationOverrideSwitch overrideSwitch,
         IEnumerable<IRequestTransformer> transformers,
+        IGithubCopilotConnectionRegistry copilotConnections,
+        TimeProvider timeProvider,
         ILogger<ImposterRouter> logger)
     {
         _resolver = resolver;
@@ -29,6 +35,8 @@ internal sealed class ImposterRouter : IImposterRouter
         _secretProtector = secretProtector;
         _overrideSwitch = overrideSwitch;
         _transformers = transformers.ToDictionary(t => t.Dialect);
+        _copilotConnections = copilotConnections;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -65,9 +73,17 @@ internal sealed class ImposterRouter : IImposterRouter
         }
 
         string transformedBody = transformer.Transform(requestBody, decision, model, sessionIdentity);
-        RouteCredentialOverride? credentialOverride = decision.IsImposter
-            ? null
-            : await ResolvePassthroughCredentialAsync(dialect, decision.Provider.CredentialProviderName, cancellationToken);
+
+        RouteCredentialOverride? credentialOverride;
+        GithubCopilotRouteBinding? copilotBinding = null;
+        if (decision.IsImposter)
+        {
+            credentialOverride = ResolveCopilotCredentialOverride(decision, out copilotBinding);
+        }
+        else
+        {
+            credentialOverride = await ResolvePassthroughCredentialAsync(dialect, decision.Provider.CredentialProviderName, cancellationToken);
+        }
 
         string routeKind = decision.IsImposter ? "imposter" : "passthrough";
         _logger.LogInformation(
@@ -83,7 +99,7 @@ internal sealed class ImposterRouter : IImposterRouter
             DescribeAuth(decision, dialect, credentialOverride),
             sessionIdentity.LogToken);
 
-        return new RoutePlan(decision, model, transformedBody, sessionIdentity, credentialOverride);
+        return new RoutePlan(decision, model, transformedBody, sessionIdentity, credentialOverride, copilotBinding);
     }
 
     public async Task<RoutePlan> PlanPassthroughAsync(
@@ -108,6 +124,43 @@ internal sealed class ImposterRouter : IImposterRouter
 
         return new RoutePlan(decision, InboundModel: string.Empty, TransformedBody: string.Empty, SessionIdentity: SessionIdentity.None, credentialOverride);
     }
+
+    /// <summary>
+    /// The narrow managed-Copilot branch at the credential seam (R4): a matched imposter route whose provider
+    /// key is a reserved Copilot profile takes the prefix's published connection revision as its Bearer token
+    /// and effective base URL. The snapshot is read once per request, so auth and origin always come from the
+    /// same account revision. There is no fallback to caller auth, a config secret, or an older token: a missing,
+    /// expired or reauthentication-required connection fails closed (503).
+    /// </summary>
+    private RouteCredentialOverride? ResolveCopilotCredentialOverride(RouteDecision decision, out GithubCopilotRouteBinding? binding)
+    {
+        binding = null;
+
+        if (!GithubCopilotProfileKey.TryParse(decision.Provider.CredentialProviderName, out GithubCopilotProfile? profile))
+        {
+            return null;
+        }
+
+        GithubCopilotPublishedConnection? connection = _copilotConnections.GetByPrefix(profile!.Prefix);
+        if (connection is null || !connection.HasUsableCredentialAt(_timeProvider.GetUtcNow()))
+        {
+            throw new RoutingException(
+                $"No usable GitHub Copilot credential is connected for prefix '{DescribeCopilotPrefix(profile.Prefix)}'. " +
+                "Complete a login (or reauthorize the saved connection) before routing to this provider.",
+                statusCode: 503);
+        }
+
+        binding = new GithubCopilotRouteBinding(connection.Prefix, connection.Revision);
+        return new RouteCredentialOverride(
+            connection.AccessToken,
+            CredentialAuthScheme.Bearer,
+            new Uri(connection.ApiOrigin),
+            AnthropicVersion: null,
+            ForceBearer: true);
+    }
+
+    private static string DescribeCopilotPrefix(string prefix) =>
+        string.IsNullOrEmpty(prefix) ? "(unprefixed)" : prefix;
 
     private async Task<RouteCredentialOverride?> ResolvePassthroughCredentialAsync(ApiDialect dialect, string providerName, CancellationToken cancellationToken)
     {

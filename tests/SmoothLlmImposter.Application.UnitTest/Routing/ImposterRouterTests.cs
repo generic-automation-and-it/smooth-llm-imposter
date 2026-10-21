@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmoothLlmImposter.Application.Common.Persistence;
 using SmoothLlmImposter.Application.Features.AuthorizationOverride;
+using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Domain.Credentials;
 using SmoothLlmImposter.Domain.Routing;
@@ -36,6 +37,8 @@ public class ImposterRouterTests
             new StubSecretProtector(),
             overrideSwitch ?? new StubOverrideSwitch(),
             transformers,
+            new InMemoryGithubCopilotConnectionRegistry(),
+            TimeProvider.System,
             logger ?? NullLogger<ImposterRouter>.Instance);
     }
 
