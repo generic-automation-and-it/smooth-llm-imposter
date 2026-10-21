@@ -6,7 +6,7 @@ off it opens no database, exposes no endpoints and adds no documentation page.
 
 - **Design:** [HLD 013](../../hlds/013-github-copilot/README.md)
 - **Tracker:** [#126](https://github.com/generic-automation-and-it/smooth-llm-imposter/issues/126)
-- **Ports in this guide:** `5080` for the Conductor sandbox container. Substitute the host port of your run mode
+- **Ports in this guide:** `5080` for the plain Docker example. Substitute the host port of your run mode
   (`docker-compose.yml` publishes `5066`; a local `dotnet run` defaults to the launch profile's port).
 
 ## 1. Register your own GitHub OAuth application
@@ -24,6 +24,10 @@ always shares the client ID used at its login.
 ## 2. Enable the feature with a dedicated volume
 
 The database (`copilot.db`) and an isolated Data Protection key ring (`keys/`) live under `/data/github-copilot`.
+Set `ADMIN_KEY` before starting the container and reuse that value for the curl commands below. For Compose,
+provide `Admin__ApiKey` in your service's `environment` (for example in a local override); exporting
+`ADMIN_KEY` alone does not forward it through the shared overlay.
+
 Use the compose overlay:
 
 ```bash
@@ -49,6 +53,50 @@ application behavior; it cannot instruct Docker to create a mount, so the volume
 
 Optional: `-e GITHUB_COPILOT_CLIENT_ID=Ov...` sets a default application. Operators may still supply their own
 `clientId` on each login.
+
+### Configure model mappings at Docker startup (recommended)
+
+The mapping PUT in step **04 is optional**, not a required provisioning step. If you know your target model IDs,
+you can configure the provider pair and mappings when the container is created. Add these `-e` arguments to the
+`docker run` command above, **before the image name**:
+
+```bash
+  -e 'Imposter__Providers__company1-github-anthropic__Dialect=anthropic' \
+  -e 'Imposter__Providers__company1-github-anthropic__BaseUrl=https://api.githubcopilot.com' \
+  -e 'Imposter__Providers__company1-github-anthropic__AuthScheme=Bearer' \
+  -e 'Imposter__Providers__company1-github-anthropic__OpenAiUpstreamApi=responses' \
+  -e 'Imposter__Providers__company1-github-anthropic__RequestNormalization=none' \
+  -e 'Imposter__Providers__company1-github-anthropic__Models__0__From=claude-*' \
+  -e 'Imposter__Providers__company1-github-anthropic__Models__0__To=claude-haiku-4.5' \
+  -e 'Imposter__Providers__company1-github-openai__Dialect=openai' \
+  -e 'Imposter__Providers__company1-github-openai__BaseUrl=https://api.githubcopilot.com' \
+  -e 'Imposter__Providers__company1-github-openai__AuthScheme=Bearer' \
+  -e 'Imposter__Providers__company1-github-openai__OpenAiUpstreamApi=responses' \
+  -e 'Imposter__Providers__company1-github-openai__RequestNormalization=none' \
+  -e 'Imposter__Providers__company1-github-openai__Models__0__From=gpt-*' \
+  -e 'Imposter__Providers__company1-github-openai__Models__0__To=gpt-5.3-codex' \
+```
+
+These are argument fragments, not a separate shell command. For Compose, put the same names and values in a
+local service `environment` override. They can also be supplied through a mounted appsettings file; keep routing
+configuration separate from the credential database. Do not put OAuth tokens in `Secret` or bake them into an
+image.
+
+Use the same prefix (`company1` here) when starting login. For the unprefixed pair, remove `company1-` from both
+provider keys and omit `prefix` in step 01. The target IDs above are examples: verify that your account advertises
+them in step 03. Existing first-match-wins routing still applies if another provider has an overlapping mapping.
+
+`BaseUrl=https://api.githubcopilot.com` is a valid initial configuration value, **not an instruction to choose
+the account's final origin manually**. Successful login/startup hydration replaces it with the validated origin
+returned by GitHub (which may be an enterprise Copilot origin), preserving your mappings and Enabled setting.
+
+On a fresh installation, browser approval in steps 01–02 is still required: the OAuth client ID identifies an
+application, not an authenticated account. On later starts, saved credentials and the key ring are hydrated from
+the same volume; no new login is needed while they remain usable. Keep the mappings in your Docker/Compose or
+appsettings definition so they reload across image replacement, then skip step 04 and verify the route.
+
+This is configuration at `docker run`/Compose startup. `docker load` only imports an image archive; it does not
+start or configure the service.
 
 ## 3. The ordered workflow (curl)
 
@@ -112,34 +160,29 @@ Returns account-advertised models with the endpoint surfaces they support (`mess
 entries are filtered out because Copilot Chat is out of scope. Discovery never creates a mapping or enables a
 provider.
 
-### 04 — Configure imposter mappings
+### 04 — Optional runtime mapping edits
 
-Use the existing secret-free provider endpoint. Models and `Enabled` are editable; identity (dialect, Bearer
-auth, origin) is fixed.
+Skip this step if you configured mappings at container startup. Otherwise, use the existing secret-free provider
+endpoint after login, or use it to make a live change without recreating the container. Models and `Enabled` are
+editable; identity (dialect, Bearer auth, origin) is fixed.
+
+Fetch the current definition and change only Models/Enabled. This optional example uses `jq` and preserves the
+account-discovered `baseUrl` instead of overwriting it with a hardcoded public origin:
 
 ```bash
-curl -s -X PUT "$BASE/admin/providers/company1-github-anthropic" \
-  -H "X-Admin-Api-Key: $ADMIN_KEY" -H "Content-Type: application/json" \
-  -d '{
-        "name": null,
-        "dialect": "anthropic",
-        "baseUrl": "https://api.githubcopilot.com",
-        "authScheme": "Bearer",
-        "authHeader": null,
-        "isDefault": false,
-        "enabled": true,
-        "anthropicVersion": null,
-        "openAiUpstreamApi": "responses",
-        "requestNormalization": "none",
-        "sessionForwarding": null,
-        "stripEncryptedContent": null,
-        "timeoutSeconds": null,
-        "models": [{"from":"claude-*","to":"claude-haiku-4.5","caching":false}]
-      }'
+PROVIDER=company1-github-anthropic
+curl --fail-with-body -sS "$BASE/admin/providers/$PROVIDER" \
+  -H "X-Admin-Api-Key: $ADMIN_KEY" |
+  jq '{dialect, baseUrl, authScheme, authHeader, isDefault, enabled, anthropicVersion, openAiUpstreamApi, requestNormalization, sessionForwarding, stripEncryptedContent, timeoutSeconds, models} | .models = [{"from":"claude-*","to":"claude-haiku-4.5","caching":false}] | .enabled = true' |
+  curl --fail-with-body -sS -X PUT "$BASE/admin/providers/$PROVIDER" \
+    -H "X-Admin-Api-Key: $ADMIN_KEY" -H "Content-Type: application/json" \
+    --data-binary @-
 ```
 
-Repeat for `company1-github-openai` with `"dialect":"openai"` and a GPT mapping. Runtime mappings are
-ephemeral (HLD 008): after a restart, config/env mappings return and API-only mappings must be reapplied.
+Repeat the GET/edit/PUT for `company1-github-openai` with a GPT mapping, keeping its returned identity unchanged.
+`--fail-with-body` requires curl >= 7.76; where it is unavailable, substitute `-f` in the commands above.
+Runtime mappings are ephemeral (HLD 008): after a restart, config/env mappings return and API-only edits are lost.
+To make a live edit survive recreation, also update the Docker/Compose or appsettings definition.
 
 ### 05 — Verify connection and route
 

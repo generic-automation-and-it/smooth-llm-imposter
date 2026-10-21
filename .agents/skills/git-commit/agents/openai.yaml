@@ -1,5 +1,0 @@
-interface:
-  display_name: "Git Commit"
-  short_description: "Commit changes with conventional commits format"
-  default_prompt: "Commit current changes using conventional commits format. Analyze the diff, group changes into logical units, and create well-scoped commits."
-  model: gpt-5.4-mini

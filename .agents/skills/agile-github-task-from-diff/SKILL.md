@@ -64,8 +64,7 @@ python3 .agents/skills/agile-github-task-from-diff/scripts/create_github_task_fr
 ## Rename Branch After Creation
 
 After the task issue is created, rename the **current local branch** so it conforms to the
-`<type>/<issue>-short-description` standard enforced by the
-[`git-commit-push-pr`](../git-commit-push-pr/SKILL.md) skill and `.agents/rules/git/git-policy.instructions.md`
+`<type>/<issue>-short-description` standard enforced by `.agents/rules/git/git-policy.instructions.md`
 (the source of truth). This guarantees the downstream PR title and `Closes #<issue>` link can be derived
 from the branch name.
 
@@ -75,7 +74,7 @@ Notes:
 
 - **Skipped on `--dry-run`** — nothing is created, so there is no issue number to rename against.
 - If a conforming `<type>` or slug cannot be determined, **stop and ask the user** — do not guess, matching the format-enforcement rule in `git-policy.instructions.md`.
-- If the branch was already pushed, the rename stays local; the subsequent `git-commit-push-pr` run pushes the renamed branch (its `--issue` handling parses the same number back out of the branch name).
+- If the branch was already pushed, the rename stays local; push the renamed branch separately (the issue number parses back out of the branch name for the downstream PR title and `Closes #<issue>` link).
 
 ## Vertical vs Horizontal Slicing
 

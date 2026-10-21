@@ -27,19 +27,12 @@ This is a unified AI development experience folder that centralizes skills, prom
 | `.agents/rules/` | Enforced AI development rules (workflow rules, coding standards) |
 | `.agents/settings.json` | Tool permissions, compile/test commands, hook registrations — every script in `.agents/hooks/` MUST be registered here or it silently never fires (#32) |
 | `.agents/skills/` | Executable skills (multi-file workflows) — flat dirs, category-prefixed folder names |
+| `.agents/skills/AGENTS.md` | Ownership boundary: only the two `imposter-*` skills are maintained by this repository |
 | `.agents/skills/agile-github-task-from-diff/` | Create a GitHub Task (sub-issue) from the current git diff vs main |
 | `.agents/skills/ai-brain-dump/` | Listen-first capture session; synthesize on request |
-| `.agents/skills/ai-mansplain/` | Reformat this turn's reply into terse, high-density output with a TL;DR |
 | `.agents/skills/ai-review/` | Vendored `/ai-review` consumer skill (parse AI PR review → apply fix/skip); generator stays remote via `.github/workflows/pipeline-code-review-report.yml` |
-| `.agents/skills/ai-template-sync/` | UPSERT the smooth-devex-template agentic scaffold into an existing repo |
-| `.agents/skills/context-load-context/` | Load or create functional `*_AGENTS.md` context files |
-| `.agents/skills/context-load-agents-context/` | Load ancestor AGENTS.md context for a target file |
-| `.agents/skills/git-commit/` | Commit with conventional format |
-| `.agents/skills/git-commit-push/` | Commit and push to remote |
-| `.agents/skills/git-commit-push-pr/` | Commit, push, and create/update PRs |
-| `.agents/skills/git-commit-review-push/` | Commit, append `/ai-review` to the final commit, and push |
-| `.agents/skills/git-sync/` | Sync with main (optionally auto-resolve conflicts) |
-| `.agents/skills/manage-rule-system/` | Create/update rule files in `.agents/rules/` |
+| `.agents/skills/imposter-newsession/` | OWNED: mint a synthetic upstream session mapping |
+| `.agents/skills/imposter-who/` | OWNED: inspect resolved upstream routing without calling the model |
 | `.agents/templates/` | Document templates (AGENTS.md, README.md, work task promote templates) |
 | `.claude` → `.agents` | Symbolic link for Claude Code compatibility |
 | `.codex` → `.agents` | Symbolic link for OpenAI Codex compatibility |
@@ -107,12 +100,17 @@ This is a unified AI development experience folder that centralizes skills, prom
   - Copilot reads rules with no server-side symlink resolution required.
   - Local agents resolve the same files through a two-hop symlink (`.claude/rules → .agents/rules → .github/instructions`) — fine on local filesystems.
   - `.agents/` remains the conceptual hub for skills/hooks/AGENTS.md, but the rule *content* now lives under `.github/`; every path reference to `.agents/rules/...` still resolves via the symlink, so hooks and skill docs did not need path edits.
-  - `ai-template-sync` provisions new repos with the inverted topology (real `.github/instructions` + `.agents/rules` symlink).
+  - While `ai-template-sync` was vendored, it provisioned new repos with the inverted topology (real `.github/instructions` + `.agents/rules` symlink). That distributor has since been removed; new repos now start from the standard-tooling installation in `COLLABORATION.md`, so read this bullet as historical.
   - **Open item**: this fixes *delivery* (Copilot can now see the rules), not *enforcement* (Copilot still treats them as soft guidance with no phase-gate hooks) and assumes Copilot does not recurse symlinked dirs — verify Copilot now honours subfolder rules (`backend/`, `git/`, `meta/`) on a live run.
 
 ## 📊 Setup Instructions
 
 **The rule files physically live in `.github/instructions/` (a real, committed directory). Symlinks (`.claude`, `.codex`, `.cursor`, `CLAUDE.md`, `GEMINI.md`, and `.agents/rules → ../.github/instructions`) are committed to git and available immediately after clone. GitHub Copilot reads path-specific rules natively from `.github/instructions/**.instructions.md` (no symlink resolution required) and repo-wide context from root `AGENTS.md`, so no setup script is required.**
+
+For standard development skills, rules, and hooks, use the recommended global installer in
+[`COLLABORATION.md`](../COLLABORATION.md#recommended-standard-ai-tooling). The listed generic skill
+copies and the two hook wrappers that depended on them are no longer vendored here. Agents must still
+load relevant functional context before editing; do not assume a repository hook does it automatically.
 
 ```bash
 # Verify links are present after clone
@@ -136,6 +134,7 @@ ls -la | grep -E '(\.claude|\.codex|\.cursor)'
 
 | Date | Change | Reason |
 | :---- | :---- | :---- |
+| 2026-10-21 | Documented the two repository-owned imposter skills, removed the requested generic skill copies and dependent hook registrations, and moved standard-tooling setup to `COLLABORATION.md`. | |
 | 2026-05-30 | Initial version. | |
 | 2026-06-10 | Registered orphaned `UserPromptSubmit` hooks (`worktask-create.sh`, `agentmd-create-update.sh`, `knowledge-rule-enforce.sh`) in `settings.json` — they existed on disk but never fired. | #32 |
 | 2026-06-20 | Vendored `/ai-review` consumer skill (minimal install); added thin caller `.github/workflows/pipeline-code-review-report.yml` (uses upstream `@main`, provider OpenAI); permitted skill + script in `settings.json`. | |

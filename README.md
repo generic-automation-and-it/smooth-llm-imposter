@@ -36,7 +36,7 @@ the published GHCR image, and point your client's base URL at it. Full setup:
 **Contents:** [TL;DR](#tldr) · [Use cases](#use-cases) · [How it works](#how-it-works) ·
 [Quick start](#quick-start) · [GitHub Copilot (opt-in)](#github-copilot-opt-in) ·
 [Customized switches](#customized-switches) · [Skills](#skills) ·
-[Documentation](#documentation) · [Contributing](#contributing)
+[Documentation](#documentation) · [Collaboration](COLLABORATION.md)
 
 ---
 
@@ -225,9 +225,7 @@ Both scripts auto-detect the dialect from `OPENAI_BASE_URL` / `ANTHROPIC_BASE_UR
 
 ---
 
-## Contributing
+## Collaboration
 
-- Work on a branch off `main`: `<type>/<ticket>-short-description` (e.g. `feat/15-add-dialect-prefix`).
-- Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org). See
-  [`.agents/rules/git/`](.agents/rules/git/).
-- Every PR should create or update at least one `*_AGENTS.md` context file.
+See [Collaboration](COLLABORATION.md) for contribution conventions, recommended standard AI tooling,
+and repository-owned skill maintenance.

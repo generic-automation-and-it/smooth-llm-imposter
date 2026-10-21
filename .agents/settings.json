@@ -36,19 +36,9 @@
       "Bash(.agents/skills/ai-review/scripts/copilot-review.sh:*)",
       "Skill(agile-github-task-from-diff)",
       "Skill(ai-brain-dump)",
-      "Skill(ai-mansplain)",
       "Skill(ai-review)",
-      "Skill(ai-template-sync)",
-      "Skill(context-load-agents-context)",
-      "Skill(context-load-context)",
-      "Skill(git-commit)",
-      "Skill(git-commit-push)",
-      "Skill(git-commit-push-pr)",
-      "Skill(git-commit-review-push)",
-      "Skill(git-sync)",
       "Skill(imposter-newsession)",
       "Skill(imposter-who)",
-      "Skill(manage-rule-system)",
       "Bash(node:*)",
       "Bash(powershell.exe:*)",
       "Bash(python3:*)",
@@ -91,26 +81,9 @@
             "command": "python3 .agents/hooks/slnx-docs-sync.py"
           }
         ]
-      },
-      {
-        "matcher": "Read|Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".agents/hooks/load-agents-context.sh"
-          }
-        ]
       }
     ],
     "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".agents/hooks/manage-rule-system-context.sh"
-          }
-        ]
-      },
       {
         "hooks": [
           {
