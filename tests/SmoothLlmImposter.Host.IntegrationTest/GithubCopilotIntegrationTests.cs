@@ -31,6 +31,28 @@ public class GithubCopilotIntegrationTests
     }
 
     [Fact]
+    public async Task OpenApi_requires_the_admin_key_only_on_admin_operations()
+    {
+        using var fixture = new GithubCopilotAppFixture();
+        using HttpClient client = fixture.CreateClient();
+
+        using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(
+            await client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken));
+        System.Text.Json.JsonElement paths = document.RootElement.GetProperty("paths");
+
+        static bool RequiresAdminKey(System.Text.Json.JsonElement path) =>
+            path.EnumerateObject().Any(operation =>
+                operation.Value.TryGetProperty("security", out System.Text.Json.JsonElement security) &&
+                security.GetArrayLength() > 0);
+
+        RequiresAdminKey(paths.GetProperty("/admin/github-copilot/logins")).ShouldBeTrue();
+        RequiresAdminKey(paths.GetProperty("/admin/providers")).ShouldBeTrue();
+        RequiresAdminKey(paths.GetProperty("/health")).ShouldBeFalse();
+        RequiresAdminKey(paths.GetProperty("/v1/messages")).ShouldBeFalse();
+        document.RootElement.TryGetProperty("security", out _).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task Complete_before_the_polling_interval_returns_202_with_retry_after_and_a_next_step_message()
     {
         using var fixture = new GithubCopilotAppFixture();

@@ -5,7 +5,9 @@ namespace SmoothLlmImposter.Host.Configuration;
 
 /// <summary>
 /// Documents the existing admin API-key scheme in the OpenAPI contract so Scalar shows one authentication
-/// affordance for every setup, connection and model operation. The header name matches
+/// affordance for every setup, connection and model operation. The requirement is attached per <c>/admin</c>
+/// operation, never document-wide, so the public proxy routes and <c>/health</c> are not shown as needing the
+/// admin secret (a generated client would otherwise send it on them). The header name matches
 /// <see cref="AdminApiKeyAuthenticationHandler"/>; no token is ever placed in a URL.
 /// </summary>
 internal sealed class AdminApiKeyDocumentTransformer : IOpenApiDocumentTransformer
@@ -24,11 +26,22 @@ internal sealed class AdminApiKeyDocumentTransformer : IOpenApiDocumentTransform
             Description = "Admin API key (Admin:ApiKey). Required for every /admin endpoint."
         };
 
-        document.Security ??= [];
-        document.Security.Add(new OpenApiSecurityRequirement
+        foreach ((string path, IOpenApiPathItem item) in document.Paths)
         {
-            [new OpenApiSecuritySchemeReference(SchemeId, document)] = []
-        });
+            if (!path.StartsWith("/admin/", StringComparison.Ordinal) || item.Operations is null)
+            {
+                continue;
+            }
+
+            foreach (OpenApiOperation operation in item.Operations.Values)
+            {
+                operation.Security ??= [];
+                operation.Security.Add(new OpenApiSecurityRequirement
+                {
+                    [new OpenApiSecuritySchemeReference(SchemeId, document)] = []
+                });
+            }
+        }
 
         return Task.CompletedTask;
     }
