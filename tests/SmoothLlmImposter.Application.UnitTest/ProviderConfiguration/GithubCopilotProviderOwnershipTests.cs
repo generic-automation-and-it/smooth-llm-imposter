@@ -107,6 +107,42 @@ public class GithubCopilotProviderOwnershipTests
     }
 
     [Fact]
+    public async Task Generic_upsert_rejects_enabling_encrypted_content_stripping()
+    {
+        var harness = new GithubCopilotHarness();
+        harness.Registry.Seed(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
+        {
+            ["ordinary"] = new() { Dialect = "openai", BaseUrl = "https://ordinary.example" },
+            [AnthropicKey] = CopilotProvider("anthropic", "/v1/messages")
+        });
+        var handler = new UpsertProvider.Handler(harness.Registry, Ownership(harness.Store), NullLogger<UpsertProvider.Handler>.Instance);
+
+        ValidationException ex = await Should.ThrowAsync<ValidationException>(() => handler.Handle(
+            new UpsertProvider.Request(AnthropicKey, Body(stripEncryptedContent: true), Actor: "test"),
+            TestContext.Current.CancellationToken).AsTask());
+
+        ex.Errors.ShouldContain(failure => failure.PropertyName == "StripEncryptedContent");
+    }
+
+    [Fact]
+    public async Task Generic_upsert_treats_a_trailing_slash_on_the_origin_as_unchanged_identity()
+    {
+        var harness = new GithubCopilotHarness();
+        harness.Registry.Seed(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
+        {
+            ["ordinary"] = new() { Dialect = "openai", BaseUrl = "https://ordinary.example" },
+            [AnthropicKey] = CopilotProvider("anthropic", "/v1/messages")
+        });
+        var handler = new UpsertProvider.Handler(harness.Registry, Ownership(harness.Store), NullLogger<UpsertProvider.Handler>.Instance);
+
+        ProviderConfigurationResponse response = await handler.Handle(
+            new UpsertProvider.Request(AnthropicKey, Body(baseUrl: "https://api.githubcopilot.com/"), Actor: "test"),
+            TestContext.Current.CancellationToken);
+
+        response.Key.ShouldBe(AnthropicKey);
+    }
+
+    [Fact]
     public async Task Generic_upsert_accepts_a_mapping_and_enabled_edit_with_unchanged_identity()
     {
         var harness = new GithubCopilotHarness();
