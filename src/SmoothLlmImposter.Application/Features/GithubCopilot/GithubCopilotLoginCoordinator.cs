@@ -304,7 +304,7 @@ internal sealed class GithubCopilotLoginCoordinator(
             {
                 store.Upsert(connection);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogError(ex, "Could not save GitHub Copilot connection for login {LoginId}", flow.LoginId);
                 return Retryable(flow, "save_failed");

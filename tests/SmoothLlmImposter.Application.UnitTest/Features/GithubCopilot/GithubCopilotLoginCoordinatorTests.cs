@@ -274,6 +274,19 @@ public class GithubCopilotLoginCoordinatorTests
     }
 
     [Fact]
+    public async Task A_cancelled_save_propagates_cancellation_instead_of_reporting_a_retryable_failure()
+    {
+        var harness = new GithubCopilotHarness();
+        GithubCopilotLoginStartResponse start = await StartAsync(harness);
+        harness.Time.Advance(TimeSpan.FromSeconds(5));
+        harness.OAuth.PollResults.Enqueue(new GithubTokenPollResult(GithubTokenPollKind.Success, "access-1", "refresh-1"));
+        harness.Store.CancelOnUpsert = true;
+
+        await Should.ThrowAsync<OperationCanceledException>(
+            () => harness.Coordinator.CompleteAsync(start.LoginId, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task Publication_failure_returns_503_with_the_saved_revision_and_a_retry_republishes_only()
     {
         var harness = new GithubCopilotHarness();

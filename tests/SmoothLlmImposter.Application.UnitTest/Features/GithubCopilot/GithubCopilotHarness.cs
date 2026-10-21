@@ -95,6 +95,8 @@ internal sealed class StubConnectionStore : IGithubCopilotConnectionStore
 
     public bool FailOnUpsert { get; set; }
 
+    public bool CancelOnUpsert { get; set; }
+
     public int StoreCalls { get; private set; }
 
     public void EnsureCreated() => StoreCalls++;
@@ -103,6 +105,11 @@ internal sealed class StubConnectionStore : IGithubCopilotConnectionStore
 
     public void Upsert(GithubCopilotConnection connection)
     {
+        if (CancelOnUpsert)
+        {
+            throw new OperationCanceledException();
+        }
+
         if (FailOnUpsert)
         {
             FailOnUpsert = false;
