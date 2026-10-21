@@ -100,7 +100,7 @@ This is a unified AI development experience folder that centralizes skills, prom
   - Copilot reads rules with no server-side symlink resolution required.
   - Local agents resolve the same files through a two-hop symlink (`.claude/rules → .agents/rules → .github/instructions`) — fine on local filesystems.
   - `.agents/` remains the conceptual hub for skills/hooks/AGENTS.md, but the rule *content* now lives under `.github/`; every path reference to `.agents/rules/...` still resolves via the symlink, so hooks and skill docs did not need path edits.
-  - `ai-template-sync` provisions new repos with the inverted topology (real `.github/instructions` + `.agents/rules` symlink).
+  - While `ai-template-sync` was vendored, it provisioned new repos with the inverted topology (real `.github/instructions` + `.agents/rules` symlink). That distributor has since been removed; new repos now start from the standard-tooling installation in `COLLABORATION.md`, so read this bullet as historical.
   - **Open item**: this fixes *delivery* (Copilot can now see the rules), not *enforcement* (Copilot still treats them as soft guidance with no phase-gate hooks) and assumes Copilot does not recurse symlinked dirs — verify Copilot now honours subfolder rules (`backend/`, `git/`, `meta/`) on a live run.
 
 ## 📊 Setup Instructions

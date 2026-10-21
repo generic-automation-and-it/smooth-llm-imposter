@@ -173,13 +173,14 @@ account-discovered `baseUrl` instead of overwriting it with a hardcoded public o
 PROVIDER=company1-github-anthropic
 curl --fail-with-body -sS "$BASE/admin/providers/$PROVIDER" \
   -H "X-Admin-Api-Key: $ADMIN_KEY" |
-  jq '.models = [{"from":"claude-*","to":"claude-haiku-4.5","caching":false}] | .enabled = true' |
+  jq '{dialect, baseUrl, authScheme, authHeader, isDefault, enabled, anthropicVersion, openAiUpstreamApi, requestNormalization, sessionForwarding, stripEncryptedContent, timeoutSeconds, models} | .models = [{"from":"claude-*","to":"claude-haiku-4.5","caching":false}] | .enabled = true' |
   curl --fail-with-body -sS -X PUT "$BASE/admin/providers/$PROVIDER" \
     -H "X-Admin-Api-Key: $ADMIN_KEY" -H "Content-Type: application/json" \
     --data-binary @-
 ```
 
 Repeat the GET/edit/PUT for `company1-github-openai` with a GPT mapping, keeping its returned identity unchanged.
+`--fail-with-body` requires curl >= 7.76; where it is unavailable, substitute `-f` in the commands above.
 Runtime mappings are ephemeral (HLD 008): after a restart, config/env mappings return and API-only edits are lost.
 To make a live edit survive recreation, also update the Docker/Compose or appsettings definition.
 

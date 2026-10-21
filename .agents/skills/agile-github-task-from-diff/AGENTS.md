@@ -12,7 +12,7 @@ Script-driven skill: `create_github_task_from_diff.py` owns diff classification,
 ## Key Behaviors
 
 - `classify_horizontal_slice()` keys the `backend` layer off path prefixes `src/` and `Project` — when this template repo is renamed, that prefix list must be updated or backend changes silently classify as `general`.
-- The script's `LAYER_TO_TYPE` map drives the suggested branch name printed after creation; `git-commit-push-pr` later parses the issue number back out of that branch name for its `Closes #` link — the two skills are coupled through the `<type>/<issue>-slug` convention, not through any shared code.
+- The script's `LAYER_TO_TYPE` map drives the suggested branch name printed after creation; the downstream PR title and `Closes #<issue>` link are derived from that `<type>/<issue>-slug` convention (see `.agents/rules/git/git-policy.instructions.md`), not through any shared code.
 - Sub-issue linking uses a REST endpoint (`POST .../sub_issues`) that fails soft: the script prints a manual-link fallback instead of erroring, so a "created but not linked" outcome is normal, not a bug.
 
 ## Changelog
