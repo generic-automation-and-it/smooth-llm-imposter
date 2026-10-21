@@ -112,8 +112,10 @@ internal sealed class GithubCopilotRefreshCoordinator(
                 {
                     store.Upsert(replacement);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException)
                 {
+                    // Cancellation only comes from host shutdown: propagate it and leave the published pair as it
+                    // was. If GitHub already rotated, the next boot's refresh fails and fails closed then.
                     // GitHub may already have revoked the old pair; fail closed rather than advertise it.
                     connections.InvalidateIfCurrent(current.Prefix, current.Revision);
                     logger.LogError(ex, "Could not save the refreshed GitHub Copilot pair for connection {ConnectionId}; marking reauthentication required.", current.ConnectionId);

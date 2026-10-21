@@ -116,6 +116,20 @@ public class GithubCopilotRefreshAndStartupTests
     }
 
     [Fact]
+    public async Task A_cancelled_refresh_save_propagates_and_leaves_the_connection_usable()
+    {
+        var harness = new GithubCopilotHarness();
+        SeedPublished(harness, SavedRow(harness.Time.GetUtcNow() + TimeSpan.FromMinutes(5)));
+        harness.OAuth.RefreshResult = new GithubTokenPollResult(GithubTokenPollKind.Success, "access-2", "refresh-2");
+        harness.Store.CancelOnUpsert = true;
+
+        await Should.ThrowAsync<OperationCanceledException>(
+            () => Refresher(harness).RefreshDueAsync(TestContext.Current.CancellationToken));
+
+        harness.Connections.GetByPrefix("company1")!.State.ShouldBe(GithubCopilotConnectionState.Active);
+    }
+
+    [Fact]
     public void Startup_hydrates_a_saved_row_and_materializes_missing_pairs()
     {
         var harness = new GithubCopilotHarness();
