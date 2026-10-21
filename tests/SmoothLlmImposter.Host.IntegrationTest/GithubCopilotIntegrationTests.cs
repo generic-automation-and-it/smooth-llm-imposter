@@ -26,8 +26,37 @@ public class GithubCopilotIntegrationTests
                 TestContext.Current.CancellationToken))
             .StatusCode.ShouldBe(HttpStatusCode.NotFound);
 
+        (await client.GetAsync("/", TestContext.Current.CancellationToken))
+            .StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await client.GetAsync("/scalar/v1", TestContext.Current.CancellationToken))
+            .StatusCode.ShouldBe(HttpStatusCode.NotFound);
+
         File.Exists(fixture.DatabasePath).ShouldBeFalse();
         Directory.Exists(Path.Combine(fixture.DataDirectory, "keys")).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Scalar_prefers_admin_auth_without_publishing_the_key()
+    {
+        using var fixture = new GithubCopilotAppFixture();
+        using HttpClient client = fixture.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        using HttpResponseMessage root = await client.GetAsync("/", TestContext.Current.CancellationToken);
+        root.StatusCode.ShouldBe(HttpStatusCode.Redirect);
+        root.Headers.Location.ShouldBe(new Uri("/scalar/v1", UriKind.Relative));
+
+        string page = await client.GetStringAsync("/scalar/v1", TestContext.Current.CancellationToken);
+        page.ShouldContain("X-Admin-Api-Key");
+        page.ShouldNotContain(GithubCopilotAppFixture.AdminKey);
+        (await client.GetAsync("/admin/github-copilot/connections", TestContext.Current.CancellationToken))
+            .StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+
+        client.DefaultRequestHeaders.Add("X-Admin-Api-Key", GithubCopilotAppFixture.AdminKey);
+        (await client.GetAsync("/admin/github-copilot/connections", TestContext.Current.CancellationToken))
+            .StatusCode.ShouldBe(HttpStatusCode.OK);
     }
 
     [Fact]
@@ -39,6 +68,17 @@ public class GithubCopilotIntegrationTests
         using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(
             await client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken));
         System.Text.Json.JsonElement paths = document.RootElement.GetProperty("paths");
+
+        System.Text.Json.JsonElement scheme = document.RootElement.GetProperty("components")
+            .GetProperty("securitySchemes").GetProperty("X-Admin-Api-Key");
+        scheme.GetProperty("type").GetString().ShouldBe("apiKey");
+        scheme.GetProperty("in").GetString().ShouldBe("header");
+        scheme.GetProperty("name").GetString().ShouldBe("X-Admin-Api-Key");
+        paths.TryGetProperty("/", out _).ShouldBeFalse();
+        paths.GetProperty("/admin/github-copilot/connections").GetProperty("get")
+            .GetProperty("summary").GetString().ShouldBe("03 List connections");
+        paths.GetProperty("/admin/github-copilot/connections/{connectionId}/models").GetProperty("get")
+            .GetProperty("summary").GetString().ShouldBe("04 Discover supported models");
 
         static bool RequiresAdminKey(System.Text.Json.JsonElement path) =>
             path.EnumerateObject().Any(operation =>

@@ -102,7 +102,11 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   admin-authorized, numbered `01`–`05` in their OpenAPI summaries, and every response envelope carries a plain
   `message` help field. `Configuration/GithubCopilotExceptionHandler` maps the workflow's failure contracts
   (reserved-key conflict → 409, feature-disabled mutation → 400, retryable GitHub call → 502); Scalar/OpenAPI are
-  mapped alongside the endpoints and document the `X-Admin-Api-Key` scheme.
+  mapped alongside the endpoints and document the `X-Admin-Api-Key` scheme. GET `/` redirects to
+  `/scalar/v1` only while Copilot is enabled; the redirect is excluded from OpenAPI and does not change
+  dialect-prefixed client base URLs. Scalar prefers the documented API-key scheme but never embeds the
+  configured admin key; operators enter it in Authentication. Workflow order is login, complete, list,
+  discover, verify; mapping PUT remains an optional provider operation.
 - A managed Copilot route's upstream `401` invalidates only the connection revision the request was planned
   against (`RoutePlan.Copilot`) — never replay the billable POST, and never treat a 403 as revocation.
 
@@ -110,6 +114,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-21 | Scalar root redirect/preferred auth without embedded secrets; list-before-discovery workflow | — |
 | 2026-08-12 | Mid-stream **upstream** failures no longer escape into Kestrel's post-`HasStarted` error path (a no-op that logged an unhandled stack and truncated the SSE). `RoutingEndpoints` now ends the response itself: 502 JSON if nothing was written, otherwise a dialect/path-shaped terminal SSE error frame. The pre-existing caller-abort filter is unchanged — only exceptions it does **not** match reach the new handler. | — |
 | 2026-07-24 | `CaptureCallerHeaders` is shared with `PlanAsync` so HLD 009 session identity can be resolved without leaking `HttpContext` downstream. The local SensitiveHeaders set was removed; the inbound dump now consults the shared SensitiveHeaderNames set so the inbound/outbound masks cannot drift. | #72 |
 | 2026-05-30 | Created — minimal runnable Host (`Program.cs`, `appsettings(.Development).json`, `Properties/launchSettings.json`) with empty `Configuration/`, `Endpoints/`, `HealthChecks/`, `Workers/`. | — |

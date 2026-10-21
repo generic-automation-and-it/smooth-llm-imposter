@@ -111,7 +111,8 @@ if (githubCopilotEnabled)
 {
     app.MapGithubCopilotEndpoints();
     app.MapOpenApi();
-    app.MapScalarApiReference();
+    app.MapScalarApiReference(options => options.AddPreferredSecuritySchemes(["X-Admin-Api-Key"]));
+    app.MapGet("/", () => Results.Redirect("/scalar/v1")).ExcludeFromDescription();
 }
 
 app.Run();

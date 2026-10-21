@@ -69,7 +69,7 @@ Optional: `-e GITHUB_COPILOT_CLIENT_ID=Ov...` sets a default application. Operat
 
 ### Configure model mappings at Docker startup (recommended)
 
-The mapping PUT in step **04 is optional**, not a required provisioning step. If you know your target model IDs,
+The mapping PUT is optional, not a required provisioning step. If you know your target model IDs,
 you can configure the provider pair and mappings when the container is created. Add these `-e` arguments to the
 `docker run` command above, **before the image name**:
 
@@ -97,7 +97,7 @@ image.
 
 Use the same prefix (`company1` here) when starting login. For the unprefixed pair, remove `company1-` from both
 provider keys and omit `prefix` in step 01. The target IDs above are examples: verify that your account advertises
-them in step 03. Existing first-match-wins routing still applies if another provider has an overlapping mapping.
+them in step 04. Existing first-match-wins routing still applies if another provider has an overlapping mapping.
 .NET configuration binds named provider keys alphabetically; the order of Docker `-e` arguments does not
 set routing priority. For example, `lego-anthropic` sorts before `lego-github-anthropic` and can shadow it.
 Use non-overlapping mappings or a gateway key that sorts after the Copilot key (for example,
@@ -110,7 +110,7 @@ returned by GitHub (which may be an enterprise Copilot origin), preserving your 
 On a fresh installation, browser approval in steps 01–02 is still required: the OAuth client ID identifies an
 application, not an authenticated account. On later starts, saved credentials and the key ring are hydrated from
 the same volume; no new login is needed while they remain usable. Keep the mappings in your Docker/Compose or
-appsettings definition so they reload across image replacement, then skip step 04 and verify the route.
+appsettings definition so they reload across image replacement, then skip the optional mapping edit and verify the route.
 
 This is configuration at `docker run`/Compose startup. `docker load` only imports an image archive; it does not
 start or configure the service.
@@ -120,6 +120,11 @@ start or configure the service.
 Every response carries a `message` field naming the next step, so curl alone is enough. Scalar mirrors the same
 order at `/scalar/v1` (numbered operations `github-copilot-01-…` through `05-…`, with the `X-Admin-Api-Key`
 scheme); OpenAPI is at `/openapi/v1.json`.
+
+In Scalar, select **Authentication → X-Admin-Api-Key** and enter your admin key before sending an admin
+request. This scheme is selected by default, but its value is never embedded in the page. Scalar adds it
+as a request header, not a query parameter; it may not appear in the ordinary Headers editor.
+Authentication persistence is off, so enter the key again after reloading the page.
 
 ```bash
 BASE=http://127.0.0.1:5080
@@ -166,7 +171,16 @@ Poll no faster than `intervalSeconds`; the server enforces the interval itself a
 A `200` does **not** require a mapping: empty mappings and deliberately disabled providers still complete the
 login. A retried Complete after success returns the same connection ID and revision without contacting GitHub.
 
-### 03 — Discover supported models
+### 03 — List connections
+
+```bash
+curl -s "$BASE/admin/github-copilot/connections" -H "X-Admin-Api-Key: $ADMIN_KEY"
+```
+
+Use the returned `connectionId` for steps 04 and 05. On a fresh login it is also returned by Complete;
+listing lets you recover it after a restart without logging in again.
+
+### 04 — Discover supported models
 
 ```bash
 curl -s "$BASE/admin/github-copilot/connections/<connectionId>/models" \
@@ -177,7 +191,7 @@ Returns account-advertised models with the endpoint surfaces they support (`mess
 entries are filtered out because Copilot Chat is out of scope. Discovery never creates a mapping or enables a
 provider.
 
-### 04 — Optional runtime mapping edits
+### Optional runtime mapping edits (after discovery)
 
 Skip this step if you configured mappings at container startup. Otherwise, use the existing secret-free provider
 endpoint after login, or use it to make a live change without recreating the container. Models and `Enabled` are
@@ -205,7 +219,6 @@ To make a live edit survive recreation, also update the Docker/Compose or appset
 
 ```bash
 curl -s "$BASE/admin/github-copilot/connections/<connectionId>" -H "X-Admin-Api-Key: $ADMIN_KEY"
-curl -s "$BASE/admin/github-copilot/connections"        -H "X-Admin-Api-Key: $ADMIN_KEY"
 ```
 
 Each connection reports `savedRevision`, `publishedRevision`, `publicationReady`, `reauthenticationRequired`
