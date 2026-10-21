@@ -2,14 +2,22 @@
 
 ## TL;DR
 
-Build the Host image **from source** and run it on `localhost:5080`. There is **no published registry image** —
-this router is stateless and key-less, so you build the image yourself from the repo's [`Dockerfile`](../../../Dockerfile)
-(multi-stage: .NET 10 SDK NativeAOT publish → `runtime-deps:10.0` runtime, non-root, listening on `5080`). Point any OpenAI- or
-Anthropic-dialect client's base URL at `http://localhost:5080`; routing is driven by the **`Imposter`** config
-section exactly as in a `dotnet run`.
+Run the published multi-architecture image on `localhost:5080`, or build the Host image **from source**.
+The [`Dockerfile`](../../../Dockerfile) publishes .NET 10 NativeAOT into a non-root `runtime-deps` image
+listening on `5080`. Routing is driven by the **`Imposter`** configuration, as with `dotnet run`.
 
-> The `docker pull ghcr.io/...:latest` flow you may have seen belongs to the **Smooth Claude Proxy**, a different
-> project. SmoothLlmImposter publishes no image; the steps below build one locally.
+```bash
+docker pull ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
+docker run -d --name smooth-llm-imposter --restart unless-stopped \
+  -p 5080:5080 \
+  ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
+```
+
+Docker selects the native image architecture. Do not force `linux/amd64` on Apple Silicon: the NativeAOT
+executable should run natively on `linux/arm64`. When replacing a container, complete the pull before
+removing the existing service. Verify `/health` using the command below; container state alone is insufficient.
+For persisted Copilot connections, keep the existing volume and database path when recreating the container;
+see [GitHub Copilot setup](github-copilot.configure-smooth-llm-imposter.md).
 
 Docker and Podman are interchangeable here — every `docker` command works as `podman` with the same arguments.
 

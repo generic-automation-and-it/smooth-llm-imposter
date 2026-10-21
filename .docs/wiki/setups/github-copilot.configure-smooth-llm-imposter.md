@@ -34,18 +34,31 @@ Use the compose overlay:
 docker compose -f docker-compose.yml -f docker-compose.github-copilot.yml up -d
 ```
 
-or plain Docker:
+or plain Docker (Docker selects the native architecture automatically):
 
 ```bash
+: "${ADMIN_KEY:?Set ADMIN_KEY before starting the container}"
+docker pull ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
 docker run -d --name smooth-llm-imposter --restart unless-stopped \
-  -p 5080:5066 \
-  -e ASPNETCORE_URLS=http://+:5066 \
+  -p 5080:5080 \
+  -e ASPNETCORE_URLS=http://+:5080 \
   -e ENABLE_GITHUB_COPILOT=true \
   -e GithubCopilot__DatabasePath=/data/github-copilot/copilot.db \
   -e Admin__ApiKey="$ADMIN_KEY" \
   -v smooth-llm-imposter-copilot:/data/github-copilot \
   ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
 ```
+
+Verify the application, not just the container state:
+
+```bash
+curl -fsS http://localhost:5080/health
+```
+
+Do not force `--platform linux/amd64` on Apple Silicon: use the native `linux/arm64` image for NativeAOT.
+When replacing an existing container, pull the image successfully **before** removing the working container.
+Keep its existing volume name and database path to preserve saved connections; the dedicated-volume example
+above is for a fresh installation, not a migration from another path.
 
 `GithubCopilot__DatabasePath` is required when the feature is enabled — there is deliberately no generated
 fallback, because a path that changes between restarts strands saved connections. The flag can enable
@@ -85,6 +98,10 @@ image.
 Use the same prefix (`company1` here) when starting login. For the unprefixed pair, remove `company1-` from both
 provider keys and omit `prefix` in step 01. The target IDs above are examples: verify that your account advertises
 them in step 03. Existing first-match-wins routing still applies if another provider has an overlapping mapping.
+.NET configuration binds named provider keys alphabetically; the order of Docker `-e` arguments does not
+set routing priority. For example, `lego-anthropic` sorts before `lego-github-anthropic` and can shadow it.
+Use non-overlapping mappings or a gateway key that sorts after the Copilot key (for example,
+`lego-upstream-anthropic`), updating the gateway credential variable/path to match the renamed key.
 
 `BaseUrl=https://api.githubcopilot.com` is a valid initial configuration value, **not an instruction to choose
 the account's final origin manually**. Successful login/startup hydration replaces it with the validated origin
