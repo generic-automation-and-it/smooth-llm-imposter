@@ -45,10 +45,30 @@ public class GithubCopilotIntegrationTests
                 operation.Value.TryGetProperty("security", out System.Text.Json.JsonElement security) &&
                 security.GetArrayLength() > 0);
 
-        RequiresAdminKey(paths.GetProperty("/admin/github-copilot/logins")).ShouldBeTrue();
-        RequiresAdminKey(paths.GetProperty("/admin/providers")).ShouldBeTrue();
-        RequiresAdminKey(paths.GetProperty("/health")).ShouldBeFalse();
-        RequiresAdminKey(paths.GetProperty("/v1/messages")).ShouldBeFalse();
+        // Every /admin operation must carry the requirement — enumerate rather than sample, so a future admin
+        // operation that misses the transformer fails here.
+        string[] adminPaths = paths.EnumerateObject()
+            .Select(static path => path.Name)
+            .Where(static name => name.StartsWith("/admin/", StringComparison.Ordinal))
+            .ToArray();
+        adminPaths.ShouldContain("/admin/github-copilot/logins");
+        adminPaths.ShouldContain("/admin/providers");
+        foreach (string adminPath in adminPaths)
+        {
+            foreach (System.Text.Json.JsonProperty operation in paths.GetProperty(adminPath).EnumerateObject())
+            {
+                operation.Value.TryGetProperty("security", out System.Text.Json.JsonElement security).ShouldBeTrue(
+                    $"{operation.Name.ToUpperInvariant()} {adminPath} has no security requirement");
+                security.GetArrayLength().ShouldBeGreaterThan(0, $"{operation.Name.ToUpperInvariant()} {adminPath}");
+            }
+        }
+
+        foreach (string publicPath in paths.EnumerateObject().Select(static path => path.Name)
+                     .Where(static name => !name.StartsWith("/admin/", StringComparison.Ordinal)))
+        {
+            RequiresAdminKey(paths.GetProperty(publicPath)).ShouldBeFalse($"{publicPath} must not require the admin key");
+        }
+
         document.RootElement.TryGetProperty("security", out _).ShouldBeFalse();
     }
 
