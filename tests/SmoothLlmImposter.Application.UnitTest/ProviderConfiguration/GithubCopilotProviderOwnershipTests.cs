@@ -266,5 +266,7 @@ public class GithubCopilotProviderOwnershipTests
             new DeleteProvider.Request(AnthropicKey, Actor: "test"), TestContext.Current.CancellationToken).AsTask());
         await Should.ThrowAsync<GithubCopilotFeatureDisabledException>(() => enable.Handle(
             new SetProviderEnabled.Request(AnthropicKey, Enabled: false, Actor: "test"), TestContext.Current.CancellationToken).AsTask());
+
+        harness.Store.StoreCalls.ShouldBe(0);
     }
 }

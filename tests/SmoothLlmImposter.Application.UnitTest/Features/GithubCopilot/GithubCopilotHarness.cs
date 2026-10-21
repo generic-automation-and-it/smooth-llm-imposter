@@ -105,6 +105,7 @@ internal sealed class StubConnectionStore : IGithubCopilotConnectionStore
 
     public void Upsert(GithubCopilotConnection connection)
     {
+        StoreCalls++;
         if (CancelOnUpsert)
         {
             throw new OperationCanceledException();
@@ -119,14 +120,29 @@ internal sealed class StubConnectionStore : IGithubCopilotConnectionStore
         _rows[connection.Prefix] = connection;
     }
 
-    public GithubCopilotConnection? Get(string prefix) => _rows.GetValueOrDefault(prefix);
+    public GithubCopilotConnection? Get(string prefix)
+    {
+        StoreCalls++;
+        return _rows.GetValueOrDefault(prefix);
+    }
 
-    public GithubCopilotConnection[] List() =>
-        _rows.Values.OrderBy(static row => row.Prefix, StringComparer.Ordinal).ToArray();
+    public GithubCopilotConnection[] List()
+    {
+        StoreCalls++;
+        return _rows.Values.OrderBy(static row => row.Prefix, StringComparer.Ordinal).ToArray();
+    }
 
-    public bool Exists(string prefix) => _rows.ContainsKey(prefix);
+    public bool Exists(string prefix)
+    {
+        StoreCalls++;
+        return _rows.ContainsKey(prefix);
+    }
 
-    public int Delete(string prefix) => _rows.Remove(prefix) ? 1 : 0;
+    public int Delete(string prefix)
+    {
+        StoreCalls++;
+        return _rows.Remove(prefix) ? 1 : 0;
+    }
 }
 
 internal sealed class FakeOAuthClient : IGithubOAuthClient
