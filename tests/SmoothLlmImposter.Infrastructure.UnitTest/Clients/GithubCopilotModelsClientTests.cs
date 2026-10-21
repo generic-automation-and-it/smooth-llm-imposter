@@ -58,17 +58,29 @@ public class GithubCopilotModelsClientTests
     [Fact]
     public async Task A_non_allowlisted_origin_is_refused_before_any_request()
     {
+        var handler = new StubHandler("""{"data":[]}""");
+        var client = new GithubCopilotModelsClient(new SingleClientFactory(handler));
+
         await Should.ThrowAsync<Application.Features.GithubCopilot.GithubCopilotUpstreamException>(
-            () => Client("""{"data":[]}""").ListModelsAsync("token", "https://evil.example", TestContext.Current.CancellationToken));
+            () => client.ListModelsAsync("token", "https://evil.example", TestContext.Current.CancellationToken));
+
+        // The allowlist exists so a managed token never leaves the process for a non-GitHub origin: assert no
+        // request was attempted at all, not merely that the call threw.
+        handler.Calls.ShouldBe(0);
     }
 
     private sealed class StubHandler(string json) : HttpMessageHandler
     {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        public int Calls { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json")
             });
+        }
     }
 
     private sealed class SingleClientFactory(HttpMessageHandler handler) : IHttpClientFactory
