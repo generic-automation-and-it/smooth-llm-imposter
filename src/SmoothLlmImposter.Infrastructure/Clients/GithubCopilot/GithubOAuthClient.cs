@@ -18,7 +18,7 @@ internal sealed class GithubOAuthClient(
     ILogger<GithubOAuthClient> logger) : IGithubOAuthClient
 {
     internal const string HttpClientName = "github-copilot-oauth";
-    internal const string GitHubApiVersion = "2025-04-01";
+    internal const string GitHubApiVersion = "2022-11-28";
 
     private const string DeviceCodeUrl = "https://github.com/login/device/code";
     private const string AccessTokenUrl = "https://github.com/login/oauth/access_token";

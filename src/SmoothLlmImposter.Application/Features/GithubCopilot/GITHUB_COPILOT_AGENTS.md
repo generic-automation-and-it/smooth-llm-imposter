@@ -17,6 +17,7 @@ Opt-in GitHub Copilot upstream providers (Anthropic Messages + OpenAI Responses 
 - A consumed device grant is never re-exchanged: the issued pair is retained in the flow across retryable identity, save and publication failures.
 - `GithubCopilotPublisher` rewrites only the managed identity (origin, Bearer scheme, `AuthHeader:null`) of an existing reserved key and preserves `Models`, `Enabled`, `Name`, order, timeout and session settings; it validates and applies the pair as one registry batch.
 - Reserved provider deletion is refused while a durable row exists (expired included) under the per-prefix gate; an orphan key with no row is removable.
+- Two different `X-GitHub-Api-Version` values are in play and must not be unified: `GithubOAuthClient` sends the GitHub **REST** version (`2022-11-28`) to `api.github.com`, which answers an unknown version with `400`; `GithubCopilotTransportPolicy` sends the **Copilot API** version (`2025-04-01`) to `*.githubcopilot.com`.
 - `UpstreamForwarder` applies the Copilot path/origin policy before attaching the token; the Host invalidates a connection revision on upstream 401 only.
 
 ## Test References
@@ -29,6 +30,7 @@ Opt-in GitHub Copilot upstream providers (Anthropic Messages + OpenAI Responses 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-21 | Fixed: Complete looped on `github_unavailable` after an approved grant — `GithubOAuthClient` sent REST API version `2025-04-01` (a Copilot API version), and `api.github.com` rejected `/user` with `400`. Now `2022-11-28`; L0 tests pin the header on `/user` and `copilot_internal/user`. | — |
 | 2026-10-21 | List help points to discovery before readiness verification; discovery step 04 | — |
 | 2026-10-20 | Implemented workflow: login/complete/list/get/models slices, publisher, startup hydration, refresh, D1 ownership in provider CRUD, forwarder path/header policy, Scalar/OpenAPI. | #126 |
 | 2026-10-20 | Created: options + exact env flag contract, ciphertext-only connection contract, L1 persistence tests. Persistence is direct Microsoft.Data.Sqlite — the Dapper.AOT plan was spiked and rejected (no .NET 10 interceptors). | #126 |
