@@ -13,14 +13,14 @@ providers. For each request it reads the `model` and — per your `Imposter` con
 (rewrites the model to a different upstream, optionally injecting prompt caching) or **passes it through**
 unchanged. It is:
 
-- **Stateless & key-less** — nothing about a request is persisted; upstream keys come from config/env only.
+- **Stateless & key-less by default** — nothing about a request is persisted; upstream keys come from config/env only. The one opt-in exception is [GitHub Copilot](#github-copilot-opt-in), which stores encrypted OAuth credentials in a local SQLite file.
 - **Dual-dialect** — speaks both OpenAI (`/v1/chat/completions`, `/v1/responses`) and Anthropic
   (`/v1/messages`), selected by a `/openai` or `/anthropic` path prefix. Routing is **same-dialect only**
   (no OpenAI⇄Anthropic translation).
 - **Config-driven** — routing is an ordered array of per-provider `From → To` model mappings; first match
   wins. No code change to add, repoint, or remove a route.
 
-There is **no `claude login` and no token capture** inside the Host — you run it with `dotnet`, Docker, or
+There is **no `claude login` and no token capture** inside the Host by default (the opt-in Copilot device login is the exception) — you run it with `dotnet`, Docker, or
 the published GHCR image, and point your client's base URL at it. Full setup:
 **[`.docs/wiki/setup.md`](.docs/wiki/setup.md)**.
 
@@ -93,8 +93,8 @@ provider authenticates with a paid key. They have no first-class support for sub
 - **Model aliasing with cache injection in one step.** A mapping's `Caching` flag rewrites the
   body to add `cache_control` / `prompt_cache_key` markers the upstream wouldn't add — no
   callback code.
-- **Stateless, key-less, single binary.** No DB, vault, admin UI, or Redis — just
-  `appsettings.json` + env var.
+- **Stateless, key-less, single binary.** No DB, vault, admin UI, or Redis by default — just
+  `appsettings.json` + env var (the opt-in Copilot feature adds a local SQLite file).
 - **Dual-dialect, same-dialect only.** OpenAI + Anthropic at the edge, no cross-dialect
   translation (subscription endpoints are dialect-locked).
 
