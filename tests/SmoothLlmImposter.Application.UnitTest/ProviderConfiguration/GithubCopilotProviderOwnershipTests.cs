@@ -19,18 +19,6 @@ public class GithubCopilotProviderOwnershipTests
     private static GithubCopilotProviderOwnership Ownership(StubConnectionStore store, bool enabled = true, GithubCopilotPrefixGate? gate = null) =>
         new(Options.Create(new GithubCopilotOptions { Enabled = enabled, ClientId = null }), store, gate ?? new GithubCopilotPrefixGate());
 
-    private static InMemoryProviderRegistry SeededRegistry()
-    {
-        var registry = new InMemoryProviderRegistry();
-        registry.Seed(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
-        {
-            ["ordinary"] = new() { Dialect = "openai", BaseUrl = "https://ordinary.example", Secret = "sk" },
-            [AnthropicKey] = CopilotProvider("anthropic", "/v1/messages"),
-            ["company1-github-openai"] = CopilotProvider("openai", "/responses")
-        });
-        return registry;
-    }
-
     private static ProviderOptions CopilotProvider(string dialect, string path) => new()
     {
         Dialect = dialect,
