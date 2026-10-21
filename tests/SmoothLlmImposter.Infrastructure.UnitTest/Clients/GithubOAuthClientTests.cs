@@ -44,6 +44,7 @@ public class GithubOAuthClientTests
 
     [Theory]
     [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.BadGateway)]
     [InlineData(HttpStatusCode.TooManyRequests)]
     [InlineData(HttpStatusCode.RequestTimeout)]
     public async Task A_server_failure_with_a_parsable_body_is_still_retryable_not_a_grant_verdict(HttpStatusCode status)
