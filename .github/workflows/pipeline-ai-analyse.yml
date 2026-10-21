@@ -251,6 +251,7 @@ jobs:
       OPENCODE_REVIEW_REPORT_GEMINI_URL: ${{ vars.OPENCODE_REVIEW_REPORT_GEMINI_URL }}
       OPENCODE_REVIEW_REPORT_COPILOT_URL: ${{ vars.OPENCODE_REVIEW_REPORT_COPILOT_URL }}
       OPENCODE_REVIEW_REPORT_OPENAI_URL: ${{ vars.OPENCODE_REVIEW_REPORT_OPENAI_URL }}
+      OPENCODE_REVIEW_REPORT_CONFIG: ${{ vars.OPENCODE_REVIEW_REPORT_CONFIG || '' }}
       OPENCODE_GEMINI_API_KEY: ${{ secrets.OPENCODE_GEMINI_API_KEY }}
       OPENCODE_COPILOT_API_KEY: ${{ secrets.OPENCODE_COPILOT_API_KEY }}
       OPENCODE_OPENAI_API_KEY: ${{ secrets.OPENCODE_OPENAI_API_KEY }}
@@ -329,23 +330,60 @@ jobs:
           echo "ANALYSE_SKILL_DIR=.smooth-ai-review-tools/.agents/skills/ai-analyse" >> "$GITHUB_ENV"
           echo "AI_REVIEW_DIR=.smooth-ai-review-tools/.agents/skills/ai-review" >> "$GITHUB_ENV"
 
+      - name: Resolve provider/model chain
+        run: |
+          set -euo pipefail
+          # GITHUB_ENV carries the resolved IDs into initialization before registration.
+          bash "${REVIEW_SKILL_DIR}/scripts/lib/resolve-provider.sh"
+          if [ -n "${OPENCODE_ANALYSE_MODEL:-}" ]; then
+            OPENCODE_PROVIDER_SCOPE=analyse bash "${REVIEW_SKILL_DIR}/scripts/lib/resolve-provider.sh"
+          elif [ -n "${OPENCODE_ANALYSE_PROVIDER:-}" ]; then
+            echo "OPENCODE_ANALYSE_PROVIDER is set but OPENCODE_ANALYSE_MODEL is unset; analyse will inherit the review provider/model."
+          fi
+
       - name: Initialize OPENCODE
         run: |
           set -euo pipefail
           export PATH="$HOME/.opencode/bin:$HOME/.local/bin:$PATH"
           echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          if ! command -v opencode >/dev/null 2>&1; then
-            curl -fsSL https://opencode.ai/install | bash
+          bash "${REVIEW_SKILL_DIR}/scripts/lib/install-opencode.sh"
+          # workflow_run uses default-branch YAML against independently versioned tooling.
+          # Source the new helper so OPENCODE_CONFIG reaches this shell as well as later steps.
+          if [ -f "${REVIEW_SKILL_DIR}/scripts/lib/prepare-opencode-config.sh" ]; then
+            . "${REVIEW_SKILL_DIR}/scripts/lib/prepare-opencode-config.sh"
+          else
+            bash "${REVIEW_SKILL_DIR}/scripts/lib/setup-opencode-config.sh"
           fi
-          bash "${REVIEW_SKILL_DIR}/scripts/lib/setup-opencode-config.sh"
+
+          if [ -f "${REVIEW_SKILL_DIR}/scripts/lib/ensure-opencode-models.sh" ]; then
+            bash "${REVIEW_SKILL_DIR}/scripts/lib/ensure-opencode-models.sh" "${OPENCODE_CONFIG:-}" \
+              "${OPENCODE_REVIEW_REPORT_PROVIDER_ID:-}" "${OPENCODE_REVIEW_REPORT_MODEL_PRIMARY}" \
+              "${OPENCODE_REVIEW_REPORT_MODEL_SECONDARY}" \
+              || echo "::warning::Review fallback model registration failed; keeping the prepared config."
+            if [ -n "${OPENCODE_ANALYSE_MODEL:-}" ]; then
+              bash "${REVIEW_SKILL_DIR}/scripts/lib/ensure-opencode-models.sh" "${OPENCODE_CONFIG:-}" \
+                "${OPENCODE_ANALYSE_PROVIDER_ID:-}" "${OPENCODE_ANALYSE_MODEL}" \
+                || echo "::warning::Analyse model registration failed; keeping the prepared config."
+            fi
+          else
+            echo "::warning::Runtime model registration unavailable in this tooling version; using configured models."
+          fi
+
+          # Project config overrides the managed copy in V2. Restore the stand-in before staging.
+          if [ -f "${REVIEW_SKILL_DIR}/scripts/lib/quarantine-project-config.sh" ]; then
+            . "${REVIEW_SKILL_DIR}/scripts/lib/quarantine-project-config.sh"
+            quarantine_project_config "${GITHUB_WORKSPACE}"
+          fi
+          opencode service stop >/dev/null 2>&1 || true
           opencode stats >/dev/null || true
-          bash "${REVIEW_SKILL_DIR}/scripts/lib/opencode-health.sh" || true
-          bash "${REVIEW_SKILL_DIR}/scripts/lib/resolve-provider.sh"
-          if [ -n "${OPENCODE_ANALYSE_MODEL:-}" ]; then
-            OPENCODE_PROVIDER_SCOPE=analyse bash "${REVIEW_SKILL_DIR}/scripts/lib/resolve-provider.sh"
-          elif [ -n "${OPENCODE_ANALYSE_PROVIDER:-}" ]; then
-            echo "OPENCODE_ANALYSE_PROVIDER is set but OPENCODE_ANALYSE_MODEL is unset; analyse will inherit the review provider/model."
+
+          # Exit 3 means the service's managed config binding is unconfirmed, not a liveness blip.
+          health_rc=0
+          bash "${REVIEW_SKILL_DIR}/scripts/lib/opencode-health.sh" || health_rc=$?
+          if [ "$health_rc" -eq 3 ]; then
+            echo "::error::OpenCode is not confirmed to be using this run's managed config."
+            exit 1
           fi
 
       - name: Build analyse prompt
@@ -404,6 +442,9 @@ jobs:
           HEAD_REPO: ${{ steps.pr.outputs.head_repo }}
         run: |
           set -euo pipefail
+          if [ -f "${REVIEW_SKILL_DIR}/scripts/lib/quarantine-project-config.sh" ]; then
+            bash "${REVIEW_SKILL_DIR}/scripts/lib/quarantine-project-config.sh" --restore
+          fi
           changed_paths="$(git status --porcelain -- . ':!ci_temp' ':!.context' ':!.smooth-ai-review-tools')"
           if [ -z "$changed_paths" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
