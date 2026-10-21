@@ -13,8 +13,11 @@ namespace SmoothLlmImposter.Infrastructure.UnitTest.Clients;
 public class GithubOAuthClientTests
 {
     private static GithubOAuthClient Client(HttpStatusCode status, string body) =>
+        Client(new StubHandler(status, body));
+
+    private static GithubOAuthClient Client(StubHandler handler) =>
         new(
-            new SingleClientFactory(new StubHandler(status, body)),
+            new SingleClientFactory(handler),
             new FixedTimeProvider(new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero)),
             NullLogger<GithubOAuthClient>.Instance);
 
@@ -95,13 +98,44 @@ public class GithubOAuthClientTests
         result.AccessTokenExpiresAtUtc.ShouldBe(new DateTimeOffset(2026, 10, 20, 13, 0, 0, TimeSpan.Zero));
     }
 
+    [Fact]
+    public async Task The_user_lookup_sends_a_rest_api_version_github_supports()
+    {
+        // api.github.com answers an unknown X-GitHub-Api-Version with HTTP 400, which surfaced as an endless
+        // retryable github_unavailable after an approved device grant.
+        var handler = new StubHandler(HttpStatusCode.OK, """{"login":"octocat","id":1}""");
+
+        GithubUser? user = await Client(handler).GetUserAsync("token", TestContext.Current.CancellationToken);
+
+        user.ShouldNotBeNull();
+        handler.LastRequest!.Headers.GetValues("X-GitHub-Api-Version").ShouldBe(["2022-11-28"]);
+    }
+
+    [Fact]
+    public async Task The_entitlement_lookup_sends_a_rest_api_version_github_supports()
+    {
+        var handler = new StubHandler(
+            HttpStatusCode.OK,
+            """{"chat_enabled":true,"endpoints":{"api":"https://api.githubcopilot.com"}}""");
+
+        GithubCopilotEntitlement? entitlement = await Client(handler).GetCopilotEntitlementAsync("token", TestContext.Current.CancellationToken);
+
+        entitlement.ShouldNotBeNull();
+        handler.LastRequest!.Headers.GetValues("X-GitHub-Api-Version").ShouldBe(["2022-11-28"]);
+    }
+
     private sealed class StubHandler(HttpStatusCode status, string body) : HttpMessageHandler
     {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(status)
+        public HttpRequestMessage? LastRequest { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            LastRequest = request;
+            return Task.FromResult(new HttpResponseMessage(status)
             {
                 Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json")
             });
+        }
     }
 
     private sealed class SingleClientFactory(HttpMessageHandler handler) : IHttpClientFactory

@@ -264,3 +264,4 @@ vault.
 | Route returns `503` | No usable connection for that prefix (expired/revoked/refresh failed); start a new login. |
 | Route returns `400` | A Copilot profile only forwards `/v1/messages` (Anthropic) or `/responses` (OpenAI). Chat Completions is not supported. |
 | `502` from Start/Complete | GitHub was unreachable; retry the same call. |
+| Complete stays `retryable` / `github_unavailable` after GitHub shows "Your device is now connected" | The token exchange succeeded but the `api.github.com/user` lookup failed — check the container log for `GitHub /user lookup failed with HTTP <status>`. Images before 2026-10-21 sent an unsupported `X-GitHub-Api-Version` (`2025-04-01`) and got `400` on every retry; pull a newer image and start a new login. |
