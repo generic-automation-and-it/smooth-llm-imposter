@@ -30,7 +30,7 @@ Rules are organized into category subfolders for navigation only — folder plac
 | `.agents/rules/*.instructions.md` (flat) | Cross-cutting rules with no ≥2-member category (AI workflow, code-review guidance, project overview) |
 | `.agents/rules/<category>/` | A folder created when 2+ rules share a topic — currently `backend/`, `git/`, `meta/` |
 
-See `.agents/skills/manage-rule-system/SKILL.md` for the directory contract.
+This file defines the directory contract; standard skill installation is documented in [Collaboration](../../../COLLABORATION.md#recommended-standard-ai-tooling).
 
 ## File Format
 
@@ -103,3 +103,9 @@ Then add frontmatter + content. Create a `<category>/` subfolder only when 2+ ru
 | Codex | any directory | `AGENTS.md` | none |
 
 The rule files physically live in `.github/instructions/`, a **real directory** read natively by Copilot Coding Agent and Code Review on github.com (not Copilot Chat) — no symlink resolution required server-side. The local-agent paths `.agents/rules`, `.claude/rules`, and `.cursor/rules` are symlinks resolving back to `.github/instructions/`, so all four tools share one source of truth.
+
+## Changelog
+
+| Date | Change |
+|:-----|:-------|
+| 2026-10-21 | Removed the dependency on the unvendored rule-management skill; kept the authoring contract here and linked standard tooling setup. |

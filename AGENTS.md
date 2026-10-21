@@ -23,7 +23,7 @@ SmoothLlmImposter is a **stateless, key-less LLM request router**. It exposes Op
 
 ## AI Context Files
 
-Keep `*_AGENTS.md` files synchronised with code and documentation changes. Functional `*_AGENTS.md` files in feature folders are auto-loaded by the `load-agents-context` PostToolUse hook on the first Read/Edit in their directory tree — no manual registration required.
+Keep `*_AGENTS.md` files synchronised with code and documentation changes. Load the closest functional context before reading or editing feature code; the repository no longer vendors the `load-agents-context` hook or its generic skill. Standard global tooling setup is documented in `COLLABORATION.md`; repository-owned skills are listed in `.agents/skills/AGENTS.md`.
 
 ### Required Maintenance
 
@@ -64,7 +64,7 @@ Detailed backend coding rules are maintained in `.agents/rules/backend/` and sco
 
 ## Rules
 
-All rules live under `.agents/rules/` as `*.instructions.md` files and are auto-loaded every session by Claude Code, Cursor, Copilot, and Codex via the symlinks/path-references documented in `.agents/AI_DEVELOPMENT_AGENTS.md`. Applicability is scoped **per-file** via frontmatter (`paths` for Claude, `globs`+`alwaysApply` for Cursor, `applyTo` for Copilot) — e.g. backend rules carry `**/*.cs` so they attach when a C# file is opened. Rules are organized into category subfolders for navigation; the folder is organizational only and does not change loading. One exception to "auto-loaded every session": prompt-scoped rules may be **deferred for Claude** and re-injected on demand by a `UserPromptSubmit` hook (e.g. `code-review-standards` loads only on review prompts via `.agents/hooks/code-review-standards-context.sh`; Cursor/Copilot still load it always). See `.agents/rules/meta/rules.instructions.md` ("Hook-deferred rules") for the file convention and `.agents/skills/manage-rule-system/SKILL.md` for the directory contract.
+All rules live under `.agents/rules/` as `*.instructions.md` files and are auto-loaded every session by Claude Code, Cursor, Copilot, and Codex via the symlinks/path-references documented in `.agents/AI_DEVELOPMENT_AGENTS.md`. Applicability is scoped **per-file** via frontmatter (`paths` for Claude, `globs`+`alwaysApply` for Cursor, `applyTo` for Copilot) — e.g. backend rules carry `**/*.cs` so they attach when a C# file is opened. Rules are organized into category subfolders for navigation; the folder is organizational only and does not change loading. One exception to "auto-loaded every session": prompt-scoped rules may be **deferred for Claude** and re-injected on demand by a `UserPromptSubmit` hook (e.g. `code-review-standards` loads only on review prompts via `.agents/hooks/code-review-standards-context.sh`; Cursor/Copilot still load it always). See `.agents/rules/meta/rules.instructions.md` for the directory contract, file convention, and hook-deferred rules.
 
 ### Rule Categories
 
@@ -143,6 +143,8 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 | Spec-driven | Development approach where machine-readable specifications are the source of truth |
 
 ## Changelog
+
+- 2026-10-21: Added `.agents/skills/AGENTS.md` identifying `imposter-newsession` and `imposter-who` as repository-owned; removed the requested non-owned skill copies and their two dependent hook wrappers/registrations. Moved contribution guidance to `COLLABORATION.md`, including recommended global installation of standard skills, rules, and hooks; README links there. Functional context must still be loaded explicitly when no external context loader is installed.
 
 - 2026-10-20: GitHub Copilot opt-in integration implemented (HLD 013, #126). Adds reserved `github-anthropic`/`github-openai` provider pairs, GitHub device login, encrypted local SQLite credentials in a dedicated volume with an isolated Data Protection key ring, startup hydration and refresh, ordered admin APIs with a `message` help field, Scalar/OpenAPI, and managed Bearer routing for `/v1/messages` and `/responses` (Copilot Chat excluded). Matched Copilot routes resolve auth/origin from a published in-memory snapshot — never a per-inference DB lookup — a narrow documented exception to HLD 002 LADR-004. Persistence is direct `Microsoft.Data.Sqlite` (Dapper.AOT spiked and rejected: no .NET 10 interceptors). Verified: the full deterministic suite across L0/L1/L2, a host-platform NativeAOT publish, and a native run exercising `/health`, the Copilot admin endpoints, Scalar/OpenAPI and real GitHub device-code rejection. Live own-OAuth-app probes and Linux musl container runs remain external gates.
 

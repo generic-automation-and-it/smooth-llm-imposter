@@ -1,5 +1,0 @@
-interface:
-  display_name: "Git Commit and Push"
-  short_description: "Commit changes and push to remote repository"
-  default_prompt: "Commit current changes with conventional commits format and push to the remote repository. Optionally rename the branch to match the issue number."
-  model: gpt-5.4

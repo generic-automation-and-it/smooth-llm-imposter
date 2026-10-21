@@ -1,5 +1,0 @@
-interface:
-  display_name: "Load Context"
-  short_description: "Load or create AGENTS context files"
-  default_prompt: "Load functional AGENTS context files for the current task."
-  model: gpt-5.4-mini
