@@ -126,7 +126,13 @@ public class GithubCopilotRefreshAndStartupTests
         await Should.ThrowAsync<OperationCanceledException>(
             () => Refresher(harness).RefreshDueAsync(TestContext.Current.CancellationToken));
 
-        harness.Connections.GetByPrefix("company1")!.State.ShouldBe(GithubCopilotConnectionState.Active);
+        // The rotated pair must be discarded, not published: same revision, same token, untouched durable row.
+        GithubCopilotPublishedConnection published = harness.Connections.GetByPrefix("company1")!;
+        published.State.ShouldBe(GithubCopilotConnectionState.Active);
+        published.Revision.ShouldBe(1);
+        published.AccessToken.ShouldBe("access-1");
+        harness.Store.Get("company1")!.Revision.ShouldBe(1);
+        harness.Store.Get("company1")!.AccessTokenCiphertext.ShouldBe("enc:access-1");
     }
 
     [Fact]
