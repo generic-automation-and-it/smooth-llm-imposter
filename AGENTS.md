@@ -17,9 +17,9 @@ This file provides guidance for AI coding agents working in the SmoothLlmImposte
 
 ## Project Overview
 
-SmoothLlmImposter is a **stateless, key-less LLM request router**. It exposes OpenAI- and Anthropic-dialect endpoints and, per configuration, redirects an inbound model to an alternate upstream ("imposter") — rewriting the model name and optionally injecting prompt caching — or passes it through to the real provider. Unlike the Smooth Claude Proxy it stores nothing (keys come from config/env only) and routes within a single dialect (no OpenAI⇄Anthropic translation). See `src/SmoothLlmImposter.Application/Features/Routing/ROUTING_AGENTS.md`.
+SmoothLlmImposter is a **stateless, key-less LLM request router**. It exposes OpenAI- and Anthropic-dialect endpoints and, per configuration, redirects an inbound model to an alternate upstream ("imposter") — rewriting the model name and optionally injecting prompt caching — or passes it through to the real provider. Unlike the Smooth Claude Proxy it stores nothing by default (keys come from config/env only; the sole exception is the opt-in GitHub Copilot feature, which persists encrypted OAuth credentials in a local SQLite file when `ENABLE_GITHUB_COPILOT=true`) and routes within a single dialect (no OpenAI⇄Anthropic translation). See `src/SmoothLlmImposter.Application/Features/Routing/ROUTING_AGENTS.md`.
 
-**Tech stack:** .NET 10 NativeAOT · ASP.NET Core minimal APIs · Clean Architecture (Domain / Application / Infrastructure / Host) · `IHttpClientFactory` streaming forwarder (no DB) · Serilog · xunit.v3
+**Tech stack:** .NET 10 NativeAOT · ASP.NET Core minimal APIs · Clean Architecture (Domain / Application / Infrastructure / Host) · `IHttpClientFactory` streaming forwarder (no DB on the default route; opt-in Copilot uses local SQLite) · Serilog · xunit.v3
 
 ## AI Context Files
 
@@ -57,7 +57,7 @@ token, which users may supply explicitly as an imposter provider `Secret` with t
 |---|---|---|
 | Domain | `src/SmoothLlmImposter.Domain/` | Pure routing model — `ApiDialect`, `ProviderRoute`, `RouteDecision`, `ModelMatcher` |
 | Application | `src/SmoothLlmImposter.Application/` | Routing pipeline in `Features/Routing/` — options, catalog, resolver, transformers, router |
-| Infrastructure | `src/SmoothLlmImposter.Infrastructure/` | `UpstreamForwarder` — `IHttpClientFactory` streaming forwarder (no DB) |
+| Infrastructure | `src/SmoothLlmImposter.Infrastructure/` | `UpstreamForwarder` — `IHttpClientFactory` streaming forwarder (no DB on the default route); opt-in Copilot store/clients under `Persistence/GithubCopilot` and `Clients/GithubCopilot` |
 | Host | `src/SmoothLlmImposter.Host/` | Minimal-API dialect endpoints, options binding + `ValidateOnStart`, Serilog |
 
 Detailed backend coding rules are maintained in `.agents/rules/backend/` and scoped per-file via frontmatter (see Rules section).
