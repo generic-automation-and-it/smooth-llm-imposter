@@ -38,6 +38,10 @@ the live own-OAuth-app probe is an external release gate.
 - Refresh-ahead is 10 minutes and runs outside inference; a rotated pair that cannot be saved fails closed
   rather than falling back to a possibly revoked token.
 - The dedicated volume is removed only as an exact, whole-feature action; deleting a provider is not a logout.
+- Setup guides prefer config/env mappings supplied at container creation: hydration preserves them, while
+  admin PUT is an optional live edit that resets on restart. Initial device consent is still required; a
+  configured client ID is not a credential. GET/edit/PUT examples preserve the account-discovered origin rather
+  than asking an operator to hardcode it.
 
 ## Test References
 
@@ -52,4 +56,5 @@ the live own-OAuth-app probe is an external release gate.
 
 | Date | Change | Ref |
 | :---- | :---- | :---- |
+| 2026-10-21 | Clarified Docker-startup mapping provisioning versus optional runtime edits and one-time device consent; setup examples preserve the discovered provider identity. | #126 |
 | 2026-10-20 | Initial HLD AGENTS.md — 4 LADRs, 2 NFRs; records the resolved-options gate, ciphertext-only store and published-snapshot inference path. | #126 |
