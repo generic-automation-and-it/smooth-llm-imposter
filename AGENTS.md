@@ -113,7 +113,7 @@ Authoritative stack and coding conventions for AI coders are in `.agents/rules/p
 
 Human-facing reviewer documentation lives in `.docs/wiki/`. Detailed high-level designs, non-functional requirements, and lightweight architecture decision records live under `.docs/hlds/`.
 
-The [`README.md` → How it works](README.md#how-it-works) **HLD table is the human-facing index** for `.docs/hld/`. **Keep it in sync** — when a new HLD is created, removed, or changes status (Discovery → Accepted → Completed, or → Cancelled), update the table in the same PR. A stale table makes the HLD folder harder to discover and contradicts the Drift Minimization rule below.
+The [`.docs/wiki/hlds.md`](.docs/wiki/hlds.md) **HLD table is the human-facing index** for `.docs/hlds/` (the README only links to it). **Keep it in sync** — when a new HLD is created, removed, or changes status (Discovery → Accepted → Completed, or → Cancelled), update the table in the same PR. A stale table makes the HLD folder harder to discover and contradicts the Drift Minimization rule below.
 
 ## CI/CD
 
@@ -143,6 +143,10 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 | Spec-driven | Development approach where machine-readable specifications are the source of truth |
 
 ## Changelog
+
+- 2026-10-20: GitHub Copilot opt-in integration implemented (HLD 013, #126). Adds reserved `github-anthropic`/`github-openai` provider pairs, GitHub device login, encrypted local SQLite credentials in a dedicated volume with an isolated Data Protection key ring, startup hydration and refresh, ordered admin APIs with a `message` help field, Scalar/OpenAPI, and managed Bearer routing for `/v1/messages` and `/responses` (Copilot Chat excluded). Matched Copilot routes resolve auth/origin from a published in-memory snapshot — never a per-inference DB lookup — a narrow documented exception to HLD 002 LADR-004. Persistence is direct `Microsoft.Data.Sqlite` (Dapper.AOT spiked and rejected: no .NET 10 interceptors). Verified: the full deterministic suite across L0/L1/L2, a host-platform NativeAOT publish, and a native run exercising `/health`, the Copilot admin endpoints, Scalar/OpenAPI and real GitHub device-code rejection. Live own-OAuth-app probes and Linux musl container runs remain external gates.
+
+- 2026-10-20: README slimmed. HLD index table moved to `.docs/wiki/hlds.md`; the stale Conductor-kit install section was dropped (the kit was removed in #125); the Customized Switches section now documents the live `--who?`/`--newsession` family (HLD 010 is Completed) instead of a not-yet-implemented preview; Quick start setups table gained stable `S01…` IDs; GitHub Copilot section marked foundation-only.
 
 - 2026-10-20: Test tiers are now L0/L1/L2. Added L1 `Infrastructure.ComponentTest` (temporary on-disk SQLite for the opt-in GitHub Copilot store) and narrowed the "no DB" statements to the default stateless route; the router itself remains key-less unless `ENABLE_GITHUB_COPILOT` is on.
 

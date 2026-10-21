@@ -33,6 +33,11 @@ the published GHCR image, and point your client's base URL at it. Full setup:
   </picture>
 </p>
 
+**Contents:** [TL;DR](#tldr) · [Use cases](#use-cases) · [How it works](#how-it-works) ·
+[Quick start](#quick-start) · [GitHub Copilot (opt-in)](#github-copilot-opt-in) ·
+[Customized switches](#customized-switches) · [Skills](#skills) ·
+[Documentation](#documentation) · [Contributing](#contributing)
+
 ---
 
 ## Use cases
@@ -111,23 +116,8 @@ configured `Secret`/`AuthScheme`, and streams the upstream response back unbuffe
 either passes through to the dialect's default provider (forwarding the caller's own credentials) or, when
 no default is configured, returns a dialect-shaped 404.
 
-Design detail — actors, request flow, routing decision, NFRs, and decision records — lives in the
-HLDs under `.docs/hlds/`:
-
-| HLD | Status | Covers |
-|---|---|---|
-| [001 — LLM Imposter Routing](.docs/hlds/001-llm-imposter-routing/README.md) | Completed | Core routing — read `model`, match provider, rewrite, forward, optional cache injection |
-| [002 — Credential Persistence & Overrides](.docs/hlds/002-credential-persistence-overrides/README.md) | Superseded by 008 | Opt-in PostgreSQL persistence for passthrough-credential overrides; amends HLD 001. LADR-001 (mandatory DB) and LADR-002 (TPH dialect discriminator) superseded by HLD 008; LADR-003 (`IDataProtector` encryption, opt-in DB only), LADR-004 (passthrough-only), LADR-005 (Mediator admin CRUD) remain in force |
-| [003 — Passthrough Authorization Override](.docs/hlds/003-passthrough-authorization-override/README.md) | Completed | Force the active stored Bearer over the caller's credential on passthrough routes (made provider-addressable by HLD 008) |
-| [004 — Codex-to-OpenAI-SDK Transformer](.docs/hlds/004-codex-to-openai-sdk-transformer/README.md) | Completed | Transform Codex `/responses` payloads to the OpenAI Chat Completions SDK shape for compatible upstreams |
-| [005 — OpenAI /models Endpoint Aggregation](.docs/hlds/005-models-endpoint-aggregation/README.md) | Completed | `GET /openai/v1/models` returns the distinct union of configured `to` models, synthesized locally |
-| [006 — Responses Chat Tool History Normalization](.docs/hlds/006-responses-chat-tool-history-normalization/README.md) | Completed | Normalize prior-turn Responses tool-call history so downgraded Chat requests satisfy strict upstream adjacency rules |
-| [007 — Named Provider Config & Conventional Env Overrides](.docs/hlds/007-named-provider-env-overrides/README.md) | Completed | Key providers by name (dictionary, not array) + conventional `<NAME>_<FIELD>` env overrides for stable, ergonomic config (made runtime-mutable by HLD 008) |
-| [008 — Runtime Config CRUD & Provider-Addressable Credentials](.docs/hlds/008-runtime-config-crud/README.md) | Completed | Runtime CRUD over an in-memory provider registry consumed by scoped routing catalogs + `Enabled` flag; provider-keyed, settings-backed credentials with optional DB; provider-addressable auth-override. Supersedes HLD 002 LADR-001 (mandatory PostgreSQL) and LADR-002 (dialect discriminator); LADR-003/004/005 remain in force |
-| [009 — Session Identity Forwarding](.docs/hlds/009-session-identity-forwarding/README.md) | Accepted | Opt-in per-provider session stamp on matched imposter routes (`session_id` + `x-opencode-session`) so opencode-go diag groups Codex/Claude traffic; stateless capture→derive→none |
-| [010 — Who-Message Introspection](.docs/hlds/010-who-message-introspection/README.md) | Completed | In-band routing probe: a last user message of `who?` (exact match, trimmed) returns a dialect-shaped synthetic reply naming the inbound model, the resolved upstream target (or `passthrough`), and the auth scheme; no upstream call. Base probe Completed; `--who?` / `--newsession` switch family + in-memory translation dictionary Draft |
-| [011 — ZDR Encrypted-Content Sanitation](.docs/hlds/011-zdr-encrypted-content-sanitation/README.md) | Completed | Per-provider `StripEncryptedContent` opt-in drops OpenAI Zero-Data-Retention `reasoning` items carrying `encrypted_content` from the forwarded `input` array, so a `/responses` upstream that cannot decrypt (e.g. LM Studio) stops returning HTTP 400. Drops rather than decodes — the proxy holds no key; independent of `OpenAiUpstreamApi` / `RequestNormalization` / `IsImposter`, default off, enabled by injected env |
-| [012 — Per-Provider Upstream Timeout](.docs/hlds/012-per-provider-upstream-timeout/README.md) | Completed | Per-provider `TimeoutSeconds` sets the base upstream **header** timeout, scaled ×1/×2/×3 across the three forward attempts; unset ⇒ the global 300 s base (300/600/900 s ladder, raised from 200 s). Carried to the resilience pipeline on the outbound request; validated 1–3600 at startup; bounds time-to-first-byte only, never the SSE body |
+Design detail — actors, request flow, routing decision, NFRs, and decision records — is indexed in
+**[Design documents (HLDs)](.docs/wiki/hlds.md)**.
 
 ---
 
@@ -138,117 +128,56 @@ New to the project? Building from source, running it, and testing are covered in
 
 Pick the guide that matches how you want to run or work on the router:
 
-| Name | Description | Link | Type |
-|---|---|---|---|
-| Setup (all modes) | Master setup & run guide — config model, dialect prefixes, and every run mode | [`.docs/wiki/setup.md`](.docs/wiki/setup.md) | Runtime |
-| Docker / Podman | Run the router in a container you build locally | [`docker.run-smooth-llm-imposter.md`](.docs/wiki/setups/docker.run-smooth-llm-imposter.md) | Runtime |
-| GHCR image | Run the published SmoothLlmImposter container from GHCR | [`ghcr.run-smooth-llm-imposter.md`](.docs/wiki/setups/ghcr.run-smooth-llm-imposter.md) | Runtime |
-| Compose | Run with `docker compose` / `podman-compose` | [`compose.run-smooth-llm-imposter.md`](.docs/wiki/setups/compose.run-smooth-llm-imposter.md) | Runtime |
-| Developers — Getting Started | Build, run, and test from source (prerequisites, build, test) | [`developers-gettingstarted.md`](.docs/wiki/developers-gettingstarted.md) | Developer |
-| Local debug | Run from source with a debugger attached | [`local-debug.run-smooth-llm-imposter.md`](.docs/wiki/setups/local-debug.run-smooth-llm-imposter.md) | Developer |
-| Conductor | Fresh-sandbox build & routing setup for Conductor workspaces — also installable into other repos, see below | [`conductor.build-smooth-llm-imposter.md`](.docs/wiki/setups/conductor.build-smooth-llm-imposter.md) | Developer |
-| Logging debug | Dump the full inbound request for message-level debugging | [`logging.debug-smooth-llm-imposter.md`](.docs/wiki/setups/logging.debug-smooth-llm-imposter.md) | Developer |
+| ID | Name | Description | Link | Type |
+|---|---|---|---|---|
+| S01 | Setup (all modes) | Master setup & run guide — config model, dialect prefixes, and every run mode | [`.docs/wiki/setup.md`](.docs/wiki/setup.md) | Runtime |
+| S02 | Docker / Podman | Run the router in a container you build locally | [`docker.run-smooth-llm-imposter.md`](.docs/wiki/setups/docker.run-smooth-llm-imposter.md) | Runtime |
+| S03 | GHCR image | Run the published SmoothLlmImposter container from GHCR | [`ghcr.run-smooth-llm-imposter.md`](.docs/wiki/setups/ghcr.run-smooth-llm-imposter.md) | Runtime |
+| S04 | Compose | Run with `docker compose` / `podman-compose` | [`compose.run-smooth-llm-imposter.md`](.docs/wiki/setups/compose.run-smooth-llm-imposter.md) | Runtime |
+| S05 | Developers — Getting Started | Build, run, and test from source (prerequisites, build, test) | [`developers-gettingstarted.md`](.docs/wiki/developers-gettingstarted.md) | Developer |
+| S06 | Local debug | Run from source with a debugger attached | [`local-debug.run-smooth-llm-imposter.md`](.docs/wiki/setups/local-debug.run-smooth-llm-imposter.md) | Developer |
+| S07 | Conductor | Fresh-sandbox build & routing setup for Conductor workspaces | [`conductor.build-smooth-llm-imposter.md`](.docs/wiki/setups/conductor.build-smooth-llm-imposter.md) | Developer |
+| S08 | Logging debug | Dump the full inbound request for message-level debugging | [`logging.debug-smooth-llm-imposter.md`](.docs/wiki/setups/logging.debug-smooth-llm-imposter.md) | Developer |
+| S09 | GitHub Copilot (opt-in) | Device login, model discovery, mappings and credential removal for Copilot upstreams | [`github-copilot.configure-smooth-llm-imposter.md`](.docs/wiki/setups/github-copilot.configure-smooth-llm-imposter.md) | Runtime |
 
-### Conductor kit — install into another repo
+### GitHub Copilot (opt-in)
 
-The `.conductor/` lifecycle scripts (start the router container, configure Codex, wire `code-review-graph`, plus `restart-imposter` and `imposter-logs` triggers) are packaged as a versioned kit. Run this from the root of the repo you want it in:
+[Feature #126](https://github.com/generic-automation-and-it/smooth-llm-imposter/issues/126) adds opt-in
+GitHub Copilot upstream providers. One GitHub device login connects a protocol-specific pair —
+`github-anthropic` + `github-openai`, or a named `<prefix>-github-anthropic` / `<prefix>-github-openai` —
+so Anthropic callers reach `/v1/messages` and OpenAI/GPT callers reach `/responses`, with no
+OpenAI⇄Anthropic translation. Credentials are stored locally in SQLite and survive container replacement
+via a dedicated Docker volume; the feature stays off unless `ENABLE_GITHUB_COPILOT=true`.
 
-```bash
-# latest release
-curl -fsSL https://raw.githubusercontent.com/generic-automation-and-it/smooth-llm-imposter/main/.conductor/install.sh | bash
+You register **your own** GitHub OAuth application for this — device flow needs a client ID, not a client
+secret — so nothing ships with a hardcoded app identity.
 
-# pin a version (any published release tag — see the Releases page)
-curl -fsSL https://raw.githubusercontent.com/generic-automation-and-it/smooth-llm-imposter/main/.conductor/install.sh | bash -s -- --ref vX.Y.Z
-
-# what's installed here?
-bash .conductor/install.sh --check
-```
-
-Then commit `.conductor/` and give that workspace `OPENCODE_API_KEY` and `OPENROUTER_API_KEY` in its Conductor environment settings. Conductor runs `setup` on the next workspace it creates from that branch; `restart-imposter` is the default run script, so the container is re-established after a restart.
-
-| Property | Behaviour |
-|---|---|
-| Distribution | GitHub Release — `conductor-kit-<version>.tar.gz` + `SHA256SUMS` + `install.sh`, published by [`publish-conductor-kit.yml`](.github/workflows/publish-conductor-kit.yml) automatically when a change to `.conductor/**` lands on `main` |
-| Cutting a release | Bump [`.conductor/VERSION`](.conductor/VERSION) in the same PR as the kit change. Merging publishes it and marks it latest. A kit change without a bump publishes nothing — that is a no-op, not a failure |
-| Install style | **Vendored** — files are copied into `.conductor/` and committed. Nothing is fetched at runtime, so a registry outage can never break a workspace lifecycle |
-| Versioning | `.conductor/.kit-version` records the installed tag; re-run the installer to update |
-| Authentication | None — the repository is public |
-| Mappings | The scripts ship **as-is**, model mappings included, so a fresh install routes correctly with no further configuration. A repo wanting different routes edits its own copy; `PORT` and `SMOOTH_LLM_IMAGE` stay environment-overridable |
-
-A git submodule pinned to a tag also works and needs no extra tooling, but it is untested here — the `curl` path above is the supported one.
+**Status:** implemented (Feature [#126](https://github.com/generic-automation-and-it/smooth-llm-imposter/issues/126)) —
+device login, model discovery, mappings, token refresh and managed routing for `/v1/messages` and `/responses`. Design:
+[HLD 013](.docs/hlds/013-github-copilot/README.md). Setup guide with the full curl walkthrough:
+**[GitHub Copilot — configure the imposter](.docs/wiki/setups/github-copilot.configure-smooth-llm-imposter.md)**.
+Verifying against your own registered OAuth application end-to-end (live account probes) is still an external
+release gate; the deterministic suites and the NativeAOT smoke run are green. Track it in
+[#126](https://github.com/generic-automation-and-it/smooth-llm-imposter/issues/126).
 
 ---
 
-## Customized Switches (design preview — NOT YET IMPLEMENTED)
+## Customized switches
 
-The HLD 010 customized-switches family (`--who?` and `--newsession`, plus an
-in-memory session-id translation dictionary consulted on the forward path) is
-**in design** as of this PR. The current binary still matches the original HLD 010
-`who?` design in
-[`.docs/hlds/010-who-message-introspection/README.md`](.docs/hlds/010-who-message-introspection/README.md)
-(Goals 1–5) *and* the older "How it works" table at the top of this file:
-the only live switch today is `who?` (exact match, trimmed), the reply carries
-no `session:` field, and there is no in-memory dictionary. The new switches,
-envelope field, and dictionary are tracked in HLD 010 and will land in a
-follow-up commit.
+Two in-band switches short-circuit the forward path and return a dialect-shaped synthetic reply with
+**zero upstream calls**. They match when the **last user message** is exactly the switch (trimmed,
+case-sensitive) on a **non-streaming** request. Gated by `Imposter:WhoMessage:Enabled` (default `true`);
+set `IMPOSTER_WHO_MESSAGE_ENABLED=false` to opt out. Design:
+[HLD 010 — Who-Message Introspection](.docs/hlds/010-who-message-introspection/README.md).
 
-**Do not send `--who?` or `--newsession` to a release binary — `who?` is the live
-trigger today, and the rest of the affordances below are documented as a forward
-design preview.**
+| Switch | Reply |
+|---|---|
+| `--who?` | `Imposter: <inbound> → <target> (auth: <scheme>) session:<id>` or `Passthrough: <inbound> (auth: <scheme>) session:null` |
+| `--newsession` | `Session: <callerId> → <syntheticId>`; requires a caller session id (header or body field, same resolution as [HLD 009](.docs/hlds/009-session-identity-forwarding/README.md)). Later requests with that caller id are stamped with the synthetic one |
 
-### `--who?` — routing probe (PROPOSED — live is `who?`)
-
-Send a chat message whose **last user content** is the exact string `who?` (trimmed,
-case-sensitive). The proxy replies with a normal chat completion (no upstream call)
-whose content text names the resolved route:
-
-| Route | Content text (live) | Content text (proposed `--who?`) |
-|---|---|---|
-| Imposter | `Imposter: <inbound-model> → <target-model> (auth: <scheme>)` | `Imposter: <inbound-model> → <target-model> (auth: <scheme>) session:<id>` |
-| Passthrough | `Passthrough: <inbound-model> (auth: <scheme>)` | `Passthrough: <inbound-model> (auth: <scheme>) session:null` |
-
-The id field is `chatcmpl-who-{guid:N}` (OpenAI) or `msg_who_{guid:N}` (Anthropic)
-under both contracts.
-
-### `--newsession` — session-id mint + in-memory translation (PROPOSED — not yet implemented)
-
-Send a chat message whose **last user content** is the exact string `--newsession`
-(trimmed, case-sensitive). The request **must** carry a caller-supplied session id
-(header `session_id` / `x-opencode-session` / `x-session-id` / `conversation_id`,
-or body field `prompt_cache_key` / `metadata.user_id` / `user` — the same resolution
-order as HLD 009's session-identity forwarder). The proxy:
-
-1. Generates a **synthetic session id** (UUID).
-2. **Persists** the pair `(callerId, syntheticId)` in a process-lifetime in-memory
-   `ConcurrentDictionary` — no TTL, no eviction, no clear (volumes are expected to
-   be small).
-3. Replies with content text: `Session: <callerId> → <syntheticId>`.
-
-On every **subsequent** request that is *not* a switch match, if the resolver
-produces a session id equal to a dictionary key, the proxy **translates it to the
-stored synthetic id** before stamping it on the outbound request. The caller
-controls the key; the proxy controls the synthetic value; the upstream sees a
-stable id without the caller having to coordinate a long-lived secret.
-
-The id field is `chatcmpl-newsession-{guid:N}` (OpenAI) or
-`msg_newsession_{guid:N}` (Anthropic).
-
-### Scope and limits (when implemented)
-
-- The dictionary is **process-lifetime** — a restart loses all minted ids; callers
-  must re-mint on restart.
-- The dictionary is **in-process, not clustered** — a horizontally-scaled proxy has
-  N independent dictionaries; the caller must route to the same instance to use the
-  same synthetic id.
-- High-cardinality callers (millions of unique session ids per process) are an
-  explicit non-goal. At that scale, disable the feature
-  (`IMPOSTER_WHO_MESSAGE_ENABLED=false`) until a future HLD adds a persistent or
-  evictable store.
-- Streaming (`stream: true`) requests are **never** intercepted by either switch —
-  they forward to the upstream as normal. The probes are one-shot affordances,
-  intended for ad-hoc agent-tooling use.
-
-Full design: [HLD 010 — Who-Message Introspection](.docs/hlds/010-who-message-introspection/README.md).
+Limits: the session dictionary is process-lifetime and in-process (a restart or another replica loses it),
+and streaming requests are never intercepted — use the [skills](#skills) below, which send a non-streaming
+probe for you.
 
 ---
 
@@ -288,7 +217,7 @@ Both scripts auto-detect the dialect from `OPENAI_BASE_URL` / `ANTHROPIC_BASE_UR
 |---|---|
 | Architecture (tech stack, project structure) | [`.docs/wiki/architecture.md`](.docs/wiki/architecture.md) |
 | Setup & run (all modes) | [`.docs/wiki/setup.md`](.docs/wiki/setup.md) · [`.docs/wiki/setups/`](.docs/wiki/setups/) |
-| Design (HLD, NFRs, LADRs) | [`.docs/hlds/001-llm-imposter-routing/`](.docs/hlds/001-llm-imposter-routing/README.md) — index table under [How it works](#how-it-works) |
+| Design (HLD, NFRs, LADRs) | [`.docs/wiki/hlds.md`](.docs/wiki/hlds.md) — HLD index; sources in [`.docs/hlds/`](.docs/hlds/) |
 | AI agent context & coding rules | [`AGENTS.md`](AGENTS.md) · [`.agents/`](.agents/) |
 | AI tooling setup | [`.docs/wiki/ai-tooling.md`](.docs/wiki/ai-tooling.md) |
 | Testing strategy | [`.docs/wiki/testing.md`](.docs/wiki/testing.md) |
