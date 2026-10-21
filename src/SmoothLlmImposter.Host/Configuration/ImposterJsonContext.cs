@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using SmoothLlmImposter.Application.Features.AuthorizationOverride;
 using SmoothLlmImposter.Application.Features.Credentials;
+using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Application.Features.ProviderConfiguration;
 using SmoothLlmImposter.Host.Endpoints;
 
@@ -22,6 +23,12 @@ namespace SmoothLlmImposter.Host.Configuration;
 [JsonSerializable(typeof(IReadOnlyList<CredentialResponse>))]
 [JsonSerializable(typeof(ProviderConfigurationResponse))]
 [JsonSerializable(typeof(IReadOnlyList<ProviderConfigurationResponse>))]
+[JsonSerializable(typeof(GithubCopilotEndpoints.StartLoginBody))]
+[JsonSerializable(typeof(GithubCopilotLoginStartResponse))]
+[JsonSerializable(typeof(GithubCopilotLoginCompleteResponse))]
+[JsonSerializable(typeof(GithubCopilotConnectionStatus))]
+[JsonSerializable(typeof(GithubCopilotConnectionListResponse))]
+[JsonSerializable(typeof(GithubCopilotModelsDiscoveryResponse))]
 [JsonSerializable(typeof(AuthorizationOverrideState))]
 [JsonSerializable(typeof(HealthResponse))]
 internal partial class ImposterJsonContext : JsonSerializerContext;

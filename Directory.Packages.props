@@ -61,6 +61,9 @@
     <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.13" />
     <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.14" />
+    <!-- Microsoft.AspNetCore.OpenApi 10.0.7 pulls Microsoft.OpenApi 2.0.0 (GHSA-v5pm-xwqc-g5wc). Stay on the
+         2.x line so the OpenAPI model API used by the document transformer is unchanged. -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.13.0" />
   </ItemGroup>
   <!-- Test packages -->
   <ItemGroup>

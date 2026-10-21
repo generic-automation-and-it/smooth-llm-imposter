@@ -27,6 +27,13 @@ public interface IProviderRegistry
     /// <summary>Inserts or replaces the provider registered under <paramref name="key"/>.</summary>
     void Upsert(string key, ProviderOptions provider);
 
+    /// <summary>
+    /// Inserts or replaces several providers atomically under the registry's single synchronization boundary.
+    /// A caller that publishes a pair the feature owns must validate and apply it as one batch, so another
+    /// admin mutation can never observe a half-published pair (D2).
+    /// </summary>
+    void ApplyBatch(IReadOnlyDictionary<string, ProviderOptions> providers);
+
     /// <summary>Removes the provider registered under <paramref name="key"/>; returns <c>false</c> when absent.</summary>
     bool Delete(string key);
 }

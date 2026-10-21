@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-Implements the contracts defined in Application — EF Core + PostgreSQL persistence (`Persistence/`), the feature-scoped GitHub Copilot SQLite store (`Persistence/GithubCopilot/`, direct `Microsoft.Data.Sqlite`), and external HTTP clients (`Clients/`).
+Implements the contracts defined in Application — EF Core + PostgreSQL persistence (`Persistence/`), the feature-scoped GitHub Copilot SQLite store (`Persistence/GithubCopilot/`, direct `Microsoft.Data.Sqlite`), its isolated Data Protection key ring, the device-flow OAuth and Copilot model clients (`Clients/GithubCopilot/`), and external HTTP clients (`Clients/`).
 
 ## Non-Negotiables
 
@@ -27,6 +27,20 @@ Implements the contracts defined in Application — EF Core + PostgreSQL persist
 
 `Microsoft.EntityFrameworkCore(.Relational/.Design/.Tools)`, `Npgsql.EntityFrameworkCore.PostgreSQL`, `Refit.HttpClientFactory`, `Microsoft.Extensions.Http.Resilience` — declared centrally in `Directory.Packages.props`.
 
+
+## GitHub Copilot clients and protector (HLD 013)
+
+- **OAuth and Copilot clients never follow a redirect** (`SocketsHttpHandler.AllowAutoRedirect = false`), are
+  time-bounded, cap response size, and carry **no** automatic POST retry policy — the login/refresh state machines
+  own retry decisions. Do not add a resilience handler to `github-copilot-oauth`/`github-copilot-api`.
+- **GitHub JSON is source-generated or `JsonDocument`.** Adding a response DTO means registering it in
+  `Clients/GithubCopilot/GithubCopilotJsonContext`.
+- **The Copilot protector uses its own key ring** (`<data dir>/keys`, application name
+  `smooth-llm-imposter-github-copilot`). Never route Copilot tokens through `DataProtectionSecretProtector` or the
+  host's generic Data Protection registration.
+- `SqliteGithubCopilotConnectionStore` is opened with a nullable connection string: while the feature is disabled
+  it has none and any open attempt throws rather than creating a file.
+
 ## Changelog
 
 | Date | Change | Ref |
@@ -35,3 +49,4 @@ Implements the contracts defined in Application — EF Core + PostgreSQL persist
 | 2026-09-22 | Per-attempt header timeouts derive from a per-provider base scaled ×1/×2/×3; global base 200s → 300s, so the default ladder is 300s/600s/900s. Base is carried per request (`UpstreamTimeoutSecondsKey`), not per client. | `DependencyInjection`, `UpstreamForwarder` (HLD 012) |
 | 2026-08-30 | Upstream pre-header resilience uses 200s, 600s, and 900s attempt timeouts, with two retries after 1s and 2s. *(Superseded 2026-09-22.)* | `DependencyInjection` |
 | 2026-05-30 | Created — empty persistence + clients skeleton (`Clients/`, `Extensions/`, `Persistence/{Configurations,Entities,Migrations,Repositories,Stores,Extensions,DesignTime}/`). | — |
+| 2026-10-20 | GitHub Copilot feature store `List()`, isolated Data Protection protector, device-flow OAuth client and Copilot model client; bootstrap now hydrates/publishes via the Application startup coordinator before its probe. | `Persistence/GithubCopilot`, `Clients/GithubCopilot` (#126) |

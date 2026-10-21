@@ -1,5 +1,8 @@
 using FluentValidation;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using SmoothLlmImposter.Application.Common.Persistence;
+using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Application.Features.ProviderConfiguration;
 using SmoothLlmImposter.Application.Features.Routing;
 
@@ -16,7 +19,7 @@ public class ProviderConfigurationHandlerTests
             ["opencode"] = Provider("openai", "https://old.example", secret: "sk-existing")
         });
 
-        var handler = new UpsertProvider.Handler(registry, NullLogger<UpsertProvider.Handler>.Instance);
+        var handler = new UpsertProvider.Handler(registry, Ownership(), NullLogger<UpsertProvider.Handler>.Instance);
 
         ProviderConfigurationResponse response = await handler.Handle(
             new UpsertProvider.Request(
@@ -69,7 +72,7 @@ public class ProviderConfigurationHandlerTests
             ["opencode"] = Provider("openai", "https://opencode.example")
         });
 
-        var handler = new UpsertProvider.Handler(registry, NullLogger<UpsertProvider.Handler>.Instance);
+        var handler = new UpsertProvider.Handler(registry, Ownership(), NullLogger<UpsertProvider.Handler>.Instance);
 
         await Should.ThrowAsync<ValidationException>(() => handler.Handle(
             new UpsertProvider.Request(
@@ -104,7 +107,7 @@ public class ProviderConfigurationHandlerTests
             ["opencode"] = Provider("openai", "https://opencode.example")
         });
 
-        var handler = new UpsertProvider.Handler(registry, NullLogger<UpsertProvider.Handler>.Instance);
+        var handler = new UpsertProvider.Handler(registry, Ownership(), NullLogger<UpsertProvider.Handler>.Instance);
 
         await Should.ThrowAsync<ValidationException>(() => handler.Handle(
             new UpsertProvider.Request(
@@ -137,7 +140,7 @@ public class ProviderConfigurationHandlerTests
             ["default"] = Provider("openai", "https://default.example", isDefault: true)
         });
 
-        var handler = new UpsertProvider.Handler(registry, NullLogger<UpsertProvider.Handler>.Instance);
+        var handler = new UpsertProvider.Handler(registry, Ownership(), NullLogger<UpsertProvider.Handler>.Instance);
 
         await Should.ThrowAsync<ValidationException>(() => handler.Handle(
             new UpsertProvider.Request(
@@ -171,7 +174,7 @@ public class ProviderConfigurationHandlerTests
             ["enabled-default"] = Provider("openai", "https://enabled.example", isDefault: true)
         });
 
-        var handler = new SetProviderEnabled.Handler(registry, NullLogger<SetProviderEnabled.Handler>.Instance);
+        var handler = new SetProviderEnabled.Handler(registry, Ownership(), NullLogger<SetProviderEnabled.Handler>.Instance);
         ProviderConfigurationResponse? response = await handler.Handle(
             new SetProviderEnabled.Request("disabled-default", Enabled: false, Actor: "test"),
             TestContext.Current.CancellationToken);
@@ -190,7 +193,7 @@ public class ProviderConfigurationHandlerTests
             ["keep"] = Provider("openai", "https://keep.example")
         });
 
-        var handler = new DeleteProvider.Handler(registry, NullLogger<DeleteProvider.Handler>.Instance);
+        var handler = new DeleteProvider.Handler(registry, Ownership(), NullLogger<DeleteProvider.Handler>.Instance);
 
         (await handler.Handle(new DeleteProvider.Request("opencode", Actor: "test"), TestContext.Current.CancellationToken))
             .ShouldBeTrue();
@@ -207,7 +210,7 @@ public class ProviderConfigurationHandlerTests
             ["opencode"] = Provider("openai", "https://old.example")
         });
 
-        var handler = new DeleteProvider.Handler(registry, NullLogger<DeleteProvider.Handler>.Instance);
+        var handler = new DeleteProvider.Handler(registry, Ownership(), NullLogger<DeleteProvider.Handler>.Instance);
 
         (await handler.Handle(new DeleteProvider.Request("absent", Actor: "test"), TestContext.Current.CancellationToken))
             .ShouldBeFalse();
@@ -222,7 +225,7 @@ public class ProviderConfigurationHandlerTests
             ["opencode"] = Provider("openai", "https://old.example")
         });
 
-        var handler = new DeleteProvider.Handler(registry, NullLogger<DeleteProvider.Handler>.Instance);
+        var handler = new DeleteProvider.Handler(registry, Ownership(), NullLogger<DeleteProvider.Handler>.Instance);
 
         // Deleting the only provider would leave an empty registry, which the startup validator rejects;
         // the delete handler enforces the same invariant at runtime (HLD 008 — config reseeds on restart).
@@ -239,6 +242,20 @@ public class ProviderConfigurationHandlerTests
         IsDefault = isDefault,
         Secret = secret
     };
+
+    private static GithubCopilotProviderOwnership Ownership(bool enabled = false) =>
+        new(Options.Create(new GithubCopilotOptions { Enabled = enabled }), new EmptyConnectionStore(), new GithubCopilotPrefixGate());
+
+    private sealed class EmptyConnectionStore : IGithubCopilotConnectionStore
+    {
+        public void EnsureCreated() { }
+        public void VerifyWritable() { }
+        public void Upsert(GithubCopilotConnection connection) { }
+        public GithubCopilotConnection? Get(string prefix) => null;
+        public GithubCopilotConnection[] List() => [];
+        public bool Exists(string prefix) => false;
+        public int Delete(string prefix) => 0;
+    }
 
     private static ProviderOptions WithEnabled(ProviderOptions provider, bool enabled)
     {

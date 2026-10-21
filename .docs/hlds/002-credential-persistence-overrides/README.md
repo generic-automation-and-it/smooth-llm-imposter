@@ -97,6 +97,19 @@ Clean Architecture, persistence reintroduced for this concern only:
 Routing body transformation stays string-in/string-out (HLD 001); only the passthrough **credential lookup**
 is added, behind `ICredentialStore`.
 
+## Current addendum — managed GitHub Copilot credentials (2026-10-20)
+
+HLD 013 adds an opt-in, feature-owned credential path for reserved GitHub Copilot providers. It does **not**
+replace or extend the PostgreSQL credential model described above:
+
+- The Copilot connection lives in a separate local SQLite file (`GithubCopilot__DatabasePath`) with its own
+  isolated Data Protection key ring; enabling the feature never reconfigures this subsystem's key ring.
+- Its token is consumed only by matched routes for reserved `github-*` provider keys, via an in-memory published
+  snapshot — never a per-inference database lookup — and never by the generic passthrough override path.
+- This is the narrow exception recorded in [LADR-004](./ladrs/LADR-004-overrides-passthrough-only.md#amendment--managed-github-copilot-exception-2026-10-20).
+  The historical `(credentials never persisted)` statement above describes HLD 001's original stance and is left
+  intact as history; the current design's persistence boundary is this addendum plus HLD 013.
+
 ## Non-functional requirements
 
 - [NFR-001 — Secret encryption at rest](nfrs/NFR-001-secret-encryption-at-rest.md)

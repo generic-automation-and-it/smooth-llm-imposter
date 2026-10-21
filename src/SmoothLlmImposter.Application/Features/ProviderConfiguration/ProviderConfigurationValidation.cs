@@ -2,6 +2,7 @@ using FluentValidation;
 using FluentValidation.Results;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Domain.Credentials;
+using SmoothLlmImposter.Domain.GithubCopilot;
 using SmoothLlmImposter.Domain.Routing;
 
 namespace SmoothLlmImposter.Application.Features.ProviderConfiguration;
@@ -14,6 +15,77 @@ internal static class ProviderConfigurationValidation
     public static void AddBodyRules<T>(IRuleBuilderInitial<T, ProviderConfigurationBody> rule)
     {
         rule.NotNull().SetValidator(new ProviderConfigurationBodyValidator());
+    }
+
+    /// <summary>
+    /// Field-level identity check for an <b>existing</b> reserved Copilot key (D1). Models and Enabled stay
+    /// editable, but the feature owns dialect, the managed Bearer scheme, the header, the effective origin and
+    /// the protocol surface — so a generic PUT can neither repoint the credential nor turn the profile into a
+    /// Chat/normalized provider.
+    /// </summary>
+    public static void EnsureReservedIdentity(ProviderOptions existing, ProviderConfigurationBody body)
+    {
+        List<ValidationFailure> failures = [];
+
+        if (!ApiDialectParser.TryParse(body.Dialect, out ApiDialect dialect))
+        {
+            failures.Add(new ValidationFailure(nameof(body.Dialect), "Dialect must be 'openai' or 'anthropic'."));
+        }
+        else if (!ApiDialectParser.TryParse(existing.Dialect, out ApiDialect existingDialect) || dialect != existingDialect)
+        {
+            failures.Add(new ValidationFailure(nameof(body.Dialect),
+                $"Dialect is fixed by the reserved provider key ('{existingDialect.ToToken()}'); it cannot be changed."));
+        }
+
+        if (!CredentialAuthSchemeParser.TryParse(body.AuthScheme, out CredentialAuthScheme? scheme) ||
+            scheme != CredentialAuthScheme.Bearer)
+        {
+            failures.Add(new ValidationFailure(nameof(body.AuthScheme),
+                "AuthScheme is fixed to 'Bearer' for reserved GitHub Copilot providers (the managed connection supplies the token)."));
+        }
+
+        if (body.AuthHeader is not null)
+        {
+            failures.Add(new ValidationFailure(nameof(body.AuthHeader),
+                "AuthHeader is fixed to the scheme default (Authorization) for reserved GitHub Copilot providers."));
+        }
+
+        if (!string.Equals(body.BaseUrl?.TrimEnd('/'), existing.BaseUrl?.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+        {
+            failures.Add(new ValidationFailure(nameof(body.BaseUrl),
+                "BaseUrl is managed by the GitHub Copilot connection origin; it cannot be changed through provider CRUD."));
+        }
+
+        if (body.IsDefault)
+        {
+            failures.Add(new ValidationFailure(nameof(body.IsDefault),
+                "A reserved GitHub Copilot provider cannot be the dialect default; omitted-prefix pairs never replace passthrough routing."));
+        }
+
+        if (!OpenAiUpstreamApiParser.TryParse(body.OpenAiUpstreamApi, out OpenAiUpstreamApi upstreamApi) ||
+            upstreamApi != OpenAiUpstreamApi.Responses)
+        {
+            failures.Add(new ValidationFailure(nameof(body.OpenAiUpstreamApi),
+                "OpenAiUpstreamApi is fixed to 'responses' for reserved GitHub Copilot providers; Copilot Chat is out of scope."));
+        }
+
+        if (!RequestNormalizationParser.TryParse(body.RequestNormalization, out RequestNormalization normalization) ||
+            normalization != RequestNormalization.None)
+        {
+            failures.Add(new ValidationFailure(nameof(body.RequestNormalization),
+                "RequestNormalization is fixed to 'none' for reserved GitHub Copilot providers."));
+        }
+
+        if (body.StripEncryptedContent == true)
+        {
+            failures.Add(new ValidationFailure(nameof(body.StripEncryptedContent),
+                "StripEncryptedContent cannot be enabled for reserved GitHub Copilot providers."));
+        }
+
+        if (failures.Count > 0)
+        {
+            throw new ValidationException(failures);
+        }
     }
 
     public static void EnsureValidRegistry(IReadOnlyDictionary<string, ProviderOptions> providers)

@@ -59,6 +59,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Test AI analyse initialization
+        run: python3 -m unittest discover -s .github/tests -v
+
       - name: Install .NET SDK
         uses: actions/setup-dotnet@v5
         with:

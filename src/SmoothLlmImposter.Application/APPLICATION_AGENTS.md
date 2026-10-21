@@ -29,9 +29,18 @@ Features/
 
 `Mediator.Abstractions` + `Mediator.SourceGenerator`, `FluentValidation` (core only — validators are registered explicitly, one line per request in `DependencyInjection`, because the `FluentValidation.DependencyInjectionExtensions` assembly scanner is trim-unsafe), and (for upstream clients) `Refit` — all declared centrally in `Directory.Packages.props`. `ValidatorRegistrationTests` fails when a `Request` gains a `Validator` without a registration line.
 
+## Managed GitHub Copilot feature (HLD 013)
+
+`Features/GithubCopilot/` owns the device-login state machine, the published-connection snapshot, the publisher,
+startup hydration, refresh and the admin slices. The store, protector and GitHub clients are Application-owned
+interfaces implemented in Infrastructure. Keep every admin request registered in `DependencyInjection` with an
+explicit validator (the `ValidatorRegistrationTests` drift guard fails otherwise), and keep the login flow
+bounded/in-memory — no durable messaging, queue or reconcile endpoint.
+
 ## Changelog
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
 | 2026-05-30 | Created — empty vertical-slice skeleton (`Features/`, `Common/{Clients,Exceptions,Models,Persistence,Pipelines}/`, `Extensions/`). | — |
 | 2026-10-17 | NativeAOT support: validators registered explicitly in `DependencyInjection` (assembly scanning is trim-unsafe); `JsonArray.Add(JsonObject)` sites cast to `JsonNode` (same overload, no generic code-gen); `ValidatorRegistrationTests` guards the registration list. | — |
+| 2026-10-20 | GitHub Copilot slices + snapshot/publisher/startup/refresh registrations; reserved-key ownership consulted by provider CRUD. | #126 |

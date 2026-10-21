@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
+using Scalar.AspNetCore;
 using Serilog;
 using Serilog.Events;
 using SmoothLlmImposter.Application;
@@ -53,6 +55,11 @@ builder.Services.AddAuthorization(options =>
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
+builder.Services.AddExceptionHandler<GithubCopilotExceptionHandler>();
+
+// OpenAPI metadata is registered unconditionally but only mapped below when the Copilot feature is on, so the
+// flag-off host exposes no Copilot/OpenAPI/Scalar surface at all.
+builder.Services.AddOpenApi(options => options.AddDocumentTransformer<AdminApiKeyDocumentTransformer>());
 
 WebApplication app = builder.Build();
 
@@ -95,6 +102,17 @@ app.MapImposterEndpoints();
 app.MapProviderConfigurationEndpoints();
 app.MapCredentialAdminEndpoints();
 app.MapAuthorizationOverrideEndpoints();
+
+// Feature gating reads the same resolved options the rest of the feature uses (ENABLE_GITHUB_COPILOT,
+// authoritative in the post-configure), so a test host can substitute the mapping without touching the process
+// environment. Malformed values already failed the options validator above.
+bool githubCopilotEnabled = app.Services.GetRequiredService<IOptions<GithubCopilotOptions>>().Value.Enabled;
+if (githubCopilotEnabled)
+{
+    app.MapGithubCopilotEndpoints();
+    app.MapOpenApi();
+    app.MapScalarApiReference();
+}
 
 app.Run();
 

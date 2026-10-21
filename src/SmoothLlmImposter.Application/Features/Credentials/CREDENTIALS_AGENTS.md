@@ -19,6 +19,14 @@ routing determines `IsImposter == false`.
 - Admin API keys are compared with `CryptographicOperations.FixedTimeEquals` (constant-time); never use `==`.
 - `ProviderDialect` discriminator values are stable persisted tokens: `openai` and `anthropic`.
 
+## HLD 013 exception — managed GitHub Copilot credentials
+
+Matched imposter routes are still config-only **except** for reserved Copilot provider keys: those resolve a
+managed Bearer token and origin from the feature's published connection snapshot (see
+[`Features/GithubCopilot/GITHUB_COPILOT_AGENTS.md`](../GithubCopilot/GITHUB_COPILOT_AGENTS.md)). The generic
+`ICredentialStore` and the passthrough override path are unchanged, and the Copilot store is a separate
+feature-owned SQLite file with its own key ring — never add Copilot tokens to this credential subsystem.
+
 ## Changelog
 
 | Date | Change | Ref |
@@ -26,3 +34,4 @@ routing determines `IsImposter == false`.
 | 2026-06-15 | Created for HLD 002 credential persistence and passthrough overrides. | HLD 002 |
 | 2026-06-15 | Centralized validation→400 via global `IExceptionHandler`; constant-time admin key comparison. | HLD 002 |
 | 2026-06-21 | HLD 008 Phase 2: credentials are provider-keyed, in-memory by default, EF optional; activation is scoped per provider. | #50 |
+| 2026-10-20 | Documented the narrow HLD 013 exception and its boundary from the generic credential store. | #126 |

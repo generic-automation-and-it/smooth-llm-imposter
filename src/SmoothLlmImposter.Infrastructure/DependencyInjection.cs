@@ -5,10 +5,13 @@ using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Timeout;
+using SmoothLlmImposter.Application.Common.Clients.GithubCopilot;
 using SmoothLlmImposter.Application.Common.Persistence;
 using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Application.Features.Routing;
+using SmoothLlmImposter.Infrastructure.Clients.GithubCopilot;
 using SmoothLlmImposter.Infrastructure.Persistence;
+using SmoothLlmImposter.Infrastructure.Persistence.GithubCopilot;
 using SmoothLlmImposter.Infrastructure.Persistence.Stores;
 using SmoothLlmImposter.Infrastructure.Routing;
 
@@ -54,6 +57,18 @@ public static class DependencyInjection
                 builder.AddTimeout(CreateUpstreamTimeoutOptions());
             });
 
+        // Managed GitHub Copilot traffic uses a sibling client with automatic redirects disabled: the request
+        // carries a GitHub Bearer token, and a 30x must not relay it to another origin. The resilience pipeline
+        // is identical, so timeout/retry semantics (HLD 012) stay the same.
+        services.AddHttpClient(UpstreamForwarder.CopilotHttpClientName, client =>
+            client.Timeout = Timeout.InfiniteTimeSpan)
+            .ConfigurePrimaryHttpMessageHandler(static () => new SocketsHttpHandler { AllowAutoRedirect = false })
+            .AddResilienceHandler("upstream-retry-copilot", builder =>
+            {
+                builder.AddRetry(CreateUpstreamRetryOptions());
+                builder.AddTimeout(CreateUpstreamTimeoutOptions());
+            });
+
         services.AddDataProtection();
         services.AddSingleton<IUpstreamForwarder, UpstreamForwarder>();
         services.AddSingleton<ISecretProtector, DataProtectionSecretProtector>();
@@ -71,6 +86,28 @@ public static class DependencyInjection
                     : Persistence.GithubCopilot.SqliteGithubCopilotConnectionStore.BuildConnectionString(databasePath));
         });
         services.AddHostedService<Persistence.GithubCopilot.GithubCopilotBootstrap>();
+
+        // GitHub device flow and account/model discovery. These clients never follow a redirect (a credential
+        // must not be relayed to another origin), are time-bounded, and carry no automatic POST retry — the
+        // login/refresh state machines own retry decisions. Model discovery is an uncached plural list call.
+        services.AddHttpClient(GithubOAuthClient.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
+            .ConfigurePrimaryHttpMessageHandler(static () => new SocketsHttpHandler { AllowAutoRedirect = false });
+        services.AddHttpClient(GithubCopilotModelsClient.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
+            .ConfigurePrimaryHttpMessageHandler(static () => new SocketsHttpHandler { AllowAutoRedirect = false });
+        services.AddSingleton<IGithubOAuthClient, GithubOAuthClient>();
+        services.AddSingleton<IGithubCopilotModelsClient, GithubCopilotModelsClient>();
+
+        // Isolated Copilot protector: its own key ring under the feature data directory, so enabling the
+        // feature never reconfigures (or invalidates) the generic credential key ring.
+        services.AddSingleton<IGithubCopilotSecretProtector>(sp =>
+        {
+            string? databasePath = sp.GetRequiredService<IOptions<GithubCopilotOptions>>().Value.DatabasePath;
+            string dataDirectory = string.IsNullOrWhiteSpace(databasePath)
+                ? Directory.GetCurrentDirectory()
+                : Path.GetDirectoryName(Path.GetFullPath(databasePath)) ?? Directory.GetCurrentDirectory();
+
+            return DataProtectionGithubCopilotSecretProtector.Create(dataDirectory);
+        });
 
         // Stored passthrough credentials default to an in-memory settings-backed store. Only wire the
         // encrypted EF Core backend when an operator opts in with a connection string. EF Core is not

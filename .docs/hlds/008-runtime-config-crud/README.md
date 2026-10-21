@@ -171,3 +171,17 @@ mechanism, and acceptance criteria. See [`./nfrs/`](./nfrs/).
 | [NFR-03](./nfrs/NFR-03-admin-authorization.md) | Security | Every mutating endpoint requires the admin key (401/403 otherwise) | Accepted |
 | [NFR-04](./nfrs/NFR-04-ephemerality.md) | Operability | Runtime mutations are in-memory; restart reseeds deterministically from config + env | Accepted |
 | [NFR-05](./nfrs/NFR-05-hotpath-parity-no-db.md) | Compatibility | Imposter hot-path parity preserved; full CRUD + override work with no database | Accepted |
+
+---
+
+## Addendum — GitHub Copilot connection metadata (HLD 013, 2026-10-20)
+
+HLD 013 persists **connection** metadata (GitHub account identity, OAuth client ID, API origin, encrypted tokens,
+revision) in a feature-owned local SQLite file. It does **not** persist the provider registry:
+
+- The ephemeral-registry contract above still holds. Config/env provider definitions and mappings restore at
+  startup; mappings changed only through `/admin/providers` must be reapplied after restart.
+- Startup re-materializes the reserved provider pair from the saved connection so credentials remain usable, but
+  it restores no arbitrary runtime provider edit.
+- The reserved keys' identity (dialect, Bearer scheme, header, origin) is feature-owned; `Models` and `Enabled`
+  remain runtime-mutable and ephemeral as before.

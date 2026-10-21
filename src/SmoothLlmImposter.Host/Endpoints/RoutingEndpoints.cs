@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
+using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Domain.Routing;
 
@@ -41,8 +42,8 @@ internal static class RoutingEndpoints
         // disambiguates shared paths like /v1/models that are identical across OpenAI and Anthropic — and the
         // captured tail is forwarded verbatim, so /v1/models, /v1/responses, /v1/messages/count_tokens, etc.
         // all proxy without a per-route mapping.
-        app.Map("/openai/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, ISessionTranslationDictionary sessionTranslation, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, whoResponder, sessionTranslation, imposterOptions.Value, loggerFactory));
+        app.Map("/openai/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, whoResponder, sessionTranslation, copilotRegistry, imposterOptions.Value, loggerFactory));
 
         // Anthropic model discovery is answered LOCALLY from the route catalogue (distinct union of configured
         // `to` targets), not forwarded upstream (HLD 005, Anthropic scope). This specific GET route takes
@@ -55,19 +56,19 @@ internal static class RoutingEndpoints
             return Results.Text(responder.BuildModelsResponse(), "application/json");
         });
 
-        app.Map("/anthropic/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, ISessionTranslationDictionary sessionTranslation, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.Anthropic, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, whoResponder, sessionTranslation, imposterOptions.Value, loggerFactory));
+        app.Map("/anthropic/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.Anthropic, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, whoResponder, sessionTranslation, copilotRegistry, imposterOptions.Value, loggerFactory));
 
         // Legacy unprefixed completion routes (POST only). The inbound path is the upstream path. Unprefixed
         // /v1/models is intentionally NOT mapped here — it is dialect-ambiguous; use the /openai or /anthropic prefix.
-        app.MapPost("/v1/chat/completions", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, ISessionTranslationDictionary sessionTranslation, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/chat/completions", router, forwarder, responseTransformer, errors, whoResponder, sessionTranslation, imposterOptions.Value, loggerFactory));
+        app.MapPost("/v1/chat/completions", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/chat/completions", router, forwarder, responseTransformer, errors, whoResponder, sessionTranslation, copilotRegistry, imposterOptions.Value, loggerFactory));
 
-        app.MapPost("/v1/responses", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, ISessionTranslationDictionary sessionTranslation, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/responses", router, forwarder, responseTransformer, errors, whoResponder, sessionTranslation, imposterOptions.Value, loggerFactory));
+        app.MapPost("/v1/responses", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/responses", router, forwarder, responseTransformer, errors, whoResponder, sessionTranslation, copilotRegistry, imposterOptions.Value, loggerFactory));
 
-        app.MapPost("/v1/messages", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, ISessionTranslationDictionary sessionTranslation, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.Anthropic, "/v1/messages", router, forwarder, responseTransformer, errors, whoResponder, sessionTranslation, imposterOptions.Value, loggerFactory));
+        app.MapPost("/v1/messages", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.Anthropic, "/v1/messages", router, forwarder, responseTransformer, errors, whoResponder, sessionTranslation, copilotRegistry, imposterOptions.Value, loggerFactory));
     }
 
     // The {**upstreamPath} catch-all captures the tail WITHOUT a leading slash and excludes the query string.
@@ -85,6 +86,7 @@ internal static class RoutingEndpoints
         IErrorResponseFactory errors,
         IWhoMessageResponder whoResponder,
         ISessionTranslationDictionary sessionTranslation,
+        IGithubCopilotConnectionRegistry copilotRegistry,
         ImposterOptions imposterOptions,
         ILoggerFactory loggerFactory)
     {
@@ -192,6 +194,12 @@ internal static class RoutingEndpoints
         {
             return; // caller disconnected; nothing to write.
         }
+        catch (RoutingException ex)
+        {
+            // Refused before any credential left the process (e.g. a Copilot path the profile does not serve).
+            await WriteErrorAsync(context, dialect, errors, ex.StatusCode, ex.Message, ErrorTypeFor(ex.StatusCode), cancellationToken);
+            return;
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Upstream forward to provider {Provider} failed", plan.Decision.Provider.Name);
@@ -204,6 +212,19 @@ internal static class RoutingEndpoints
                 "upstream_error",
                 cancellationToken);
             return;
+        }
+
+        // Managed Copilot credential revocation is revision-scoped (AC11): an upstream 401 invalidates only the
+        // connection revision this request was planned against, never replays the billable POST, and never
+        // treats an ordinary 403/model-policy failure as account revocation. The durable row is retained (D3).
+        if (upstream.StatusCode == System.Net.HttpStatusCode.Unauthorized &&
+            plan.Copilot is { } copilot &&
+            copilotRegistry.InvalidateIfCurrent(copilot.Prefix, copilot.Revision))
+        {
+            logger.LogWarning(
+                "Upstream rejected the GitHub Copilot credential for connection prefix {Prefix} (revision {Revision}); routing now fails closed until a new login.",
+                copilot.Prefix,
+                copilot.Revision);
         }
 
         using (upstream)

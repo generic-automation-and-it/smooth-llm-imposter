@@ -8,15 +8,16 @@ namespace SmoothLlmImposter.Infrastructure.Persistence.GithubCopilot;
 
 /// <summary>
 /// Feature-gated Copilot store bootstrap. With the feature disabled it opens no Copilot database (R6/AC01).
-/// When enabled it ensures the schema and performs a single probe round-trip at startup, exercising the
-/// Microsoft.Data.Sqlite store path before real connections exist. The probe writes and deletes its own
-/// uniquely-prefixed row, so it never deletes an existing database and leaves no residue. Real connection
-/// hydration replaces the probe once the feature store hosts credentials.
+/// When enabled it hydrates durable connections and re-materializes missing provider pairs before the host
+/// serves requests (via <see cref="IGithubCopilotStartupCoordinator"/>), then verifies the store is writable with a
+/// transaction that is always rolled back. The probe leaves no residue — even on a crash — and never removes
+/// existing data.
 /// </summary>
 internal sealed class GithubCopilotBootstrap(
     ILogger<GithubCopilotBootstrap> logger,
     IOptions<GithubCopilotOptions> options,
-    IGithubCopilotConnectionStore store) : IHostedService
+    IGithubCopilotConnectionStore store,
+    IGithubCopilotStartupCoordinator startupCoordinator) : IHostedService
 {
     public Task StartAsync(CancellationToken cancellationToken)
     {
@@ -26,28 +27,10 @@ internal sealed class GithubCopilotBootstrap(
             return Task.CompletedTask;
         }
 
-        store.EnsureCreated();
+        startupCoordinator.Start();
+        store.VerifyWritable();
 
-        var probe = new GithubCopilotConnection(
-            Prefix: $"probe-{Guid.NewGuid():N}",
-            ConnectionId: Guid.NewGuid().ToString("N"),
-            GitHubUser: "native-aot",
-            ClientId: "probe",
-            ApiOrigin: "https://api.enterprise.githubcopilot.com",
-            AccessTokenCiphertext: "cipher:access",
-            RefreshTokenCiphertext: null,
-            ExpiresAtUtc: null,
-            Revision: 1);
-
-        store.Upsert(probe);
-        GithubCopilotConnection? read = store.Get(probe.Prefix);
-        if (read is null || read.ConnectionId != probe.ConnectionId)
-        {
-            throw new InvalidOperationException("GitHub Copilot SQLite store probe failed.");
-        }
-        store.Delete(probe.Prefix);
-
-        logger.LogInformation("GitHub Copilot store ready (probe ok)");
+        logger.LogInformation("GitHub Copilot store ready (writable probe ok)");
         return Task.CompletedTask;
     }
 

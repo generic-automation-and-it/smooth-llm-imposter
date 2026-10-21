@@ -67,6 +67,17 @@ internal sealed class InMemoryProviderRegistry : IProviderRegistry
         }
     }
 
+    public void ApplyBatch(IReadOnlyDictionary<string, ProviderOptions> providers)
+    {
+        lock (_gate)
+        {
+            foreach ((string key, ProviderOptions provider) in providers)
+            {
+                _providers[key] = ProviderOptionsCloner.Clone(provider);
+            }
+        }
+    }
+
     public bool Delete(string key)
     {
         lock (_gate)
