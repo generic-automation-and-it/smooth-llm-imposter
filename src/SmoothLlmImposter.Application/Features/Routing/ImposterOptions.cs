@@ -27,6 +27,25 @@ public sealed class ImposterOptions
     /// Default <c>true</c>; conventional env override <c>IMPOSTER_WHO_MESSAGE_ENABLED</c>.
     /// </summary>
     public WhoMessageOptions WhoMessage { get; init; } = new();
+
+    public DecisionsToolsOptions DecisionsTools { get; init; } = new();
+}
+
+public sealed class DecisionsToolsOptions
+{
+    public bool Enabled { get; set; }
+
+    public string BaseUrl { get; set; } = "http://host.docker.internal:1234";
+
+    public string Path { get; set; } = "/v1/systemone";
+
+    public string Model { get; set; } = "openjev";
+
+    public double MinProbability { get; set; } = 0.50;
+
+    public int MaxAttempts { get; set; } = 3;
+
+    public int TimeoutSeconds { get; set; } = 60;
 }
 
 /// <summary>

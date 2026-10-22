@@ -41,10 +41,19 @@ Implements the contracts defined in Application — EF Core + PostgreSQL persist
 - `SqliteGithubCopilotConnectionStore` is opened with a nullable connection string: while the feature is disabled
   it has none and any open attempt throws rather than creating a file.
 
+## Decision service transport (HLD 014)
+
+- The `decisions-tools` client is auxiliary classification, not `imposter-upstream`: its full response body
+  must remain inside the attempt timeout. Reusing inference header-only resilience would leave body stalls unbounded.
+- The singleton lifetime and process-wide gate are a deliberate exception to the cached/scoped singular-client
+  convention; rationale and retry-status contract live in [LADR-04](../../.docs/hlds/014-decisions-tools-filter/ladrs/LADR-04-singleton-gate.md).
+  Do not turn its gate into per-scope state or introduce a cache during a transport refactor.
+
 ## Changelog
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-22 | Auxiliary decisions-tools client; complete-response budget and shared gate | #138 |
 | 2026-10-20 | GitHub Copilot feature store: direct Microsoft.Data.Sqlite with parameterized ADO.NET (spike rejected Dapper.AOT — no .NET 10 interceptors on net10.0, so Dapper would run on reflection/ref-emit). Implements the Application-owned `IGithubCopilotConnectionStore`; feature-gated startup bootstrap opens no database while `ENABLE_GITHUB_COPILOT` is off. | `DependencyInjection`, `Persistence/GithubCopilot` (#126) |
 | 2026-09-22 | Per-attempt header timeouts derive from a per-provider base scaled ×1/×2/×3; global base 200s → 300s, so the default ladder is 300s/600s/900s. Base is carried per request (`UpstreamTimeoutSecondsKey`), not per client. | `DependencyInjection`, `UpstreamForwarder` (HLD 012) |
 | 2026-08-30 | Upstream pre-header resilience uses 200s, 600s, and 900s attempt timeouts, with two retries after 1s and 2s. *(Superseded 2026-09-22.)* | `DependencyInjection` |

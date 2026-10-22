@@ -8,6 +8,7 @@ using SmoothLlmImposter.Application.Features.Credentials;
 using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Application.Features.ProviderConfiguration;
 using SmoothLlmImposter.Application.Features.Routing;
+using SmoothLlmImposter.Application.Features.Routing.Decisions;
 using SmoothLlmImposter.Application.Features.Routing.Normalization;
 
 namespace SmoothLlmImposter.Application;
@@ -25,6 +26,7 @@ public static class DependencyInjection
         services.AddScoped<IProviderCatalog, ProviderCatalog>();
         services.AddScoped<IRouteResolver, RouteResolver>();
         services.AddSingleton<IRequestNormalizer, CodexToOpenAiSdkNormalizer>();
+        services.AddSingleton<IDecisionToolsFilter, DecisionToolsFilter>();
         services.AddSingleton<IChatToResponsesTransformer, ChatToResponsesStreamTransformer>();
         services.AddSingleton<IRequestTransformer, OpenAiRequestTransformer>();
         services.AddSingleton<IRequestTransformer, AnthropicRequestTransformer>();

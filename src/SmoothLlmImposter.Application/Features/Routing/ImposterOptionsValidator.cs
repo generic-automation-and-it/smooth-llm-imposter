@@ -20,6 +20,8 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
     {
         List<string> failures = [];
 
+        AddDecisionsToolsFailures(options.DecisionsTools, failures);
+
         if (options.Providers.Count == 0)
         {
             failures.Add("Imposter:Providers must contain at least one provider.");
@@ -162,6 +164,46 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         return failures.Count > 0
             ? ValidateOptionsResult.Fail(failures)
             : ValidateOptionsResult.Success;
+    }
+
+    private static void AddDecisionsToolsFailures(DecisionsToolsOptions options, List<string> failures)
+    {
+        if (!options.Enabled)
+        {
+            return;
+        }
+
+        const string prefix = "Imposter:DecisionsTools";
+
+        if (string.IsNullOrWhiteSpace(options.BaseUrl) || !Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _))
+        {
+            failures.Add($"{prefix}:BaseUrl must be an absolute URL.");
+        }
+
+        if (string.IsNullOrEmpty(options.Path) || !options.Path.StartsWith('/'))
+        {
+            failures.Add($"{prefix}:Path must start with '/'.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.Model))
+        {
+            failures.Add($"{prefix}:Model must be non-empty.");
+        }
+
+        if (!double.IsFinite(options.MinProbability) || options.MinProbability is < 0 or > 1)
+        {
+            failures.Add($"{prefix}:MinProbability must be a finite number between 0 and 1.");
+        }
+
+        if (options.MaxAttempts is < 1 or > 10)
+        {
+            failures.Add($"{prefix}:MaxAttempts must be between 1 and 10.");
+        }
+
+        if (options.TimeoutSeconds < MinTimeoutSeconds || options.TimeoutSeconds > MaxTimeoutSeconds)
+        {
+            failures.Add($"{prefix}:TimeoutSeconds must be between {MinTimeoutSeconds} and {MaxTimeoutSeconds} seconds.");
+        }
     }
 
     private static void AddReservedKeyFailures(

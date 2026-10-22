@@ -13,18 +13,22 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
   carry provider name + model names only, plus the safe session token `session=captured|derived|none` (HLD 009) —
   never the raw session value or fingerprint inputs.
 - **Transparent proxy — do not strip or rewrite the request.** The forwarder relays the caller's inbound
-  headers and body to the upstream **unchanged**, with exactly four sanctioned request-rewrite classes: (1) the
+  headers and body to the upstream **unchanged**, with exactly five sanctioned request-rewrite classes: (1) the
   **auth** header is managed (see below), (2) **caching injection** rewrites the body on a matched imposter
   route, (3) **opt-in request normalization** reshapes the body on a matched OpenAI imposter route that
   opted in (HLD 004 — see "Request normalization" below), and (4) **opt-in session-identity forwarding** stamps
   a resolved session id on a matched imposter route whose provider set `SessionForwarding` (HLD 009 — OpenAI
-  body `session_id` + both-dialects header `x-opencode-session`). These four are **request-only**. A single
+  body `session_id` + both-dialects header `x-opencode-session`), and
+  (5) **operator-opt-in global decision-tool filtering** (HLD 014), default off and applicable on
+  **passthrough as well as imposter routes**. These five are **request-only**. A single
   sanctioned **response-synthesizing** inspection class exists (HLD 010 — see "Who-message probe" below) and
-  is gated on a config toggle; it is the only place the proxy reads `messages` content. The single sanctioned
+  is gated on a config toggle; the who-probe and decision filter are the sanctioned readers of
+  `messages` content. The single sanctioned
   response rewrite is `ChatToResponsesStreamTransformer`, and only on the matched OpenAI imposter
   `/responses`→Chat downgrade path (`OpenAiUpstreamApi: chat_completions` + inbound `/responses`); it is an
   incremental SSE transform, never a buffer/replay step (HLD 004 LADR-05 / NFR-05). Every other response stream is
-  byte-relayed unchanged (HLD 001 LADR-003 as narrowed by LADR-05). Adding a
+  byte-relayed unchanged (HLD 004 LADR-05). HLD 001 LADR-003
+  additionally distinguishes the HLD 014 decision-client timeout from inference transport. Adding a
   bespoke filter that drops a caller header (e.g. `anthropic-beta`) breaks beta body fields like
   `context_management` — only the fixed hop-by-hop/content set (`Host`, `Content-*`, `Connection`,
   `Transfer-Encoding`, `Accept-Encoding`, …) is withheld. The caller's own `anthropic-version` passes through;
@@ -84,7 +88,8 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
   and `developer` is OpenAI's successor to `system`. Real `/responses` upstreams keep `developer` (the
   conversion only runs for `chat_completions`). The response side is paired: Chat Completions SSE is translated
   back to Responses SSE on that same downgraded path so Responses clients can keep `wire_api = "responses"`.
-  Passthrough/default routes and direct `/chat/completions` callers stay transparent.
+  Passthrough/default routes and direct `/chat/completions` callers stay transparent unless
+  `DECISIONS_TOOLS_ENABLED` enables the independent HLD 014 request filter.
 - **ZDR reasoning sanitation (HLD 011) is an independent per-provider opt-in, NOT coupled to
   `OpenAiUpstreamApi` or `RequestNormalization`.** `StripEncryptedContent: true` drops `reasoning` input
   items carrying OpenAI server-side-encrypted `encrypted_content` (Codex's Zero Data Retention / stateless-mode
@@ -117,7 +122,7 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
   defaults it **off** and must never enable it (the validator rejects an explicit `codex_to_openai_sdk` outside
   `chat_completions`/`openai`, because those tool types/names are valid on `/responses`). It runs **only** when
   `decision.IsImposter` **and** a normalizer matches the resolved profile — so passthrough/default routes and
-  `None` providers are byte-transparent. Normalizers are **request-only** (never read/rewrite the response) and
+  `None` providers are byte-transparent unless `DECISIONS_TOOLS_ENABLED` enables HLD 014. Normalizers are **request-only** (never read/rewrite the response) and
   must be **idempotent**; they prefer **removing** an offending element over remapping it, so the transform stays
   one-directional (HLD 004 LADR-02). The default-on policy **amends HLD 004 LADR-03** (originally per-provider
   opt-in, off by default): normalization targets the *generic* OpenAI Chat Completions tool contract — any
@@ -143,6 +148,7 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
   `TimeoutGenerator` reads it back off the resilience context — **that stamp is the load-bearing hop**: without
   it the option is configurable end-to-end and completely inert. The timeout bounds the wait for **response
   headers** only (the client sends with `ResponseHeadersRead`); it never bounds a streaming body.
+- **No-op passthrough transformers preserve the original body instance.** Do not re-serialize merely to assign the unchanged model; opted-in sanitation/conversion and HLD 014 filtering remain exceptions.
 - **All body work stays string-in/string-out in Application; HTTP I/O stays in Host.** Infrastructure is
   `System.Net.Http` only — don't leak `HttpContext` into Application/Infrastructure.
 - **Request transformers materialize detached JSON nodes before mutation.** Parse request bodies through the
@@ -301,12 +307,16 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
   the resolved target (or `passthrough`), and the auth scheme — and does **not** call the upstream. The trigger
   is `stream:false` only: `stream:true` requests always forward (no SSE synthesis). Content concatenation
   across text parts is supported; any non-text content part (image, tool_use, …) in the last user message
-  disables the trigger. This is the **one** sanctioned place the proxy reads `messages` content — a fifth
-  request-inspection class alongside the four sanctioned request-rewrite classes above (auth / caching /
-  normalization / session-identity), the only one that synthesizes a response rather than rewriting the request.
+  disables the trigger. The who-probe and the HLD 014 decision filter are the sanctioned `messages` content readers;
+  the probe alone synthesizes a response rather than rewriting the request.
   The auth token in the reply comes from `ImposterRouter.DescribeAuth` (now `internal static`), so the reply,
   the Information log, and the outbound auth header all carry the same resolved scheme name. Conventional env
   override: `IMPOSTER_WHO_MESSAGE_ENABLED` (bool; invalid value warns and keeps the bound default).
+
+- **Decision-tool filtering (HLD 014).** Classification does not select a provider or alter auth. Its contract
+  lives in [HLD 014](../../../../.docs/hlds/014-decisions-tools-filter/README.md); do not couple the global gate to
+  `IsImposter`, caching, normalization or session forwarding. Known tool-history references are replay
+  dependencies, not prompt text — never rename or remove historical calls when pruning the catalog.
 
 ## Credential Overrides
 
@@ -340,6 +350,11 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 - **L0** `Domain.UnitTest/Routing` — matcher, dialect parser.
 - **L0** `Application.UnitTest/Routing` — resolver, transformers (cache injection), router, error factory, options
   validator, `CodexToOpenAiSdkNormalizerTests` (normalization drop/flatten/name-rules/tool_choice/idempotency, flat+nested shapes), model-catalog responder, `WhoMessageResponderTests` (HLD 010 trigger semantics, envelope shape, streaming exclusion, no-secret-leakage).
+- **L0** `Application.UnitTest/Routing/Decisions` — API golden shapes, history/choice integrity, body identity,
+  bounded chunks, fail-open and cancellation; root option/env/validator tests remain in `Application.UnitTest/Routing`.
+- **L0** `Infrastructure.UnitTest/Clients/Decisions` — real resilience, full-body timeout, singleton gate and retry status policy.
+- **L2** `Host.IntegrationTest/DecisionToolsIntegrationTests` — prefixed/legacy paths, passthrough, downgrade,
+  who-probe bypass, disabled bytes and decision-stage caller abort.
 - **L3** `Upstream.EvalTest` — **live** opencode-go conformance eval (HLD 004): a raw Codex catalog run through the
   real transformer+normalizer is accepted (200), un-normalized is rejected (400). Excluded from `SmoothLlmImposter.slnx`;
   secret-gated on `OPENCODE_API_KEY`, neutral (skipped) when absent; runs only in `pr-evals-gate.yml`.
@@ -385,6 +400,7 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-22 | HLD 014 global tool-filter/content-reader exceptions; no-op passthrough preserves bytes | #138 |
 | 2026-08-12 | Added `IErrorResponseFactory.CreateStreamErrorFrame` + `StreamErrorFraming` so a relay failure after response start can still be reported in-band. Framing is path-derived, not dialect-derived — an OpenAI caller mid-`/responses` stream needs a named `event: error` frame while mid-Chat needs an unnamed `data:` frame, and sending the wrong one is silently dropped by the SDK. | — |
 | 2026-08-10 | HLD 011 review fixes: `ProviderOptionsCloner.Clone` now copies `StripEncryptedContent` — it did not, so the HLD 008 registry seed cloned the flag away and the feature was **inert in the real Host** while every test passed (all built `ProviderRoute` by hand). `/admin/providers` DTOs surface the flag in both directions (an upsert previously cleared it). JSON-`null` `encrypted_content` is no longer treated as ciphertext, so a client that serializes the property unconditionally keeps its plaintext summary. `ProviderOptionsClonerTests` drift guard widened to `bool?` (the `typeof(bool)`-only filter is what let the omission through). Added `ProviderCatalogTests` seed-materialization coverage + L2 `GET → PUT` round-trip; 4 tests now fail without the clone fix. HLD 011 + LADR-01/02/03 + NFR-01/02 authored — the implementation had cited a non-existent HLD/LADR. | HLD 011 |
 | 2026-08-09 | HLD 011: `StripEncryptedContent` opt-in drops `reasoning` input items carrying OpenAI ZDR `encrypted_content` on the forward path (whole item removed, LADR-01 — the proxy has no decryption key, ZDR holds it server-side only). Independent of `OpenAiUpstreamApi`/`RequestNormalization` and not gated on `IsImposter`; composes before `ToChatCompletions`. Conventional env `_STRIP_ENCRYPTED_CONTENT` per provider, off by default. Fixes upstream 400 "Encrypted content is not supported." (e.g. LM Studio) without leaving `/responses`. | HLD 011 |

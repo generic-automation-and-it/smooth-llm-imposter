@@ -25,6 +25,9 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   captured once and shared by route planning (HLD 009 session resolve) and the forwarder (header relay + optional
   `x-opencode-session` stamp). Routing/transform semantics live in Application — see
   `Features/Routing/ROUTING_AGENTS.md`.
+- **Decision-filter seam (HLD 014).** Invoke on the post-transform body after who-probe/session translation,
+  before forwarding and inside the caller-abort guard. Use the effective upstream Chat path for a Responses
+  downgrade; keep the enable/path/selection rules in Application, not endpoint lambdas.
 - An un-routed request returns `404` (and a body-less request with no dialect prefix has no model to route).
 - **The streaming relay owns both of its failure directions, and they are not symmetric.** A *caller* abort
   (`RequestAborted` signalled) returns quietly — nothing is left to deliver. An *upstream/transport* failure while
@@ -114,6 +117,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-22 | Post-transform decision-filter seam under caller-abort guard | #138 |
 | 2026-10-21 | Scalar root redirect/preferred auth without embedded secrets; list-before-discovery workflow | — |
 | 2026-08-12 | Mid-stream **upstream** failures no longer escape into Kestrel's post-`HasStarted` error path (a no-op that logged an unhandled stack and truncated the SSE). `RoutingEndpoints` now ends the response itself: 502 JSON if nothing was written, otherwise a dialect/path-shaped terminal SSE error frame. The pre-existing caller-abort filter is unchanged — only exceptions it does **not** match reach the new handler. | — |
 | 2026-07-24 | `CaptureCallerHeaders` is shared with `PlanAsync` so HLD 009 session identity can be resolved without leaking `HttpContext` downstream. The local SensitiveHeaders set was removed; the inbound dump now consults the shared SensitiveHeaderNames set so the inbound/outbound masks cannot drift. | #72 |

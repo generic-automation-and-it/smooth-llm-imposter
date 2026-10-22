@@ -19,6 +19,11 @@ internal sealed class AnthropicRequestTransformer : IRequestTransformer
         string inboundModel,
         SessionIdentity sessionIdentity)
     {
+        if (!decision.IsImposter && !decision.CachingEnabled)
+        {
+            return requestBody;
+        }
+
         // Anthropic body injection is out of scope for HLD 009 (header-only stamping lives in the
         // forwarder). sessionIdentity is accepted for interface uniformity; it is body-only unused
         // here — the resolved identity is still propagated via RoutePlan.SessionIdentity to the

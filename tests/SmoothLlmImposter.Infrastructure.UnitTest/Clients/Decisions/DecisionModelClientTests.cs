@@ -1,0 +1,373 @@
+using System.Net;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using SmoothLlmImposter.Application.Common.Clients.Decisions;
+using SmoothLlmImposter.Application.Features.Routing;
+using SmoothLlmImposter.Infrastructure.Clients.Decisions;
+
+namespace SmoothLlmImposter.Infrastructure.UnitTest.Clients.Decisions;
+
+public class DecisionModelClientTests
+{
+    private CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    [Fact]
+    public async Task Posts_only_the_json_request_to_the_configured_service()
+    {
+        string? sentBody = null;
+        Uri? sentUri = null;
+        string[] sentHeaders = [];
+        var handler = new CallbackHandler(async (_, request, ct) =>
+        {
+            sentBody = await request.Content!.ReadAsStringAsync(ct);
+            sentUri = request.RequestUri;
+            sentHeaders = request.Headers.Select(static header => header.Key).ToArray();
+            request.Method.ShouldBe(HttpMethod.Post);
+            request.Content.Headers.ContentType!.MediaType.ShouldBe("application/json");
+            return Success();
+        });
+        await using ServiceProvider provider = BuildProvider(handler, settings =>
+        {
+            settings.BaseUrl = "https://decisions.test/root/";
+            settings.Path = "/v1/systemone";
+        });
+        var request = JsonNode.Parse("""{"model":"openjev","state":"task","questions":{}}""")!.AsObject();
+
+        JsonObject result = await provider.GetRequiredService<IDecisionModelClient>().DecideAsync(request, Ct);
+
+        sentUri.ShouldBe(new Uri("https://decisions.test/root/v1/systemone"));
+        sentBody.ShouldBe(request.ToJsonString());
+        sentHeaders.ShouldNotContain("Authorization");
+        sentHeaders.ShouldNotContain("x-api-key");
+        result["answers"].ShouldBeOfType<JsonObject>();
+    }
+
+    [Theory]
+    [InlineData("not json")]
+    [InlineData("null")]
+    [InlineData("[]")]
+    [InlineData("{}")]
+    [InlineData("{\"answers\":null}")]
+    [InlineData("{\"answers\":[]}")]
+    public async Task Invalid_envelopes_throw_without_retry(string body)
+    {
+        var handler = new CallbackHandler((_, _, _) => Task.FromResult(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) }));
+        await using ServiceProvider provider = BuildProvider(handler);
+
+        await Should.ThrowAsync<JsonException>(() =>
+            provider.GetRequiredService<IDecisionModelClient>().DecideAsync(new JsonObject(), Ct));
+
+        handler.Calls.ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadGateway, 3)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, 3)]
+    [InlineData(HttpStatusCode.GatewayTimeout, 1)]
+    [InlineData(HttpStatusCode.InternalServerError, 1)]
+    [InlineData(HttpStatusCode.BadRequest, 1)]
+    public async Task Retries_only_502_and_503_statuses(HttpStatusCode status, int expectedCalls)
+    {
+        var handler = new CallbackHandler((_, _, _) => Task.FromResult(new HttpResponseMessage(status)));
+        await using ServiceProvider provider = BuildProvider(handler);
+
+        await Should.ThrowAsync<HttpRequestException>(() =>
+            provider.GetRequiredService<IDecisionModelClient>().DecideAsync(new JsonObject(), Ct));
+
+        handler.Calls.ShouldBe(expectedCalls);
+    }
+
+    [Fact]
+    public async Task Retries_transport_failures_and_preserves_the_payload()
+    {
+        var payloads = new List<string>();
+        var handler = new CallbackHandler(async (call, request, ct) =>
+        {
+            payloads.Add(await request.Content!.ReadAsStringAsync(ct));
+            if (call < 3)
+            {
+                throw new HttpRequestException("transport unavailable");
+            }
+
+            return Success();
+        });
+        await using ServiceProvider provider = BuildProvider(handler);
+
+        await provider.GetRequiredService<IDecisionModelClient>().DecideAsync(
+            JsonNode.Parse("""{"questions":{"t0":{"type":"choice"}}}""")!.AsObject(), Ct);
+
+        handler.Calls.ShouldBe(3);
+        payloads.Distinct().Count().ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task One_max_attempt_builds_a_valid_pipeline_without_retry()
+    {
+        var handler = new CallbackHandler((_, _, _) =>
+            throw new HttpRequestException("transport unavailable"));
+        await using ServiceProvider provider = BuildProvider(handler, settings => settings.MaxAttempts = 1);
+
+        await Should.ThrowAsync<HttpRequestException>(() =>
+            provider.GetRequiredService<IDecisionModelClient>().DecideAsync(new JsonObject(), Ct));
+
+        handler.Calls.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task The_attempt_timeout_covers_response_bodies_and_retries_them()
+    {
+        var stalledBodies = new List<StallingContent>();
+        var handler = new CallbackHandler((call, _, _) =>
+        {
+            if (call == 3)
+            {
+                return Task.FromResult(Success());
+            }
+
+            var content = new StallingContent();
+            stalledBodies.Add(content);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        });
+        await using ServiceProvider provider = BuildProvider(handler, settings => settings.TimeoutSeconds = 1);
+        using var ceiling = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        ceiling.CancelAfter(TimeSpan.FromSeconds(10));
+
+        await provider.GetRequiredService<IDecisionModelClient>().DecideAsync(new JsonObject(), ceiling.Token);
+
+        handler.Calls.ShouldBe(3);
+        stalledBodies.ShouldAllBe(content => content.WasCancelled && content.WasDisposed);
+    }
+
+    [Fact]
+    public async Task The_attempt_timeout_covers_waiting_for_headers()
+    {
+        var handler = new CallbackHandler(async (call, _, ct) =>
+        {
+            if (call < 3)
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            }
+
+            return Success();
+        });
+        await using ServiceProvider provider = BuildProvider(handler, settings => settings.TimeoutSeconds = 1);
+        using var ceiling = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        ceiling.CancelAfter(TimeSpan.FromSeconds(10));
+
+        await provider.GetRequiredService<IDecisionModelClient>().DecideAsync(new JsonObject(), ceiling.Token);
+
+        handler.Calls.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task Exhausted_timeouts_throw_and_release_the_gate_for_the_next_call()
+    {
+        var handler = new CallbackHandler(async (call, _, ct) =>
+        {
+            if (call < 4)
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            }
+
+            return Success();
+        });
+        await using ServiceProvider provider = BuildProvider(handler, settings => settings.TimeoutSeconds = 1);
+        using var ceiling = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        ceiling.CancelAfter(TimeSpan.FromSeconds(10));
+        var client = provider.GetRequiredService<IDecisionModelClient>();
+
+        await Should.ThrowAsync<Polly.Timeout.TimeoutRejectedException>(() =>
+            client.DecideAsync(new JsonObject(), ceiling.Token));
+        await client.DecideAsync(new JsonObject(), ceiling.Token);
+
+        handler.Calls.ShouldBe(4);
+    }
+
+    [Fact]
+    public async Task Separate_scopes_share_a_single_gate_and_it_serializes_requests()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new CallbackHandler(async (call, _, ct) =>
+        {
+            if (call == 1)
+            {
+                entered.TrySetResult();
+                await release.Task.WaitAsync(ct);
+            }
+
+            return Success();
+        });
+        await using ServiceProvider provider = BuildProvider(handler);
+        using IServiceScope firstScope = provider.CreateScope();
+        using IServiceScope secondScope = provider.CreateScope();
+        var first = firstScope.ServiceProvider.GetRequiredService<IDecisionModelClient>();
+        var second = secondScope.ServiceProvider.GetRequiredService<IDecisionModelClient>();
+        first.ShouldBeSameAs(second);
+        using var ceiling = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        ceiling.CancelAfter(TimeSpan.FromSeconds(10));
+
+        Task<JsonObject> firstCall = first.DecideAsync(new JsonObject(), ceiling.Token);
+        await entered.Task.WaitAsync(ceiling.Token);
+        Task<JsonObject> secondCall = second.DecideAsync(new JsonObject(), ceiling.Token);
+
+        handler.Calls.ShouldBe(1);
+        secondCall.IsCompleted.ShouldBeFalse();
+        release.TrySetResult();
+        await Task.WhenAll(firstCall, secondCall);
+        handler.Calls.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Gate_timeout_throws_without_sending_a_second_request()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sentRequests = new List<string>();
+        var handler = new CallbackHandler(async (_, request, ct) =>
+        {
+            sentRequests.Add(await request.Content!.ReadAsStringAsync(ct));
+            entered.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            return Success();
+        });
+        await using ServiceProvider provider = BuildProvider(handler, settings => settings.TimeoutSeconds = 1);
+        var client = provider.GetRequiredService<IDecisionModelClient>();
+        using var ceiling = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        ceiling.CancelAfter(TimeSpan.FromSeconds(10));
+        using var cancelFirst = CancellationTokenSource.CreateLinkedTokenSource(ceiling.Token);
+        Task<JsonObject> firstCall = client.DecideAsync(new JsonObject { ["request"] = "first" }, cancelFirst.Token);
+        await entered.Task.WaitAsync(ceiling.Token);
+
+        await Should.ThrowAsync<TimeoutException>(() =>
+            client.DecideAsync(new JsonObject { ["request"] = "second" }, ceiling.Token));
+
+        await cancelFirst.CancelAsync();
+        Exception firstFailure = await Should.ThrowAsync<Exception>(() => firstCall);
+        (firstFailure is OperationCanceledException or Polly.Timeout.TimeoutRejectedException).ShouldBeTrue();
+        sentRequests.ShouldAllBe(body => body.Contains("first", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Caller_cancellation_releases_the_gate_without_retry()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new CallbackHandler(async (call, _, ct) =>
+        {
+            if (call == 1)
+            {
+                entered.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            }
+
+            return Success();
+        });
+        await using ServiceProvider provider = BuildProvider(handler);
+        var client = provider.GetRequiredService<IDecisionModelClient>();
+        using var cancelled = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        Task<JsonObject> firstCall = client.DecideAsync(new JsonObject(), cancelled.Token);
+        await entered.Task.WaitAsync(Ct);
+        await cancelled.CancelAsync();
+
+        await Should.ThrowAsync<OperationCanceledException>(() => firstCall);
+        await client.DecideAsync(new JsonObject(), Ct);
+        handler.Calls.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Disabled_invalid_options_leave_client_resolution_inert()
+    {
+        var handler = new CallbackHandler((_, _, _) => Task.FromResult(Success()));
+        await using ServiceProvider provider = BuildProvider(handler, settings =>
+        {
+            settings.Enabled = false;
+            settings.BaseUrl = "invalid";
+            settings.Path = "invalid";
+            settings.MaxAttempts = 0;
+            settings.TimeoutSeconds = -1;
+        });
+
+        provider.GetRequiredService<IDecisionModelClient>().ShouldNotBeNull();
+        using HttpClient client = provider.GetRequiredService<IHttpClientFactory>()
+            .CreateClient(DecisionModelClient.HttpClientName);
+        client.Timeout.ShouldBe(Timeout.InfiniteTimeSpan);
+        handler.Calls.ShouldBe(0);
+    }
+
+    private static ServiceProvider BuildProvider(
+        HttpMessageHandler handler,
+        Action<DecisionsToolsOptions>? configure = null)
+    {
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection([]).Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.Configure<ImposterOptions>(options =>
+        {
+            options.DecisionsTools.Enabled = true;
+            options.DecisionsTools.BaseUrl = "https://decisions.test";
+            configure?.Invoke(options.DecisionsTools);
+        });
+        services.AddInfrastructure(configuration);
+        services.AddHttpClient(DecisionModelClient.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(() => handler);
+        return services.BuildServiceProvider();
+    }
+
+    private static HttpResponseMessage Success() => new(HttpStatusCode.OK)
+    {
+        Content = new StringContent("""{"answers":{}}""", Encoding.UTF8, "application/json")
+    };
+
+    private sealed class CallbackHandler(
+        Func<int, HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> callback) : HttpMessageHandler
+    {
+        private int _calls;
+
+        public int Calls => Volatile.Read(ref _calls);
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) =>
+            callback(Interlocked.Increment(ref _calls), request, cancellationToken);
+    }
+
+    private sealed class StallingContent : HttpContent
+    {
+        public bool WasCancelled { get; private set; }
+        public bool WasDisposed { get; private set; }
+
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+            SerializeToStreamAsync(stream, context, CancellationToken.None);
+
+        protected override async Task SerializeToStreamAsync(
+            Stream stream,
+            TransportContext? context,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                WasCancelled = true;
+                throw;
+            }
+        }
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return false;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            WasDisposed = disposing;
+            base.Dispose(disposing);
+        }
+    }
+}
