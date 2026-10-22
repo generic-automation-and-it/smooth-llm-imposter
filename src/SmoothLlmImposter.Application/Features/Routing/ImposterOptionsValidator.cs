@@ -175,9 +175,11 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
 
         const string prefix = "Imposter:DecisionsTools";
 
-        if (string.IsNullOrWhiteSpace(options.BaseUrl) || !Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _))
+        if (string.IsNullOrWhiteSpace(options.BaseUrl) ||
+            !Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out Uri? baseUrl) ||
+            (baseUrl.Scheme != Uri.UriSchemeHttp && baseUrl.Scheme != Uri.UriSchemeHttps))
         {
-            failures.Add($"{prefix}:BaseUrl must be an absolute URL.");
+            failures.Add($"{prefix}:BaseUrl must be an absolute HTTP(S) URL.");
         }
 
         if (string.IsNullOrEmpty(options.Path) || !options.Path.StartsWith('/'))

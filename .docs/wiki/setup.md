@@ -186,7 +186,7 @@ container command. Configuration is read at startup; restart after changing it.
 | Environment variable | `Imposter:DecisionsTools` field | Default | Enabled-only validation |
 |---|---|---|---|
 | `DECISIONS_TOOLS_ENABLED` | `Enabled` | `false` | — |
-| `DECISIONS_TOOLS_BASE_URL` | `BaseUrl` | `http://host.docker.internal:1234` | Absolute URL |
+| `DECISIONS_TOOLS_BASE_URL` | `BaseUrl` | `http://host.docker.internal:1234` | Absolute HTTP(S) URL |
 | `DECISIONS_TOOLS_PATH` | `Path` | `/v1/systemone` | Starts with `/` |
 | `DECISIONS_TOOLS_MODEL` | `Model` | `openjev` | Non-empty |
 | `DECISIONS_TOOLS_MIN_PROBABILITY` | `MinProbability` | `0.50` | 0–1 inclusive |

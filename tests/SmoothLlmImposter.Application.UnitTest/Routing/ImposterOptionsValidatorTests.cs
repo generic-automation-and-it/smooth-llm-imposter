@@ -43,6 +43,9 @@ public class ImposterOptionsValidatorTests
     [Theory]
     [InlineData("BaseUrl", "not-a-url")]
     [InlineData("BaseUrl", "")]
+    [InlineData("BaseUrl", "file:///tmp/decisions")]
+    [InlineData("BaseUrl", "ftp://classifier.example")]
+    [InlineData("BaseUrl", "mailto:classifier@example.com")]
     [InlineData("Path", "relative")]
     [InlineData("Path", "")]
     [InlineData("Model", "")]
@@ -62,6 +65,30 @@ public class ImposterOptionsValidatorTests
 
         result.Failed.ShouldBeTrue();
         result.FailureMessage.ShouldContain($"Imposter:DecisionsTools:{field}");
+    }
+
+    [Theory]
+    [InlineData("http://127.0.0.1:1234")]
+    [InlineData("https://classifier.example")]
+    [InlineData("HTTPS://classifier.example")]
+    public void Enabled_decision_filter_accepts_http_and_https(string baseUrl)
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.Enabled = true;
+        options.DecisionsTools.BaseUrl = baseUrl;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("file:///tmp/decisions")]
+    [InlineData("ftp://classifier.example")]
+    public void Disabled_decision_filter_ignores_unsupported_url_schemes(string baseUrl)
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.BaseUrl = baseUrl;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
     }
 
     [Theory]
