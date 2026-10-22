@@ -108,6 +108,25 @@ docker run -d --name smooth-llm-imposter --restart unless-stopped -p 5080:5080 \
   routing stores nothing; when `ConnectionStrings__ImposterDb` is unset the router uses no database. Full guide:
   [`credentials.admin-smooth-llm-imposter.md`](credentials.admin-smooth-llm-imposter.md).
 
+### Optional decision-tool filter
+
+After building/pulling an image containing HLD 014, add the following flags to the chosen run command
+before its image argument (`ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest`):
+
+```bash
+-e DECISIONS_TOOLS_ENABLED=true \
+--add-host=host.docker.internal:host-gateway
+```
+
+The host mapping is needed on Linux Docker/Podman; Docker Desktop resolves `host.docker.internal`
+natively and may omit it. The default classifier URL is `http://host.docker.internal:1234`; do not use
+container loopback to reach a host service. For a bare-metal Host/native binary use
+`DECISIONS_TOOLS_BASE_URL=http://127.0.0.1:1234` instead.
+
+This is an explicit opt-in, including passthrough. Prompt state and tool descriptions are sent to the
+classifier and the serialized pass adds latency. All settings and egress details live in the
+[decision-filter setup section](../setup.md#optional-decision-model-tool-pre-filter).
+
 ## Verify
 
 ```bash

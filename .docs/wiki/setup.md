@@ -94,8 +94,9 @@ Routing rules to keep in mind:
   no default → 404.** When the active config declares catch-all `IsDefault` providers, unmatched models pass
   through to the configured upstream. Remove the defaults for type-only impostering (unmatched → 404).
 - **Transparent proxy.** The request is relayed to the upstream unchanged — all caller headers (incl.
-  `anthropic-beta`, vendor `x-*`) and the body pass through; the only mutations are caching injection on a
-  matched imposter route and the auth header. **Auth** is route-dependent: an imposter route sends the
+  `anthropic-beta`, vendor `x-*`) and the body pass through; sanctioned mutations include caching/auth and
+  per-provider normalization/session features. The global decision-tool filter is an explicit default-off
+  exception, including passthrough (see below). **Auth** is route-dependent: an imposter route sends the
   provider's configured `Secret` using its `AuthScheme`; a **key-less passthrough** (default provider, no
   `Secret`, no stored credential)
   forwards the caller's own `Authorization` / `x-api-key` — so the catch-all defaults need no key in the
@@ -151,7 +152,7 @@ conventional prefix is shared across dialect-suffixed siblings — `OPENCODE_GO_
 `opencode-go-openai` and `opencode-go-anthropic`, so the stamp applies whether the traffic arrives on the OpenAI
 or the Anthropic dialect. The value is case-insensitive and accepts `opencode-go`, `opencode_go`, or
 `opencodego` (all equivalent); `opencode-go` is the canonical spelling. Omit or set `none` to keep
-byte-transparent behaviour.
+byte-transparent behaviour unless the independent global decision-tool filter is enabled.
 
 ```bash
 export OPENCODE_GO_SESSION_FORWARDING="opencode-go"
@@ -175,6 +176,38 @@ export Imposter__Providers__opencode-go-openai__AuthScheme="ApiKey"
 ```
 
 When the same field is set both ways, the **conventional** value wins.
+
+### Optional decision-model tool pre-filter
+
+`DECISIONS_TOOLS_ENABLED=true` opts **all** supported imposter and passthrough routes into tool pruning
+before forwarding. It is **off by default**, in no shipped `appsettings*.json`, Conductor script or default
+container command. Configuration is read at startup; restart after changing it.
+
+| Environment variable | `Imposter:DecisionsTools` field | Default | Enabled-only validation |
+|---|---|---|---|
+| `DECISIONS_TOOLS_ENABLED` | `Enabled` | `false` | — |
+| `DECISIONS_TOOLS_BASE_URL` | `BaseUrl` | `http://host.docker.internal:1234` | Absolute URL |
+| `DECISIONS_TOOLS_PATH` | `Path` | `/v1/systemone` | Starts with `/` |
+| `DECISIONS_TOOLS_MODEL` | `Model` | `openjev` | Non-empty |
+| `DECISIONS_TOOLS_MIN_PROBABILITY` | `MinProbability` | `0.50` | 0–1 inclusive |
+| `DECISIONS_TOOLS_MAX_ATTEMPTS` | `MaxAttempts` | `3` | 1–10 inclusive |
+| `DECISIONS_TOOLS_TIMEOUT` | `TimeoutSeconds` | `60` | 1–3600 seconds |
+
+The timeout env name has **no `_SECONDS` suffix**. Decimal overrides use invariant notation (`0.50`, not
+`0,50`). Conventional variables win over structured configuration; blank values are absent and invalid
+boolean/numeric text warns without replacing the bound value. Disabled settings are not validated.
+
+The decision service receives up to 2,000 characters of prompt state plus tool labels/descriptions; a remote
+BaseUrl sends that data to the remote service, including for passthrough requests. Caller credentials and
+headers are not sent. Classification is serialized in chunks of up to 20 tools and can add roughly
+0.5 seconds per tool; varying catalogs can reduce upstream prompt-cache hits. History-referenced and
+unknown tools are kept. Service failure keeps unresolved tools and continues inference.
+
+For bare-metal `dotnet run` or a native executable, set `DECISIONS_TOOLS_BASE_URL=http://127.0.0.1:1234`.
+In Docker Desktop the default host name resolves natively; Linux Docker/Podman requires
+`--add-host=host.docker.internal:host-gateway`. Container `127.0.0.1` points to the container, not the host.
+See [Docker opt-in](setups/docker.run-smooth-llm-imposter.md#optional-decision-tool-filter) and
+[HLD 014](../hlds/014-decisions-tools-filter/README.md).
 
 ### Local debugging — .NET user secrets
 
@@ -225,7 +258,7 @@ and translates the response back. This downgrade rejects Responses-native input 
 (`OpenAiUpstreamApi=responses`) for future testing, but currently returns 422 because no provider serves
 `/v1/responses` for these models yet. To re-enable the route when a provider adds `/v1/responses` support,
 follow the "Re-enable by confirming provider support" steps in
-[`ROUTING_AGENTS.md` Migration Plans](../src/SmoothLlmImposter.Application/Features/Routing/ROUTING_AGENTS.md#migration-plans);
+[`ROUTING_AGENTS.md` Migration Plans](../../src/SmoothLlmImposter.Application/Features/Routing/ROUTING_AGENTS.md#migration-plans);
 the route will work without further configuration changes.
 
 For generic OpenAI-compatible SDK/API-key clients, keep `/v1` in the client base URL because those clients append

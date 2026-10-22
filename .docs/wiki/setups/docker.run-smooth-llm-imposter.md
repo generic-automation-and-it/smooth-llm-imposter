@@ -92,6 +92,25 @@ Podman is identical (`podman run -d --name … -p 5080:5080 -e … smooth-llm-im
 > `-v slli-dpkeys:/home/app/.aspnet/DataProtection-Keys`. Pure imposter routing stores nothing, so the warning is
 > harmless there.
 
+### Optional decision-tool filter
+
+After building/pulling an image containing HLD 014, add the following flags to the chosen run command
+before its image argument (`smooth-llm-imposter:local`):
+
+```bash
+-e DECISIONS_TOOLS_ENABLED=true \
+--add-host=host.docker.internal:host-gateway
+```
+
+The host mapping is needed on Linux Docker/Podman; Docker Desktop resolves `host.docker.internal`
+natively and may omit it. The default classifier URL is `http://host.docker.internal:1234`; do not use
+container loopback to reach a host service. For a bare-metal Host/native binary use
+`DECISIONS_TOOLS_BASE_URL=http://127.0.0.1:1234` instead.
+
+This is an explicit opt-in, including passthrough. Prompt state and tool descriptions are sent to the
+classifier and the serialized pass adds latency. All settings and egress details live in the
+[decision-filter setup section](../setup.md#optional-decision-model-tool-pre-filter).
+
 ## Verify
 
 ```bash
