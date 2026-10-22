@@ -69,13 +69,30 @@ public class GithubCopilotModelsClientTests
         handler.Calls.ShouldBe(0);
     }
 
+    [Fact]
+    public async Task Discovery_sends_the_copilot_api_version_and_no_integration_id_or_initiator()
+    {
+        var handler = new StubHandler("""{"data":[]}""");
+        var client = new GithubCopilotModelsClient(new SingleClientFactory(handler));
+
+        await client.ListModelsAsync("token", Data, TestContext.Current.CancellationToken);
+
+        // GitHub derives the integrator from the OAuth client ID; an unrecognised value narrowed the catalog.
+        handler.LastRequest!.Headers.Contains("Copilot-Integration-Id").ShouldBeFalse();
+        handler.LastRequest.Headers.GetValues("X-GitHub-Api-Version").ShouldBe(["2026-08-01"]);
+        handler.LastRequest.Headers.Contains("X-Initiator").ShouldBeFalse();
+    }
+
     private sealed class StubHandler(string json) : HttpMessageHandler
     {
         public int Calls { get; private set; }
 
+        public HttpRequestMessage? LastRequest { get; private set; }
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Calls++;
+            LastRequest = request;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json")

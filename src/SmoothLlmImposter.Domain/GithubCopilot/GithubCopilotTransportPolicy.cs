@@ -15,15 +15,36 @@ public static class GithubCopilotTransportPolicy
 
     private const string CopilotHost = "githubcopilot.com";
 
-    // Headers a Copilot client is expected to send alongside the managed Bearer token.
+    // Headers a Copilot client is expected to send alongside the managed Bearer token, aligned with opencode's
+    // GitHub Copilot provider (the reference client GitHub serves the full catalog to).
     public const string ApiVersionHeader = "X-GitHub-Api-Version";
-    public const string ApiVersionValue = "2025-04-01";
+    public const string ApiVersionValue = "2026-08-01";
+
+    // Never sent: GitHub resolves the integrator from the OAuth client ID (as opencode relies on), and an
+    // unrecognised value was answered as "copilot-language-server" with a narrower model list. A
+    // caller-relayed value is stripped so it cannot re-select an integrator for the managed token.
     public const string IntegrationIdHeader = "Copilot-Integration-Id";
-    public const string IntegrationIdValue = "smooth-llm-imposter";
+
+    // "agent" marks a tool-loop continuation or a non-primary request; only "user" turns are the caller's own.
     public const string InitiatorHeader = "X-Initiator";
-    public const string InitiatorValue = "user";
+    public const string InitiatorUser = "user";
+    public const string InitiatorAgent = "agent";
+
     public const string OpenAiIntentHeader = "Openai-Intent";
     public const string OpenAiIntentValue = "conversation-edits";
+
+    public const string InteractionTypeHeader = "X-Interaction-Type";
+    public const string InteractionIdHeader = "X-Interaction-Id";
+    public const string InteractionAgent = "conversation-agent";
+    public const string InteractionSubagent = "conversation-subagent";
+    public const string InteractionBackground = "conversation-background";
+    public const string InteractionCompaction = "conversation-compaction";
+
+    public const string VisionRequestHeader = "Copilot-Vision-Request";
+
+    public const string AnthropicBetaHeader = "anthropic-beta";
+    public const string InterleavedThinkingBeta = "interleaved-thinking-2025-05-14";
+
     public const string UserAgentValue = "SmoothLlmImposter/1.0";
 
     /// <summary>

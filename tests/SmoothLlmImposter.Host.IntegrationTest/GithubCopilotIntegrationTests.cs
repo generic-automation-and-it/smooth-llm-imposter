@@ -211,16 +211,29 @@ public class GithubCopilotIntegrationTests
 
         // Anthropic: /v1/messages stays /v1/messages at the account-discovered origin.
         int before = fixture.Upstream.RequestCount;
-        using HttpResponseMessage anthropic = await client.PostAsJsonAsync(
-            "/anthropic/v1/messages",
-            new { model = "claude-sonnet-4.6", max_tokens = 16, messages = new[] { new { role = "user", content = "hi" } } },
-            TestContext.Current.CancellationToken);
+        using var anthropicRequest = new HttpRequestMessage(HttpMethod.Post, "/anthropic/v1/messages")
+        {
+            Content = JsonContent.Create(new { model = "claude-sonnet-4.6", max_tokens = 16, messages = new[] { new { role = "user", content = "hi" } } })
+        };
+        anthropicRequest.Headers.TryAddWithoutValidation("Copilot-Integration-Id", "vscode-chat");
+        anthropicRequest.Headers.TryAddWithoutValidation("X-Claude-Code-Session-Id", "cc-session-1");
+        anthropicRequest.Headers.TryAddWithoutValidation("anthropic-beta", "context-management-2025-06-27");
+        using HttpResponseMessage anthropic = await client.SendAsync(anthropicRequest, TestContext.Current.CancellationToken);
         anthropic.StatusCode.ShouldBe(HttpStatusCode.OK);
         fixture.Upstream.RequestCount.ShouldBe(before + 1);
         fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://api.githubcopilot.com/v1/messages");
         fixture.Upstream.LastAuthorization.ShouldBe("Bearer access-token");
         fixture.Upstream.LastHeaders.ContainsKey("X-GitHub-Api-Version").ShouldBeTrue();
-        fixture.Upstream.LastHeaders["X-GitHub-Api-Version"].ShouldBe("2025-04-01");
+        fixture.Upstream.LastHeaders["X-GitHub-Api-Version"].ShouldBe("2026-08-01");
+        // GitHub derives the integrator from the OAuth client ID; neither the proxy nor the caller may set it.
+        fixture.Upstream.LastHeaders.ContainsKey("Copilot-Integration-Id").ShouldBeFalse();
+        // opencode-aligned client metadata: a plain user turn on the main agent, keyed by the caller's session.
+        fixture.Upstream.LastHeaders["Openai-Intent"].ShouldBe("conversation-edits");
+        fixture.Upstream.LastHeaders["X-Initiator"].ShouldBe("user");
+        fixture.Upstream.LastHeaders["X-Interaction-Type"].ShouldBe("conversation-agent");
+        fixture.Upstream.LastHeaders["X-Interaction-Id"].ShouldBe("cc-session-1");
+        fixture.Upstream.LastHeaders.ContainsKey("Copilot-Vision-Request").ShouldBeFalse();
+        fixture.Upstream.LastHeaders["anthropic-beta"].ShouldBe("context-management-2025-06-27,interleaved-thinking-2025-05-14");
 
         // OpenAI Responses: inbound /v1/responses becomes /responses.
         using HttpResponseMessage openai = await client.PostAsJsonAsync(
@@ -231,6 +244,9 @@ public class GithubCopilotIntegrationTests
         fixture.Upstream.LastRequestUri!.ToString().ShouldBe("https://api.githubcopilot.com/responses");
         fixture.Upstream.LastAuthorization.ShouldBe("Bearer access-token");
         fixture.Upstream.LastHeaders.ContainsKey("Openai-Intent").ShouldBeTrue();
+        fixture.Upstream.LastHeaders.ContainsKey("Copilot-Integration-Id").ShouldBeFalse();
+        fixture.Upstream.LastHeaders["X-Initiator"].ShouldBe("user");
+        fixture.Upstream.LastHeaders["X-Interaction-Type"].ShouldBe("conversation-agent");
 
         // Status step 05 reports publication and routing readiness, and never leaks the token.
         GithubCopilotConnectionStatus? status = await GetConnectionAsync(client, connectionId);
