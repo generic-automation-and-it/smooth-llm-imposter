@@ -9,7 +9,7 @@ internal sealed class DecisionResponseBufferingHandler : DelegatingHandler
         HttpResponseMessage response = await base.SendAsync(request, cancellationToken);
         try
         {
-            if (response.IsSuccessStatusCode)
+            if (response.IsSuccessStatusCode && response.Content is not null)
             {
                 await response.Content.LoadIntoBufferAsync(cancellationToken);
             }

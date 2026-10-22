@@ -114,7 +114,7 @@ Per-provider overrides, decision caching, tool-count skip thresholds, prompt rou
 
 ## Verification evidence
 
-- Solution build: no warnings/errors; deterministic suite: 773 tests pass.
+- Solution build: no warnings/errors; deterministic suite: 790 tests pass (L0/L1/L2), matching the root changelog.
 - macOS ARM64 NativeAOT and Linux musl ARM64 container: all three APIs filter against live OpenJEV; disabled requests retain exact bytes.
 - 60 tools: three 20-question chunks, 60→1 tools, 15.0 seconds on macOS and 14.9 seconds in the container. Two concurrent 60-tool requests: 31.0/29.8 seconds total; classifier concurrency stays one, all calls return 200, none return 504.
 - Structured NativeAOT binding was exercised with non-default classifier address/path/model, threshold, two attempts and full-response timeout, on both native runtimes.

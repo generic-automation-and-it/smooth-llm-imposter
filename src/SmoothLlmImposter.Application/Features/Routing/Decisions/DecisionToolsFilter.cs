@@ -33,7 +33,8 @@ internal sealed class DecisionToolsFilter(
             JsonObject root = JsonNodeMaterializer.ParseObject(body);
             if (root["tools"] is not JsonArray { Count: > 0 } tools ||
                 (shape == DecisionBodyShape.Responses &&
-                 (root["previous_response_id"] is not null || root["conversation"] is not null)))
+                 ((root.ContainsKey("previous_response_id") && root["previous_response_id"] is not null) ||
+                  (root.ContainsKey("conversation") && root["conversation"] is not null))))
             {
                 return body;
             }

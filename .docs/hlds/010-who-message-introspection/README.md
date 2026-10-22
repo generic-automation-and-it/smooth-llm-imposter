@@ -170,7 +170,7 @@ captured here so a future contributor does not invent the design ad-hoc.
 ## Core Separation of Concerns
 
 > The customized-switches short-circuit and the opt-in [HLD 014 decision filter](../014-decisions-tools-filter/README.md)
-> are the sanctioned readers of `messages` content. It lives in Application as a string-in / string-out responder, invoked from
+> are the sanctioned readers of `messages` content. The switch responder lives in Application as a string-in / string-out responder, invoked from
 > a single seam in the Host endpoint between `router.PlanAsync` and `forwarder.SendAsync`.
 > The in-memory session-id translation dictionary sits alongside the existing HLD 009
 > session-identity resolver on the same seam — but the dictionary only fires on the

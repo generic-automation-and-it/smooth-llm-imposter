@@ -26,7 +26,7 @@ for LLM POSTs, because the upstream may already have processed and billed the re
 The preceding retry/headers-only policy governs **inference forwarding**, not the auxiliary
 decision service. [HLD 014 LADR-01](../../014-decisions-tools-filter/ladrs/LADR-01-global-passthrough-opt-in.md)
 adds an explicit default-off global request-body filtering exception, including passthrough.
-[LADR-04](../../014-decisions-tools-filter/ladrs/LADR-04-singleton-gate.md) owns its separate
+[HLD 014 LADR-04](../../014-decisions-tools-filter/ladrs/LADR-04-singleton-gate.md) owns its separate
 complete-response timeout and limited retry policy; none of that changes inference SSE relay.
 
 ## Consequences

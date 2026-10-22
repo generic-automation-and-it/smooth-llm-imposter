@@ -15,7 +15,7 @@ sequenceDiagram
     alt Disabled, excluded or incomplete history
         Filter-->>Host: Original body
     else Eligible catalog
-        loop Sequential chunks, stop on exhausted chunk
+        loop Sequential chunks, stop on failed chunk
             Filter->>Client: Independent use/skip questions
             Client->>Decision: Acquire shared gate; POST bounded chunk
             Decision-->>Client: Answers or bounded failure
