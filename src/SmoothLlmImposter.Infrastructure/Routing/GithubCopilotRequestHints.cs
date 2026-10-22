@@ -44,7 +44,7 @@ internal readonly record struct GithubCopilotRequestHints(
     {
         // Claude Code: x-claude-code-request-class is sent only with CLAUDE_CODE_GATEWAY_HINT_HEADERS set
         // (or on first-party gates); x-claude-code-agent-id is always sent for a non-main agent.
-        switch (First(headers, "x-claude-code-request-class"))
+        switch (First(headers, "x-claude-code-request-class")?.ToLowerInvariant())
         {
             case "main":
                 return GithubCopilotTransportPolicy.InteractionAgent;
@@ -57,7 +57,7 @@ internal readonly record struct GithubCopilotRequestHints(
         }
 
         // Codex: x-openai-subagent is review | compact | memory_consolidation | collab_spawn | <custom label>.
-        switch (First(headers, "x-openai-subagent"))
+        switch (First(headers, "x-openai-subagent")?.ToLowerInvariant())
         {
             case null:
                 break;
