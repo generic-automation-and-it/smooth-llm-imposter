@@ -22,4 +22,5 @@ Namespace-qualified named choices remain valid while their child definition surv
 
 - The optimization cannot intentionally invalidate known replay dependencies.
 - Stateful Responses and unknown shapes receive less pruning.
+- An unrecognized forced hosted choice, such as `{"type":"web_search_preview"}`, survives while any tool remains even if its own tool was dropped; the upstream may reject this dangling choice. Conservative handling accepts this limitation rather than guessing future choice contracts.
 - Tool-choice cleanup does not rename tools or rewrite historical calls.

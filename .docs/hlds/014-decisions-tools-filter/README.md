@@ -39,7 +39,7 @@ Each positively understood, unprotected tool receives an independent use/skip qu
 
 Identity is catalog-index based; labels use name, nested function name, nested custom name, server label, then type. A namespace wrapper is one decision unit, protected by either its namespace name or a referenced child. Hosted call history protects matching catalog type stems; MCP server labels protect their server definition.
 
-Unknown catalog or choice shapes are kept. History is never rewritten. Object-form choices naming removed tools are deleted; allowed-tools lists are pruned and deleted only when empty. String choices remain unchanged while tools survive. Removing every tool also removes tool choice.
+Unknown catalog or choice shapes are kept. History is never rewritten. Understood object-form choices naming removed tools are deleted; allowed-tools lists are pruned and deleted only when empty. String choices remain unchanged while tools survive. Removing every tool also removes tool choice. An unrecognized forced hosted-tool choice can remain after its tool is removed, so the upstream may reject it; this is an accepted limit of conservative choice handling ([LADR-06](ladrs/LADR-06-history-and-choice-integrity.md)).
 
 **Acceptance criteria / DoD**
 
@@ -49,6 +49,8 @@ Unknown catalog or choice shapes are kept. History is never rewritten. Object-fo
 - Deprecated fields, unknown entries and protected history survive unchanged.
 
 ### 3. Bounded classifier work
+
+When enabled, the classifier BaseUrl must be an absolute HTTP(S) URL; other URI schemes fail startup validation. Disabled classifier settings remain unvalidated.
 
 State is tail-biased: newest user text first, then earlier turns newest-to-oldest; system/instructions fill remaining room. Textless tool-result turns are skipped. State is capped at 2,000 characters. Each question carries a label/description instruction capped at 120 characters, with independent criteria for use and skip.
 
@@ -74,6 +76,8 @@ Decision failure is fail-open, not inference failure. A failed chunk keeps its t
 ## Core Separation of Concerns
 
 > Application owns every selection rule; Infrastructure owns decision-service transport; Host supplies the post-transform body at the existing forward seam.
+
+[HLD 015](../015-shared-decision-model-integration/README.md) proposes a consumer-neutral internal integration. It does not supersede this HLD's accepted runtime contract; tool eligibility, questions, batching, thresholds, history protection and fail-open outcomes stay here.
 
 ## Guiding Principle
 
@@ -114,6 +118,7 @@ Per-provider overrides, decision caching, tool-count skip thresholds, prompt rou
 - macOS ARM64 NativeAOT and Linux musl ARM64 container: all three APIs filter against live OpenJEV; disabled requests retain exact bytes.
 - 60 tools: three 20-question chunks, 60→1 tools, 15.0 seconds on macOS and 14.9 seconds in the container. Two concurrent 60-tool requests: 31.0/29.8 seconds total; classifier concurrency stays one, all calls return 200, none return 504.
 - Structured NativeAOT binding was exercised with non-default classifier address/path/model, threshold, two attempts and full-response timeout, on both native runtimes.
+- Review follow-up: 444 Application tests pass, including passthrough fast-path and classifier URL regressions. macOS ARM64 NativeAOT startup rejects enabled file/FTP classifier URLs, accepts HTTP(S), and ignores unsupported schemes while disabled.
 - Inference transport was a local capture stub. Real upstream cache-hit tokens were not measured; Linux AMD64 native-runner verification remains external. Status stays Accepted until these gates have evidence.
 
 ## Changelog
@@ -121,3 +126,4 @@ Per-provider overrides, decision caching, tool-count skip thresholds, prompt rou
 | Date | Change | Ref |
 |---|---|---|
 | 2026-10-22 | Implemented; L0/L2 and macOS/Linux ARM64 live checks pass; AMD64/cache gates pending | #138 |
+| 2026-10-22 | Review follow-ups: transformer guard tests, HTTP(S) URLs, transparency/hosted-choice caveats; HLD 015 proposed shared boundary | #138 |

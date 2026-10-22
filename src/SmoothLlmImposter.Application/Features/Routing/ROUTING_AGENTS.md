@@ -194,7 +194,8 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
   `<PREFIX>_SESSION_FORWARDING`). On matched imposter routes only, the router resolves once per request
   (headers `session_id`/`x-opencode-session`/`x-session-id`/`conversation_id` → body `prompt_cache_key`/
   `metadata.user_id` → stable fingerprint of caller identity material → none) and stamps OpenAI `session_id`
-  plus `x-opencode-session` (Anthropic: header only). Passthrough stays byte-transparent. The routing
+  plus `x-opencode-session` (Anthropic: header only). Passthrough stays byte-transparent unless
+  `DECISIONS_TOOLS_ENABLED` enables the independent HLD 014 request filter. The routing
   Information line adds `route=imposter|passthrough` plus `session=captured|derived|none` and never logs the raw
   session value. Model-bearing passthrough logs keep the same `model '<inbound>' -> provider ... as '<target>'`
   shape as matched imposters, with `route=passthrough` and an unchanged target model; body-less passthrough logs
@@ -348,7 +349,7 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 ## Test References
 
 - **L0** `Domain.UnitTest/Routing` — matcher, dialect parser.
-- **L0** `Application.UnitTest/Routing` — resolver, transformers (cache injection), router, error factory, options
+- **L0** `Application.UnitTest/Routing` — resolver, transformers (cache injection, passthrough body identity and fast-path exclusions), router, error factory, options
   validator, `CodexToOpenAiSdkNormalizerTests` (normalization drop/flatten/name-rules/tool_choice/idempotency, flat+nested shapes), model-catalog responder, `WhoMessageResponderTests` (HLD 010 trigger semantics, envelope shape, streaming exclusion, no-secret-leakage).
 - **L0** `Application.UnitTest/Routing/Decisions` — API golden shapes, history/choice integrity, body identity,
   bounded chunks, fail-open and cancellation; root option/env/validator tests remain in `Application.UnitTest/Routing`.
@@ -400,7 +401,7 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
-| 2026-10-22 | HLD 014 global tool-filter/content-reader exceptions; no-op passthrough preserves bytes | #138 |
+| 2026-10-22 | HLD 014 transparency exceptions; no-op identity/guard tests; classifier HTTP(S) validation | #138 |
 | 2026-08-12 | Added `IErrorResponseFactory.CreateStreamErrorFrame` + `StreamErrorFraming` so a relay failure after response start can still be reported in-band. Framing is path-derived, not dialect-derived — an OpenAI caller mid-`/responses` stream needs a named `event: error` frame while mid-Chat needs an unnamed `data:` frame, and sending the wrong one is silently dropped by the SDK. | — |
 | 2026-08-10 | HLD 011 review fixes: `ProviderOptionsCloner.Clone` now copies `StripEncryptedContent` — it did not, so the HLD 008 registry seed cloned the flag away and the feature was **inert in the real Host** while every test passed (all built `ProviderRoute` by hand). `/admin/providers` DTOs surface the flag in both directions (an upsert previously cleared it). JSON-`null` `encrypted_content` is no longer treated as ciphertext, so a client that serializes the property unconditionally keeps its plaintext summary. `ProviderOptionsClonerTests` drift guard widened to `bool?` (the `typeof(bool)`-only filter is what let the omission through). Added `ProviderCatalogTests` seed-materialization coverage + L2 `GET → PUT` round-trip; 4 tests now fail without the clone fix. HLD 011 + LADR-01/02/03 + NFR-01/02 authored — the implementation had cited a non-existent HLD/LADR. | HLD 011 |
 | 2026-08-09 | HLD 011: `StripEncryptedContent` opt-in drops `reasoning` input items carrying OpenAI ZDR `encrypted_content` on the forward path (whole item removed, LADR-01 — the proxy has no decryption key, ZDR holds it server-side only). Independent of `OpenAiUpstreamApi`/`RequestNormalization` and not gated on `IsImposter`; composes before `ToChatCompletions`. Conventional env `_STRIP_ENCRYPTED_CONTENT` per provider, off by default. Fixes upstream 400 "Encrypted content is not supported." (e.g. LM Studio) without leaving `/responses`. | HLD 011 |
