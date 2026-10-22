@@ -76,7 +76,7 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         ApplySessionIdentity(request, decision, sessionIdentity);
         if (copilotProfile is not null)
         {
-            ApplyCopilotHeaders(request, dialect);
+            ApplyCopilotHeaders(request, dialect, GithubCopilotRequestHints.Resolve(dialect, callerHeaders, body));
         }
 
         // HLD 012: hand the route's base timeout to the resilience handler, which scales it per attempt.
@@ -150,20 +150,56 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
             statusCode: 400);
     }
 
-    // Writes the Copilot client metadata headers after dropping caller-relayed values of the same names, so a
-    // caller cannot contradict the managed connection identity. Openai-Intent only applies to Responses.
-    private static void ApplyCopilotHeaders(HttpRequestMessage request, ApiDialect dialect)
+    // Writes the Copilot client metadata headers (aligned with opencode's Copilot provider) after dropping
+    // caller-relayed values of the same names, so a caller cannot contradict the managed connection identity.
+    private static void ApplyCopilotHeaders(HttpRequestMessage request, ApiDialect dialect, GithubCopilotRequestHints hints)
     {
         SetHeader(request, GithubCopilotTransportPolicy.ApiVersionHeader, GithubCopilotTransportPolicy.ApiVersionValue);
-        SetHeader(request, GithubCopilotTransportPolicy.IntegrationIdHeader, GithubCopilotTransportPolicy.IntegrationIdValue);
-        SetHeader(request, GithubCopilotTransportPolicy.InitiatorHeader, GithubCopilotTransportPolicy.InitiatorValue);
+        request.Headers.Remove(GithubCopilotTransportPolicy.IntegrationIdHeader);
+        SetHeader(request, GithubCopilotTransportPolicy.OpenAiIntentHeader, GithubCopilotTransportPolicy.OpenAiIntentValue);
+        SetHeader(
+            request,
+            GithubCopilotTransportPolicy.InitiatorHeader,
+            hints.AgentInitiated ? GithubCopilotTransportPolicy.InitiatorAgent : GithubCopilotTransportPolicy.InitiatorUser);
+        SetHeader(request, GithubCopilotTransportPolicy.InteractionTypeHeader, hints.InteractionType);
+
+        request.Headers.Remove(GithubCopilotTransportPolicy.InteractionIdHeader);
+        if (hints.InteractionId is { } interactionId)
+        {
+            request.Headers.TryAddWithoutValidation(GithubCopilotTransportPolicy.InteractionIdHeader, interactionId);
+        }
+
+        request.Headers.Remove(GithubCopilotTransportPolicy.VisionRequestHeader);
+        if (hints.Vision)
+        {
+            request.Headers.TryAddWithoutValidation(GithubCopilotTransportPolicy.VisionRequestHeader, "true");
+        }
+
+        if (dialect == ApiDialect.Anthropic)
+        {
+            EnsureAnthropicBeta(request, GithubCopilotTransportPolicy.InterleavedThinkingBeta);
+        }
+
         request.Headers.UserAgent.Clear();
         request.Headers.UserAgent.ParseAdd(GithubCopilotTransportPolicy.UserAgentValue);
+    }
 
-        if (dialect == ApiDialect.OpenAi)
+    // Adds a beta flag while keeping the caller's own: opencode replaces the header outright, but Claude Code
+    // sends body fields (e.g. context_management) whose beta must survive or the upstream rejects the body.
+    private static void EnsureAnthropicBeta(HttpRequestMessage request, string beta)
+    {
+        string name = GithubCopilotTransportPolicy.AnthropicBetaHeader;
+        List<string> flags = request.Headers.TryGetValues(name, out IEnumerable<string>? values)
+            ? values.SelectMany(static value => value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)).ToList()
+            : [];
+
+        if (flags.Contains(beta, StringComparer.OrdinalIgnoreCase))
         {
-            SetHeader(request, GithubCopilotTransportPolicy.OpenAiIntentHeader, GithubCopilotTransportPolicy.OpenAiIntentValue);
+            return;
         }
+
+        flags.Add(beta);
+        SetHeader(request, name, string.Join(',', flags));
     }
 
     private static void SetHeader(HttpRequestMessage request, string name, string value)

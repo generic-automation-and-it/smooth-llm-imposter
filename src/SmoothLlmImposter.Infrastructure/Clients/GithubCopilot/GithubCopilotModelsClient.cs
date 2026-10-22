@@ -32,8 +32,6 @@ internal sealed class GithubCopilotModelsClient(IHttpClientFactory httpClientFac
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         request.Headers.TryAddWithoutValidation(GithubCopilotTransportPolicy.ApiVersionHeader, GithubCopilotTransportPolicy.ApiVersionValue);
-        request.Headers.TryAddWithoutValidation(GithubCopilotTransportPolicy.IntegrationIdHeader, GithubCopilotTransportPolicy.IntegrationIdValue);
-        request.Headers.TryAddWithoutValidation(GithubCopilotTransportPolicy.InitiatorHeader, GithubCopilotTransportPolicy.InitiatorValue);
         request.Headers.UserAgent.ParseAdd(GithubCopilotTransportPolicy.UserAgentValue);
 
         using HttpResponseMessage response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);

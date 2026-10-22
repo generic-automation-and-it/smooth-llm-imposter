@@ -231,6 +231,12 @@ and per-provider `enabled` / `routingReady`. The `message` distinguishes:
 A real inference smoke test is a normal request through the dialect prefix, e.g. `POST /anthropic/v1/messages`
 with a mapped model, or the in-band probe (`/imposter-who` skill / non-streaming `--who?`).
 
+The proxy tags each Copilot request with opencode's client metadata (`X-Initiator`, `X-Interaction-Type`,
+`X-Interaction-Id`, `Copilot-Vision-Request`). Claude Code subagents and Codex sub-tasks are recognised
+automatically; for Claude Code compaction and background (title/auxiliary) calls to be tagged too, export
+`CLAUDE_CODE_GATEWAY_HINT_HEADERS=1` in the Claude Code environment — it makes Claude Code send its
+`x-claude-code-request-class` header, which is otherwise behind a server-side Claude Code flag.
+
 ## 4. Credential removal and the threat boundary
 
 V1 has **no** in-app logout/revoke endpoint, and **deleting a provider is not a logout** — a connected prefix's
@@ -265,3 +271,4 @@ vault.
 | Route returns `400` | A Copilot profile only forwards `/v1/messages` (Anthropic) or `/responses` (OpenAI). Chat Completions is not supported. |
 | `502` from Start/Complete | GitHub was unreachable; retry the same call. |
 | Complete stays `retryable` / `github_unavailable` after GitHub shows "Your device is now connected" | The token exchange succeeded but the `api.github.com/user` lookup failed — check the container log for `GitHub /user lookup failed with HTTP <status>`. Images before 2026-10-21 sent an unsupported `X-GitHub-Api-Version` (`2025-04-01`) and got `400` on every retry; pull a newer image and start a new login. |
+| Route returns `400 The requested model is not available for integrator "<name>"` | GitHub picks the integrator — and its model list — from the OAuth client ID the connection logged in with; the proxy sends no `Copilot-Integration-Id` (images before 2026-10-22 sent an unrecognised one). Use a client ID whose integrator serves the model. To switch, pass `clientId` explicitly in Start: a prefix's saved client ID wins over `GITHUB_COPILOT_CLIENT_ID`. |
