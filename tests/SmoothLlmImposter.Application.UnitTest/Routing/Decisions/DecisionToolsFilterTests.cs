@@ -352,6 +352,27 @@ public sealed class DecisionToolsFilterTests
     }
 
     [Fact]
+    public async Task Chunk_with_an_invalid_answer_is_not_cached_and_is_asked_again()
+    {
+        string body = Body(2).ToJsonString();
+        int calls = 0;
+        var client = new DecisionStub
+        {
+            Answer = request => ++calls == 1
+                ? JsonNode.Parse("""{"answers":{"t0":{"probabilities":{"use":1}},"t1":{"probabilities":{"use":"bad"}}}}""")!.AsObject()
+                : Answers(request, key => key == "t0" ? 1 : 0)
+        };
+        DecisionToolsFilter filter = Create(client);
+
+        string first = await filter.FilterAsync("/responses", body, Ct);
+        string second = await filter.FilterAsync("/responses", body, Ct);
+
+        ReferenceEquals(first, body).ShouldBeTrue();
+        client.Requests.Count.ShouldBe(2);
+        JsonNode.Parse(second)!["tools"]!.AsArray().ShouldHaveSingleItem()!["name"]!.GetValue<string>().ShouldBe("tool0");
+    }
+
+    [Fact]
     public async Task Pruned_output_keeps_every_other_top_level_value_byte_for_byte()
     {
         string messages = """[ {"role" : "user", "content":"Review <b>this</b> caf\u00e9 \/ diff"} ]""";
