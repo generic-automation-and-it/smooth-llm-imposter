@@ -14,7 +14,7 @@
 
 **Skip** Responses requests with non-null previous-response or conversation pointers, since the supplied delta cannot prove a tool is unused. Unknown tool shapes are never removed.
 
-Prune understood object-form choices to surviving tools. Remove dangling forced choices and empty allowed-tools lists; when no tools remain, remove both tools and tool choice. Preserve unrecognized choice forms whenever tools remain.
+Prune understood object-form choices to surviving tools. Remove dangling forced choices and empty allowed-tools lists. A pass that would remove every tool keeps the original body instead, so tools always remain. Preserve unrecognized choice forms.
 
 Namespace-qualified named choices remain valid while their child definition survives inside the selected namespace.
 

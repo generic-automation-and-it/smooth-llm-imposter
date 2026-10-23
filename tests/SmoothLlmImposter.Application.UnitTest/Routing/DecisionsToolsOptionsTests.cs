@@ -18,7 +18,7 @@ public class DecisionsToolsOptionsTests
         options.BaseUrl.ShouldBe("http://host.docker.internal:1234");
         options.Path.ShouldBe("/v1/systemone");
         options.Model.ShouldBe("openjev");
-        options.MinProbability.ShouldBe(0.50);
+        options.MinProbability.ShouldBe(0.20);
         options.MaxAttempts.ShouldBe(3);
         options.TimeoutSeconds.ShouldBe(60);
     }

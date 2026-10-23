@@ -353,10 +353,12 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 - **L0** `Application.UnitTest/Routing` — resolver, transformers (cache injection, passthrough body identity and fast-path exclusions), router, error factory, options
   validator, `CodexToOpenAiSdkNormalizerTests` (normalization drop/flatten/name-rules/tool_choice/idempotency, flat+nested shapes), model-catalog responder, `WhoMessageResponderTests` (HLD 010 trigger semantics, envelope shape, streaming exclusion, no-secret-leakage).
 - **L0** `Application.UnitTest/Routing/Decisions` — API golden shapes, history/choice integrity, body identity,
-  bounded chunks, fail-open and cancellation; root option/env/validator tests remain in `Application.UnitTest/Routing`.
+  bounded chunks, fail-open and cancellation, request-first state (reminders, hook/system and tool-result turns
+  excluded), all-skip fallback, deferred-loading skip, chunk memo, byte-preserving output and log-safe removed names; root option/env/validator tests remain in `Application.UnitTest/Routing`.
 - **L0** `Infrastructure.UnitTest/Clients/Decisions` — real resilience, full-body timeout, singleton gate and retry status policy.
 - **L2** `Host.IntegrationTest/DecisionToolsIntegrationTests` — prefixed/legacy paths, passthrough, downgrade,
-  who-probe bypass, disabled bytes and decision-stage caller abort.
+  who-probe bypass, disabled bytes, decision-stage caller abort and Claude Code reminder-shaped state with
+  verbatim forwarded messages.
 - **L3** `Upstream.EvalTest` — **live** opencode-go conformance eval (HLD 004): a raw Codex catalog run through the
   real transformer+normalizer is accepted (200), un-normalized is rejected (400). Excluded from `SmoothLlmImposter.slnx`;
   secret-gated on `OPENCODE_API_KEY`, neutral (skipped) when absent; runs only in `pr-evals-gate.yml`.
@@ -402,6 +404,7 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-23 | Decision state is request-first (no post-request assistant text, system only as fallback); deferred-loading catalogs skipped; in-memory chunk memo; only `tools`/`tool_choice` rewritten; all-skip keeps catalog; `MinProbability` 0.20 | #138 |
 | 2026-10-23 | Decision-filter success summaries use the canonical body shape rather than the caller-controlled upstream path | #140 |
 | 2026-10-22 | HLD 014 transparency exceptions; no-op identity/guard tests; classifier HTTP(S) validation | #138 |
 | 2026-08-12 | Added `IErrorResponseFactory.CreateStreamErrorFrame` + `StreamErrorFraming` so a relay failure after response start can still be reported in-band. Framing is path-derived, not dialect-derived — an OpenAI caller mid-`/responses` stream needs a named `event: error` frame while mid-Chat needs an unnamed `data:` frame, and sending the wrong one is silently dropped by the SDK. | — |

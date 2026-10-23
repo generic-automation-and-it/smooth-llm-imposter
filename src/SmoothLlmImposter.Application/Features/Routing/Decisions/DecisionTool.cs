@@ -15,6 +15,15 @@ internal sealed record DecisionTool(int Index, string Label, string Description)
                 return new DecisionTool(item.index, LabelFor(tool), DescriptionFor(tool));
             }).ToArray();
 
+    public static bool UsesDeferredLoading(JsonArray tools) =>
+        tools.OfType<JsonObject>().Any(tool =>
+            DecisionJson.Text(tool["type"]).StartsWith("tool_search", StringComparison.Ordinal) ||
+            IsDeferred(tool) ||
+            DecisionJson.Objects(tool["tools"]).Any(IsDeferred));
+
+    private static bool IsDeferred(JsonObject tool) =>
+        tool["defer_loading"] is JsonValue value && value.TryGetValue(out bool deferred) && deferred;
+
     public static void PruneChoice(JsonObject root, JsonArray tools, HashSet<int> removed, DecisionBodyShape shape)
     {
         if (root["tool_choice"] is not JsonObject choice)
@@ -68,7 +77,7 @@ internal sealed record DecisionTool(int Index, string Label, string Description)
                 "function" or "custom" => HasName(tool),
                 "mcp" => !string.IsNullOrWhiteSpace(DecisionJson.Text(tool["server_label"])),
                 "namespace" => HasName(tool) && tool["tools"] is JsonArray,
-                "web_search" or "web_search_preview" or "image_generation" or "tool_search" or "local_shell" or "file_search" => true,
+                "web_search" or "web_search_preview" or "image_generation" or "local_shell" or "file_search" => true,
                 _ => false
             },
             DecisionBodyShape.Anthropic => HasName(tool) &&

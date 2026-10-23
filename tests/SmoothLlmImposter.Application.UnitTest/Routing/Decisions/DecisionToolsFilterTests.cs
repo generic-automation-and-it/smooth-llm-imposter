@@ -66,11 +66,12 @@ public sealed class DecisionToolsFilterTests
         filtered["function_call"]!["name"]!.GetValue<string>().ShouldBe("legacy");
         filtered["tool_choice"]!["allowed_tools"]!["tools"]!.AsArray().Count.ShouldBe(1);
         JsonObject request = client.Requests.Single();
-        request["state"]!.GetValue<string>().ShouldBe("Latest\nEarlier\nSystem");
+        request["state"]!.GetValue<string>().ShouldBe("User request:\nLatest\n\nEarlier conversation (newest first):\nUser: Earlier");
         request["questions"]!.AsObject().Select(pair => pair.Key).ToArray().ShouldBe(["t2"]);
-        request["questions"]!["t2"]!["instructions"]!.GetValue<string>().ShouldBe("unused Tool description");
-        request["questions"]!["t2"]!["criteria"]!.ToJsonString()
-            .ShouldBe("{\"use\":\"the assistant will call this tool to answer\",\"skip\":\"not needed\"}");
+        request["questions"]!["t2"]!["instructions"]!.GetValue<string>()
+            .ShouldBe("Will the assistant need the tool 'unused' to carry out the user's request? Tool: Tool description");
+        request["questions"]!["t2"]!["criteria"]!.ToJsonString().ShouldBe(
+            "{\"use\":\"the request needs what this tool does, or names this tool\",\"skip\":\"the request can be done fully without this tool\"}");
     }
 
     [Fact]
@@ -91,7 +92,7 @@ public sealed class DecisionToolsFilterTests
               {"type":"namespace","name":"ns2","tools":[{"type":"custom","name":"other"}]},
               {"type":"mcp","server_label":"one"},{"type":"web_search"},{"type":"web_search_preview"},
               {"type":"mcp","server_label":"two"},{"type":"custom","name":"unused"},
-              {"type":"image_generation"},{"type":"tool_search"},{"type":"local_shell"},{"type":"file_search"},
+              {"type":"image_generation"},{"type":"local_shell"},{"type":"file_search"},
               {"type":"future","name":"opaque"}],
              "tool_choice":{"type":"allowed_tools","mode":"auto","tools":[{"type":"web_search"},{"type":"custom","name":"unused"}]}}
             """;
@@ -101,10 +102,12 @@ public sealed class DecisionToolsFilterTests
         result["tool_choice"]!["tools"]!.AsArray().Count.ShouldBe(1);
         result["input"]!.ToJsonString().ShouldBe(JsonNode.Parse(body)!["input"]!.ToJsonString());
         JsonObject request = client.Requests.Single();
-        request["state"]!.GetValue<string>().ShouldBe("Latest\nEarlier answer\nEarlier\nSystem");
+        request["state"]!.GetValue<string>()
+            .ShouldBe("User request:\nLatest\n\nEarlier conversation (newest first):\nAssistant: Earlier answer\nUser: Earlier");
         request["questions"]!.AsObject().Select(pair => pair.Key).ToArray()
-            .ShouldBe(["t5", "t6", "t7", "t8", "t9", "t10"]);
-        request["questions"]!["t5"]!["instructions"]!.GetValue<string>().ShouldBe("two");
+            .ShouldBe(["t5", "t6", "t7", "t8", "t9"]);
+        request["questions"]!["t5"]!["instructions"]!.GetValue<string>()
+            .ShouldBe("Will the assistant need the tool 'two' to carry out the user's request?");
     }
 
     [Fact]
@@ -126,7 +129,8 @@ public sealed class DecisionToolsFilterTests
         result.ContainsKey("tool_choice").ShouldBeFalse();
         result["messages"]!.ToJsonString().ShouldBe(JsonNode.Parse(body)!["messages"]!.ToJsonString());
         result["mcp_servers"]!.ToJsonString().ShouldBe("[{\"name\":\"connector\"}]");
-        client.Requests.Single()["state"]!.GetValue<string>().ShouldBe("Latest\nEarlier\nSystem");
+        client.Requests.Single()["state"]!.GetValue<string>()
+            .ShouldBe("User request:\nLatest\n\nEarlier conversation (newest first):\nUser: Earlier");
         client.Requests.Single()["questions"]!.AsObject().Select(pair => pair.Key).ToArray().ShouldBe(["t3"]);
     }
 
@@ -160,13 +164,31 @@ public sealed class DecisionToolsFilterTests
     }
 
     [Fact]
-    public async Task None_survive_removes_tools_and_any_choice()
+    public async Task None_surviving_keeps_the_original_instance_and_logs_the_fallback()
     {
-        JsonObject body = Body(2);
-        body["tool_choice"] = "required";
-        JsonObject result = JsonNode.Parse(await Create(new DecisionStub()).FilterAsync("/responses", body.ToJsonString(), Ct))!.AsObject();
-        result.ContainsKey("tools").ShouldBeFalse();
-        result.ContainsKey("tool_choice").ShouldBeFalse();
+        JsonObject root = Body(2);
+        root["tool_choice"] = "required";
+        string body = root.ToJsonString();
+        var logs = new FilterLogger();
+
+        ReferenceEquals(await Create(new DecisionStub(), logs).FilterAsync("/responses", body, Ct), body).ShouldBeTrue();
+        logs.Events.Where(entry => entry.Level > LogLevel.Debug).ShouldHaveSingleItem().Text.ShouldContain("kept all 2");
+    }
+
+    [Fact]
+    public async Task Removed_tool_names_are_logged_with_control_characters_neutralised()
+    {
+        JsonObject root = Body(3);
+        root["tools"]![1]!["name"] = "forged\n[ERR] line";
+        var logs = new FilterLogger();
+        var client = new DecisionStub { Answer = request => Answers(request, key => key == "t0" ? 1 : 0) };
+
+        await Create(client, logs).FilterAsync("/responses", root.ToJsonString(), Ct);
+
+        string summary = logs.Events.Single(entry => entry.Level == LogLevel.Information).Text;
+        summary.ShouldContain("kept 1/3");
+        summary.ShouldContain("removed forged?[ERR] line,tool2");
+        summary.ShouldNotContain("\n");
     }
 
     [Theory]
@@ -228,7 +250,7 @@ public sealed class DecisionToolsFilterTests
     {
         var client = new DecisionStub
         {
-            Answer = _ => JsonNode.Parse("""{"answers":{"t0":{"probabilities":{"use":0.5}},"t1":{"probabilities":{"use":"0"}},"t2":{"probabilities":{"use":-0.1}},"t3":{"probabilities":{"use":1.1}}}}""")!.AsObject()
+            Answer = _ => JsonNode.Parse("""{"answers":{"t0":{"probabilities":{"use":0.2}},"t1":{"probabilities":{"use":"0"}},"t2":{"probabilities":{"use":-0.1}},"t3":{"probabilities":{"use":1.1}}}}""")!.AsObject()
         };
         string body = Body(5).ToJsonString();
         ReferenceEquals(await Create(client).FilterAsync("/responses", body, Ct), body).ShouldBeTrue();
@@ -265,9 +287,84 @@ public sealed class DecisionToolsFilterTests
         await Create(client).FilterAsync("/responses", body.ToJsonString(), Ct);
         string state = client.Requests.Single()["state"]!.GetValue<string>();
         state.Length.ShouldBe(2000);
-        state.ShouldStartWith("Latest\ne");
+        state.ShouldStartWith("User request:\nLatest\n\nEarlier conversation (newest first):\nUser: e");
         state.ShouldNotContain("sss");
-        client.Requests.Single()["questions"]!["t0"]!["instructions"]!.GetValue<string>().Length.ShouldBe(120);
+        client.Requests.Single()["questions"]!["t0"]!["instructions"]!.GetValue<string>().Length.ShouldBe(300);
+    }
+
+    [Fact]
+    public async Task Claude_code_turns_send_only_the_human_request_as_state()
+    {
+        string body = """
+            {"system":"System","messages":[
+              {"role":"user","content":[{"type":"text","text":"<system-reminder>\nQuotes <system-reminder> and </system-reminder> mid-block\n</system-reminder>"},{"type":"text","text":"Review the diff"}]},
+              {"role":"system","content":"SessionStart hook output"},
+              {"role":"assistant","content":[{"type":"text","text":"Fetching the diff"},{"type":"tool_use","name":"Bash"}]},
+              {"role":"user","content":[{"type":"tool_result","tool_use_id":"x","content":"output"},{"type":"text","text":"PostToolUse hook output"}]},
+              {"role":"system","content":[{"type":"text","text":"<total_tokens>14999994 tokens left</total_tokens>"}]}],
+             "tools":[{"name":"Bash","input_schema":{}},{"name":"GetWorkspaceDiff","input_schema":{}}]}
+            """;
+        var client = new DecisionStub();
+        await Create(client).FilterAsync("/v1/messages", body, Ct);
+        client.Requests.Single()["state"]!.GetValue<string>().ShouldBe("User request:\nReview the diff");
+    }
+
+    [Theory]
+    [InlineData("Before <system-reminder>one</system-reminder> middle <system-reminder>two</system-reminder> after", "Before  middle  after")]
+    [InlineData("Explain <system-reminder> tags", "Explain <system-reminder> tags")]
+    [InlineData("<system-reminder>one</system-reminder> Explain <system-reminder> tags", "Explain <system-reminder> tags")]
+    public async Task Reminder_spans_are_removed_from_message_text(string text, string expected)
+    {
+        JsonObject body = Body(1);
+        body["input"] = new JsonArray { (JsonNode)new JsonObject { ["type"] = "message", ["role"] = "user", ["content"] = text } };
+        var client = new DecisionStub();
+        await Create(client).FilterAsync("/responses", body.ToJsonString(), Ct);
+        client.Requests.Single()["state"]!.GetValue<string>().ShouldBe($"User request:\n{expected}");
+    }
+
+    [Theory]
+    [InlineData("/v1/messages", """[{"name":"Bash","input_schema":{}},{"name":"Placeholder","input_schema":{},"defer_loading":true}]""")]
+    [InlineData("/v1/messages", """[{"name":"Bash","input_schema":{}},{"type":"tool_search_tool_regex_20251119","name":"tool_search"}]""")]
+    [InlineData("/responses", """[{"type":"function","name":"f"},{"type":"tool_search"}]""")]
+    [InlineData("/responses", """[{"type":"namespace","name":"ns","tools":[{"type":"function","name":"g","defer_loading":true}]}]""")]
+    public async Task Deferred_tool_loading_skips_the_pass(string path, string tools)
+    {
+        string body = $$"""{"input":"Task","messages":[{"role":"user","content":"Task"}],"tools":{{tools}}}""";
+        var client = new DecisionStub();
+        ReferenceEquals(await Create(client).FilterAsync(path, body, Ct), body).ShouldBeTrue();
+        client.Requests.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Identical_requests_are_answered_from_cache_and_failures_are_not_cached()
+    {
+        string body = Body(25).ToJsonString();
+        var client = new DecisionStub { Answer = request => Answers(request, key => key == "t0" ? 1 : 0), FailCall = 1 };
+        DecisionToolsFilter filter = Create(client);
+
+        ReferenceEquals(await filter.FilterAsync("/responses", body, Ct), body).ShouldBeTrue();
+        string first = await filter.FilterAsync("/responses", body, Ct);
+        string second = await filter.FilterAsync("/responses", body, Ct);
+
+        client.Requests.Count.ShouldBe(3);
+        second.ShouldBe(first);
+        JsonNode.Parse(second)!["tools"]!.AsArray().Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Pruned_output_keeps_every_other_top_level_value_byte_for_byte()
+    {
+        string messages = """[ {"role" : "user", "content":"Review <b>this</b> caf\u00e9 \/ diff"} ]""";
+        string body = $$$"""{ "model":"m",  "messages" : {{{messages}}}, "tools":[{"type":"function","function":{"name":"keep"}},{"type":"function","function":{"name":"drop"}}], "tool_choice":{"type":"function","function":{"name":"drop"}}, "stream" : true }""";
+        var client = new DecisionStub { Answer = request => Answers(request, key => key == "t0" ? 1 : 0) };
+
+        string result = await Create(client).FilterAsync("/chat/completions", body, Ct);
+
+        result.ShouldContain($"\"messages\" : {messages}");
+        result.ShouldContain("\"model\":\"m\"");
+        result.ShouldContain("\"stream\" : true");
+        result.ShouldNotContain("tool_choice");
+        JsonNode.Parse(result)!["tools"]!.AsArray().Count.ShouldBe(1);
     }
 
     [Fact]
@@ -276,7 +373,7 @@ public sealed class DecisionToolsFilterTests
         string body = """{"messages":[{"role":"system","content":"Task"}],"tools":[{"type":"function","function":{"name":"f"}}]}""";
         var client = new DecisionStub();
         await Create(client).FilterAsync("/chat/completions", body, Ct);
-        client.Requests.Single()["state"]!.GetValue<string>().ShouldBe("Task");
+        client.Requests.Single()["state"]!.GetValue<string>().ShouldBe("Context:\nTask");
     }
 
     [Fact]

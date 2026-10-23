@@ -4,7 +4,7 @@
 
 ## Requirement
 
-One process permits at most one in-flight decision chunk, including retries. Every gate wait and every complete HTTP-response attempt is bounded by TimeoutSeconds. The service's 30-second 504 is not retried; exhausted chunks stop the pass. Default MaxAttempts and TimeoutSeconds bound a hung acquired chunk to 180 seconds of attempt time (retry delay is zero); gate waiting has its separate 60-second default budget.
+One process permits at most one in-flight decision chunk, including retries; memoised chunks (LADR-07) do not take the gate. Every gate wait and every complete HTTP-response attempt is bounded by TimeoutSeconds. The service's 30-second 504 is not retried; exhausted chunks stop the pass. Default MaxAttempts and TimeoutSeconds bound a hung acquired chunk to 180 seconds of attempt time (retry delay is zero); gate waiting has its separate 60-second default budget.
 
 ## Verification
 

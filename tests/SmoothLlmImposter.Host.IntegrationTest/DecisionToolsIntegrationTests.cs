@@ -59,6 +59,29 @@ public sealed class DecisionToolsIntegrationTests
             : path.StartsWith("/anthropic", StringComparison.Ordinal) ? path["/anthropic".Length..] : path);
     }
 
+    [Fact]
+    public async Task Claude_code_reminder_blocks_are_not_sent_as_decision_state()
+    {
+        var decisions = new StubDecisionClient();
+        using var app = new App(decisions, enabled: true);
+        string body = """
+            { "model": "unmatched-model", "max_tokens": 100, "messages": [{"role":"user","content":[
+                {"type":"text","text":"<system-reminder>\nCodebase and user instructions are shown below.\n</system-reminder>"},
+                {"type":"text","text":"Read the file"}]}],
+              "tools": [{"name":"read_file","description":"Read a local file","input_schema":{"type":"object"}},
+                        {"name":"web_search","description":"Search the web","input_schema":{"type":"object"}}] }
+            """;
+
+        using HttpResponseMessage response = await app.Client.PostAsync("/anthropic/v1/messages", Json(body), Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        decisions.Requests.Single()["state"]!.GetValue<string>().ShouldBe("User request:\nRead the file");
+        app.Upstream.LastRequestBody!.ShouldContain(body[body.IndexOf("\"messages\"", StringComparison.Ordinal)..body.IndexOf(",\n  \"tools\"", StringComparison.Ordinal)]);
+        JsonArray tools = JsonNode.Parse(app.Upstream.LastRequestBody!)!["tools"]!.AsArray();
+        tools.ShouldHaveSingleItem();
+        ToolName(tools[0]!, "anthropic").ShouldBe("read_file");
+    }
+
     [Theory]
     [InlineData("/openai/v1/responses")]
     [InlineData("/v1/responses")]
