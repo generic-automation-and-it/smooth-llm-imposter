@@ -12,7 +12,7 @@
 
 **Keep** tools whose classification is uncertain. Failure of a chunk stops the pass and preserves that chunk plus all remaining tools; earlier answered chunks remain applied. Invalid or missing per-tool probabilities likewise keep that tool.
 
-Caller-token cancellation propagates instead of becoming fail-open. Other failures emit a Warning carrying the reason type, never exception text or prompt content. A successful classified pass emits one Information summary of path, kept/total and elapsed milliseconds; skipped/disabled passes remain Debug-only.
+Caller-token cancellation propagates instead of becoming fail-open. Other failures emit a Warning carrying the reason type, never exception text or prompt content. A successful classified pass emits one Information summary of canonical request body shape, kept/total and elapsed milliseconds; skipped/disabled passes remain Debug-only. The summary must not include the caller-controlled request path.
 
 ## Consequences
 

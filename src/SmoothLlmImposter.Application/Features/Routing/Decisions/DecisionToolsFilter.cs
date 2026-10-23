@@ -90,8 +90,8 @@ internal sealed class DecisionToolsFilter(
                 root.Remove("tool_choice");
             }
 
-            logger.LogInformation("Decisions filter {Path}: kept {Kept}/{Total} tools in {ElapsedMs} ms",
-                path, tools.Count, tools.Count + removed.Count, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            logger.LogInformation("Decisions filter {Shape}: kept {Kept}/{Total} tools in {ElapsedMs} ms",
+                shape, tools.Count, tools.Count + removed.Count, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             return root.ToJsonString();
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

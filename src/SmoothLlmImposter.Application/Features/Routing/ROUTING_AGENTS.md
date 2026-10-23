@@ -317,7 +317,8 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 - **Decision-tool filtering (HLD 014).** Classification does not select a provider or alter auth. Its contract
   lives in [HLD 014](../../../../.docs/hlds/014-decisions-tools-filter/README.md); do not couple the global gate to
   `IsImposter`, caching, normalization or session forwarding. Known tool-history references are replay
-  dependencies, not prompt text — never rename or remove historical calls when pruning the catalog.
+  dependencies, not prompt text — never rename or remove historical calls when pruning the catalog. Successful
+  classifier summaries log the canonical body shape, never the caller-controlled upstream path.
 
 ## Credential Overrides
 
@@ -401,6 +402,7 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-23 | Decision-filter success summaries use the canonical body shape rather than the caller-controlled upstream path | #140 |
 | 2026-10-22 | HLD 014 transparency exceptions; no-op identity/guard tests; classifier HTTP(S) validation | #138 |
 | 2026-08-12 | Added `IErrorResponseFactory.CreateStreamErrorFrame` + `StreamErrorFraming` so a relay failure after response start can still be reported in-band. Framing is path-derived, not dialect-derived — an OpenAI caller mid-`/responses` stream needs a named `event: error` frame while mid-Chat needs an unnamed `data:` frame, and sending the wrong one is silently dropped by the SDK. | — |
 | 2026-08-10 | HLD 011 review fixes: `ProviderOptionsCloner.Clone` now copies `StripEncryptedContent` — it did not, so the HLD 008 registry seed cloned the flag away and the feature was **inert in the real Host** while every test passed (all built `ProviderRoute` by hand). `/admin/providers` DTOs surface the flag in both directions (an upsert previously cleared it). JSON-`null` `encrypted_content` is no longer treated as ciphertext, so a client that serializes the property unconditionally keeps its plaintext summary. `ProviderOptionsClonerTests` drift guard widened to `bool?` (the `typeof(bool)`-only filter is what let the omission through). Added `ProviderCatalogTests` seed-materialization coverage + L2 `GET → PUT` round-trip; 4 tests now fail without the clone fix. HLD 011 + LADR-01/02/03 + NFR-01/02 authored — the implementation had cited a non-existent HLD/LADR. | HLD 011 |
