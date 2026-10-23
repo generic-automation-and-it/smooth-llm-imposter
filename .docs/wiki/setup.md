@@ -208,7 +208,10 @@ are answered from an in-memory cache and forward the same tools. Catalogs using 
 unknown tools are kept, and a pass that would remove every tool keeps the whole catalog. The default threshold
 0.20 drops only clearly irrelevant tools; agent harnesses need their core tools (shell, read, edit) on most
 turns, so raise it with care. Each pruning pass logs the removed tool names at Information level. Service
-failure keeps unresolved tools and continues inference.
+failure keeps unresolved tools and continues inference; the warning names the HTTP status and model. A `400` on
+every request usually means the model is not a decision model — LM Studio must list it with `"type": "decision"`
+in `/api/v1/models` (for example `kev-4b` or `openjev`); a model it lists as `llm` is rejected as
+`invalidModelIdentifier`.
 
 For bare-metal `dotnet run` or a native executable, set `DECISIONS_TOOLS_BASE_URL=http://127.0.0.1:1234`.
 In Docker Desktop the default host name resolves natively; Linux Docker/Podman requires
