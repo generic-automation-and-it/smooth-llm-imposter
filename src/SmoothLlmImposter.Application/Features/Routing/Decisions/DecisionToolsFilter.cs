@@ -12,6 +12,8 @@ internal sealed class DecisionToolsFilter(
     ILogger<DecisionToolsFilter> logger) : IDecisionToolsFilter
 {
     private const int ChunkSize = 20;
+    private const int InstructionLimit = 300;
+    private readonly DecisionAnswerCache _cache = new();
 
     public async Task<string> FilterAsync(string path, string body, CancellationToken cancellationToken)
     {
@@ -39,6 +41,12 @@ internal sealed class DecisionToolsFilter(
                 return body;
             }
 
+            if (DecisionTool.UsesDeferredLoading(tools))
+            {
+                logger.LogDebug("Decisions filter {Shape}: deferred tool loading present, forwarding unfiltered", shape);
+                return body;
+            }
+
             string state = DecisionPrompt.Extract(root, shape);
             if (string.IsNullOrWhiteSpace(state))
             {
@@ -46,18 +54,32 @@ internal sealed class DecisionToolsFilter(
             }
 
             DecisionTool[] candidates = DecisionTool.ReadCandidates(tools, root, shape);
-            var removed = new HashSet<int>();
-            foreach (DecisionTool[] chunk in candidates.Chunk(ChunkSize))
+            var probabilities = new Dictionary<string, double>();
+            var pending = new List<DecisionTool>();
+            foreach (DecisionTool tool in candidates)
+            {
+                if (_cache.TryGet(CacheKey(state, tool), out double cached))
+                {
+                    probabilities[tool.Key] = cached;
+                }
+                else
+                {
+                    pending.Add(tool);
+                }
+            }
+
+            if (probabilities.Count > 0)
+            {
+                logger.LogDebug("Decisions filter {Shape}: {Cached}/{Total} tools answered from cache",
+                    shape, probabilities.Count, candidates.Length);
+            }
+
+            foreach (DecisionTool[] chunk in pending.Chunk(ChunkSize))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                JsonObject envelope;
                 try
                 {
-                    envelope = await client.DecideAsync(BuildRequest(state, chunk), cancellationToken);
-                    if (envelope["answers"] is not JsonObject)
-                    {
-                        throw new InvalidOperationException("Invalid decision envelope.");
-                    }
+                    await DecideAsync(state, chunk, probabilities, cancellationToken);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -68,9 +90,13 @@ internal sealed class DecisionToolsFilter(
                     LogFailOpen(failure);
                     break;
                 }
-
-                ApplyAnswers(envelope["answers"]!.AsObject(), chunk, removed);
             }
+
+            var removed = candidates
+                .Where(tool => probabilities.TryGetValue(tool.Key, out double probability) &&
+                    probability < options.Value.DecisionsTools.MinProbability)
+                .Select(tool => tool.Index)
+                .ToHashSet();
 
             cancellationToken.ThrowIfCancellationRequested();
             if (removed.Count == 0)
@@ -78,21 +104,25 @@ internal sealed class DecisionToolsFilter(
                 return body;
             }
 
+            if (removed.Count == tools.Count)
+            {
+                logger.LogInformation("Decisions filter {Shape}: every tool scored below the threshold, kept all {Total}",
+                    shape, tools.Count);
+                return body;
+            }
+
+            string[] removedLabels = candidates.Where(tool => removed.Contains(tool.Index))
+                .Select(tool => LogSafe(tool.Label)).ToArray();
             DecisionTool.PruneChoice(root, tools, removed, shape);
             foreach (int index in removed.OrderDescending())
             {
                 tools.RemoveAt(index);
             }
 
-            if (tools.Count == 0)
-            {
-                root.Remove("tools");
-                root.Remove("tool_choice");
-            }
-
-            logger.LogInformation("Decisions filter {Shape}: kept {Kept}/{Total} tools in {ElapsedMs} ms",
-                shape, tools.Count, tools.Count + removed.Count, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-            return root.ToJsonString();
+            logger.LogInformation("Decisions filter {Shape}: kept {Kept}/{Total} tools in {ElapsedMs} ms, removed {Removed}",
+                shape, tools.Count, tools.Count + removed.Count, Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+                string.Join(",", removedLabels));
+            return DecisionJson.ReplaceTopLevel(body, root, "tools", "tool_choice");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -105,50 +135,66 @@ internal sealed class DecisionToolsFilter(
         }
     }
 
-    private JsonObject BuildRequest(string state, DecisionTool[] chunk)
+    private static JsonObject Question(DecisionTool tool)
     {
-        var questions = new JsonObject();
-        foreach (DecisionTool tool in chunk)
+        string instructions = $"Will the assistant need the tool '{tool.Label}' to carry out the user's request?";
+        if (!string.IsNullOrWhiteSpace(tool.Description))
         {
-            string instructions = $"{tool.Label} {tool.Description}".Trim();
-            questions[tool.Key] = new JsonObject
-            {
-                ["type"] = "choice",
-                ["instructions"] = instructions[..Math.Min(instructions.Length, 120)],
-                ["criteria"] = new JsonObject
-                {
-                    ["use"] = "the assistant will call this tool to answer",
-                    ["skip"] = "not needed"
-                }
-            };
+            instructions += $" Tool: {tool.Description.Trim()}";
         }
 
         return new JsonObject
         {
-            ["model"] = options.Value.DecisionsTools.Model,
-            ["state"] = state,
-            ["questions"] = questions
+            ["type"] = "choice",
+            ["instructions"] = instructions[..Math.Min(instructions.Length, InstructionLimit)],
+            ["criteria"] = new JsonObject
+            {
+                ["use"] = "the request needs what this tool does, or names this tool",
+                ["skip"] = "the request can be done fully without this tool"
+            }
         };
     }
 
-    private void ApplyAnswers(JsonObject answers, DecisionTool[] chunk, HashSet<int> removed)
+    private string CacheKey(string state, DecisionTool tool) =>
+        DecisionAnswerCache.KeyFor(options.Value.DecisionsTools.Model, state, Question(tool));
+
+    private async Task DecideAsync(
+        string state, DecisionTool[] chunk, Dictionary<string, double> probabilities, CancellationToken cancellationToken)
     {
+        var questions = new JsonObject();
         foreach (DecisionTool tool in chunk)
         {
-            if (answers[tool.Key] is not JsonObject answer || answer["probabilities"] is not JsonObject probabilities ||
-                probabilities["use"] is not JsonValue value || !value.TryGetValue(out double probability) ||
+            questions[tool.Key] = Question(tool);
+        }
+
+        JsonObject envelope = await client.DecideAsync(new JsonObject
+        {
+            ["model"] = options.Value.DecisionsTools.Model,
+            ["state"] = state,
+            ["questions"] = questions
+        }, cancellationToken);
+        if (envelope["answers"] is not JsonObject answers)
+        {
+            throw new InvalidOperationException("Invalid decision envelope.");
+        }
+
+        foreach (DecisionTool tool in chunk)
+        {
+            if (answers[tool.Key] is not JsonObject answer || answer["probabilities"] is not JsonObject scores ||
+                scores["use"] is not JsonValue value || !value.TryGetValue(out double probability) ||
                 !double.IsFinite(probability) || probability is < 0 or > 1)
             {
                 continue;
             }
 
-            logger.LogDebug("Decisions tool {Name}: P(use)={Probability}", tool.Label, probability);
-            if (probability < options.Value.DecisionsTools.MinProbability)
-            {
-                removed.Add(tool.Index);
-            }
+            logger.LogDebug("Decisions tool {Name}: P(use)={Probability}", LogSafe(tool.Label), probability);
+            probabilities[tool.Key] = probability;
+            _cache.Add(CacheKey(state, tool), probability);
         }
     }
+
+    private static string LogSafe(string label) =>
+        new(label.Select(character => char.IsControl(character) ? '?' : character).ToArray());
 
     private void LogFailOpen(Exception failure) =>
         logger.LogWarning("Decisions filter failed open: {Reason}", failure.GetType().Name);

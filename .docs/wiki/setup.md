@@ -191,7 +191,7 @@ or recreate the container after changing it.
 | `DECISIONS_TOOLS_BASE_URL` | `BaseUrl` | `http://host.docker.internal:1234` | Absolute HTTP(S) URL |
 | `DECISIONS_TOOLS_PATH` | `Path` | `/v1/systemone` | Starts with `/` |
 | `DECISIONS_TOOLS_MODEL` | `Model` | `openjev` | Non-empty |
-| `DECISIONS_TOOLS_MIN_PROBABILITY` | `MinProbability` | `0.50` | 0–1 inclusive |
+| `DECISIONS_TOOLS_MIN_PROBABILITY` | `MinProbability` | `0.20` | 0–1 inclusive |
 | `DECISIONS_TOOLS_MAX_ATTEMPTS` | `MaxAttempts` | `3` | 1–10 inclusive |
 | `DECISIONS_TOOLS_TIMEOUT` | `TimeoutSeconds` | `60` | 1–3600 seconds |
 
@@ -202,8 +202,13 @@ boolean/numeric text warns without replacing the bound value. Disabled settings 
 The decision service receives up to 2,000 characters of prompt state plus tool labels/descriptions; a remote
 BaseUrl sends that data to the remote service, including for passthrough requests. Caller credentials and
 headers are not sent. Classification is serialized in chunks of up to 20 tools and can add roughly
-0.5 seconds per tool; varying catalogs can reduce upstream prompt-cache hits. History-referenced and
-unknown tools are kept. Service failure keeps unresolved tools and continues inference.
+0.5 seconds per tool on the first request of a user turn; later agent steps with the same request and catalog
+are answered from an in-memory cache and forward the same tools. Catalogs using deferred tool loading
+(`defer_loading` or a `tool_search` tool) are not filtered, and every other top-level value besides `tools`/`tool_choice` is forwarded byte-for-byte. History-referenced and
+unknown tools are kept, and a pass that would remove every tool keeps the whole catalog. The default threshold
+0.20 drops only clearly irrelevant tools; agent harnesses need their core tools (shell, read, edit) on most
+turns, so raise it with care. Each pruning pass logs the removed tool names at Information level. Service
+failure keeps unresolved tools and continues inference.
 
 For bare-metal `dotnet run` or a native executable, set `DECISIONS_TOOLS_BASE_URL=http://127.0.0.1:1234`.
 In Docker Desktop the default host name resolves natively; Linux Docker/Podman requires
