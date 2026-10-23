@@ -137,4 +137,4 @@ Per-provider overrides, persistent or distributed decision caching, tool-count s
 |---|---|---|
 | 2026-10-22 | Implemented; L0/L2 and macOS/Linux ARM64 live checks pass; AMD64/cache gates pending | #138 |
 | 2026-10-22 | Review follow-ups: transformer guard tests, HTTP(S) URLs, transparency/hosted-choice caveats; HLD 015 proposed shared boundary | #138 |
-| 2026-10-23 | Labelled request-first state (no post-request assistant text, system only as fallback, reminder blocks and tool-result turns excluded); need-question wording; all-skip keeps catalog; deferred-loading skip; in-memory chunk memo; byte-preserving output; threshold 0.20; removed names logged (LADR-07) | #138 |
+| 2026-10-23 | Labelled request-first state (no post-request assistant text, system only as fallback, reminder blocks and tool-result turns excluded); need-question wording; all-skip keeps catalog; deferred-loading skip; in-memory chunk memo; byte-preserving output; threshold 0.20; removed names logged (NFR-02) | #138 |

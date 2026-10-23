@@ -161,7 +161,10 @@ internal sealed class DecisionToolsFilter(
         }
 
         Dictionary<string, double> probabilities = ReadProbabilities(answers, chunk);
-        _cache.Add(key, probabilities);
+        if (probabilities.Count > 0)
+        {
+            _cache.Add(key, probabilities);
+        }
         return probabilities;
     }
 

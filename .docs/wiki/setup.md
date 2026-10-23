@@ -204,7 +204,7 @@ BaseUrl sends that data to the remote service, including for passthrough request
 headers are not sent. Classification is serialized in chunks of up to 20 tools and can add roughly
 0.5 seconds per tool on the first request of a user turn; later agent steps with the same request and catalog
 are answered from an in-memory cache and forward the same tools. Catalogs using deferred tool loading
-(`defer_loading` or a `tool_search` tool) are not filtered, and messages are forwarded byte-for-byte. History-referenced and
+(`defer_loading` or a `tool_search` tool) are not filtered, and every other top-level value besides `tools`/`tool_choice` is forwarded byte-for-byte. History-referenced and
 unknown tools are kept, and a pass that would remove every tool keeps the whole catalog. The default threshold
 0.20 drops only clearly irrelevant tools; agent harnesses need their core tools (shell, read, edit) on most
 turns, so raise it with care. Each pruning pass logs the removed tool names at Information level. Service
