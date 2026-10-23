@@ -180,8 +180,10 @@ When the same field is set both ways, the **conventional** value wins.
 ### Optional decision-model tool pre-filter
 
 `DECISIONS_TOOLS_ENABLED=true` opts **all** supported imposter and passthrough routes into tool pruning
-before forwarding. It is **off by default**, in no shipped `appsettings*.json`, Conductor script or default
-container command. Configuration is read at startup; restart after changing it.
+before forwarding. It is **off by default**; no shipped `appsettings*.json` or default container command
+enables it. The [Conductor workspace installer](setups/conductor.build-smooth-llm-imposter.md#optional-decision-tool-filter)
+forwards the seven variables below without enabling the feature. Configuration is read at startup; restart
+or recreate the container after changing it.
 
 | Environment variable | `Imposter:DecisionsTools` field | Default | Enabled-only validation |
 |---|---|---|---|

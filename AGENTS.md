@@ -48,6 +48,9 @@ Conductor sandbox setup docs should keep general snapshot tooling (including Doc
 from SmoothLlmImposter-specific imposter runtime setup. Agent-tooling steps must be split by scope: anything
 repository-scoped (a tool that records an absolute repo path in its config, or writes into the working tree)
 belongs in the workspace lifecycle, because the snapshot is built before any clone exists.
+The `.conductor/` kit was removed in #125; maintain the paste-in lifecycle scripts in
+`.docs/wiki/setups/conductor.build-smooth-llm-imposter.md`, not a recreated kit. Document that existing UI
+scripts need replacement/re-run when container environment forwarding changes.
 Claude/Anthropic setup sections should also document that `claude setup-token` can create a Claude subscription
 token, which users may supply explicitly as an imposter provider `Secret` with the matching `AuthScheme`.
 
@@ -143,6 +146,8 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 | Spec-driven | Development approach where machine-readable specifications are the source of truth |
 
 ## Changelog
+
+- 2026-10-23: Conductor paste-in installer forwards all seven `DECISIONS_TOOLS_*` variables through direct Docker and sudo; Linux host-gateway mapping, default-off opt-in guidance, Bash 3.2-safe optional arrays; removed-kit references corrected. Existing UI scripts require replacement/re-run. #138
 
 - 2026-10-22: Decision-model tool pre-filter implemented (HLD 014, #138/#139). Default-off `Imposter:DecisionsTools` global tool pruning across Chat Completions, Responses and Messages, including passthrough; only positively understood, unprotected tools are removed, history is never rewritten, and understood choices are pruned conservatively. Questions are batched into fail-open 20-question chunks behind one process-wide serialized OpenJEV gate with complete-response timeouts. Application owns selection rules and the client contract under `Common/Clients/Decisions`; Infrastructure owns transport and response buffering; Host invokes the filter at the existing post-transform seam. Enabled classifier `BaseUrl` now requires an absolute HTTP(S) URL (`file:`/`ftp:`/`mailto:` fail startup); disabled settings stay unvalidated and no shipped `appsettings*.json` enables the feature. Added HLD 015 (Shared Decision-Model Integration) in Discovery — a consumer-neutral internal ownership proposal that does not supersede HLD 014 or change runtime behavior. Reviewed: 790 tests pass across L0/L1/L2 with a warning-free build; macOS ARM64 and Linux musl ARM64 NativeAOT live checks are recorded in HLD 014. Linux AMD64 native-runner verification and real upstream cache-hit measurement remain external gates, so HLD 014 stays Accepted. Known limit: an unrecognized forced hosted-tool choice can outlive its removed tool and be rejected upstream (LADR-06).
 
