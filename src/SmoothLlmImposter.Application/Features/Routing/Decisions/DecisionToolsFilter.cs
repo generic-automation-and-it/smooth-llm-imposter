@@ -197,5 +197,6 @@ internal sealed class DecisionToolsFilter(
         new(label.Select(character => char.IsControl(character) ? '?' : character).ToArray());
 
     private void LogFailOpen(Exception failure) =>
-        logger.LogWarning("Decisions filter failed open: {Reason}", failure.GetType().Name);
+        logger.LogWarning("Decisions filter failed open: {Reason} (status {StatusCode}, model {Model})",
+            failure.GetType().Name, (int?)(failure as HttpRequestException)?.StatusCode, LogSafe(options.Value.DecisionsTools.Model));
 }

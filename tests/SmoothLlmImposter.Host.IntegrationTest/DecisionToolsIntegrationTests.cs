@@ -67,7 +67,7 @@ public sealed class DecisionToolsIntegrationTests
         string body = """
             { "model": "unmatched-model", "max_tokens": 100, "messages": [{"role":"user","content":[
                 {"type":"text","text":"<system-reminder>\nCodebase and user instructions are shown below.\n</system-reminder>"},
-                {"type":"text","text":"Read the file"}]}],
+                {"type":"text","text":"<system_instruction>\nYou are working inside Conductor.\n</system_instruction>\n\nRead the file"}]}],
               "tools": [{"name":"read_file","description":"Read a local file","input_schema":{"type":"object"}},
                         {"name":"web_search","description":"Search the web","input_schema":{"type":"object"}}] }
             """;

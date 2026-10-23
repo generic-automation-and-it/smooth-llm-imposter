@@ -324,6 +324,32 @@ public sealed class DecisionToolsFilterTests
     }
 
     [Theory]
+    [InlineData("""["<local-command-caveat>Caveat: the messages below were generated while running local commands.</local-command-caveat>","<command-name>/model</command-name>\n<command-message>model</command-message>\n<command-args>claude-opus-5-5</command-args>","<local-command-stdout>Set model to claude-opus-5-5</local-command-stdout>","continue"]""", "continue")]
+    [InlineData("""["<system_instruction>\nYou are working inside Conductor.\n</system_instruction>\n\nhi"]""", "hi")]
+    [InlineData("""["<command-name>/model</command-name>\n<command-args>claude-opus-5-5</command-args>\n<local-command-stdout>Set model</local-command-stdout>","continue"]""", "continue")]
+    [InlineData("""["<local-command-caveat>Caveat.</local-command-caveat>","<command-name>/model</command-name>\n<command-message>model</command-message>\n<command-args>claude-opus-5-5</command-args>","<local-command-stdout>Set model</local-command-stdout>","<command-message>ai-review</command-message>\n<command-name>/ai-review</command-name>\n<command-args>142 1=fix</command-args>"]""",
+        "<command-message>ai-review</command-message>\n<command-name>/ai-review</command-name>\n<command-args>142 1=fix</command-args>")]
+    [InlineData("""["<command-message>ai-review</command-message>\n<command-name>/ai-review</command-name>\n<command-args>142 1=fix</command-args>"]""",
+        "<command-message>ai-review</command-message>\n<command-name>/ai-review</command-name>\n<command-args>142 1=fix</command-args>")]
+    public async Task Harness_wrappers_are_removed_but_skill_invocations_are_kept(string parts, string expected)
+    {
+        var content = new JsonArray();
+        foreach (JsonNode? part in JsonNode.Parse(parts)!.AsArray())
+        {
+            content.Add((JsonNode)new JsonObject { ["type"] = "text", ["text"] = part!.GetValue<string>() });
+        }
+
+        var body = new JsonObject
+        {
+            ["messages"] = new JsonArray { (JsonNode)new JsonObject { ["role"] = "user", ["content"] = content } },
+            ["tools"] = new JsonArray { (JsonNode)new JsonObject { ["name"] = "Bash", ["input_schema"] = new JsonObject() } }
+        };
+        var client = new DecisionStub();
+        await Create(client).FilterAsync("/v1/messages", body.ToJsonString(), Ct);
+        client.Requests.Single()["state"]!.GetValue<string>().ShouldBe($"User request:\n{expected}");
+    }
+
+    [Theory]
     [InlineData("/v1/messages", """[{"name":"Bash","input_schema":{}},{"name":"Placeholder","input_schema":{},"defer_loading":true}]""")]
     [InlineData("/v1/messages", """[{"name":"Bash","input_schema":{}},{"type":"tool_search_tool_regex_20251119","name":"tool_search"}]""")]
     [InlineData("/responses", """[{"type":"function","name":"f"},{"type":"tool_search"}]""")]
@@ -434,6 +460,7 @@ public sealed class DecisionToolsFilterTests
         ReferenceEquals(await Create(client, logs).FilterAsync("/responses", body, Ct), body).ShouldBeTrue();
         logs.Events.Single().Level.ShouldBe(LogLevel.Warning);
         logs.Events.Single().Text.ShouldContain(nameof(HttpRequestException));
+        logs.Events.Single().Text.ShouldContain("status 400, model openjev");
         logs.Events.Single().Text.ShouldNotContain("secret");
     }
 
@@ -487,7 +514,7 @@ public sealed class DecisionToolsFilterTests
             Requests.Add(request);
             if (Requests.Count == FailCall)
             {
-                throw new HttpRequestException("secret error payload");
+                throw new HttpRequestException("secret error payload", null, System.Net.HttpStatusCode.BadRequest);
             }
 
             return Task.FromResult(Answer(request));
