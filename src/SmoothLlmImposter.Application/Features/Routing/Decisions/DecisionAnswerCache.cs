@@ -12,7 +12,7 @@ internal sealed class DecisionAnswerCache(int capacity = 4096)
 
     public static string KeyFor(string model, string state, JsonObject question) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-            new JsonArray(model, state, question.DeepClone()).ToJsonString())));
+            new JsonArray(model, state, question).ToJsonString())));
 
     public bool TryGet(string key, out double probability) => _entries.TryGetValue(key, out probability);
 
