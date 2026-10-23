@@ -105,6 +105,34 @@ public class ImposterOptionsValidatorTests
     }
 
     [Theory]
+    [InlineData(0)]
+    [InlineData(20)]
+    [InlineData(1000)]
+    public void Decision_minimum_kept_tools_within_range_is_accepted(int minimum)
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.Enabled = true;
+        options.DecisionsTools.MinKeepTools = minimum;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(1001)]
+    public void Decision_minimum_kept_tools_out_of_range_fails(int minimum)
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.Enabled = true;
+        options.DecisionsTools.MinKeepTools = minimum;
+
+        ValidateOptionsResult result = _validator.Validate(null, options);
+
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("Imposter:DecisionsTools:MinKeepTools");
+    }
+
+    [Theory]
     [InlineData(-0.01)]
     [InlineData(1.01)]
     [InlineData(double.NaN)]

@@ -52,22 +52,23 @@ public sealed class DecisionToolsFilterTests
               {"role":"tool","content":"Ignored output"},
               {"role":"user","content":[{"type":"text","text":"Latest"},{"type":"image_url","image_url":{"url":"ignore"}}]}],
              "tools":[{"type":"function","function":{"name":"used"}},{"type":"custom","custom":{"name":"patch"}},
-              {"type":"function","function":{"name":"unused","description":"Tool description"}},{"type":"future","name":"opaque"}],
+              {"type":"function","function":{"name":"unused","description":"Tool description"}},{"type":"future","name":"opaque"},
+              {"type":"function","function":{"name":"wanted"}}],
              "tool_choice":{"type":"allowed_tools","allowed_tools":{"mode":"auto","tools":[{"type":"function","function":{"name":"used"}},{"type":"function","function":{"name":"unused"}}]}},
              "functions":[{"name":"legacy"}],"function_call":{"name":"legacy"}}
             """;
-        var client = new DecisionStub();
+        var client = new DecisionStub { Answer = request => Answers(request, key => key == "t4" ? 1 : 0) };
         JsonObject filtered = JsonNode.Parse(await Create(client).FilterAsync("/v1/chat/completions", body, Ct))!.AsObject();
 
         filtered["tools"]!.AsArray().Select(node => node?["type"]?.GetValue<string>()).ToArray()
-            .ShouldBe(["function", "custom", "future"]);
+            .ShouldBe(["function", "custom", "future", "function"]);
         filtered["messages"]!.ToJsonString().ShouldBe(JsonNode.Parse(body)!["messages"]!.ToJsonString());
         filtered["functions"]!.ToJsonString().ShouldBe("[{\"name\":\"legacy\"}]");
         filtered["function_call"]!["name"]!.GetValue<string>().ShouldBe("legacy");
         filtered["tool_choice"]!["allowed_tools"]!["tools"]!.AsArray().Count.ShouldBe(1);
         JsonObject request = client.Requests.Single();
         request["state"]!.GetValue<string>().ShouldBe("User request:\nLatest\n\nEarlier conversation (newest first):\nUser: Earlier");
-        request["questions"]!.AsObject().Select(pair => pair.Key).ToArray().ShouldBe(["t2"]);
+        request["questions"]!.AsObject().Select(pair => pair.Key).ToArray().ShouldBe(["t2", "t4"]);
         request["questions"]!["t2"]!["instructions"]!.GetValue<string>()
             .ShouldBe("Will the assistant need the tool 'unused' to carry out the user's request? Tool: Tool description");
         request["questions"]!["t2"]!["criteria"]!.ToJsonString().ShouldBe(
@@ -96,9 +97,9 @@ public sealed class DecisionToolsFilterTests
               {"type":"future","name":"opaque"}],
              "tool_choice":{"type":"allowed_tools","mode":"auto","tools":[{"type":"web_search"},{"type":"custom","name":"unused"}]}}
             """;
-        var client = new DecisionStub();
+        var client = new DecisionStub { Answer = request => Answers(request, key => key == "t9" ? 1 : 0) };
         JsonObject result = JsonNode.Parse(await Create(client).FilterAsync("/responses", body, Ct))!.AsObject();
-        result["tools"]!.AsArray().Count.ShouldBe(6);
+        result["tools"]!.AsArray().Count.ShouldBe(7);
         result["tool_choice"]!["tools"]!.AsArray().Count.ShouldBe(1);
         result["input"]!.ToJsonString().ShouldBe(JsonNode.Parse(body)!["input"]!.ToJsonString());
         JsonObject request = client.Requests.Single();
@@ -120,18 +121,19 @@ public sealed class DecisionToolsFilterTests
               {"role":"user","content":[{"type":"text","text":"Latest"},{"type":"image","source":{}}]},
               {"role":"user","content":[{"type":"tool_result","tool_use_id":"x","content":"Ignored"}]}],
              "tools":[{"name":"local","input_schema":{}},{"type":"web_search_20250305","name":"web_search"},
-              {"name":"remote","input_schema":{}},{"name":"unused","input_schema":{}},{"type":"future","name":"opaque","input_schema":{}}],
+              {"name":"remote","input_schema":{}},{"name":"unused","input_schema":{}},{"type":"future","name":"opaque","input_schema":{}},
+              {"name":"wanted","input_schema":{}}],
              "tool_choice":{"type":"tool","name":"unused"},"mcp_servers":[{"name":"connector"}]}
             """;
-        var client = new DecisionStub();
+        var client = new DecisionStub { Answer = request => Answers(request, key => key == "t5" ? 1 : 0) };
         JsonObject result = JsonNode.Parse(await Create(client).FilterAsync("/v1/messages", body, Ct))!.AsObject();
-        result["tools"]!.AsArray().Count.ShouldBe(4);
+        result["tools"]!.AsArray().Count.ShouldBe(5);
         result.ContainsKey("tool_choice").ShouldBeFalse();
         result["messages"]!.ToJsonString().ShouldBe(JsonNode.Parse(body)!["messages"]!.ToJsonString());
         result["mcp_servers"]!.ToJsonString().ShouldBe("[{\"name\":\"connector\"}]");
         client.Requests.Single()["state"]!.GetValue<string>()
             .ShouldBe("User request:\nLatest\n\nEarlier conversation (newest first):\nUser: Earlier");
-        client.Requests.Single()["questions"]!.AsObject().Select(pair => pair.Key).ToArray().ShouldBe(["t3"]);
+        client.Requests.Single()["questions"]!.AsObject().Select(pair => pair.Key).ToArray().ShouldBe(["t3", "t5"]);
     }
 
     [Theory]
@@ -173,6 +175,112 @@ public sealed class DecisionToolsFilterTests
 
         ReferenceEquals(await Create(new DecisionStub(), logs).FilterAsync("/responses", body, Ct), body).ShouldBeTrue();
         logs.Events.Where(entry => entry.Level > LogLevel.Debug).ShouldHaveSingleItem().Text.ShouldContain("kept all 2");
+    }
+
+    [Fact]
+    public async Task All_below_threshold_with_protected_tools_keeps_them_and_tops_up_to_the_floor_by_score()
+    {
+        JsonObject root = Body(10);
+        root["input"] = new JsonArray
+        {
+            (JsonNode)new JsonObject { ["type"] = "message", ["role"] = "user", ["content"] = "Task" },
+            (JsonNode)new JsonObject { ["type"] = "function_call", ["name"] = "tool0", ["call_id"] = "a", ["arguments"] = "{}" },
+            (JsonNode)new JsonObject { ["type"] = "function_call", ["name"] = "tool1", ["call_id"] = "b", ["arguments"] = "{}" },
+            (JsonNode)new JsonObject { ["type"] = "function_call", ["name"] = "tool2", ["call_id"] = "c", ["arguments"] = "{}" }
+        };
+        var client = new DecisionStub
+        {
+            Answer = request => Answers(request, key => key switch { "t8" => 0.4, "t4" => 0.3, "t6" => 0.2, _ => 0.1 })
+        };
+
+        JsonObject result = JsonNode.Parse(await Create(client, minKeep: 5).FilterAsync("/responses", root.ToJsonString(), Ct))!.AsObject();
+
+        client.Requests.Single()["questions"]!.AsObject().Count.ShouldBe(7);
+        result["tools"]!.AsArray().Select(tool => tool!["name"]!.GetValue<string>()).ToArray()
+            .ShouldBe(["tool0", "tool1", "tool2", "tool4", "tool8"]);
+    }
+
+    [Fact]
+    public async Task Always_kept_tools_are_never_asked_about_and_survive_pruning()
+    {
+        JsonObject root = Body(0);
+        var tools = new JsonArray();
+        foreach (string name in new[] { "Bash", "Read", "other0", "other1", "other2" })
+        {
+            tools.Add((JsonNode)new JsonObject { ["type"] = "function", ["name"] = name });
+        }
+
+        root["tools"] = tools;
+        var client = new DecisionStub { Answer = request => Answers(request, key => key == "t2" ? 1 : 0) };
+
+        JsonObject result = JsonNode.Parse(await Create(client, alwaysKeep: " Bash , Read ,").FilterAsync("/responses", root.ToJsonString(), Ct))!.AsObject();
+
+        client.Requests.Single()["questions"]!.AsObject().Select(pair => pair.Key).ToArray().ShouldBe(["t2", "t3", "t4"]);
+        result["tools"]!.AsArray().Select(tool => tool!["name"]!.GetValue<string>()).ToArray()
+            .ShouldBe(["Bash", "Read", "other0"]);
+    }
+
+    [Fact]
+    public async Task Always_kept_names_match_case_sensitively_and_also_by_server_label_and_hosted_type()
+    {
+        string body = """
+            {"input":"Task","tools":[{"type":"function","name":"bash"},{"type":"mcp","server_label":"core"},
+             {"type":"web_search"},{"type":"function","name":"drop"}]}
+            """;
+        var client = new DecisionStub { Answer = request => Answers(request, key => key == "t0" ? 1 : 0) };
+
+        JsonObject result = JsonNode.Parse(await Create(client, alwaysKeep: "Bash,core,web_search").FilterAsync("/responses", body, Ct))!.AsObject();
+
+        client.Requests.Single()["questions"]!.AsObject().Select(pair => pair.Key).ToArray().ShouldBe(["t0", "t3"]);
+        result["tools"]!.AsArray().Select(tool => tool!["type"]!.GetValue<string>()).ToArray()
+            .ShouldBe(["function", "mcp", "web_search"]);
+    }
+
+    [Fact]
+    public async Task Minimum_floor_restores_the_highest_scoring_removed_tools_in_catalog_order()
+    {
+        string body = Body(12).ToJsonString();
+        var client = new DecisionStub
+        {
+            Answer = request => Answers(request, key => key switch
+            {
+                "t3" => 0.9,
+                "t7" => 0.1,
+                "t9" => 0.4,
+                "t5" => 0.4,
+                "t1" => 0.3,
+                _ => 0
+            })
+        };
+
+        JsonObject result = JsonNode.Parse(await Create(client, minKeep: 4).FilterAsync("/responses", body, Ct))!.AsObject();
+
+        result["tools"]!.AsArray().Select(tool => tool!["name"]!.GetValue<string>()).ToArray()
+            .ShouldBe(["tool1", "tool3", "tool5", "tool9"]);
+    }
+
+    [Fact]
+    public async Task Minimum_floor_counts_always_kept_tools_and_restores_only_what_is_needed()
+    {
+        JsonObject root = Body(10);
+        root["tools"]![0]!["name"] = "Bash";
+        string body = root.ToJsonString();
+        var client = new DecisionStub { Answer = request => Answers(request, key => key == "t5" ? 1 : 0.1) };
+
+        JsonObject result = JsonNode.Parse(await Create(client, minKeep: 3, alwaysKeep: "Bash").FilterAsync("/responses", body, Ct))!.AsObject();
+
+        result["tools"]!.AsArray().Select(tool => tool!["name"]!.GetValue<string>()).ToArray()
+            .ShouldBe(["Bash", "tool1", "tool5"]);
+    }
+
+    [Fact]
+    public async Task Catalogs_not_exceeding_the_minimum_make_no_classifier_call()
+    {
+        string body = Body(20).ToJsonString();
+        var client = new DecisionStub();
+
+        ReferenceEquals(await Create(client, minKeep: 20).FilterAsync("/responses", body, Ct), body).ShouldBeTrue();
+        client.Requests.ShouldBeEmpty();
     }
 
     [Fact]
@@ -250,7 +358,7 @@ public sealed class DecisionToolsFilterTests
     {
         var client = new DecisionStub
         {
-            Answer = _ => JsonNode.Parse("""{"answers":{"t0":{"probabilities":{"use":0.2}},"t1":{"probabilities":{"use":"0"}},"t2":{"probabilities":{"use":-0.1}},"t3":{"probabilities":{"use":1.1}}}}""")!.AsObject()
+            Answer = _ => JsonNode.Parse("""{"answers":{"t0":{"probabilities":{"use":0.5}},"t1":{"probabilities":{"use":"0"}},"t2":{"probabilities":{"use":-0.1}},"t3":{"probabilities":{"use":1.1}}}}""")!.AsObject()
         };
         string body = Body(5).ToJsonString();
         ReferenceEquals(await Create(client).FilterAsync("/responses", body, Ct), body).ShouldBeTrue();
@@ -478,8 +586,12 @@ public sealed class DecisionToolsFilterTests
         logs.Events.ShouldBeEmpty();
     }
 
-    private static DecisionToolsFilter Create(DecisionStub client, FilterLogger? logger = null, bool enabled = true) =>
-        new(Options.Create(new ImposterOptions { DecisionsTools = new DecisionsToolsOptions { Enabled = enabled } }), client, logger ?? new FilterLogger());
+    private static DecisionToolsFilter Create(
+        DecisionStub client, FilterLogger? logger = null, bool enabled = true, int minKeep = 0, string alwaysKeep = "") =>
+        new(Options.Create(new ImposterOptions
+        {
+            DecisionsTools = new DecisionsToolsOptions { Enabled = enabled, MinKeepTools = minKeep, AlwaysKeep = alwaysKeep }
+        }), client, logger ?? new FilterLogger());
 
     private static JsonObject Body(int count)
     {

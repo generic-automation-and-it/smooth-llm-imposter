@@ -182,7 +182,7 @@ When the same field is set both ways, the **conventional** value wins.
 `DECISIONS_TOOLS_ENABLED=true` opts **all** supported imposter and passthrough routes into tool pruning
 before forwarding. It is **off by default**; no shipped `appsettings*.json` or default container command
 enables it. The [Conductor workspace installer](setups/conductor.build-smooth-llm-imposter.md#optional-decision-tool-filter)
-forwards the seven variables below without enabling the feature. Configuration is read at startup; restart
+forwards the nine variables below without enabling the feature. Configuration is read at startup; restart
 or recreate the container after changing it.
 
 | Environment variable | `Imposter:DecisionsTools` field | Default | Enabled-only validation |
@@ -191,7 +191,9 @@ or recreate the container after changing it.
 | `DECISIONS_TOOLS_BASE_URL` | `BaseUrl` | `http://host.docker.internal:1234` | Absolute HTTP(S) URL |
 | `DECISIONS_TOOLS_PATH` | `Path` | `/v1/systemone` | Starts with `/` |
 | `DECISIONS_TOOLS_MODEL` | `Model` | `openjev` | Non-empty |
-| `DECISIONS_TOOLS_MIN_PROBABILITY` | `MinProbability` | `0.20` | 0–1 inclusive |
+| `DECISIONS_TOOLS_MIN_PROBABILITY` | `MinProbability` | `0.50` | 0–1 inclusive |
+| `DECISIONS_TOOLS_MIN_KEEP` | `MinKeepTools` | `20` | 0–1000 (`0` disables the floor) |
+| `DECISIONS_TOOLS_ALWAYS_KEEP` | `AlwaysKeep` | `Bash,Read,Edit,Write,Skill` | — (comma-separated tool names) |
 | `DECISIONS_TOOLS_MAX_ATTEMPTS` | `MaxAttempts` | `3` | 1–10 inclusive |
 | `DECISIONS_TOOLS_TIMEOUT` | `TimeoutSeconds` | `60` | 1–3600 seconds |
 
@@ -205,9 +207,11 @@ headers are not sent. Classification is serialized in chunks of up to 20 tools a
 0.5 seconds per tool on the first request of a user turn; later agent steps with the same request and catalog
 are answered from an in-memory cache and forward the same tools. Catalogs using deferred tool loading
 (`defer_loading` or a `tool_search` tool) are not filtered, and every other top-level value besides `tools`/`tool_choice` is forwarded byte-for-byte. History-referenced and
-unknown tools are kept, and a pass that would remove every tool keeps the whole catalog. The default threshold
-0.20 drops only clearly irrelevant tools; agent harnesses need their core tools (shell, read, edit) on most
-turns, so raise it with care. Each pruning pass logs the removed tool names at Information level. Service
+unknown tools are kept, and a pass that would leave no tool keeps the whole catalog. Tools in
+`DECISIONS_TOOLS_ALWAYS_KEEP` are never asked about or removed (the defaults are Claude Code's core tool names;
+set your client's own names for other agents), and at least `DECISIONS_TOOLS_MIN_KEEP` tools are always
+forwarded — the highest-scoring ones fill the floor — so a vague request cannot shrink the catalog to a handful.
+Catalogs of that size or smaller are not classified at all. Each pruning pass logs the removed tool names at Information level. Service
 failure keeps unresolved tools and continues inference; the warning names the HTTP status and model. A `400` on
 every request usually means the model is not a decision model — LM Studio must list it with `"type": "decision"`
 in `/api/v1/models` (for example `kev-4b` or `openjev`); a model it lists as `llm` is rejected as
