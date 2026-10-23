@@ -313,6 +313,7 @@ public sealed class DecisionToolsFilterTests
     [InlineData("Before <system-reminder>one</system-reminder> middle <system-reminder>two</system-reminder> after", "Before  middle  after")]
     [InlineData("Explain <system-reminder> tags", "Explain <system-reminder> tags")]
     [InlineData("<system-reminder>one</system-reminder> Explain <system-reminder> tags", "Explain <system-reminder> tags")]
+    [InlineData("<system-reminder>before</system-reminder> Review the diff <system-reminder>after</system-reminder>", "Review the diff")]
     public async Task Reminder_spans_are_removed_from_message_text(string text, string expected)
     {
         JsonObject body = Body(1);

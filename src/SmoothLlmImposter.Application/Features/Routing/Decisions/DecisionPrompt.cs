@@ -106,12 +106,6 @@ internal static class DecisionPrompt
     private static string WithoutReminders(string text)
     {
         string trimmed = text.Trim();
-        if (trimmed.StartsWith(ReminderOpen, StringComparison.Ordinal) &&
-            trimmed.EndsWith(ReminderClose, StringComparison.Ordinal))
-        {
-            return string.Empty;
-        }
-
         int start = trimmed.IndexOf(ReminderOpen, StringComparison.Ordinal);
         if (start < 0)
         {
@@ -134,7 +128,11 @@ internal static class DecisionPrompt
         }
 
         kept.Append(trimmed, cursor, trimmed.Length - cursor);
-        return kept.ToString().Trim();
+        string residue = kept.ToString().Trim();
+        bool quotesClosingTag = residue.Contains(ReminderClose, StringComparison.Ordinal);
+        bool isWholeBlock = trimmed.StartsWith(ReminderOpen, StringComparison.Ordinal) &&
+            trimmed.EndsWith(ReminderClose, StringComparison.Ordinal);
+        return quotesClosingTag && isWholeBlock ? string.Empty : residue;
     }
 
     private static void Append(StringBuilder state, string text)
