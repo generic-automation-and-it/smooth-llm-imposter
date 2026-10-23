@@ -6,9 +6,11 @@ internal sealed record DecisionTool(int Index, string Label, string Description)
 {
     public string Key => $"t{Index}";
 
-    public static DecisionTool[] ReadCandidates(JsonArray tools, JsonObject root, DecisionBodyShape shape) =>
+    public static DecisionTool[] ReadCandidates(
+        JsonArray tools, JsonObject root, DecisionBodyShape shape, IReadOnlySet<string> alwaysKeep) =>
         tools.Select((node, index) => (node, index))
-            .Where(item => item.node is JsonObject tool && IsKnown(tool, shape) && !IsReferenced(tool, root, shape))
+            .Where(item => item.node is JsonObject tool && IsKnown(tool, shape) &&
+                !IsReferenced(tool, root, shape) && !IsAlwaysKept(tool, alwaysKeep))
             .Select(item =>
             {
                 var tool = (JsonObject)item.node!;
@@ -60,6 +62,11 @@ internal sealed record DecisionTool(int Index, string Label, string Description)
             root.Remove("tool_choice");
         }
     }
+
+    private static bool IsAlwaysKept(JsonObject tool, IReadOnlySet<string> alwaysKeep) =>
+        alwaysKeep.Count > 0 &&
+        new[] { NameFor(tool), DecisionJson.Text(tool["server_label"]), DecisionJson.Text(tool["type"]) }
+            .Any(identifier => identifier.Length > 0 && alwaysKeep.Contains(identifier));
 
     private static bool IsKnown(JsonObject tool, DecisionBodyShape shape)
     {

@@ -18,7 +18,9 @@ public class DecisionsToolsOptionsTests
         options.BaseUrl.ShouldBe("http://host.docker.internal:1234");
         options.Path.ShouldBe("/v1/systemone");
         options.Model.ShouldBe("openjev");
-        options.MinProbability.ShouldBe(0.20);
+        options.MinProbability.ShouldBe(0.50);
+        options.MinKeepTools.ShouldBe(20);
+        options.AlwaysKeep.ShouldBe("Bash,Read,Edit,Write,Skill");
         options.MaxAttempts.ShouldBe(3);
         options.TimeoutSeconds.ShouldBe(60);
     }
@@ -34,6 +36,8 @@ public class DecisionsToolsOptionsTests
                 ["Imposter:DecisionsTools:Path"] = "/classify",
                 ["Imposter:DecisionsTools:Model"] = "other-model",
                 ["Imposter:DecisionsTools:MinProbability"] = "0.75",
+                ["Imposter:DecisionsTools:MinKeepTools"] = "12",
+                ["Imposter:DecisionsTools:AlwaysKeep"] = "shell,apply_patch",
                 ["Imposter:DecisionsTools:MaxAttempts"] = "5",
                 ["Imposter:DecisionsTools:TimeoutSeconds"] = "90"
             }).GetSection(ImposterOptions.SectionName))
@@ -46,12 +50,14 @@ public class DecisionsToolsOptionsTests
         options.Path.ShouldBe("/classify");
         options.Model.ShouldBe("other-model");
         options.MinProbability.ShouldBe(0.75);
+        options.MinKeepTools.ShouldBe(12);
+        options.AlwaysKeep.ShouldBe("shell,apply_patch");
         options.MaxAttempts.ShouldBe(5);
         options.TimeoutSeconds.ShouldBe(90);
     }
 
     [Fact]
-    public void All_seven_conventional_variables_override_the_bound_section()
+    public void All_nine_conventional_variables_override_the_bound_section()
     {
         ImposterOptions options = BoundOptions();
         Apply(options, new Dictionary<string, string?>
@@ -61,6 +67,8 @@ public class DecisionsToolsOptionsTests
             ["DECISIONS_TOOLS_PATH"] = "/classify",
             ["DECISIONS_TOOLS_MODEL"] = "other-model",
             ["DECISIONS_TOOLS_MIN_PROBABILITY"] = "0.75",
+            ["DECISIONS_TOOLS_MIN_KEEP"] = "12",
+            ["DECISIONS_TOOLS_ALWAYS_KEEP"] = "shell,apply_patch",
             ["DECISIONS_TOOLS_MAX_ATTEMPTS"] = "5",
             ["DECISIONS_TOOLS_TIMEOUT"] = "90"
         });
@@ -70,6 +78,8 @@ public class DecisionsToolsOptionsTests
         options.DecisionsTools.Path.ShouldBe("/classify");
         options.DecisionsTools.Model.ShouldBe("other-model");
         options.DecisionsTools.MinProbability.ShouldBe(0.75);
+        options.DecisionsTools.MinKeepTools.ShouldBe(12);
+        options.DecisionsTools.AlwaysKeep.ShouldBe("shell,apply_patch");
         options.DecisionsTools.MaxAttempts.ShouldBe(5);
         options.DecisionsTools.TimeoutSeconds.ShouldBe(90);
     }
@@ -140,6 +150,7 @@ public class DecisionsToolsOptionsTests
 
     [Theory]
     [InlineData("DECISIONS_TOOLS_ENABLED", "yes")]
+    [InlineData("DECISIONS_TOOLS_MIN_KEEP", "twenty")]
     [InlineData("DECISIONS_TOOLS_MIN_PROBABILITY", "0,50")]
     [InlineData("DECISIONS_TOOLS_MIN_PROBABILITY", "NaN")]
     [InlineData("DECISIONS_TOOLS_MIN_PROBABILITY", "Infinity")]

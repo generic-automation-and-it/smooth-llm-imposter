@@ -82,6 +82,39 @@ public sealed class DecisionToolsIntegrationTests
         ToolName(tools[0]!, "anthropic").ShouldBe("read_file");
     }
 
+    [Fact]
+    public async Task Default_selection_keeps_the_core_tools_and_at_least_the_minimum_number_of_tools()
+    {
+        var decisions = new StubDecisionClient
+        {
+            Decide = static (request, _) =>
+            {
+                var answers = new JsonObject();
+                foreach ((string key, JsonNode? _) in request["questions"]!.AsObject())
+                {
+                    answers[key] = new JsonObject { ["probabilities"] = new JsonObject { ["use"] = key == "t5" ? 0.9 : 0.1 } };
+                }
+
+                return Task.FromResult(new JsonObject { ["answers"] = answers });
+            }
+        };
+        using var app = new App(decisions, enabled: true, defaultSelection: true);
+        string[] names = ["Bash", "Read", "Edit", "Write", "Skill"];
+        string tools = string.Join(",", names.Concat(Enumerable.Range(0, 35).Select(index => $"extra{index}"))
+            .Select(name => $$$"""{"name":"{{{name}}}","description":"d","input_schema":{"type":"object"}}"""));
+        string body = $$"""{"model":"unmatched-model","max_tokens":10,"messages":[{"role":"user","content":"Analyse it"}],"tools":[{{tools}}]}""";
+
+        using HttpResponseMessage response = await app.Client.PostAsync("/anthropic/v1/messages", Json(body), Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        decisions.Requests.Sum(request => request["questions"]!.AsObject().Count).ShouldBe(35);
+        string[] forwarded = JsonNode.Parse(app.Upstream.LastRequestBody!)!["tools"]!.AsArray()
+            .Select(tool => tool!["name"]!.GetValue<string>()).ToArray();
+        forwarded.Length.ShouldBe(20);
+        forwarded.Take(5).ShouldBe(names);
+        forwarded.ShouldContain("extra0");
+    }
+
     [Theory]
     [InlineData("/openai/v1/responses")]
     [InlineData("/v1/responses")]
@@ -273,14 +306,14 @@ public sealed class DecisionToolsIntegrationTests
         private readonly ImposterAppFixture _base = new();
         private readonly WebApplicationFactory<HostApp::Program> _factory;
 
-        public App(IDecisionModelClient decisions, bool? enabled = null)
+        public App(IDecisionModelClient decisions, bool? enabled = null, bool defaultSelection = false)
         {
             _factory = _base.WithWebHostBuilder(builder =>
             {
                 builder.ConfigureAppConfiguration((_, config) =>
                 {
                     config.Sources.Clear();
-                    config.AddInMemoryCollection(Config(enabled));
+                    config.AddInMemoryCollection(Config(enabled, defaultSelection));
                 });
                 builder.ConfigureServices(services =>
                 {
@@ -308,12 +341,18 @@ public sealed class DecisionToolsIntegrationTests
             _base.Dispose();
         }
 
-        private static Dictionary<string, string?> Config(bool? enabled)
+        private static Dictionary<string, string?> Config(bool? enabled, bool defaultSelection)
         {
             var config = new Dictionary<string, string?>();
             if (enabled.HasValue)
             {
                 config["Imposter:DecisionsTools:Enabled"] = enabled.Value.ToString();
+            }
+
+            if (!defaultSelection)
+            {
+                config["Imposter:DecisionsTools:MinKeepTools"] = "0";
+                config["Imposter:DecisionsTools:AlwaysKeep"] = "none-configured";
             }
 
             foreach (string dialect in new[] { "openai", "anthropic" })

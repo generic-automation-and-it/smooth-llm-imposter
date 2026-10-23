@@ -218,6 +218,8 @@ internal sealed class ImposterOptionsPostConfigure(
         ApplyRootStringOverride("DECISIONS_TOOLS_PATH", nameof(options.Path), value => options.Path = value);
         ApplyRootStringOverride("DECISIONS_TOOLS_MODEL", nameof(options.Model), value => options.Model = value);
         ApplyRootProbabilityOverride("DECISIONS_TOOLS_MIN_PROBABILITY", nameof(options.MinProbability), value => options.MinProbability = value);
+        ApplyRootIntegerOverride("DECISIONS_TOOLS_MIN_KEEP", nameof(options.MinKeepTools), value => options.MinKeepTools = value);
+        ApplyRootStringOverride("DECISIONS_TOOLS_ALWAYS_KEEP", nameof(options.AlwaysKeep), value => options.AlwaysKeep = value);
         ApplyRootIntegerOverride("DECISIONS_TOOLS_MAX_ATTEMPTS", nameof(options.MaxAttempts), value => options.MaxAttempts = value);
         ApplyRootIntegerOverride("DECISIONS_TOOLS_TIMEOUT", nameof(options.TimeoutSeconds), value => options.TimeoutSeconds = value);
     }

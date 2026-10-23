@@ -197,6 +197,11 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
             failures.Add($"{prefix}:MinProbability must be a finite number between 0 and 1.");
         }
 
+        if (options.MinKeepTools is < 0 or > 1000)
+        {
+            failures.Add($"{prefix}:MinKeepTools must be between 0 and 1000.");
+        }
+
         if (options.MaxAttempts is < 1 or > 10)
         {
             failures.Add($"{prefix}:MaxAttempts must be between 1 and 10.");

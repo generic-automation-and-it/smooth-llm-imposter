@@ -26,7 +26,7 @@ The stage applies to imposter and passthrough routes, across OpenAI Chat, OpenAI
 
 ### 2. Conservative tool selection
 
-Each positively understood, unprotected tool receives an independent use/skip question. The use probability is compared inclusively with the configured threshold (default 0.20 — drop only clearly irrelevant tools). A missing or invalid answer keeps the tool. A pass that would remove every tool keeps the catalog unchanged, since an all-skip verdict signals missing context rather than a tool-free task. A catalog using deferred loading — any `defer_loading: true` tool (including inside a namespace) or a `tool_search` tool — is skipped entirely: client-side deferral already keeps those tools out of the prompt, and removing the search gateway or Claude Code's "never call" placeholder would break it. The catalog remains in its original order; only `tools` and `tool_choice` are rewritten, and every other top-level value is forwarded byte-for-byte.
+Each positively understood, unprotected tool receives an independent use/skip question. The use probability is compared inclusively with the configured threshold (default 0.50: more likely needed than not). A missing or invalid answer keeps the tool. Two settings bound the damage of a poorly calibrated classifier: tools named in `AlwaysKeep` (default `Bash,Read,Edit,Write,Skill`, matched exactly against tool name, MCP server label or hosted type) are never asked about and never removed, and a minimum-kept floor (`MinKeepTools`, default 20) restores the highest-scoring removed tools until at least that many tools remain, counting always-kept and history-protected ones; a catalog that does not exceed the floor makes no classifier call. A pass that would leave no tool at all keeps the catalog unchanged. A catalog using deferred loading — any `defer_loading: true` tool (including inside a namespace) or a `tool_search` tool — is skipped entirely: client-side deferral already keeps those tools out of the prompt, and removing the search gateway or Claude Code's "never call" placeholder would break it. The catalog remains in its original order; only `tools` and `tool_choice` are rewritten, and every other top-level value is forwarded byte-for-byte.
 
 | Concern | OpenAI Chat | OpenAI Responses | Anthropic Messages |
 |---|---|---|---|
@@ -39,13 +39,14 @@ Each positively understood, unprotected tool receives an independent use/skip qu
 
 Identity is catalog-index based; labels use name, nested function name, nested custom name, server label, then type. A namespace wrapper is one decision unit, protected by either its namespace name or a referenced child. Hosted call history protects matching catalog type stems; MCP server labels protect their server definition.
 
-Unknown catalog or choice shapes are kept. History is never rewritten. Understood object-form choices naming removed tools are deleted; allowed-tools lists are pruned and deleted only when empty. String choices remain unchanged while tools survive; because a pass never removes every tool, some tool always survives. An unrecognized forced hosted-tool choice can remain after its tool is removed, so the upstream may reject it; this is an accepted limit of conservative choice handling ([LADR-06](ladrs/LADR-06-history-and-choice-integrity.md)).
+Unknown catalog or choice shapes are kept. History is never rewritten. Understood object-form choices naming removed tools are deleted; allowed-tools lists are pruned and deleted only when empty. String choices remain unchanged while tools survive; because a pass never leaves no tool, some tool always survives. An unrecognized forced hosted-tool choice can remain after its tool is removed, so the upstream may reject it; this is an accepted limit of conservative choice handling ([LADR-06](ladrs/LADR-06-history-and-choice-integrity.md)).
 
 **Acceptance criteria / DoD**
 
 - One golden fixture per API exercises extraction, protection, decisions and exact output.
 - Threshold equality and missing/invalid answers keep tools.
-- A pass in which every tool scores below the threshold returns the original string instance.
+- A pass that would leave no tool returns the original string instance.
+- Always-kept tools are never asked about and never removed; when every asked tool scores below the threshold the floor keeps the highest-scoring ones, in catalog order, up to `MinKeepTools` in total; catalogs not exceeding the floor make no classifier call.
 - Deferred-loading catalogs make no classifier request and return the original string instance.
 - A pruned body keeps every top-level value other than `tools`/`tool_choice` byte-identical, including message escapes.
 - A pass removing nothing returns the original string instance.
@@ -110,6 +111,7 @@ Per-provider overrides, persistent or distributed decision caching, tool-count s
 | [05](ladrs/LADR-05-post-transform-seam.md) | Classify after who-probe/session translation, before forwarding | Accepted |
 | [06](ladrs/LADR-06-history-and-choice-integrity.md) | Preserve history and clean dependent choices | Accepted |
 | [07](ladrs/LADR-07-chunk-memo-and-byte-preserving-output.md) | In-memory per-question memo; byte-preserving output; deferred-loading skip | Accepted |
+| [08](ladrs/LADR-08-core-tools-and-minimum-floor.md) | Always-kept core tools and a minimum-kept floor instead of a lower threshold | Accepted |
 
 ## Non-Functional Requirements
 
@@ -140,3 +142,4 @@ Per-provider overrides, persistent or distributed decision caching, tool-count s
 | 2026-10-23 | Labelled request-first state (no post-request assistant text, system only as fallback, reminder blocks and tool-result turns excluded); need-question wording; all-skip keeps catalog; deferred-loading skip; in-memory chunk memo; byte-preserving output; threshold 0.20; removed names logged (NFR-02) | #138 |
 | 2026-10-23 | Review fixes: memo keyed per tool question so tool-call continuations reuse answers; only valid answers cached; text between reminder spans kept | #141 |
 | 2026-10-23 | Conductor `<system_instruction>` and Claude Code local-command wrappers stripped from state; fail-open warning names HTTP status and configured model | — |
+| 2026-10-23 | Default threshold back to 0.50; `AlwaysKeep` core tools never asked; `MinKeepTools` floor (default 20) tops up by score; catalogs within the floor skip the classifier (LADR-08) | #138 |

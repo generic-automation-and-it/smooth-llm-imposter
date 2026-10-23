@@ -354,7 +354,7 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
   validator, `CodexToOpenAiSdkNormalizerTests` (normalization drop/flatten/name-rules/tool_choice/idempotency, flat+nested shapes), model-catalog responder, `WhoMessageResponderTests` (HLD 010 trigger semantics, envelope shape, streaming exclusion, no-secret-leakage).
 - **L0** `Application.UnitTest/Routing/Decisions` — API golden shapes, history/choice integrity, body identity,
   bounded chunks, fail-open and cancellation, request-first state (reminder, Conductor and local-command wrappers, hook/system and tool-result turns
-  excluded), all-skip fallback, deferred-loading skip, per-question memo (tool-call continuation, invalid-answer retry), byte-preserving output and log-safe removed names; root option/env/validator tests remain in `Application.UnitTest/Routing`.
+  excluded), all-skip fallback, deferred-loading skip, core-tool `AlwaysKeep`, minimum-kept floor, per-question memo (tool-call continuation, invalid-answer retry), byte-preserving output and log-safe removed names; root option/env/validator tests remain in `Application.UnitTest/Routing`.
 - **L0** `Infrastructure.UnitTest/Clients/Decisions` — real resilience, full-body timeout, singleton gate and retry status policy.
 - **L2** `Host.IntegrationTest/DecisionToolsIntegrationTests` — prefixed/legacy paths, passthrough, downgrade,
   who-probe bypass, disabled bytes, decision-stage caller abort and Claude Code reminder-shaped state with
@@ -404,6 +404,7 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-23 | Decision filter: `AlwaysKeep` core tools skip the classifier, `MinKeepTools` floor tops up by score, small catalogs skip classification, default `MinProbability` back to 0.50 (HLD 014 LADR-08) | #138 |
 | 2026-10-23 | Decision state also strips Conductor `<system_instruction>` and Claude Code local-command wrappers (skill invocations kept); fail-open warning names HTTP status and model | — |
 | 2026-10-23 | Decision state is request-first (no post-request assistant text, system only as fallback); deferred-loading catalogs skipped; in-memory chunk memo; only `tools`/`tool_choice` rewritten; all-skip keeps catalog; `MinProbability` 0.20 | #138 |
 | 2026-10-23 | Decision-filter success summaries use the canonical body shape rather than the caller-controlled upstream path | #140 |

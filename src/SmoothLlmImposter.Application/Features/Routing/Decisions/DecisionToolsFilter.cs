@@ -47,13 +47,21 @@ internal sealed class DecisionToolsFilter(
                 return body;
             }
 
+            DecisionsToolsOptions settings = options.Value.DecisionsTools;
+            if (tools.Count <= settings.MinKeepTools)
+            {
+                logger.LogDebug("Decisions filter {Shape}: {Total} tools do not exceed the minimum-kept floor, forwarding unfiltered",
+                    shape, tools.Count);
+                return body;
+            }
+
             string state = DecisionPrompt.Extract(root, shape);
             if (string.IsNullOrWhiteSpace(state))
             {
                 return body;
             }
 
-            DecisionTool[] candidates = DecisionTool.ReadCandidates(tools, root, shape);
+            DecisionTool[] candidates = DecisionTool.ReadCandidates(tools, root, shape, AlwaysKeepNames(settings));
             var probabilities = new Dictionary<string, double>();
             var pending = new List<DecisionTool>();
             foreach (DecisionTool tool in candidates)
@@ -111,6 +119,18 @@ internal sealed class DecisionToolsFilter(
                 return body;
             }
 
+            int restored = RestoreMinimum(removed, candidates, probabilities, tools.Count, settings.MinKeepTools);
+            if (restored > 0)
+            {
+                logger.LogDebug("Decisions filter {Shape}: minimum-kept floor restored {Restored} highest-scoring tools",
+                    shape, restored);
+            }
+
+            if (removed.Count == 0)
+            {
+                return body;
+            }
+
             string[] removedLabels = candidates.Where(tool => removed.Contains(tool.Index))
                 .Select(tool => LogSafe(tool.Label)).ToArray();
             DecisionTool.PruneChoice(root, tools, removed, shape);
@@ -133,6 +153,33 @@ internal sealed class DecisionToolsFilter(
             LogFailOpen(failure);
             return body;
         }
+    }
+
+    private static HashSet<string> AlwaysKeepNames(DecisionsToolsOptions settings) =>
+        settings.AlwaysKeep.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet();
+
+    private static int RestoreMinimum(
+        HashSet<int> removed,
+        DecisionTool[] candidates,
+        Dictionary<string, double> probabilities,
+        int total,
+        int minimumKept)
+    {
+        int needed = minimumKept - (total - removed.Count);
+        if (needed <= 0)
+        {
+            return 0;
+        }
+
+        int[] restored = candidates
+            .Where(tool => removed.Contains(tool.Index))
+            .OrderByDescending(tool => probabilities[tool.Key])
+            .ThenBy(tool => tool.Index)
+            .Take(needed)
+            .Select(tool => tool.Index)
+            .ToArray();
+        removed.ExceptWith(restored);
+        return restored.Length;
     }
 
     private static JsonObject Question(DecisionTool tool)

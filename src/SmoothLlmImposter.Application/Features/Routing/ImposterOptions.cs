@@ -41,7 +41,11 @@ public sealed class DecisionsToolsOptions
 
     public string Model { get; set; } = "openjev";
 
-    public double MinProbability { get; set; } = 0.20;
+    public double MinProbability { get; set; } = 0.50;
+
+    public int MinKeepTools { get; set; } = 20;
+
+    public string AlwaysKeep { get; set; } = "Bash,Read,Edit,Write,Skill";
 
     public int MaxAttempts { get; set; } = 3;
 
