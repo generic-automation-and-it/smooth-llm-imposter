@@ -354,7 +354,7 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
   validator, `CodexToOpenAiSdkNormalizerTests` (normalization drop/flatten/name-rules/tool_choice/idempotency, flat+nested shapes), model-catalog responder, `WhoMessageResponderTests` (HLD 010 trigger semantics, envelope shape, streaming exclusion, no-secret-leakage).
 - **L0** `Application.UnitTest/Routing/Decisions` — API golden shapes, history/choice integrity, body identity,
   bounded chunks, fail-open and cancellation, request-first state (reminders, hook/system and tool-result turns
-  excluded), all-skip fallback, deferred-loading skip, chunk memo, byte-preserving output and log-safe removed names; root option/env/validator tests remain in `Application.UnitTest/Routing`.
+  excluded), all-skip fallback, deferred-loading skip, per-question memo (tool-call continuation, invalid-answer retry), byte-preserving output and log-safe removed names; root option/env/validator tests remain in `Application.UnitTest/Routing`.
 - **L0** `Infrastructure.UnitTest/Clients/Decisions` — real resilience, full-body timeout, singleton gate and retry status policy.
 - **L2** `Host.IntegrationTest/DecisionToolsIntegrationTests` — prefixed/legacy paths, passthrough, downgrade,
   who-probe bypass, disabled bytes, decision-stage caller abort and Claude Code reminder-shaped state with

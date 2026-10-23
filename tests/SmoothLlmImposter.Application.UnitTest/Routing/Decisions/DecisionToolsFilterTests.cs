@@ -352,6 +352,29 @@ public sealed class DecisionToolsFilterTests
     }
 
     [Fact]
+    public async Task Tool_call_continuation_reuses_cached_answers_for_the_same_request()
+    {
+        JsonObject root = Body(45);
+        string initial = root.ToJsonString();
+        root["input"] = new JsonArray
+        {
+            (JsonNode)new JsonObject { ["type"] = "message", ["role"] = "user", ["content"] = "Task" },
+            (JsonNode)new JsonObject { ["type"] = "function_call", ["name"] = "tool0", ["call_id"] = "c1", ["arguments"] = "{}" },
+            (JsonNode)new JsonObject { ["type"] = "function_call_output", ["call_id"] = "c1", ["output"] = "done" }
+        };
+        string continuation = root.ToJsonString();
+        var client = new DecisionStub { Answer = request => Answers(request, key => key is "t0" or "t1" ? 1 : 0) };
+        DecisionToolsFilter filter = Create(client);
+
+        await filter.FilterAsync("/responses", initial, Ct);
+        string result = await filter.FilterAsync("/responses", continuation, Ct);
+
+        client.Requests.Count.ShouldBe(3);
+        JsonNode.Parse(result)!["tools"]!.AsArray().Select(tool => tool!["name"]!.GetValue<string>()).ToArray()
+            .ShouldBe(["tool0", "tool1"]);
+    }
+
+    [Fact]
     public async Task Chunk_with_an_invalid_answer_is_not_cached_and_is_asked_again()
     {
         string body = Body(2).ToJsonString();
@@ -369,6 +392,7 @@ public sealed class DecisionToolsFilterTests
 
         ReferenceEquals(first, body).ShouldBeTrue();
         client.Requests.Count.ShouldBe(2);
+        client.Requests[1]["questions"]!.AsObject().Select(pair => pair.Key).ToArray().ShouldBe(["t1"]);
         JsonNode.Parse(second)!["tools"]!.AsArray().ShouldHaveSingleItem()!["name"]!.GetValue<string>().ShouldBe("tool0");
     }
 

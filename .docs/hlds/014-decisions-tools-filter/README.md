@@ -57,7 +57,7 @@ When enabled, the classifier BaseUrl must be an absolute HTTP(S) URL; other URI 
 
 State is labelled and request-first: `User request:` with the newest user text, then `Earlier conversation (newest first):` with prior `User:`/`Assistant:` turns. Assistant text after the request and system/instructions text are excluded — they change every agent step (Claude Code adds a `<total_tokens>` system message after each tool result) or bias the classifier toward tools they mention — and system text is used only as a `Context:` fallback when no conversation text exists. A user turn carrying a tool result is not a request. `<system-reminder>` text blocks that agent harnesses inject are dropped whole, and closed reminder spans inside other text are removed; an unclosed opener stays as ordinary text. The forwarded messages are never altered — reminder removal applies only to the classifier's copy. State is capped at 2,000 characters. Each question asks whether the assistant needs the named tool for the user's request, followed by its description, capped at 300 characters, with independent criteria for use and skip.
 
-Chunk answers are memoised in process memory (1,024 entries, oldest evicted first), keyed by a SHA-256 of the exact classifier request (model, state, questions). The classifier is deterministic for identical input, so later agent steps of the same user turn reuse the answers, keep an identical tool set (preserving the upstream prompt-cache prefix) and skip the classifier. Failures are never cached ([LADR-07](ladrs/LADR-07-chunk-memo-and-byte-preserving-output.md)).
+Tool answers are memoised in process memory per question (4,096 entries, oldest evicted first), keyed by a SHA-256 of model, state and that tool's question. A question's probability does not depend on the other questions in its chunk (measured |ΔP| ≤ 0.0002 on `kev-4b`), so only uncached tools are asked, in chunks. Later agent steps of the same user turn — including continuations whose history now protects a called tool — reuse the answers, keep an identical tool set (preserving the upstream prompt-cache prefix) and skip the classifier. Only valid answers are cached; a missing or invalid answer is asked again next time ([LADR-07](ladrs/LADR-07-chunk-memo-and-byte-preserving-output.md)).
 
 At most 20 questions are sent per sequential chunk. The request carries model, state and questions; the response carries an answers object with per-question probabilities. The client rejects failed transport, non-success status and malformed envelopes; the filter owns conservative answer interpretation.
 
@@ -67,7 +67,7 @@ At most 20 questions are sent per sequential chunk. The request carries model, s
 - Stateful Responses deltas with non-null previous-response or conversation pointers are skipped.
 - Empty body, absent/empty tools, path/body mismatch or missing prompt text cause no classifier request.
 - A Claude Code–shaped turn sends `User request:` plus earlier turns as state: no reminder blocks, hook/system messages, tool-result turns or post-request assistant text.
-- An identical second request makes no classifier call and yields the same output.
+- An identical second request makes no classifier call and yields the same output; a tool-call continuation of the same request asks nothing new; an invalid answer is re-asked alone.
 
 ### 4. Preserve useful work on failure
 
@@ -109,7 +109,7 @@ Per-provider overrides, persistent or distributed decision caching, tool-count s
 | [04](ladrs/LADR-04-singleton-gate.md) | Uncached singleton client and process-wide gate (memo lives in the filter, LADR-07) | Accepted |
 | [05](ladrs/LADR-05-post-transform-seam.md) | Classify after who-probe/session translation, before forwarding | Accepted |
 | [06](ladrs/LADR-06-history-and-choice-integrity.md) | Preserve history and clean dependent choices | Accepted |
-| [07](ladrs/LADR-07-chunk-memo-and-byte-preserving-output.md) | In-memory chunk memo; byte-preserving output; deferred-loading skip | Accepted |
+| [07](ladrs/LADR-07-chunk-memo-and-byte-preserving-output.md) | In-memory per-question memo; byte-preserving output; deferred-loading skip | Accepted |
 
 ## Non-Functional Requirements
 
@@ -138,3 +138,4 @@ Per-provider overrides, persistent or distributed decision caching, tool-count s
 | 2026-10-22 | Implemented; L0/L2 and macOS/Linux ARM64 live checks pass; AMD64/cache gates pending | #138 |
 | 2026-10-22 | Review follow-ups: transformer guard tests, HTTP(S) URLs, transparency/hosted-choice caveats; HLD 015 proposed shared boundary | #138 |
 | 2026-10-23 | Labelled request-first state (no post-request assistant text, system only as fallback, reminder blocks and tool-result turns excluded); need-question wording; all-skip keeps catalog; deferred-loading skip; in-memory chunk memo; byte-preserving output; threshold 0.20; removed names logged (NFR-02) | #138 |
+| 2026-10-23 | Review fixes: memo keyed per tool question so tool-call continuations reuse answers; only valid answers cached | #141 |

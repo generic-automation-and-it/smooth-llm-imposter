@@ -8,6 +8,7 @@ Read [README.md](README.md) first — decision-tool filtering intent, decisions 
 
 | Date | Change | Ref |
 |---|---|---|
+| 2026-10-23 | Memo keyed per tool question; only valid answers cached (review) | #141 |
 | 2026-10-23 | Request-first state (no post-request assistant text); need-question wording; all-skip keeps catalog; deferred-loading skip; chunk memo; byte-preserving output; threshold 0.20 | #138 |
 | 2026-10-23 | Classifier success logs use canonical request shape instead of caller-controlled paths | #140 |
 | 2026-10-23 | Conductor paste-in installer forwards decision settings; existing UI scripts require replacement/re-run | #138 |
