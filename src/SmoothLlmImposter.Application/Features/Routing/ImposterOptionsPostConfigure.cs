@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -113,6 +114,8 @@ internal sealed class ImposterOptionsPostConfigure(
             options.WhoMessage.Enabled = value;
         });
 
+        ApplyDecisionsToolsOverrides(options.DecisionsTools);
+
         foreach ((string key, ProviderOptions provider) in options.Providers)
         {
             string prefix = ToEnvPrefix(key);
@@ -206,6 +209,78 @@ internal sealed class ImposterOptionsPostConfigure(
         logger.LogDebug(
             "Applied conventional override {EnvVar} to provider {Provider} field {Field}.",
             variable, key, propertyName);
+    }
+
+    private void ApplyDecisionsToolsOverrides(DecisionsToolsOptions options)
+    {
+        ApplyRootBooleanOverride("DECISIONS_TOOLS_ENABLED", nameof(options.Enabled), value => options.Enabled = value);
+        ApplyRootStringOverride("DECISIONS_TOOLS_BASE_URL", nameof(options.BaseUrl), value => options.BaseUrl = value);
+        ApplyRootStringOverride("DECISIONS_TOOLS_PATH", nameof(options.Path), value => options.Path = value);
+        ApplyRootStringOverride("DECISIONS_TOOLS_MODEL", nameof(options.Model), value => options.Model = value);
+        ApplyRootProbabilityOverride("DECISIONS_TOOLS_MIN_PROBABILITY", nameof(options.MinProbability), value => options.MinProbability = value);
+        ApplyRootIntegerOverride("DECISIONS_TOOLS_MAX_ATTEMPTS", nameof(options.MaxAttempts), value => options.MaxAttempts = value);
+        ApplyRootIntegerOverride("DECISIONS_TOOLS_TIMEOUT", nameof(options.TimeoutSeconds), value => options.TimeoutSeconds = value);
+    }
+
+    private void ApplyRootStringOverride(string variable, string propertyName, Action<string> apply)
+    {
+        string? value = configuration[variable];
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        apply(value);
+        LogRootOverrideApplied(variable, propertyName);
+    }
+
+    private void ApplyRootIntegerOverride(string variable, string propertyName, Action<int> apply)
+    {
+        string? value = configuration[variable];
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
+        {
+            LogInvalidRootOverride(variable, propertyName, "an invariant whole number");
+            return;
+        }
+
+        apply(parsed);
+        LogRootOverrideApplied(variable, propertyName);
+    }
+
+    private void ApplyRootProbabilityOverride(string variable, string propertyName, Action<double> apply)
+    {
+        string? value = configuration[variable];
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed) ||
+            !double.IsFinite(parsed))
+        {
+            LogInvalidRootOverride(variable, propertyName, "a finite invariant number");
+            return;
+        }
+
+        apply(parsed);
+        LogRootOverrideApplied(variable, propertyName);
+    }
+
+    private void LogInvalidRootOverride(string variable, string propertyName, string expected)
+    {
+        logger.LogWarning(
+            "Ignoring conventional override {EnvVar} for field {Field}: expected {Expected}.",
+            variable, propertyName, expected);
+    }
+
+    private void LogRootOverrideApplied(string variable, string propertyName)
+    {
+        logger.LogDebug("Applied conventional override {EnvVar} to root field {Field}.", variable, propertyName);
     }
 
     /// <summary>
@@ -375,6 +450,6 @@ internal sealed class ImposterOptionsPostConfigure(
         }
 
         apply(parsed);
-        logger.LogDebug("Applied conventional override {EnvVar} to root field {Field}.", variable, propertyName);
+        LogRootOverrideApplied(variable, propertyName);
     }
 }

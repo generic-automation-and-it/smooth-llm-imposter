@@ -2,23 +2,21 @@
 
 ## TL;DR
 
-This page covers two Conductor script roles (snapshot and workspace) plus their shared source of truth in `.conductor/`:
+This page contains the paste-in Conductor snapshot and workspace scripts. The former `.conductor/` kit was
+removed from this repository; these code blocks are the maintained setup instructions.
 
 1. The **snapshot script** installs the general CLI tooling (including GitHub Copilot CLI, `uv`, and
    `code-review-graph`) and native Docker Engine + Compose; **asserts that the Docker CLI and Compose plugin
    are actually present**; persists `DOCKER_HOST`, `OPENAI_BASE_URL`, and `ANTHROPIC_BASE_URL`; pre-pulls the
-   published SmoothLlmImposter image; and does not require provider credentials. Codex configuration belongs
-   to the workspace script only, because it writes to `~/.codex/config.toml` and the snapshot has no clone.
-2. The **workspace setup script** restarts the Docker daemon after snapshot restoration, configures Codex,
+   published SmoothLlmImposter image; and does not require provider credentials. Any repository-scoped
+   Codex configuration belongs in the workspace lifecycle, because the snapshot has no clone.
+2. The **workspace setup script** restarts the Docker daemon after snapshot restoration,
    wires `code-review-graph` into Codex, Copilot CLI, OpenCode, and Claude Code and builds the graph for the
    checked-out repository, then reads `OPENCODE_API_KEY` and `OPENROUTER_API_KEY` from the workspace
    environment, creates the configured container from the already-pulled image, and waits for the router
    health endpoint — printing a full daemon-and-container diagnostic to the terminal if it never gets one.
-   It is also available as a shared,
-   committed Conductor script (`.conductor/settings.toml` + `.conductor/scripts/`) — see
-   [Shared Conductor script](#shared-conductor-script-recommended-over-the-manual-paste-in-above) — plus
-   on-demand `restart-imposter` and `imposter-logs` triggers that recreate the container, and follow its
-   logs, without recreating the workspace.
+   It also forwards optional `DECISIONS_TOOLS_*` workspace settings; filtering remains disabled unless
+   explicitly enabled. See [Keeping Conductor scripts current](#keeping-conductor-scripts-current).
 
 The setup works from any repository because it uses the published multi-platform image:
 
@@ -52,7 +50,7 @@ accepts the OpenAI-style alias and forwards to xAI; see
 and [xAI's model index](https://docs.x.ai/docs/models) for the upstream wire ID.
 
 The image default enables session identity forwarding (`SessionForwarding: opencode-go`) for the OpenCode Go
-providers, so matched routes stamp `session_id` and `x-opencode-session`. The shared workspace script uses this
+providers, so matched routes stamp `session_id` and `x-opencode-session`. The workspace script uses this
 default as-is. To stop OpenCode session token usage, uncomment the two exports, add both names to
 `--preserve-env`, and add the two `-e` flags to the `docker run`.
 
@@ -74,23 +72,21 @@ seeing and the script needs an `apt-get` rewrite.
 > the CLI and the Compose plugin converts that into a snapshot build that fails at the line that caused it.
 > Daemon startup in the same step stays **best-effort**: the lifecycle does not run systemd as PID 1 and
 > nothing survives snapshot restoration, so a daemon that is down at snapshot time is a normal state, and
-> `imposter-container.sh` bootstraps `dockerd` itself on every workspace start.
+> the workspace script bootstraps `dockerd` itself on every workspace start.
 
 > **`CONDUCTOR_IS_LOCAL=1` short-circuits the automatic lifecycle scripts only.** Conductor sets this
 > environment variable in the local Mac/desktop workspace lifecycle (not the cloud sandbox). The local
 > developer's Docker Desktop is already running the imposter container, so the snapshot and setup scripts
 > no-op with `exit 0` instead of installing packages or re-creating the container. A no-op exit is therefore
-> the **expected** behavior on a local workspace — not a debugging artifact. The `restart-imposter` trigger
-> and `imposter-container.sh` deliberately carry **no** such guard: a manual trigger that exits silently is
-> worse than one that tries and reports, so pressing it does the work on a Mac too. Both scripts read the
+> the **expected** behavior on a local workspace — not a debugging artifact. The scripts read the
 > variable as `${CONDUCTOR_IS_LOCAL:-0}`, because under `set -u` a bare reference aborts with
 > `unbound variable` whenever the script is run by hand from a shell Conductor did not populate.
 
 Provider credentials are intentionally absent from snapshot construction: Conductor makes
 `OPENCODE_API_KEY` and `OPENROUTER_API_KEY` available only to the later workspace lifecycle. The snapshot
 therefore performs every credential-independent operation—including the image pre-pull—but does not create
-the container, and does not touch `~/.codex/config.toml` (that is workspace-scoped; see
-[`setup.sh`](../../../.conductor/scripts/setup.sh)).
+the container. Configure Codex's provider separately using the client endpoints below; neither embedded
+script edits `~/.codex/config.toml`.
 
 The environment setup also persists these client endpoints in both `~/.bashrc` and `~/.zshrc`:
 
@@ -311,7 +307,7 @@ fi
 
 # Daemon startup is best-effort HERE on purpose. The lifecycle does not run
 # systemd as PID 1 and no daemon survives snapshot restoration, so a daemon that
-# is down at snapshot time is not a broken snapshot — imposter-container.sh
+# is down at snapshot time is not a broken snapshot — the workspace script
 # bootstraps dockerd itself (Linux-only branch) on every workspace start.
 if command -v systemctl >/dev/null 2>&1; then
   sudo systemctl enable --now docker || true
@@ -325,7 +321,7 @@ fi
 sudo usermod -aG docker "$USER" || true
 
 # Warm the image so the first workspace start does not pay the download. Failure
-# is survivable: imposter-container.sh pulls again with a cached-image fallback
+# is survivable: the workspace script pulls again with a cached-image fallback
 # and exits before `docker rm -f` if neither path works.
 if ! sudo docker pull "$IMAGE"; then
   echo "Warning: could not pre-pull $IMAGE; the workspace setup will retry." >&2
@@ -343,7 +339,7 @@ sudo docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 > the script exits 1 **before** the `docker rm -f`, so the running container (if any) is preserved. The
 > container itself uses the default `--pull=missing`, so a missing local tag does not also try the registry.
 
-> **Proxy CA trust (defensive, currently a no-op).** `imposter-container.sh` extracts the image's own CA
+> **Proxy CA trust (defensive, currently a no-op).** The workspace script extracts the image's own CA
 > bundle, appends the Vercel Sandbox proxy CA to it, and bind-mounts the merged bundle over
 > `/etc/ssl/certs/ca-certificates.crt` inside the container — but only when
 > `/etc/pki/ca-trust/source/anchors/vercel-proxy-ca.pem` exists on the host. A container's isolated
@@ -355,14 +351,10 @@ sudo docker rm -f smooth-llm-imposter >/dev/null 2>&1 || true
 
 ## Workspace setup script (create and start the container)
 
-Use this as the Conductor workspace lifecycle. `setup.sh` materialises an SSH private key when one is
-injected (see below), configures Codex (writes the
-`[model_providers.smooth-llm-proxy]` table and `model_provider` value into `~/.codex/config.toml`,
-preserving unrelated settings like MCP servers and RTK config — the previous file is backed up to
-`~/.codex/config.toml.bak`), runs code-review-graph wiring, then delegates to `imposter-container.sh`
-which starts `dockerd` if needed (Linux only), requires the workspace-only `OPENCODE_API_KEY` and
-`OPENROUTER_API_KEY`, refreshes the image from GHCR, and supplies the provider mappings and secrets
-while creating the container.
+Use this as the Conductor workspace lifecycle. It materialises an SSH private key when one is injected
+(see below), starts `dockerd` if needed (Linux only), and wires code-review-graph for the clone. It requires
+the workspace-only `OPENCODE_API_KEY` and `OPENROUTER_API_KEY`, refreshes the image from GHCR, and supplies
+provider mappings, secrets and optional decision settings while creating the container.
 
 > **Do not move the container start to the front.** It was tried — the router is what every other step
 > exists to serve, so gating it behind best-effort tooling looks wrong — and reverted the same day. On a
@@ -372,17 +364,35 @@ while creating the container.
 > run both succeed, then the daemon disappears during the health wait.
 
 > **SSH private key (`SSH_PRIVATE_KEY`, optional).** When the workspace environment supplies
-> `SSH_PRIVATE_KEY`, `setup.sh` writes it to `~/.ssh/id_rsa` (`0600`, under a `0700` `~/.ssh`) so
+> `SSH_PRIVATE_KEY`, the workspace script writes it to `~/.ssh/id_rsa` (`0600`, under a `0700` `~/.ssh`) so
 > git-over-SSH works in a sandbox that starts with no `~/.ssh` at all. The step is guarded twice and is a
 > no-op unless **both** hold: the workspace is not local (`CONDUCTOR_IS_LOCAL` is `0`/unset — a local Mac
 > already has the developer's own key) and the variable is non-empty. The empty check is not cosmetic: the
 > redirect truncates, so an unset variable would otherwise replace a working `id_rsa` with a zero-byte file.
 > Nothing else in this setup requires SSH; leave the variable unset if the workspace clones over HTTPS.
 
-> **Note on the script below.** This is a *flattened, paste-in copy* of the canonical script at
-> `.conductor/scripts/imposter-container.sh`. The Conductor settings file references that path. Any
-> non-trivial change (new env var, new flag, new failure mode) must be made there first, and this copy
-> updated in lockstep. The two will silently drift otherwise.
+### Optional decision-tool filter
+
+Set `DECISIONS_TOOLS_ENABLED=true` in the **workspace environment**, not the snapshot environment, to opt in.
+The script forwards all seven settings from the [decision settings table](../setup.md#optional-decision-model-tool-pre-filter):
+`DECISIONS_TOOLS_ENABLED`, `DECISIONS_TOOLS_BASE_URL`, `DECISIONS_TOOLS_PATH`, `DECISIONS_TOOLS_MODEL`,
+`DECISIONS_TOOLS_MIN_PROBABILITY`, `DECISIONS_TOOLS_MAX_ATTEMPTS` and `DECISIONS_TOOLS_TIMEOUT`.
+Unset settings retain the application's defaults; the installer does not enable filtering automatically.
+
+For example, supply these workspace environment entries:
+
+```text
+DECISIONS_TOOLS_ENABLED=true
+DECISIONS_TOOLS_BASE_URL=http://host.docker.internal:1234
+```
+
+The default address reaches a classifier on the **workspace host**, not the operator's Mac when running in
+a cloud sandbox. Use a reachable HTTP(S) service address for a remote classifier. Linux gets the required
+`host.docker.internal:host-gateway` mapping; Docker Desktop resolves that name natively. Re-run the workspace
+script after changing settings to recreate the container with the new environment.
+
+> **Note on the script below.** Paste this maintained workspace script into Conductor's workspace lifecycle
+> configuration. There is no checked-in `.conductor/scripts/imposter-container.sh` to invoke or update.
 
 ```bash
 #!/usr/bin/env bash
@@ -499,7 +509,7 @@ export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in the w
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
 elif sudo -n docker info >/dev/null 2>&1; then
-  DOCKER=(sudo -n --preserve-env=OPENCODE_GO_API_KEY,OPENROUTER_API_KEY docker)
+  DOCKER=(sudo -n --preserve-env=OPENCODE_GO_API_KEY,OPENROUTER_API_KEY,DECISIONS_TOOLS_ENABLED,DECISIONS_TOOLS_BASE_URL,DECISIONS_TOOLS_PATH,DECISIONS_TOOLS_MODEL,DECISIONS_TOOLS_MIN_PROBABILITY,DECISIONS_TOOLS_MAX_ATTEMPTS,DECISIONS_TOOLS_TIMEOUT docker)
 else
   echo "Docker is not reachable; on Linux the daemon is down, on macOS start Docker Desktop." >&2
   exit 1
@@ -585,6 +595,11 @@ if [ -s "$HOST_PROXY_CA" ]; then
   fi
 fi
 
+DECISION_HOST_MAPPING=()
+if [ "$(uname -s)" = "Linux" ]; then
+  DECISION_HOST_MAPPING=(--add-host=host.docker.internal:host-gateway)
+fi
+
 # Create the container only now, after the workspace secrets exist and the image
 # is as fresh as the network allowed. openrouter-* is absent from the published
 # base image, so define the Anthropic OpenRouter provider fully here (same
@@ -602,7 +617,8 @@ fi
   --name "$CONTAINER_NAME" \
   --restart unless-stopped \
   -p "127.0.0.1:${PORT}:5080" \
-  "${CA_BUNDLE_MOUNT[@]}" \
+  ${CA_BUNDLE_MOUNT[@]+"${CA_BUNDLE_MOUNT[@]}"} \
+  ${DECISION_HOST_MAPPING[@]+"${DECISION_HOST_MAPPING[@]}"} \
   -e "Imposter__Providers__opencode-go-anthropic__Dialect=anthropic" \
   -e "Imposter__Providers__opencode-go-anthropic__BaseUrl=https://opencode.ai/zen/go" \
   -e "Imposter__Providers__opencode-go-anthropic__AuthScheme=ApiKey" \
@@ -633,6 +649,13 @@ fi
   -e "Imposter__Providers__opencode-go-openai-responses__Models__0__To=grok-4.5" \
   -e OPENCODE_GO_API_KEY \
   -e OPENROUTER_API_KEY \
+  -e DECISIONS_TOOLS_ENABLED \
+  -e DECISIONS_TOOLS_BASE_URL \
+  -e DECISIONS_TOOLS_PATH \
+  -e DECISIONS_TOOLS_MODEL \
+  -e DECISIONS_TOOLS_MIN_PROBABILITY \
+  -e DECISIONS_TOOLS_MAX_ATTEMPTS \
+  -e DECISIONS_TOOLS_TIMEOUT \
   "$IMAGE" >/dev/null
 
 # Wait for health, tolerating a daemon that goes away mid-wait. `--restart
@@ -663,37 +686,21 @@ exit 1
 
 The workspace must expose `OPENCODE_API_KEY` and `OPENROUTER_API_KEY`; no provider secret is required or
 expected while constructing the snapshot. Re-running the workspace script recreates the container so current
-provider settings and the current workspace secrets always take effect.
+provider settings, optional decision settings and the current workspace secrets always take effect.
 
-> **The `docker run` invocation above is identical to `.conductor/scripts/imposter-container.sh`.**
-> Use the shared script for any non-exploratory setup; the manual copy is shown only
-> to explain each flag. **Do not** diverge from the shared script — it is the source of truth.
+## Keeping Conductor scripts current
 
-## Shared Conductor script (recommended over the manual paste-in above)
+The former committed `.conductor/` kit was removed in #125. Pulling this branch does **not** update a script
+already pasted into Conductor. Replace the workspace lifecycle field with the script above to pick up the
+decision-variable forwarding, then re-run it. Snapshot configuration remains separate and does not need
+decision settings. Keep UI edits reflected in this page; retain step `[5]`'s Docker assertions when editing
+the snapshot script.
 
-The workspace script above only reaches teammates who manually paste it into their own Conductor UI, because
-`.conductor/settings.local.toml` — where the Mac app and cloud setup persist a manually-configured workspace
-script — is machine-local and gitignored. The same logic is also available as a **shared, committed**
-Conductor script, so pulling this branch is enough; see
-[Conductor's docs on sharing scripts with teammates](https://www.conductor.build/docs/reference/scripts/share-with-teammates).
+The container name and host port are fixed, so avoid concurrent setup/restart runs against the same Docker
+daemon. If you maintain your own shared scripts, see
+[Conductor's script-sharing documentation](https://www.conductor.build/docs/reference/scripts/share-with-teammates).
 
-| File | Role |
-|---|---|
-| `.conductor/settings.toml` | Committed. Points `[scripts] setup` and `[scripts.run.restart-imposter]` at the files below. `run_mode = "nonconcurrent"`, because the container uses a fixed name and a fixed host port (`127.0.0.1:5080` by default) — two workspaces racing setup or restart at once would collide over both. `auto_run_after_setup = true` plus `default = true` on the run script make starting the imposter Conductor's *run* action, not just a button someone has to remember: `setup` only ever fires when a workspace is created, so without a default run script nothing re-establishes the container on a later resume. |
-| `.conductor/scripts/imposter-container.sh` | The container lifecycle only: ensure the Docker daemon (Linux only), validate `OPENCODE_API_KEY`/`OPENROUTER_API_KEY`, pull the image (non-fatal), `docker rm -f` + `docker run -d` with the full provider mapping, wait for `/health`, and on failure print a daemon-first diagnostic bundle to the terminal. Shared by both scripts below so the `docker run` invocation exists in exactly one place. No `CONDUCTOR_IS_LOCAL` guard — see the note near the top of this page. |
-| `.conductor/scripts/setup.sh` | The `[scripts] setup` entrypoint — optional `SSH_PRIVATE_KEY` materialisation, Codex configuration, and code-review-graph wiring (see below), followed by `imposter-container.sh`. Runs once when a workspace is created. Do not reorder; see the warning above the workspace script. |
-| `.conductor/scripts/restart-imposter.sh` | The `[scripts.run.restart-imposter]` entrypoint — just `imposter-container.sh`, no Codex or code-review-graph step. The default run script, and an on-demand trigger runnable anytime without recreating the workspace: after a VM restart, pulling a new image tag, rotating `OPENCODE_API_KEY`/`OPENROUTER_API_KEY`, or recovering a crash-looped container. |
-| `.conductor/scripts/imposter-logs.sh` | The `[scripts.run.imposter-logs]` entrypoint — `docker logs -f` on the container, after checking that the daemon is reachable and the container exists. A separate trigger because `-f` blocks forever, and a button beats expecting the operator to know the container name and whether `docker` or `sudo docker` works in this sandbox. |
-
-This only covers the **workspace** script. The **snapshot** script (installing Docker/dotnet/`uv`/etc., image-level)
-has no `.conductor/settings.toml` equivalent — Conductor snapshots are cloud-environment configuration, not a
-repository setting — so it stays a manually-pasted UI field, documented as the snapshot script above. That
-makes the fence above the only tracked copy of it, and it has no test and no CI check: a live edit to the
-Conductor UI field drifts from this page silently. When you change the field, paste it back here in the same
-commit, and keep the step `[5]` Docker assertions intact — they are what stops a broken image from being
-captured as a working one.
-
-`setup.sh` (see `.conductor/scripts/setup.sh`) installs the four platforms with
+The workspace script installs the four code-review-graph platforms with
 `--no-instructions` on all of them and `--no-skills --no-hooks` on
 `claude-code` only. The two project-scoped configs (`.mcp.json`,
 `opencode.jsonc`) plus the `.code-review-graph/` directory are seeded into
@@ -702,4 +709,4 @@ captured as a working one.
 tracked `.gitignore` directly (predates this script, applies to all platforms)
 — `.git/info/exclude` wins precedence, so the resulting behavior is correct,
 but the `.gitignore` modification is expected to show up as a diff in every
-workspace. See the source for the exact `install` flags.
+workspace. See the workspace code block for the exact `install` flags.

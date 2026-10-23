@@ -17,6 +17,145 @@ public class ImposterOptionsValidatorTests
     public void Valid_configuration_succeeds() =>
         _validator.Validate(null, Options(Valid("a", isDefault: true))).Succeeded.ShouldBeTrue();
 
+    [Fact]
+    public void Disabled_decision_filter_ignores_invalid_decision_settings()
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.BaseUrl = "not-a-url";
+        options.DecisionsTools.Path = "relative";
+        options.DecisionsTools.Model = " ";
+        options.DecisionsTools.MinProbability = double.NaN;
+        options.DecisionsTools.MaxAttempts = 0;
+        options.DecisionsTools.TimeoutSeconds = 0;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Enabled_decision_filter_accepts_default_settings()
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.Enabled = true;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("BaseUrl", "not-a-url")]
+    [InlineData("BaseUrl", "")]
+    [InlineData("BaseUrl", "file:///tmp/decisions")]
+    [InlineData("BaseUrl", "ftp://classifier.example")]
+    [InlineData("BaseUrl", "mailto:classifier@example.com")]
+    [InlineData("Path", "relative")]
+    [InlineData("Path", "")]
+    [InlineData("Model", "")]
+    [InlineData("Model", "   ")]
+    public void Enabled_decision_filter_rejects_invalid_strings(string field, string value)
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.Enabled = true;
+        switch (field)
+        {
+            case "BaseUrl": options.DecisionsTools.BaseUrl = value; break;
+            case "Path": options.DecisionsTools.Path = value; break;
+            case "Model": options.DecisionsTools.Model = value; break;
+        }
+
+        ValidateOptionsResult result = _validator.Validate(null, options);
+
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain($"Imposter:DecisionsTools:{field}");
+    }
+
+    [Theory]
+    [InlineData("http://127.0.0.1:1234")]
+    [InlineData("https://classifier.example")]
+    [InlineData("HTTPS://classifier.example")]
+    public void Enabled_decision_filter_accepts_http_and_https(string baseUrl)
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.Enabled = true;
+        options.DecisionsTools.BaseUrl = baseUrl;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("file:///tmp/decisions")]
+    [InlineData("ftp://classifier.example")]
+    public void Disabled_decision_filter_ignores_unsupported_url_schemes(string baseUrl)
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.BaseUrl = baseUrl;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(0.5)]
+    [InlineData(1)]
+    public void Decision_probability_including_boundaries_is_accepted(double probability)
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.Enabled = true;
+        options.DecisionsTools.MinProbability = probability;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(-0.01)]
+    [InlineData(1.01)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)]
+    public void Invalid_decision_probability_fails(double probability)
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.Enabled = true;
+        options.DecisionsTools.MinProbability = probability;
+
+        ValidateOptionsResult result = _validator.Validate(null, options);
+
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("Imposter:DecisionsTools:MinProbability");
+    }
+
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(3, 60)]
+    [InlineData(10, 3600)]
+    public void Decision_attempt_and_timeout_boundaries_are_accepted(int attempts, int timeout)
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.Enabled = true;
+        options.DecisionsTools.MaxAttempts = attempts;
+        options.DecisionsTools.TimeoutSeconds = timeout;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(0, 60, "MaxAttempts")]
+    [InlineData(-1, 60, "MaxAttempts")]
+    [InlineData(11, 60, "MaxAttempts")]
+    [InlineData(3, 0, "TimeoutSeconds")]
+    [InlineData(3, -1, "TimeoutSeconds")]
+    [InlineData(3, 3601, "TimeoutSeconds")]
+    public void Invalid_decision_attempts_or_timeout_fail(int attempts, int timeout, string field)
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.Enabled = true;
+        options.DecisionsTools.MaxAttempts = attempts;
+        options.DecisionsTools.TimeoutSeconds = timeout;
+
+        ValidateOptionsResult result = _validator.Validate(null, options);
+
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain($"Imposter:DecisionsTools:{field}");
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(300)]

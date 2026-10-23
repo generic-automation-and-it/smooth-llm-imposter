@@ -35,6 +35,97 @@ public class RequestTransformerTests
             CachingEnabled: false,
             IsImposter: isImposter);
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData(false)]
+    public void OpenAi_noop_passthrough_preserves_original_body_instance(bool? strip)
+    {
+        string body = """
+        { "model": "inbound", "input": "task", "tools": [{"type":"web_search"}], "tool_choice": "auto" }
+        """;
+        var provider = new ProviderRoute(
+            "p", ApiDialect.OpenAi, new Uri("https://p.example"), null, true, null, [],
+            RequestNormalization: RequestNormalization.CodexToOpenAiSdk,
+            SessionForwarding: SessionForwarding.OpencodeGo,
+            StripEncryptedContent: strip);
+        var decision = new RouteDecision(provider, "inbound", CachingEnabled: false, IsImposter: false);
+        var session = new SessionIdentity("session", SessionIdentitySource.Derived);
+
+        OpenAi().Transform(body, decision, "inbound", session).ShouldBeSameAs(body);
+    }
+
+    [Theory]
+    [InlineData(true, false, OpenAiUpstreamApi.Responses, false)]
+    [InlineData(false, true, OpenAiUpstreamApi.Responses, false)]
+    [InlineData(false, false, OpenAiUpstreamApi.ChatCompletions, false)]
+    [InlineData(false, false, OpenAiUpstreamApi.Responses, true)]
+    public void OpenAi_passthrough_fast_path_does_not_skip_required_body_changes(
+        bool isImposter, bool caching, OpenAiUpstreamApi api, bool strip)
+    {
+        string body = """
+        {"model":"inbound","input":[
+          {"type":"reasoning","encrypted_content":"cipher"},
+          {"role":"user","content":"task"}
+        ]}
+        """;
+        var provider = new ProviderRoute(
+            "p", ApiDialect.OpenAi, new Uri("https://p.example"), null, true, null, [],
+            OpenAiUpstreamApi: api, StripEncryptedContent: strip);
+        string target = isImposter ? "mapped" : "inbound";
+        var decision = new RouteDecision(provider, target, caching, isImposter);
+
+        JsonObject result = JsonNode.Parse(OpenAi().Transform(body, decision, "inbound", NoSession))!.AsObject();
+
+        result["model"]!.GetValue<string>().ShouldBe(target);
+        result.ContainsKey("prompt_cache_key").ShouldBe(caching);
+        if (api == OpenAiUpstreamApi.ChatCompletions)
+        {
+            result.ContainsKey("input").ShouldBeFalse();
+            result["messages"]!.AsArray().Single()!["content"]!.GetValue<string>().ShouldBe("task");
+        }
+        else
+        {
+            result["input"]!.AsArray().Count.ShouldBe(strip ? 1 : 2);
+        }
+    }
+
+    [Fact]
+    public void Anthropic_noop_passthrough_preserves_original_body_instance()
+    {
+        string body = """
+        { "model": "inbound", "messages": [{"role":"user","content":"task"}], "tools": [{"name":"f","input_schema":{}}] }
+        """;
+        var provider = new ProviderRoute("p", ApiDialect.Anthropic, new Uri("https://p.example"), null, true, null, []);
+        var decision = new RouteDecision(provider, "inbound", CachingEnabled: false, IsImposter: false);
+
+        new AnthropicRequestTransformer().Transform(body, decision, "inbound", NoSession).ShouldBeSameAs(body);
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Anthropic_passthrough_fast_path_does_not_skip_model_or_cache_changes(bool isImposter, bool caching)
+    {
+        string body = """{"model":"inbound","system":"instructions","messages":[{"role":"user","content":"task"}]}""";
+        var provider = new ProviderRoute("p", ApiDialect.Anthropic, new Uri("https://p.example"), null, true, null, []);
+        string target = isImposter ? "mapped" : "inbound";
+        var decision = new RouteDecision(provider, target, caching, isImposter);
+
+        JsonObject result = JsonNode.Parse(new AnthropicRequestTransformer().Transform(body, decision, "inbound", NoSession))!.AsObject();
+
+        result["model"]!.GetValue<string>().ShouldBe(target);
+        if (caching)
+        {
+            result["system"]!.AsArray().Single()!["cache_control"]!["type"]!.GetValue<string>().ShouldBe("ephemeral");
+            result["messages"]!.AsArray().Single()!["content"]!.AsArray().Single()!["cache_control"]!["type"]!.GetValue<string>().ShouldBe("ephemeral");
+        }
+        else
+        {
+            result["system"]!.GetValue<string>().ShouldBe("instructions");
+            result["messages"]!.AsArray().Single()!["content"]!.GetValue<string>().ShouldBe("task");
+        }
+    }
+
     [Fact]
     public void OpenAi_rewrites_model_and_sets_cache_key_when_caching_enabled()
     {

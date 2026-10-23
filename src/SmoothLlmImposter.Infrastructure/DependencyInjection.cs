@@ -5,11 +5,13 @@ using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Timeout;
+using SmoothLlmImposter.Application.Common.Clients.Decisions;
 using SmoothLlmImposter.Application.Common.Clients.GithubCopilot;
 using SmoothLlmImposter.Application.Common.Persistence;
 using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Infrastructure.Clients.GithubCopilot;
+using SmoothLlmImposter.Infrastructure.Clients.Decisions;
 using SmoothLlmImposter.Infrastructure.Persistence;
 using SmoothLlmImposter.Infrastructure.Persistence.GithubCopilot;
 using SmoothLlmImposter.Infrastructure.Persistence.Stores;
@@ -49,6 +51,39 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        IHttpClientBuilder decisionsClient = services.AddHttpClient(DecisionModelClient.HttpClientName, client =>
+            client.Timeout = Timeout.InfiniteTimeSpan);
+        decisionsClient.AddResilienceHandler("decisions-tools-retry", (builder, context) =>
+            {
+                DecisionsToolsOptions settings = context.ServiceProvider
+                    .GetRequiredService<IOptions<ImposterOptions>>().Value.DecisionsTools;
+                int maxAttempts = settings.Enabled ? settings.MaxAttempts : 3;
+                int timeoutSeconds = settings.Enabled ? settings.TimeoutSeconds : 60;
+
+                if (maxAttempts > 1)
+                {
+                    builder.AddRetry(new HttpRetryStrategyOptions
+                    {
+                        MaxRetryAttempts = maxAttempts - 1,
+                        Delay = TimeSpan.Zero,
+                        ShouldRetryAfterHeader = false,
+                        ShouldHandle = args => new ValueTask<bool>(
+                            args.Outcome.Exception is HttpRequestException or TimeoutRejectedException ||
+                            args.Outcome.Result?.StatusCode is
+                                System.Net.HttpStatusCode.BadGateway or System.Net.HttpStatusCode.ServiceUnavailable),
+                        OnRetry = args =>
+                        {
+                            args.Outcome.Result?.Dispose();
+                            return default;
+                        }
+                    });
+                }
+
+                builder.AddTimeout(TimeSpan.FromSeconds(timeoutSeconds));
+            });
+        decisionsClient.AddHttpMessageHandler(static () => new DecisionResponseBufferingHandler());
+        services.AddSingleton<IDecisionModelClient, DecisionModelClient>();
+
         services.AddHttpClient(UpstreamForwarder.HttpClientName, client =>
             client.Timeout = Timeout.InfiniteTimeSpan)
             .AddResilienceHandler("upstream-retry", builder =>

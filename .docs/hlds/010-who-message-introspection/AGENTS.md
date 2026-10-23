@@ -18,13 +18,10 @@ A request whose last user message is exactly `--who?` or `--newsession` (trimmed
 
 ## Non-Negotiables
 
-- **Do not make routing decisions based on `messages` content anywhere except the
-  switch responder.** (Body-shape transformation by HLD 004 / HLD 006 transformers is
-  fine; routing-shape inspection of `messages` is the switch responder's exclusive
-  job.) The proxy's transparency property (HLD 001) depends on routing decisions
-  staying opaque to message content; this HLD carves out exactly one sanctioned
-  inspection point, and a second one added silently elsewhere would break the
-  transparency invariant.
+- **Prompt-text inspection is restricted to the switch responder and the default-off
+  [HLD 014 decision-tool filter](../014-decisions-tools-filter/README.md).** Body-shape transformation
+  by HLD 004 / HLD 006 remains valid. Tool selection does not select a provider; no other
+  content-based routing or filtering is sanctioned.
 - **Do not synthesize SSE.** Streaming requests forward unchanged even when the last
   user message is a registered switch (`--who?` or `--newsession`, LADR-05). Adding
   streaming synthesis duplicates logic that already lives in the real transformers
@@ -118,6 +115,7 @@ See [nfrs/](./nfrs/) for measurable targets. The four that change how code is wr
 
 | Date | Change | Ref |
 | :---- | :---- | :---- |
+| 2026-10-22 | Sole-reader guard narrowed by HLD 014 | #138 |
 | 2026-07-25 | Initial HLD AGENTS.md — 5 LADRs, 3 NFRs, 1 diagram file (3 mermaid blocks). | — |
 | 2026-07-25 | Extended design (NOT YET IMPLEMENTED): proposed trigger is `--who?` (was `who?`); proposed `--newsession` switch + in-memory translation dictionary. HLD is **in design** — implementation lands in a follow-up commit. LADR-06 and NFR-04 are Draft. AI agents: do not modify the live `who?` trigger or the `IWhoMessageResponder` contract on the basis of this AGENTS.md alone. **Breaking change:** renaming the live `who?` trigger to `--who?`. | — |
 | 2026-07-25 | **Implemented:** `--who?` and `--newsession` switches + `ISessionTranslationDictionary` + forward-path translation seam. LADRs/NFRs → Accepted; HLD → Completed. Diagnostic logging added to `WhoMessageResponder` and `RoutingEndpoints` for non-match reasons. | — |

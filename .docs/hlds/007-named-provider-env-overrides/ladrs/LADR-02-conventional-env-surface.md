@@ -59,6 +59,25 @@ Key→prefix normalization, the post-configure mechanism, and the precedence tie
 conventional and structured paths are tactical concerns specified in
 [LADR-03](./LADR-03-resolution-mechanism.md).
 
+## Root decision-tools overrides (HLD 014)
+
+These are **global**, not provider suffixes; they must not enter the per-provider `Fields` table.
+The structured equivalent is `Imposter:DecisionsTools:<field>`.
+
+| Conventional env | Root field |
+|---|---|
+| `DECISIONS_TOOLS_ENABLED` | `Enabled` |
+| `DECISIONS_TOOLS_BASE_URL` | `BaseUrl` |
+| `DECISIONS_TOOLS_PATH` | `Path` |
+| `DECISIONS_TOOLS_MODEL` | `Model` |
+| `DECISIONS_TOOLS_MIN_PROBABILITY` | `MinProbability` |
+| `DECISIONS_TOOLS_MAX_ATTEMPTS` | `MaxAttempts` |
+| `DECISIONS_TOOLS_TIMEOUT` | `TimeoutSeconds` |
+
+The timeout env spelling deliberately omits `_SECONDS`. Blank values are absent; unparseable
+booleans/numbers warn and preserve the bound value. Numeric parsing uses invariant culture.
+Enabled-only validation and defaults are in the [operator settings table](../../../wiki/setup.md#optional-decision-model-tool-pre-filter).
+
 ## Alternatives Considered
 
 - **Secret-only convention (`<NAME>_API_KEY`)** — covers the 90% case but forces operators back

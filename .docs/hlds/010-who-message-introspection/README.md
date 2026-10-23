@@ -169,15 +169,14 @@ captured here so a future contributor does not invent the design ad-hoc.
 
 ## Core Separation of Concerns
 
-> The customized-switches short-circuit is the **one** place the proxy reads `messages`
-> content. It lives in Application as a string-in / string-out responder, invoked from
+> The customized-switches short-circuit and the opt-in [HLD 014 decision filter](../014-decisions-tools-filter/README.md)
+> are the sanctioned readers of `messages` content. The switch responder lives in Application as a string-in / string-out responder, invoked from
 > a single seam in the Host endpoint between `router.PlanAsync` and `forwarder.SendAsync`.
 > The in-memory session-id translation dictionary sits alongside the existing HLD 009
 > session-identity resolver on the same seam — but the dictionary only fires on the
 > *non-match* forward path, never on the short-circuit reply.
 
-No other component inspects message text; the rest of the pipeline remains an opaque
-proxy. The responder reuses `ImposterRouter.DescribeAuth` (made `internal static`) so
+Outside those two sanctioned inspections, the pipeline remains an opaque proxy. The responder reuses `ImposterRouter.DescribeAuth` (made `internal static`) so
 the auth-scheme string in the reply cannot drift from the string written to the log and
 to the wire — one source of truth for the same resolved value. The session-id
 dictionary reuses the existing `SessionIdentityResolver` resolution order; the
@@ -235,6 +234,7 @@ target, a verification mechanism, and acceptance criteria. See [`./nfrs/`](./nfr
 
 | Date | Change | Ref |
 | :---- | :---- | :---- |
+| 2026-10-22 | HLD 014 adds separate default-off prompt inspection | #138 |
 | 2026-07-25 | Initial draft — intent, 5 goals, 5 LADRs, 3 NFRs, 3 diagrams. | — |
 | 2026-07-25 | Implemented: `WhoMessageResponder` + endpoint seam + `Imposter:WhoMessage:Enabled` (default `true`) + env override `IMPOSTER_WHO_MESSAGE_ENABLED`. 17 L0 + 5 L2 tests pass. LADRs/NFRs → Accepted; HLD → Completed. | — |
 | 2026-07-25 | **Implemented:** `--who?` / `--newsession` switch family + `ISessionTranslationDictionary` + forward-path translation seam. LADR-02/03/04/06 + NFR-04 → Accepted. Diagnostic logging added to `WhoMessageResponder` (non-match reasons) and `RoutingEndpoints` (feature-disabled, translation applied). **Breaking change:** Bare `who?` trigger from initial HLD 010 implementation replaced by `--who?`. | — |

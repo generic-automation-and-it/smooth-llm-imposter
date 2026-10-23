@@ -27,6 +27,13 @@ internal sealed class OpenAiRequestTransformer : IRequestTransformer
         string inboundModel,
         SessionIdentity sessionIdentity)
     {
+        if (!decision.IsImposter && !decision.CachingEnabled &&
+            decision.Provider.OpenAiUpstreamApi == OpenAiUpstreamApi.Responses &&
+            decision.Provider.StripEncryptedContent != true)
+        {
+            return requestBody;
+        }
+
         JsonObject root = JsonNodeMaterializer.ParseObject(requestBody);
 
         // Normalize before the Responses→Chat conversion: a flattened namespace yields flat function

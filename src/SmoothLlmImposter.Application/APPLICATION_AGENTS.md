@@ -37,10 +37,20 @@ interfaces implemented in Infrastructure. Keep every admin request registered in
 explicit validator (the `ValidatorRegistrationTests` drift guard fails otherwise), and keep the login flow
 bounded/in-memory — no durable messaging, queue or reconcile endpoint.
 
+## Decision-tool routing stage (HLD 014)
+
+The routing-local decision filter is not a Mediator use case: it operates on opaque proxy body strings.
+Its HTTP contract remains Application-owned under `Common/Clients/Decisions`; it must not depend on the
+Infrastructure implementation or Host request context. Detailed selection intent belongs to HLD 014,
+not a parallel set of provider-routing rules.
+Classifier-only URL validation must not change the existing per-provider URL policy.
+[HLD 015](../../.docs/hlds/015-shared-decision-model-integration/README.md) proposes shared integration ownership; it is not the current runtime contract.
+
 ## Changelog
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-22 | Routing-local decision stage; classifier URL validation separate; HLD 015 proposed boundary | #138 |
 | 2026-05-30 | Created — empty vertical-slice skeleton (`Features/`, `Common/{Clients,Exceptions,Models,Persistence,Pipelines}/`, `Extensions/`). | — |
 | 2026-10-17 | NativeAOT support: validators registered explicitly in `DependencyInjection` (assembly scanning is trim-unsafe); `JsonArray.Add(JsonObject)` sites cast to `JsonNode` (same overload, no generic code-gen); `ValidatorRegistrationTests` guards the registration list. | — |
 | 2026-10-20 | GitHub Copilot slices + snapshot/publisher/startup/refresh registrations; reserved-key ownership consulted by provider CRUD. | #126 |
