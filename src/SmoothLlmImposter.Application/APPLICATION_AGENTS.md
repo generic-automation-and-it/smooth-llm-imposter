@@ -44,12 +44,15 @@ Its HTTP contract remains Application-owned under `Common/Clients/Decisions`; it
 Infrastructure implementation or Host request context. Detailed selection intent belongs to HLD 014,
 not a parallel set of provider-routing rules.
 Classifier-only URL validation must not change the existing per-provider URL policy.
+Tool ordering is a separate routing-local optimization (HLD 001 LADR-008), not a decision-model client
+concern or Mediator use case; do not attach its availability/rank policy to classifier answers.
 [HLD 015](../../.docs/hlds/015-shared-decision-model-integration/README.md) proposes shared integration ownership; it is not the current runtime contract.
 
 ## Changelog
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-23 | Tool-ordering ownership separate from decision-model filtering (LADR-008) | — |
 | 2026-10-22 | Routing-local decision stage; classifier URL validation separate; HLD 015 proposed boundary | #138 |
 | 2026-05-30 | Created — empty vertical-slice skeleton (`Features/`, `Common/{Clients,Exceptions,Models,Persistence,Pipelines}/`, `Extensions/`). | — |
 | 2026-10-17 | NativeAOT support: validators registered explicitly in `DependencyInjection` (assembly scanning is trim-unsafe); `JsonArray.Add(JsonObject)` sites cast to `JsonNode` (same overload, no generic code-gen); `ValidatorRegistrationTests` guards the registration list. | — |

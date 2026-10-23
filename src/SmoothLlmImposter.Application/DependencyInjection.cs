@@ -27,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<IRouteResolver, RouteResolver>();
         services.AddSingleton<IRequestNormalizer, CodexToOpenAiSdkNormalizer>();
         services.AddSingleton<IDecisionToolsFilter, DecisionToolsFilter>();
+        services.AddSingleton<IToolCatalogOrderer, ToolCatalogOrderer>();
         services.AddSingleton<IChatToResponsesTransformer, ChatToResponsesStreamTransformer>();
         services.AddSingleton<IRequestTransformer, OpenAiRequestTransformer>();
         services.AddSingleton<IRequestTransformer, AnthropicRequestTransformer>();
