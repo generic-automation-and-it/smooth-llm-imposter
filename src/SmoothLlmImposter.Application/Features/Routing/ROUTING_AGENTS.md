@@ -13,14 +13,16 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
   carry provider name + model names only, plus the safe session token `session=captured|derived|none` (HLD 009) —
   never the raw session value or fingerprint inputs.
 - **Transparent proxy — do not strip or rewrite the request.** The forwarder relays the caller's inbound
-  headers and body to the upstream **unchanged**, with exactly five sanctioned request-rewrite classes: (1) the
+  headers and body to the upstream **unchanged**, with exactly six sanctioned request-rewrite classes: (1) the
   **auth** header is managed (see below), (2) **caching injection** rewrites the body on a matched imposter
   route, (3) **opt-in request normalization** reshapes the body on a matched OpenAI imposter route that
   opted in (HLD 004 — see "Request normalization" below), and (4) **opt-in session-identity forwarding** stamps
   a resolved session id on a matched imposter route whose provider set `SessionForwarding` (HLD 009 — OpenAI
   body `session_id` + both-dialects header `x-opencode-session`), and
   (5) **operator-opt-in global decision-tool filtering** (HLD 014), default off and applicable on
-  **passthrough as well as imposter routes**. These five are **request-only**. A single
+  **passthrough as well as imposter routes**, and (6) **opt-in first-seen tool ordering**
+  (HLD 001 LADR-008), before routing transforms, for explicitly identified sessions on completion paths.
+  These six are **request-only**. A single
   sanctioned **response-synthesizing** inspection class exists (HLD 010 — see "Who-message probe" below) and
   is gated on a config toggle; the who-probe and decision filter are the sanctioned readers of
   `messages` content. The single sanctioned
@@ -154,6 +156,8 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 - **Request transformers materialize detached JSON nodes before mutation.** Parse request bodies through the
   routing-local materializer rather than directly using `JsonNode.Parse` in transformers; this keeps serialized
   output independent of `JsonDocument`/`JsonElement` pooled-buffer ownership after nested body rewrites.
+  Even `JsonArray.Add(string)` selects a trim-unsafe generic overload; materialize `JsonValue` and cast
+  to `JsonNode` before adding, including in internal hash-key construction.
 - **No Mediator / FluentValidation request pipeline here** (opaque proxy bodies). Validation is on
   configuration at startup (`ImposterOptionsValidator`), not on requests (HLD LADR-001).
 - **Provider configuration is runtime-mutable (HLD 008 Phase 1).** The startup config/env baseline seeds
@@ -186,16 +190,27 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
   remains in the runtime registry so re-enabling restores it.
   The "at most one default" validation counts enabled providers, so a disabled default can coexist with another
   enabled default, but re-enabling into a duplicate default is rejected by the admin mutation validation.
-- **Caching is per-dialect** (only when `Caching: true`): Anthropic injects ephemeral `cache_control` on the
-  `system` block (a string `system` is converted to a one-element block array) and on the last content block
-  of the last message; OpenAI sets `prompt_cache_key` to a resolved **session identity** when session forwarding
-  produced one, otherwise the **inbound** model name (HLD 009).
+- **Cache optimization cannot override harness availability.** Never retain removed definitions to warm
+  a cache. Anthropic's prefix order is tools → system → messages, so tool changes invalidate later
+  system/conversation reuse. A session key routes cache lookup; it is not a cache-hit guarantee.
+- **Caching is per-dialect** (only when `Caching: true`): on caller-unmarked Anthropic requests, inject
+  ephemeral `cache_control` on the last tool, `system` block and last message content block. Existing
+  explicit/automatic caller layouts take precedence (HLD 001 LADR-008). OpenAI injection is
+  **Responses-upstream-only**: `prompt_cache_key` uses a resolved **session identity** when session
+  forwarding produced one, otherwise the **inbound** model name (HLD 009); Chat downgrades gain no key.
+- **Ordering is not a tool registry or a session-forwarding feature.** HLD 001 LADR-008 is the only
+  opt-in rank-memory exception; skip derived identities and caller-managed/deferred catalogs. Keep it
+  before caching transforms, never after the Anthropic injector (which marks the final catalog tail).
+  Responses `input_text` cache breakpoints also make the layout caller-managed, even without
+  `prompt_cache_options`; do not inspect schema properties as cache controls. Eligible requests at
+  the rank limit still refresh scope activity before failing open, so recent traffic is not idle.
 - **Session identity forwarding (HLD 009)** is per-provider opt-in (`SessionForwarding: opencode-go`, conventional
   `<PREFIX>_SESSION_FORWARDING`). On matched imposter routes only, the router resolves once per request
   (headers `session_id`/`x-opencode-session`/`x-session-id`/`conversation_id` → body `prompt_cache_key`/
   `metadata.user_id` → stable fingerprint of caller identity material → none) and stamps OpenAI `session_id`
   plus `x-opencode-session` (Anthropic: header only). Passthrough stays byte-transparent unless
-  `DECISIONS_TOOLS_ENABLED` enables the independent HLD 014 request filter. The routing
+  `DECISIONS_TOOLS_ENABLED` enables the independent HLD 014 request filter or
+  `Imposter:ToolOrdering:Enabled` enables eligible catalog reordering. The routing
   Information line adds `route=imposter|passthrough` plus `session=captured|derived|none` and never logs the raw
   session value. Model-bearing passthrough logs keep the same `model '<inbound>' -> provider ... as '<target>'`
   shape as matched imposters, with `route=passthrough` and an unchanged target model; body-less passthrough logs
@@ -350,8 +365,12 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 ## Test References
 
 - **L0** `Domain.UnitTest/Routing` — matcher, dialect parser.
-- **L0** `Application.UnitTest/Routing` — resolver, transformers (cache injection, passthrough body identity and fast-path exclusions), router, error factory, options
+- **L0** `Application.UnitTest/Routing` — resolver, transformers (`AnthropicCachingTests` covers caller layouts,
+  tool-tail injection and idempotency; `ToolCatalogOrdererTests` covers isolation, expiry, capacity, concurrency
+  and current-definition fidelity; passthrough body identity and fast-path exclusions), router, error factory, options
   validator, `CodexToOpenAiSdkNormalizerTests` (normalization drop/flatten/name-rules/tool_choice/idempotency, flat+nested shapes), model-catalog responder, `WhoMessageResponderTests` (HLD 010 trigger semantics, envelope shape, streaming exclusion, no-secret-leakage).
+  Ordering guard tests must seed a reversible rank order in the same model/session/caller scope;
+  a fresh or mismatched scope makes a no-op assertion pass even when the guard is missing.
 - **L0** `Application.UnitTest/Routing/Decisions` — API golden shapes, history/choice integrity, body identity,
   bounded chunks, fail-open and cancellation, request-first state (reminder, Conductor and local-command wrappers, hook/system and tool-result turns
   excluded), all-skip fallback, deferred-loading skip, core-tool `AlwaysKeep`, minimum-kept floor, per-question memo (tool-call continuation, invalid-answer retry), byte-preserving output and log-safe removed names; root option/env/validator tests remain in `Application.UnitTest/Routing`.
@@ -359,6 +378,8 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 - **L2** `Host.IntegrationTest/DecisionToolsIntegrationTests` — prefixed/legacy paths, passthrough, downgrade,
   who-probe bypass, disabled bytes, decision-stage caller abort and Claude Code reminder-shaped state with
   verbatim forwarded messages.
+- **L2** `Host.IntegrationTest/ToolOrderingIntegrationTests` — config-enabled legacy/prefixed completion
+  paths, ordering-before-cache injection, passthrough and current-catalog removals.
 - **L3** `Upstream.EvalTest` — **live** opencode-go conformance eval (HLD 004): a raw Codex catalog run through the
   real transformer+normalizer is accepted (200), un-normalized is rejected (400). Excluded from `SmoothLlmImposter.slnx`;
   secret-gated on `OPENCODE_API_KEY`, neutral (skipped) when absent; runs only in `pr-evals-gate.yml`.
@@ -404,6 +425,8 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-23 | Ralph review: Responses text breakpoints preserve caller order; rank-cap traffic refreshes idle clock; seeded guard regressions | #147 |
+| 2026-10-23 | LADR-008 first-seen ranks; caller-owned layouts; tool-tail breakpoint; prefix hierarchy; explicit JsonNode adds | — |
 | 2026-10-23 | Decision filter: `AlwaysKeep` core tools skip the classifier, `MinKeepTools` floor tops up by score, small catalogs skip classification, default `MinProbability` back to 0.50 (HLD 014 LADR-08) | #138 |
 | 2026-10-23 | Decision state also strips Conductor `<system_instruction>` and Claude Code local-command wrappers (skill invocations kept); fail-open warning names HTTP status and model | — |
 | 2026-10-23 | Decision state is request-first (no post-request assistant text, system only as fallback); deferred-loading catalogs skipped; in-memory chunk memo; only `tools`/`tool_choice` rewritten; all-skip keeps catalog; `MinProbability` 0.20 | #138 |

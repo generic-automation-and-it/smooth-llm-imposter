@@ -28,6 +28,10 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 - **Decision-filter seam (HLD 014).** Invoke on the post-transform body after who-probe/session translation,
   before forwarding and inside the caller-abort guard. Use the effective upstream Chat path for a Responses
   downgrade; keep the enable/path/selection rules in Application, not endpoint lambdas.
+- **Tool-ordering seam (HLD 001 LADR-008).** Call the Application orderer on the original completion body
+  inside route planning's error boundary, before router transforms. A post-transform hook would move
+  Anthropic's injected tool-tail breakpoint away from the tail. Enabled ordering needs a captured
+  session but does not require provider session forwarding; disabled/body-less requests are no-ops.
 - An un-routed request returns `404` (and a body-less request with no dialect prefix has no model to route).
 - **The streaming relay owns both of its failure directions, and they are not symmetric.** A *caller* abort
   (`RequestAborted` signalled) returns quietly — nothing is left to deliver. An *upstream/transport* failure while
@@ -94,7 +98,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   `Imposter__Providers__<name>__Models__0__From=...`, the `/admin/providers` admin CRUD API, or
   `appsettings.Development.json`. An operator following the `Imposter__Providers__<name>__*` env convention will
   hit a dead end on `Models` without this note.
-- **NativeAOT publish is supported (opt-in) and the Docker image ships it.** `dotnet publish -p:PublishAot=true` produces a ~25 MB self-contained binary (verified macOS arm64); `Dockerfile` publishes per-`TARGETARCH` RIDs (`linux-musl-x64`/`arm64`, restore and publish both carry the property — publish-only silently emits JIT) onto `runtime-deps:10.0-alpine` + `icu-libs`, for a ~73 MB image (was 131 MB JIT on `aspnet`). Rules for keeping it working: every endpoint body/return DTO must be listed in `Configuration/ImposterJsonContext.cs` (a missing one crashes the AOT host at startup; JIT never notices); no `JsonArray.Add<T>` with non-primitive `T` (cast to `JsonNode`); no assembly scanning; Serilog levels stay code-applied; the EF Core `ImposterDb` path fail-fasts under AOT (`RuntimeFeature.IsDynamicCodeSupported` — stateless/InMemory path unaffected). Third-party trim warnings are `NoWarn`-scoped to `PublishAot` builds only in `Directory.Build.props`; our own IL2026/IL3050 stay errors. `/health` returns a `HealthResponse` record (not an anonymous type) so source-gen covers it — wire shape unchanged (`{"status":"ok"}`). Do NOT add `--platform=$BUILDPLATFORM` to the SDK stage (ILC cannot cross-compile; multi-arch relies on per-platform emulation).
+- **NativeAOT publish is supported (opt-in) and the Docker image ships it.** `dotnet publish -p:PublishAot=true` produces a ~25 MB self-contained binary (verified macOS arm64); `Dockerfile` publishes per-`TARGETARCH` RIDs (`linux-musl-x64`/`arm64`, restore and publish both carry the property — publish-only silently emits JIT) onto `runtime-deps:10.0-alpine` + `icu-libs`, for a ~73 MB image (was 131 MB JIT on `aspnet`). Rules for keeping it working: every endpoint body/return DTO must be listed in `Configuration/ImposterJsonContext.cs` (a missing one crashes the AOT host at startup; JIT never notices); no `JsonArray.Add<T>` with non-primitive `T` (cast to `JsonNode`); no assembly scanning; Serilog levels stay code-applied; the EF Core `ImposterDb` path fail-fasts under AOT (`RuntimeFeature.IsDynamicCodeSupported` — stateless/InMemory path unaffected). Third-party trim warnings are `NoWarn`-scoped to `PublishAot` builds only in `Directory.Build.props`; our own IL2026/IL3050 stay errors. `/health` returns a `HealthResponse` record (not an anonymous type) so source-gen covers it — wire shape unchanged (`{"status":"ok"}`). Do NOT cross-compile or use QEMU for NativeAOT verification: each Linux architecture builds and runs on a matching native runner. This change was exercised on macOS ARM64 and Linux musl ARM64; AMD64 execution is still external.
 - **Runtime provider-config admin endpoints (HLD 008 Phase 1).** `Endpoints/ProviderConfigurationEndpoints.cs`
   maps `/admin/providers` and requires the existing `CredentialAdmin` policy. Endpoints are thin HTTP-to-Mediator
   adapters only; the Application slices own validation, registry mutation, secret preservation, and enable/disable
@@ -117,6 +121,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-23 | Pre-transform ordering seam (LADR-008); native ARM64 verified, AMD64 external; no QEMU | — |
 | 2026-10-22 | Post-transform decision-filter seam under caller-abort guard | #138 |
 | 2026-10-21 | Scalar root redirect/preferred auth without embedded secrets; list-before-discovery workflow | — |
 | 2026-08-12 | Mid-stream **upstream** failures no longer escape into Kestrel's post-`HasStarted` error path (a no-op that logged an unhandled stack and truncated the SSE). `RoutingEndpoints` now ends the response itself: 502 JSON if nothing was written, otherwise a dialect/path-shaped terminal SSE error frame. The pre-existing caller-abort filter is unchanged — only exceptions it does **not** match reach the new handler. | — |

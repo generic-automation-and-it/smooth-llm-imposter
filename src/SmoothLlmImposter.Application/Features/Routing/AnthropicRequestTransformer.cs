@@ -5,8 +5,8 @@ namespace SmoothLlmImposter.Application.Features.Routing;
 
 /// <summary>
 /// Anthropic-dialect transform: rewrites <c>model</c> and, when caching is enabled, injects ephemeral
-/// <c>cache_control</c> breakpoints the upstream would not add itself — on the <c>system</c> prompt and
-/// on the last content block of the last message (the two most effective, stable breakpoints).
+/// <c>cache_control</c> breakpoints on tools, system and the last message when the caller has not
+/// supplied an explicit or automatic caching layout.
 /// Mirrors the proxy's prompt-cache injection (LADR-06).
 /// </summary>
 internal sealed class AnthropicRequestTransformer : IRequestTransformer
@@ -34,14 +34,29 @@ internal sealed class AnthropicRequestTransformer : IRequestTransformer
 
         root["model"] = decision.TargetModel;
 
-        if (decision.CachingEnabled)
+        if (decision.CachingEnabled && !HasCallerCacheControl(root))
         {
+            if (root["tools"] is JsonArray tools)
+            {
+                MarkLastObject(tools);
+            }
+
             InjectSystemCacheControl(root);
             InjectLastMessageCacheControl(root);
         }
 
         return root.ToJsonString();
     }
+
+    internal static bool HasCallerCacheControl(JsonObject root) =>
+        root["cache_control"] is not null ||
+        HasCacheControl(root["tools"] as JsonArray) ||
+        HasCacheControl(root["system"] as JsonArray) ||
+        (root["messages"] is JsonArray messages &&
+         messages.OfType<JsonObject>().Any(message => HasCacheControl(message["content"] as JsonArray)));
+
+    private static bool HasCacheControl(JsonArray? blocks) =>
+        blocks?.OfType<JsonObject>().Any(block => block["cache_control"] is not null) == true;
 
     private static void InjectSystemCacheControl(JsonObject root)
     {

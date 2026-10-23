@@ -179,6 +179,13 @@ When the same field is set both ways, the **conventional** value wins.
 
 ### Optional decision-model tool pre-filter
 
+For cache behavior when an agent adds or removes tools, see
+[Prompt caching with dynamic agent tools](prompt-caching.md). Stable catalogs can improve prefix reuse;
+neither the decision memo nor a session cache key guarantees an upstream cache hit.
+Optional `Imposter__ToolOrdering__Enabled=true` remembers first-seen order per explicit session,
+appends new tools and leaves removed tools removed; see the guide's
+[ordering policy and limits](prompt-caching.md#optional-session-local-stable-ordering).
+
 `DECISIONS_TOOLS_ENABLED=true` opts **all** supported imposter and passthrough routes into tool pruning
 before forwarding. It is **off by default**; no shipped `appsettings*.json` or default container command
 enables it. The [Conductor workspace installer](setups/conductor.build-smooth-llm-imposter.md#optional-decision-tool-filter)

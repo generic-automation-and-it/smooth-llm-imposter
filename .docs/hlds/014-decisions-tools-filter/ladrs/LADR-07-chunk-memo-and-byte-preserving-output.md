@@ -21,7 +21,9 @@
 
 ## Consequences
 
-- Later agent steps of a user turn, including tool-call continuations, reuse answers and forward the same tool set; a new human message re-classifies once.
+- Later agent steps reuse unchanged questions' answers; a new human message changes state and asks
+  uncached questions. Stable inputs can preserve the kept set, but catalog/protection changes can alter
+  it. Decision memo hits do not establish upstream prompt-cache hits.
 - The memo is per process and lost on restart; a decision model swapped under the same id keeps stale answers until restart.
 - Messages, system and metadata reach the upstream exactly as the client sent them; the pruned `tools` array is re-encoded but JSON-equivalent.
 - Deferred-loading catalogs are never pruned.

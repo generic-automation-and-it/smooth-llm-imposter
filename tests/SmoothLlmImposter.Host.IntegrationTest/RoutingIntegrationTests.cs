@@ -93,7 +93,11 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
 
         using HttpResponseMessage response = await client.PostAsync(
             "/v1/messages",
-            Json("""{"model":"claude-haiku-20241022","system":"you are helpful","messages":[{"role":"user","content":"hi"}]}"""),
+            Json("""
+            {"model":"claude-haiku-20241022","system":"you are helpful","messages":[{"role":"user","content":"hi"}],
+             "tools":[{"name":"zebra","input_schema":{"type":"object"}},
+                      {"name":"alpha","input_schema":{"type":"object"}}]}
+            """),
             Ct);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
@@ -104,6 +108,10 @@ public sealed class RoutingIntegrationTests(ImposterAppFixture fixture) : IClass
         JsonNode forwarded = JsonNode.Parse(fixture.Upstream.LastRequestBody!)!;
         forwarded["model"]!.GetValue<string>().ShouldBe("claude-3-5-haiku-latest");
         forwarded["system"]!.AsArray()[0]!["cache_control"]!["type"]!.GetValue<string>().ShouldBe("ephemeral");
+        JsonArray tools = forwarded["tools"]!.AsArray();
+        tools.Select(tool => tool!["name"]!.GetValue<string>()).ShouldBe(["zebra", "alpha"]);
+        tools[0]!.AsObject().ContainsKey("cache_control").ShouldBeFalse();
+        tools[1]!["cache_control"]!["type"]!.GetValue<string>().ShouldBe("ephemeral");
     }
 
     [Fact]

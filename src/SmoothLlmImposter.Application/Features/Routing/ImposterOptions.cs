@@ -29,6 +29,13 @@ public sealed class ImposterOptions
     public WhoMessageOptions WhoMessage { get; init; } = new();
 
     public DecisionsToolsOptions DecisionsTools { get; init; } = new();
+
+    public ToolOrderingOptions ToolOrdering { get; init; } = new();
+}
+
+public sealed class ToolOrderingOptions
+{
+    public bool Enabled { get; set; }
 }
 
 public sealed class DecisionsToolsOptions
