@@ -1,6 +1,6 @@
 # LADR-04: Explicit failure and cancellation under bounded transport
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

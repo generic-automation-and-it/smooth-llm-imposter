@@ -1,6 +1,6 @@
 # LADR-03: One uncached, process-wide service budget
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 
@@ -23,6 +23,7 @@ This is a local budget, not distributed coordination or a fairness guarantee. Th
 - Independent consumers cannot accidentally overlap admitted decision calls.
 - Head-of-line blocking and admission timeout are accepted costs.
 - Multiple Host processes can still contend at the same remote service.
+- Implemented 2026-10-24: the gate is a dedicated singleton component that every client instance receives, so a second client registration cannot create a second budget.
 
 ## Open
 

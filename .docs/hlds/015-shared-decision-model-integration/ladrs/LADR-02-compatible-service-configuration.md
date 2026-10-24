@@ -1,6 +1,6 @@
 # LADR-02: Shared ownership without operator configuration churn
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 
@@ -26,6 +26,7 @@ One startup-scoped service profile is sufficient. Multiple destinations, hot rel
 - Existing deployments need no settings migration to preserve tool-filter behavior.
 - Legacy tool-prefixed names remain temporarily awkward for a shared capability.
 - Disabling tool filtering does not disable another independently opted-in consumer.
+- Implemented 2026-10-24, resolving the three shipped deviations recorded in Context: validation and the resilience profile follow an any-consumer opt-in predicate, and the client reads a consumer-neutral transport profile mapped from the unchanged operator surface. While no consumer is opted in, the profile is built from defaults, so invalid unused settings stay inert.
 
 ## Open
 

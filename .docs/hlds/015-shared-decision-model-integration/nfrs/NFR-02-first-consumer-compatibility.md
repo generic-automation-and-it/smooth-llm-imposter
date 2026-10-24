@@ -1,6 +1,6 @@
 # NFR-02: First-consumer compatibility
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Requirement
 
