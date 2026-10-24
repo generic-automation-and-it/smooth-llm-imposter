@@ -418,7 +418,7 @@ Conventions: base request `{"model":"m","max_tokens":100,"messages":[...]}` unle
 | V11 | no `messages` | 400 `messages: Field required` |
 | V12 | `messages: []` | 400 `messages: at least one message is required` |
 | V13 | `messages: [{"role":"user","content":"  \n"}]` | 400 `messages: no message contains usable content` |
-| V14 | message role `system` | 400 `messages.0.role: Input should be 'user' or 'assistant'` |
+| V14 | message role `system`, content `"note"` (messages `u, s, u`) | `u`, `s: "note"`, `u`: the system message keeps its position per 7.0 (default `system` mode); never 400 (R17 admits `system`) |
 | V15 | `content: null` | 400 `messages.0.content: Field required` |
 | V16 | `content: ["hi"]` | 400 `messages.0.content.0: Input should be a valid dictionary` |
 | V17 | block `{"text":"x"}` without type | 400 `messages.0.content.0.type: Field required` |
@@ -442,7 +442,7 @@ Conventions: base request `{"model":"m","max_tokens":100,"messages":[...]}` unle
 | P11 | `userIdMode: hash`, user_id `user_0f1e_account_9a8b_session_7c6d` | `user: "f1875a946a35b4b918e331e8cc32f68f"` |
 | P12 | `userIdMode: off` (explicit) with a user_id | no `user` |
 | P13 | text block with `citations` | text only |
-| P14 | tool with `defer_loading: true`, `eager_input_streaming`, `strict: true` | tool present; those keys absent; no `strict` |
+| P14 | tool with `defer_loading: true`, `eager_input_streaming`, `strict: "yes"` (not boolean) | tool present; those keys absent; no `strict` (boolean `strict` is forwarded per section 8, I90) |
 | P15 | header `anthropic-beta: x` | no effect on body |
 | P16 | custom tool `{"type":"custom","name":"x","input_schema":{...}}` | accepted as custom |
 | P17 | tool without name | 400 `tools.0.name: Field required` |
