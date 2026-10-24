@@ -165,6 +165,43 @@ public sealed class ProviderOptions
     /// </summary>
     public int? TimeoutSeconds { get; set; }
 
+    /// <summary>
+    /// Anthropic-dialect upstream API surface (HLD 016). Defaults to <c>messages</c>; set to
+    /// <c>chat_completions</c> to opt a matched imposter route into the Messages-to-Chat bridge.
+    /// Only valid on the <c>anthropic</c> dialect, and requires the effective auth scheme to be <c>Bearer</c>.
+    /// </summary>
+    public string? AnthropicUpstreamApi { get; set; }
+
+    /// <summary>Optional vendor compatibility profile for the bridge (HLD 016): none, deepseek, minimax, mimo or zhipu.</summary>
+    public string? CompatProfile { get; set; }
+
+    /// <summary>Opt-in per provider for sending Chat reasoning controls (HLD 016). Default false.</summary>
+    public bool? SendReasoningEffort { get; set; }
+
+    /// <summary>How <c>metadata.user_id</c> becomes the Chat <c>user</c> field (HLD 016): off, hash or passthrough.</summary>
+    public string? UserIdMode { get; set; }
+
+    /// <summary>Name of the Chat output-limit key (HLD 016): max_tokens or max_completion_tokens.</summary>
+    public string? MaxTokensField { get; set; }
+
+    /// <summary>Optional upper cap applied to the bridged output limit (HLD 016), integer &gt;= 16.</summary>
+    public int? MaxOutputTokens { get; set; }
+
+    /// <summary>Copies Anthropic-style <c>cache_control</c> objects onto Chat parts (HLD 016). Default false.</summary>
+    public bool? ForwardCacheControl { get; set; }
+
+    /// <summary>Maps <c>output_config.format</c> to Chat <c>response_format</c> (HLD 016). Default false.</summary>
+    public bool? SendResponseFormat { get; set; }
+
+    /// <summary>How an unsupported document block is bridged (HLD 016): placeholder or image.</summary>
+    public string? DocumentMode { get; set; }
+
+    /// <summary>Moves a leading think-markup span into reasoning text (HLD 016). Default false.</summary>
+    public bool? ThinkMarkupExtraction { get; set; }
+
+    /// <summary>How an in-sequence system message is bridged (HLD 016): system or merge_into_user.</summary>
+    public string? MidturnSystem { get; set; }
+
     /// <summary>From→to model mappings owned by this provider. Structured-only — not part of the
     /// conventional env surface (HLD 007 LADR-02).</summary>
     public List<ModelMappingOptions> Models { get; init; } = [];

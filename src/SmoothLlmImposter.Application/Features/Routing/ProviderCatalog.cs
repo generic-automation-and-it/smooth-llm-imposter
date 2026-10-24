@@ -46,7 +46,19 @@ internal sealed class ProviderCatalog : IProviderCatalog
                 string.IsNullOrWhiteSpace(provider.AuthHeader) ? null : provider.AuthHeader,
                 SessionForwardingParser.Parse(provider.SessionForwarding),
                 provider.StripEncryptedContent,
-                provider.TimeoutSeconds);
+                provider.TimeoutSeconds,
+                new AnthropicChatBridgeOptions(
+                    AnthropicUpstreamApiParser.Parse(provider.AnthropicUpstreamApi),
+                    AnthropicChatCompatProfileParser.Parse(provider.CompatProfile),
+                    provider.SendReasoningEffort ?? false,
+                    AnthropicChatUserIdModeParser.Parse(provider.UserIdMode),
+                    AnthropicChatMaxTokensFieldParser.Parse(provider.MaxTokensField),
+                    provider.MaxOutputTokens,
+                    provider.ForwardCacheControl ?? false,
+                    provider.SendResponseFormat ?? false,
+                    AnthropicChatDocumentModeParser.Parse(provider.DocumentMode),
+                    provider.ThinkMarkupExtraction ?? false,
+                    AnthropicChatMidturnSystemParser.Parse(provider.MidturnSystem)));
 
             if (!_byDialect.TryGetValue(dialect, out List<ProviderRoute>? routes))
             {

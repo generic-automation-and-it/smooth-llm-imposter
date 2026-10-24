@@ -82,6 +82,8 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
                 failures.Add($"{prefix}:OpenAiUpstreamApi '{provider.OpenAiUpstreamApi}' is invalid (expected 'responses' or 'chat_completions').");
             }
 
+            AddAnthropicChatBridgeFailures(prefix, provider, failures);
+
             if (!CredentialAuthSchemeParser.TryParse(provider.AuthScheme, out _))
             {
                 failures.Add($"{prefix}:AuthScheme '{provider.AuthScheme}' is invalid (expected 'ApiKey' or 'Bearer').");
@@ -213,6 +215,73 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         }
     }
 
+    private static void AddAnthropicChatBridgeFailures(string prefix, ProviderOptions provider, List<string> failures)
+    {
+        if (!AnthropicUpstreamApiParser.TryParse(provider.AnthropicUpstreamApi, out AnthropicUpstreamApi upstreamApi))
+        {
+            failures.Add($"{prefix}:AnthropicUpstreamApi '{provider.AnthropicUpstreamApi}' is invalid (expected 'messages' or 'chat_completions').");
+            return;
+        }
+
+        if (!AnthropicChatCompatProfileParser.TryParse(provider.CompatProfile, out _))
+        {
+            failures.Add($"{prefix}:CompatProfile '{provider.CompatProfile}' is invalid (expected 'none', 'deepseek', 'minimax', 'mimo' or 'zhipu').");
+        }
+
+        if (!AnthropicChatUserIdModeParser.TryParse(provider.UserIdMode, out _))
+        {
+            failures.Add($"{prefix}:UserIdMode '{provider.UserIdMode}' is invalid (expected 'off', 'hash' or 'passthrough').");
+        }
+
+        if (!AnthropicChatMaxTokensFieldParser.TryParse(provider.MaxTokensField, out _))
+        {
+            failures.Add($"{prefix}:MaxTokensField '{provider.MaxTokensField}' is invalid (expected 'max_tokens' or 'max_completion_tokens').");
+        }
+
+        if (!AnthropicChatDocumentModeParser.TryParse(provider.DocumentMode, out _))
+        {
+            failures.Add($"{prefix}:DocumentMode '{provider.DocumentMode}' is invalid (expected 'placeholder' or 'image').");
+        }
+
+        if (!AnthropicChatMidturnSystemParser.TryParse(provider.MidturnSystem, out _))
+        {
+            failures.Add($"{prefix}:MidturnSystem '{provider.MidturnSystem}' is invalid (expected 'system' or 'merge_into_user').");
+        }
+
+        if (provider.MaxOutputTokens is int maxOutputTokens && maxOutputTokens < 16)
+        {
+            failures.Add($"{prefix}:MaxOutputTokens '{maxOutputTokens}' must be at least 16, or omitted.");
+        }
+
+        if (upstreamApi != AnthropicUpstreamApi.ChatCompletions)
+        {
+            return;
+        }
+
+        if (ApiDialectParser.TryParse(provider.Dialect, out ApiDialect dialect) && dialect != ApiDialect.Anthropic)
+        {
+            failures.Add($"{prefix}:AnthropicUpstreamApi 'chat_completions' is only valid on the 'anthropic' dialect.");
+        }
+
+        // The bridged forwarder writes a router-managed credential; a Chat-only upstream that speaks the
+        // Anthropic ApiKey scheme (the dialect default) cannot authenticate that way. LADR-01 requires a
+        // Bearer-capable scheme, so an omitted AuthScheme (which resolves to ApiKey) is also a failure.
+        CredentialAuthScheme effectiveScheme;
+        if (CredentialAuthSchemeParser.TryParse(provider.AuthScheme, out CredentialAuthScheme? scheme) && scheme is not null)
+        {
+            effectiveScheme = scheme.Value;
+        }
+        else
+        {
+            effectiveScheme = UpstreamAuthResolver.DefaultSchemeFor(dialect);
+        }
+
+        if (effectiveScheme != CredentialAuthScheme.Bearer)
+        {
+            failures.Add($"{prefix}:AnthropicUpstreamApi 'chat_completions' requires an effective AuthScheme of 'Bearer' (set AuthScheme to 'Bearer').");
+        }
+    }
+
     private static void AddReservedKeyFailures(
         string prefix,
         ProviderOptions provider,
@@ -260,6 +329,12 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         if (provider.StripEncryptedContent == true)
         {
             failures.Add($"{prefix}:StripEncryptedContent cannot be enabled for a reserved GitHub Copilot provider.");
+        }
+
+        if (!AnthropicUpstreamApiParser.TryParse(provider.AnthropicUpstreamApi, out AnthropicUpstreamApi anthropicUpstreamApi) ||
+            anthropicUpstreamApi != AnthropicUpstreamApi.Messages)
+        {
+            failures.Add($"{prefix}:AnthropicUpstreamApi must be 'messages' for a reserved GitHub Copilot provider; the Messages-to-Chat bridge is out of scope.");
         }
 
         if (!GithubCopilotTransportPolicy.IsAllowedOrigin(provider.BaseUrl))
