@@ -273,7 +273,7 @@ Risk: the client sees no tool name or input while a long call is being generated
 ### 5.6 Compaction and repair (MUST)
 
 - Compaction removes insignificant whitespace outside string literals. String literals (with their escapes) and number lexemes are copied unchanged (no numeric round trip); member order and duplicate keys are preserved.
-- Repair, one attempt, bounded by MAX_TOOL_ARGS_BYTES and MAX_JSON_DEPTH: (1) if the text ends inside a string literal, remove an incomplete trailing escape sequence (a lone backslash or a partial `\uXXXX`) if present and append `"`; (2) append the closing `}`/`]` required by the still-open containers, innermost first; (3) strict-parse; accept only if the result is a JSON object. No other edit is permitted: a dangling `,` or `:`, a key without a value, a partial literal or number such as `tru` or `1.`, a mismatched bracket, or nesting deeper than MAX_JSON_DEPTH make the repair fail. Keys and values are never invented.
+- Repair, one attempt, bounded by MAX_TOOL_ARGS_BYTES and MAX_JSON_DEPTH: (1) if the text ends inside a string literal, remove an incomplete trailing escape sequence (a lone backslash or a partial `\uXXXX`) if present and append `"`; (2) remove a single dangling trailing `,` (ignoring trailing whitespace); (3) append the closing `}`/`]` required by the still-open containers, innermost first; (4) strict-parse; accept only if the result is a JSON object. No other edit is permitted: a dangling `:`, a key without a value, a partial literal or number such as `tru` or `1.`, a mismatched bracket, or nesting deeper than MAX_JSON_DEPTH make the repair fail. Keys and values are never invented. (Same rule as 02 section 7.4, which is authoritative for tool-argument repair.)
 
 ---
 
