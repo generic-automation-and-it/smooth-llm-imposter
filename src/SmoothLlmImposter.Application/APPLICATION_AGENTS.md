@@ -46,12 +46,15 @@ not a parallel set of provider-routing rules.
 Classifier-only URL validation must not change the existing per-provider URL policy.
 Tool ordering is a separate routing-local optimization (HLD 001 LADR-008), not a decision-model client
 concern or Mediator use case; do not attach its availability/rank policy to classifier answers.
+Per-session process memory (ordering ranks, HLD 014 sticky tool sets) goes through `SessionScopedMemory`
+and `SessionScope` keys; do not add another unbounded or unhashed session map.
 [HLD 015](../../.docs/hlds/015-shared-decision-model-integration/README.md) proposes shared integration ownership; it is not the current runtime contract.
 
 ## Changelog
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-23 | Shared bounded `SessionScopedMemory` for ordering and sticky tool sets | — |
 | 2026-10-23 | Tool-ordering ownership separate from decision-model filtering (LADR-008) | — |
 | 2026-10-22 | Routing-local decision stage; classifier URL validation separate; HLD 015 proposed boundary | #138 |
 | 2026-05-30 | Created — empty vertical-slice skeleton (`Features/`, `Common/{Clients,Exceptions,Models,Persistence,Pipelines}/`, `Extensions/`). | — |

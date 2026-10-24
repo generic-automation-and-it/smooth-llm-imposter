@@ -187,29 +187,9 @@ public sealed class ToolCatalogOrdererTests
         ToolCatalogOrderer orderer = Create(clock: clock);
         Order(orderer, "session", "zebra", "alpha");
 
-        clock.Advance(ToolCatalogOrderer.IdleLifetime);
+        clock.Advance(SessionScopedMemory<object>.IdleLifetime);
 
         Order(orderer, "session", "alpha", "zebra").ShouldBe(["alpha", "zebra"]);
-    }
-
-    [Fact]
-    public void Session_capacity_evicts_the_least_recently_used_scope()
-    {
-        var clock = new ManualClock();
-        ToolCatalogOrderer orderer = Create(clock: clock);
-        Order(orderer, "refreshed", "zebra", "alpha");
-        for (int index = 0; index < ToolCatalogOrderer.MaxSessions - 1; index++)
-        {
-            clock.Advance(TimeSpan.FromMilliseconds(1));
-            Order(orderer, $"session-{index}", "zebra", "alpha");
-        }
-        clock.Advance(TimeSpan.FromMilliseconds(1));
-        Order(orderer, "refreshed", "alpha", "zebra");
-        clock.Advance(TimeSpan.FromMilliseconds(1));
-        Order(orderer, "overflow", "zebra", "alpha");
-
-        Order(orderer, "session-0", "alpha", "zebra").ShouldBe(["alpha", "zebra"]);
-        Order(orderer, "refreshed", "alpha", "zebra").ShouldBe(["zebra", "alpha"]);
     }
 
     [Fact]
