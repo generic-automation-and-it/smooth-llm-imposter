@@ -2,9 +2,7 @@
 
 ## TL;DR
 
-Passthrough credentials are for passthrough/default routing only. They are stored as protected ciphertext,
-managed through `/admin/credentials`, keyed by `(ProviderDialect, ProviderName)`, and resolved only after
-routing determines `IsImposter == false`.
+Passthrough/default-routing credentials only: protected ciphertext managed via `/admin/credentials`, keyed by `(ProviderDialect, ProviderName)`, resolved after routing determines `IsImposter == false`.
 
 ## Non-Negotiables
 
@@ -23,7 +21,7 @@ routing determines `IsImposter == false`.
 
 Matched imposter routes are still config-only **except** for reserved Copilot provider keys: those resolve a
 managed Bearer token and origin from the feature's published connection snapshot (see
-[`Features/GithubCopilot/GITHUB_COPILOT_AGENTS.md`](../GithubCopilot/GITHUB_COPILOT_AGENTS.md)). The generic
+[`Features/GithubCopilot/AGENTS.md`](../GithubCopilot/AGENTS.md)). The generic
 `ICredentialStore` and the passthrough override path are unchanged, and the Copilot store is a separate
 feature-owned SQLite file with its own key ring — never add Copilot tokens to this credential subsystem.
 
@@ -35,3 +33,4 @@ feature-owned SQLite file with its own key ring — never add Copilot tokens to 
 | 2026-06-15 | Centralized validation→400 via global `IExceptionHandler`; constant-time admin key comparison. | HLD 002 |
 | 2026-06-21 | HLD 008 Phase 2: credentials are provider-keyed, in-memory by default, EF optional; activation is scoped per provider. | #50 |
 | 2026-10-20 | Documented the narrow HLD 013 exception and its boundary from the generic credential store. | #126 |
+| 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery); in-file links updated. No behavior change. | #152 |

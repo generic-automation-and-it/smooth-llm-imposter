@@ -1,4 +1,4 @@
-# HOST_AGENTS.md
+# Host — Layer Context
 
 ## TL;DR
 
@@ -24,7 +24,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   upstream Chat Completions response back to Responses shape before writing to the caller. `CallerHeaders` are
   captured once and shared by route planning (HLD 009 session resolve) and the forwarder (header relay + optional
   `x-opencode-session` stamp). Routing/transform semantics live in Application — see
-  `Features/Routing/ROUTING_AGENTS.md`.
+  `Features/Routing/AGENTS.md`.
 - **Decision-filter seam (HLD 014).** Invoke on the post-transform body after who-probe/session translation,
   before forwarding and inside the caller-abort guard. Use the effective upstream Chat path for a Responses
   downgrade; keep the enable/path/selection rules in Application, not endpoint lambdas. Also pass the captured
@@ -123,6 +123,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery); in-file links updated. No behavior change. | #152 |
 | 2026-10-23 | Decision filter also receives caller headers and pre-transform body (LADR-09) | — |
 | 2026-10-23 | Pre-transform ordering seam (LADR-008); native ARM64 verified, AMD64 external; no QEMU | — |
 | 2026-10-22 | Post-transform decision-filter seam under caller-abort guard | #138 |

@@ -63,7 +63,7 @@ tests/
 - Use `Mediator` (martinothamar) — not `MediatR`.
 - Add a FluentValidation validator for each request model and enforce validation in a fail-fast Mediator pipeline.
 - If a use case suggests durable/asynchronous processing, explicitly prompt whether to introduce Message Queue or Message Streaming before generating that integration.
-- Update the closest `*_AGENTS.md` context file in each PR.
+- Update the closest nested `AGENTS.md` context file in each PR.
 
 ## Changelog
 

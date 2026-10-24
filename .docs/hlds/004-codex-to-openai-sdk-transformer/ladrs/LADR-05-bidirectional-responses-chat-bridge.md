@@ -69,7 +69,7 @@ explicitly-downgraded route is permitted.
 
 - The router gains its **first response-side logic** — a bounded, forward-only, per-stream state
   machine. It must stay streaming; any buffering reintroduces the LADR-003 hazard.
-- HLD 001 LADR-003 is **narrowed, not discarded**, and `ROUTING_AGENTS.md` must record the narrowing
+- HLD 001 LADR-003 is **narrowed, not discarded**, and `AGENTS.md` must record the narrowing
   as a third boundary (alongside the request-rewrite classes).
 - HLD 001 **LADR-007** (rename + response remap, rejected for streaming cost) is partially vindicated
   for **wire-shape** remap: a disciplined incremental remap is accepted here, while tool-name handling

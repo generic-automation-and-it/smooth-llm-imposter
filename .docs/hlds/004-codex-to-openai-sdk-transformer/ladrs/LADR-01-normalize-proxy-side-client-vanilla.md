@@ -38,7 +38,7 @@ the individual normalizations — is intentionally not decided here; each is its
 ## Consequences
 
 - Clients stay vanilla; upstream-compatibility knowledge is centralized in one place.
-- The transparent-proxy non-negotiable in `ROUTING_AGENTS.md` gains a third documented exception;
+- The transparent-proxy non-negotiable in `AGENTS.md` gains a third documented exception;
   it must be updated, and the boundary (LADR-02) is what keeps "transparent" meaningful.
 - HLD 001 LADR-006 is superseded and must carry a supersession note.
 

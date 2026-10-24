@@ -8,7 +8,7 @@ alwaysApply: true
 ---
 # AGENTS.md Quality Standards
 
-Rules for writing and updating `*_AGENTS.md` files. Applies whenever you create or modify an AGENTS.md — including Phase 8 (Bragi) updates. Updated: 2026-02-28
+Rules for writing and updating nested `AGENTS.md` files. Applies whenever you create or modify an AGENTS.md — including Phase 8 (Bragi) updates. Updated: 2026-02-28
 
 ## Purpose
 
@@ -71,7 +71,7 @@ If none of the three apply, remove it. If at least one applies, keep it — but 
 
 ## Drift Minimization
 
-When AI agents make code changes, they MUST update the corresponding `*_AGENTS.md` context sections to reflect the actual implementation. Drift between code and context documentation degrades AI coding quality over time.
+When AI agents make code changes, they MUST update the corresponding nested `AGENTS.md` context sections to reflect the actual implementation. Drift between code and context documentation degrades AI coding quality over time.
 
 **Rules:**
 - **Update obligation**: If a code change modifies behavior documented in an AGENTS.md file (Key Behaviors, Architecture Decisions, System Context diagrams, ER relationships), the AGENTS.md MUST be updated in the same commit or PR.

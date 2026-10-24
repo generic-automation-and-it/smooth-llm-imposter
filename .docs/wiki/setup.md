@@ -283,7 +283,7 @@ and translates the response back. This downgrade rejects Responses-native input 
 (`OpenAiUpstreamApi=responses`) for future testing, but currently returns 422 because no provider serves
 `/v1/responses` for these models yet. To re-enable the route when a provider adds `/v1/responses` support,
 follow the "Re-enable by confirming provider support" steps in
-[`ROUTING_AGENTS.md` Migration Plans](../../src/SmoothLlmImposter.Application/Features/Routing/ROUTING_AGENTS.md#migration-plans);
+[`AGENTS.md` Migration Plans](../../src/SmoothLlmImposter.Application/Features/Routing/AGENTS.md#migration-plans);
 the route will work without further configuration changes.
 
 For generic OpenAI-compatible SDK/API-key clients, keep `/v1` in the client base URL because those clients append

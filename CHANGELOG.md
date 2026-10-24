@@ -141,7 +141,7 @@ All notable changes to SmoothLlmImposter are documented here.
   - SSE streamed end-to-end (unbuffered); dialect-shaped error envelopes; provider keys sourced from
     config/env only and never persisted. Caller credentials are forwarded only on the key-less passthrough
     path (see below) — never on matched imposter routes.
-  - `.docs/hld/001-llm-imposter-routing/` HLD and `Features/Routing/ROUTING_AGENTS.md` feature context.
+  - `.docs/hld/001-llm-imposter-routing/` HLD and `Features/Routing/AGENTS.md` feature context.
 - **Transparent header forwarding + key-less catch-all passthrough.** The forwarder now proxies the caller's
   full inbound header set (`CallerHeaders`) to the upstream verbatim, minus a fixed hop-by-hop/content/auth
   set — so `anthropic-beta` (and beta body fields like `context_management`), vendor `x-*` headers, and the

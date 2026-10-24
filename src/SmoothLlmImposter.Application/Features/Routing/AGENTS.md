@@ -2,10 +2,7 @@
 
 ## TL;DR
 
-Stateless same-dialect LLM router: reads the inbound `model`, rewrites it to a configured upstream
-("imposter") or passes through to the dialect's default provider, optionally injecting prompt caching,
-and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imposter-routing/`
-(`README.md` index → `diagrams/`, `nfrs/`, `ladrs/` subfolders).
+Stateless same-dialect LLM router: rewrites the inbound `model` to a configured upstream (or the dialect default passthrough), optionally injects prompt caching, and streams the response back; design rationale lives in `.docs/hlds/001-llm-imposter-routing/`.
 
 ## Non-Negotiables
 
@@ -362,7 +359,7 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
   dialect-shaped `permission_error` (`RoutingEndpoints.ErrorTypeFor`). Never falls back to `x-api-key`/config key
   (LADR-005). Arm-time refusal (no active credential at `PUT`) is handled in the Mediator slice, not here.
 - The switch adds **no** DB read of its own — it gates HLD 002's existing active-credential lookup (NFR-003).
-  See `Features/AuthorizationOverride/AUTHORIZATION_OVERRIDE_AGENTS.md` for the toggle slices and endpoint contract.
+  See `Features/AuthorizationOverride/AGENTS.md` for the toggle slices and endpoint contract.
 
 ## Test References
 
@@ -427,6 +424,7 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery); in-file links updated. No behavior change. | #152 |
 | 2026-10-23 | Sticky decision tools per session (HLD 014 LADR-09); `SessionScopedMemory` extracted from the orderer | — |
 | 2026-10-23 | Ralph review: Responses text breakpoints preserve caller order; rank-cap traffic refreshes idle clock; seeded guard regressions | #147 |
 | 2026-10-23 | LADR-008 first-seen ranks; caller-owned layouts; tool-tail breakpoint; prefix hierarchy; explicit JsonNode adds | — |
@@ -480,5 +478,5 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 | 2026-07-02 | Added optional `AuthHeader` (provider option + `ProviderRoute` + `<PREFIX>_AUTH_HEADER` env surface + runtime CRUD body/response) overriding only the header **name** the credential is written into; value format still follows `AuthScheme` (`UpstreamAuthResolver.DefaultHeaderNameFor` is the fallback). Forwarder writes `provider.AuthHeader ?? DefaultHeaderNameFor(scheme)`, drops a relayed caller header of that name, and masks the custom header in the Debug dump. Bearer value formatting is now idempotent (no double `Bearer ` prefix). The `AuthHeader` override is exercised in `AuthHeaderOverrideIntegrationTests` (test-only `mycompany-openai` config with `AuthHeader: api-key`). | — |
 | 2026-07-02 | Hardened `AuthHeader` validation across startup config and `/admin/providers`: blank/malformed names and transport-owned headers (`Content-*`, `Host`, `Transfer-Encoding`) are rejected before the forwarder can try to write credentials into non-request headers. | #53 review |
 | 2026-07-04 | Amended HLD 008 runtime consumption: `ProviderCatalog` now reads the already-seeded `IProviderRegistry` directly in each scoped catalog instead of forcing per-request `IOptionsSnapshot<ImposterOptions>` binding. This preserves next-request mutation visibility while removing the reflection configuration binder from the request path. | — |
-| 2026-07-26 | Ungated the shared-provider secret base fallback in `ImposterOptionsPostConfigure.TrySharedProviderSecretPrefix`: a lone dialect-suffixed provider (`openrouter-anthropic`) now resolves its `Secret` from the bare base env var (`OPENROUTER_API_KEY`) after its own suffixed var, with no sibling/base-provider requirement. The opencode-go shared-base case is unchanged. Added `Lone_dialect_suffixed_provider_resolves_base_api_key_without_sibling`. Doc comment + `ROUTING_AGENTS.md` Key Behavior updated. | #92 |
+| 2026-07-26 | Ungated the shared-provider secret base fallback in `ImposterOptionsPostConfigure.TrySharedProviderSecretPrefix`: a lone dialect-suffixed provider (`openrouter-anthropic`) now resolves its `Secret` from the bare base env var (`OPENROUTER_API_KEY`) after its own suffixed var, with no sibling/base-provider requirement. The opencode-go shared-base case is unchanged. Added `Lone_dialect_suffixed_provider_resolves_base_api_key_without_sibling`. Doc comment + `AGENTS.md` Key Behavior updated. | #92 |
 | 2026-10-20 | Managed Copilot credential seam: reserved-profile routes resolve from the published snapshot and stamp `RoutePlan.Copilot`; D1 identity enforced in provider CRUD; path/origin policy in `UpstreamForwarder`. Fixed the stale singular `.docs/hld/001-…` link. | #126 |
