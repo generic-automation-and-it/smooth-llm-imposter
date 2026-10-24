@@ -497,7 +497,7 @@ Output frames: `MS`, `PING`, `B+(i,text)`, `B+(i,think)` (always with `"signatur
 | C26 | args `{"a":[1,2` , F:stop | repaired: `{"a":[1,2]}` |
 | C27 | args `{"a":}` , F:tool_calls | ERR{api_error,"Upstream returned invalid arguments for tool call <name>"} |
 | C28 | args `{"a":` , F:tool_calls | repair fails -> ERR (as C27) |
-| C29 | args `{"a":1,` , F:tool_calls | repair fails -> ERR |
+| C29 | args `{"a":1,` , F:tool_calls | repaired: `{"a":1}` (dangling comma removed per §5.6 step 2) |
 | C30 | args `[1]` or `"x"` , F:tool_calls | not an object, repair fails -> ERR (a JSON `null` argument contributes nothing per 5.1 and becomes `{}` per 5.5) |
 | C31 | args `{"path":"/t","content":"hel` , F:length, U | call cut off by length: dropped, no block; MD{max_tokens;...};MX |
 | C32 | args `{"a":1}` pending, F:length | valid as is: TU emitted; MD{tool_use;...} |
