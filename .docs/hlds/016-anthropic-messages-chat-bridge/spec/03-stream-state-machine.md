@@ -293,13 +293,13 @@ Risk: the client sees no tool name or input while a long call is being generated
 
 A usage object is recognized when it is a JSON object (top-level `usage`, else the choice's `usage`). Counters are read only when they are finite JSON numbers (strings, null, booleans are ignored); each field is overwritten individually, last value wins.
 
-| Counter | Sources, first present wins |
+| Counter | Sources, first present wins (same candidate lists as 02 section 10.1, read from the recognized usage object) |
 |---|---|
-| prompt | `prompt_tokens`, `input_tokens` |
-| completion | `completion_tokens`, `output_tokens` |
+| prompt | `prompt_tokens`, `input_tokens`, `prompt_cache_hit_tokens` + `prompt_cache_miss_tokens` (only if both are counts) |
+| completion | `completion_tokens`, `output_tokens`, if `total_tokens` and prompt are counts: `total_tokens - prompt` (floor 0) |
 | total | `total_tokens` |
-| cacheRead | `prompt_tokens_details.cached_tokens`, `input_tokens_details.cached_tokens`, `cached_tokens`, `cache_read_input_tokens`, `cache_read_tokens`, then (only when none of the preceding is present) the vendor alias `prompt_cache_hit_tokens` |
-| cacheWrite | `prompt_tokens_details.cache_write_tokens`, `prompt_tokens_details.cache_creation_tokens`, `input_tokens_details.cache_write_tokens`, `cache_creation_input_tokens`, `cache_creation_tokens`, `cache_write_tokens` |
+| cacheRead | `prompt_tokens_details.cached_tokens`, `input_tokens_details.cached_tokens`, `cached_tokens`, `prompt_cache_hit_tokens`, `cache_read_input_tokens`, `cache_read_tokens` |
+| cacheWrite | `prompt_tokens_details.cache_write_tokens`, `prompt_tokens_details.cache_creation_tokens`, `input_tokens_details.cache_write_tokens`, `input_tokens_details.cache_creation_tokens`, `cache_creation_input_tokens`, `cache_creation_tokens`, `cache_write_tokens` |
 
 Placeholders: an object with no recognized numeric counter (`{}`, nulls) and an object whose recognized prompt, completion and total counters are all 0 are placeholders: they MUST NOT set `usageAfterFinish` and MUST NOT overwrite previously merged non-zero counters. A reported prompt of 0 is treated as unreported.
 
