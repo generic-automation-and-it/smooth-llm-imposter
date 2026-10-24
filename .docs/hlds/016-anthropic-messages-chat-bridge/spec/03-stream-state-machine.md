@@ -182,8 +182,8 @@ Invariant: a pending call and an open text/thinking block never coexist (the fir
 On CHUNK:
 1. If not started: START.
 2. Interpret the chunk (2.3).
-3. For each reasoning piece (6): if any call is pending, COMPLETE_ALL(content). If openKind != thinking: CLOSE_BLOCK, open a thinking block (index nextIdx++, write thinking start). Write the thinking delta.
-4. For each text piece: if any call is pending, COMPLETE_ALL(content). If openKind != text: CLOSE_BLOCK, open a text block (index nextIdx++, write text start). Write the text delta. A whitespace-only piece is an ordinary piece (D12).
+3. For each reasoning piece (6): if any call is pending, COMPLETE_ALL(content). If openKind != thinking: CLOSE_BLOCK, open a thinking block (index nextIdx++, write thinking start). Write the thinking delta. Add the piece text to outputEstimateState.
+4. For each text piece: if any call is pending, COMPLETE_ALL(content). If openKind != text: CLOSE_BLOCK, open a text block (index nextIdx++, write text start), emittedTextBlocks++. Write the text delta. Add the piece text to outputEstimateState. A whitespace-only piece is an ordinary piece (D12).
 5. For each tool entry in array order: TOOL_ENTRY.
 6. If the chunk has a non-empty finish_reason: finishReason = it; if not finishSeen then finishSeen = true and finishDeadline = now + FINISH_GRACE; COMPLETE_ALL(finish).
 7. Merge the chunk's usage (7.1). If finishSeen and the merged-in usage object carried at least one recognized non-placeholder counter in this chunk: usageAfterFinish = true.
@@ -258,7 +258,7 @@ Calls are always emitted one after another, in ascending (upstreamIndex, orderNo
 
 ### 5.5 EMIT_CALL(call, trigger)
 
-1. Name: if the call has no name: drop it (warning). If it is the only call seen in the message AND no text block has been emitted, FAIL(api_error, "Upstream returned a tool call without a name") (D4); otherwise continue.
+1. Name: if the call has no name: drop it (warning). If it is the only call seen in the message AND emittedTextBlocks == 0, FAIL(api_error, "Upstream returned a tool call without a name") (D4); otherwise continue.
 2. Arguments (D4), applied to the held text with surrounding whitespace removed:
    - If `lengthCut` (the call was still pending when the stream ended by the length limit): empty text -> drop the call; text that strictly parses to a JSON object -> use it compacted; anything else -> drop the call. No repair is attempted. A dropped call writes nothing (warning log).
    - Otherwise: empty -> `{}`; strictly parses to a JSON object -> use it compacted; otherwise (invalid JSON, or valid JSON that is not an object) make ONE repair attempt (5.6): if the repaired text parses to an object use it compacted, else FAIL(api_error, "Upstream returned invalid arguments for tool call <name>"). `{}` is never substituted for non-empty broken arguments.
