@@ -12,7 +12,7 @@
 
 **Adopt** a provider option `AnthropicUpstreamApi` with values `messages` (default) and `chat_completions`. The provider stays an Anthropic-dialect provider: inbound `/v1/messages` models still match it, and only its upstream wire changes. The bridge runs only on a **matched imposter route** of such a provider; passthrough/default routes never translate.
 
-The option follows the plumbing every provider option needs (options model, env suffix, cloner, both admin DTOs, validator). A `chat_completions` provider is rejected at startup/upsert when its auth scheme cannot produce a Bearer credential, because a Chat upstream does not accept `x-api-key`.
+The option follows the plumbing every provider option needs (options model, env suffix, cloner, both admin DTOs, validator). A `chat_completions` provider is rejected at startup/upsert when its effective auth scheme (the provider's `AuthScheme`, else the Anthropic default `ApiKey`) cannot produce a managed credential, because a bridged route needs a router-managed credential of a form the upstream accepts.
 
 ## Consequences
 
