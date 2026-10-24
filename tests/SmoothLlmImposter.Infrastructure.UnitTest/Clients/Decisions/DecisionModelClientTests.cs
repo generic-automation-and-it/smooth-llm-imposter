@@ -334,6 +334,27 @@ public class DecisionModelClientTests
     }
 
     [Fact]
+    public async Task A_null_model_is_treated_as_omitted_and_the_request_is_not_mutated()
+    {
+        string? sentModel = "not-sent";
+        var handler = new CallbackHandler(async (_, request, ct) =>
+        {
+            JsonObject sent = JsonNode.Parse(await request.Content!.ReadAsStringAsync(ct))!.AsObject();
+            sentModel = sent["model"]?.GetValue<string>();
+            return Success();
+        });
+        await using ServiceProvider provider = BuildProvider(handler, settings => settings.Model = "service-default");
+        JsonObject nullModel = NonToolRequest("a");
+        nullModel["model"] = null;
+
+        await provider.GetRequiredService<IDecisionModelClient>().DecideAsync(nullModel, Ct);
+
+        sentModel.ShouldBe("service-default");
+        nullModel.ContainsKey("model").ShouldBeTrue();
+        nullModel["model"].ShouldBeNull();
+    }
+
+    [Fact]
     public async Task Separately_constructed_clients_share_the_process_gate()
     {
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
