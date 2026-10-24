@@ -189,7 +189,7 @@ appends new tools and leaves removed tools removed; see the guide's
 `DECISIONS_TOOLS_ENABLED=true` opts **all** supported imposter and passthrough routes into tool pruning
 before forwarding. It is **off by default**; no shipped `appsettings*.json` or default container command
 enables it. The [Conductor workspace installer](setups/conductor.build-smooth-llm-imposter.md#optional-decision-tool-filter)
-forwards the nine variables below without enabling the feature. Configuration is read at startup; restart
+forwards the ten variables below without enabling the feature. Configuration is read at startup; restart
 or recreate the container after changing it.
 
 | Environment variable | `Imposter:DecisionsTools` field | Default | Enabled-only validation |
@@ -201,6 +201,7 @@ or recreate the container after changing it.
 | `DECISIONS_TOOLS_MIN_PROBABILITY` | `MinProbability` | `0.50` | 0–1 inclusive |
 | `DECISIONS_TOOLS_MIN_KEEP` | `MinKeepTools` | `20` | 0–1000 (`0` disables the floor) |
 | `DECISIONS_TOOLS_ALWAYS_KEEP` | `AlwaysKeep` | `Bash,Read,Edit,Write,Skill` | — (comma-separated tool names) |
+| `DECISIONS_TOOLS_STICKY_PER_SESSION` | `StickyPerSession` | `false` | — |
 | `DECISIONS_TOOLS_MAX_ATTEMPTS` | `MaxAttempts` | `3` | 1–10 inclusive |
 | `DECISIONS_TOOLS_TIMEOUT` | `TimeoutSeconds` | `60` | 1–3600 seconds |
 
@@ -218,7 +219,10 @@ unknown tools are kept, and a pass that would leave no tool keeps the whole cata
 `DECISIONS_TOOLS_ALWAYS_KEEP` are never asked about or removed (the defaults are Claude Code's core tool names;
 set your client's own names for other agents), and at least `DECISIONS_TOOLS_MIN_KEEP` tools are always
 forwarded — the highest-scoring ones fill the floor — so a vague request cannot shrink the catalog to a handful.
-Catalogs of that size or smaller are not classified at all. Each pruning pass logs the removed tool names at Information level. Service
+Catalogs of that size or smaller are not classified at all. With `DECISIONS_TOOLS_STICKY_PER_SESSION=true`, a
+tool the filter forwarded stays forwarded for the rest of that chat while the client still sends it, so the
+upstream prompt cache is not invalidated by the filter between turns; it needs an explicit per-chat session id
+(see the [caching guide](prompt-caching.md)) and trades growing tool tokens for a stable prefix. Each pruning pass logs the removed tool names at Information level. Service
 failure keeps unresolved tools and continues inference; the warning names the HTTP status and model. A `400` on
 every request usually means the model is not a decision model — LM Studio must list it with `"type": "decision"`
 in `/api/v1/models` (for example `kev-4b` or `openjev`); a model it lists as `llm` is rejected as

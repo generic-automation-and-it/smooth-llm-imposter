@@ -249,6 +249,50 @@ public sealed class DecisionToolsIntegrationTests
         app.Escaped.ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task Sticky_session_keeps_a_tool_sent_earlier_while_chats_without_session_ids_share_nothing()
+    {
+        bool firstTurn = true;
+        var decisions = new StubDecisionClient
+        {
+            Decide = (request, _) =>
+            {
+                var answers = new JsonObject();
+                foreach ((string key, JsonNode? question) in request["questions"]!.AsObject())
+                {
+                    string instructions = question!["instructions"]!.GetValue<string>();
+                    double use = instructions.Contains("read_file", StringComparison.Ordinal) ||
+                        (firstTurn && instructions.Contains("web_search", StringComparison.Ordinal)) ? 0.9 : 0.1;
+                    answers[key] = new JsonObject { ["probabilities"] = new JsonObject { ["use"] = use } };
+                }
+
+                return Task.FromResult(new JsonObject { ["answers"] = answers });
+            }
+        };
+        using var app = new App(decisions, enabled: true, sticky: true);
+        string Turn(string input) => Body("responses", "caching-imposter").Replace("Read the file", input, StringComparison.Ordinal);
+        async Task<string[]> Send(string input, string? session)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/v1/responses") { Content = Json(Turn(input)) };
+            if (session is not null)
+            {
+                request.Headers.Add("x-session-id", session);
+            }
+            using HttpResponseMessage response = await app.Client.SendAsync(request, Ct);
+            response.StatusCode.ShouldBe(HttpStatusCode.OK);
+            JsonObject forwarded = JsonNode.Parse(app.Upstream.LastRequestBody!)!.AsObject();
+            forwarded["prompt_cache_key"]!.GetValue<string>().ShouldBe("caching-imposter");
+            return forwarded["tools"]!.AsArray().Select(tool => ToolName(tool!, "responses")).ToArray();
+        }
+
+        (await Send("Read the file", "chat")).ShouldBe(["read_file", "web_search"]);
+        (await Send("Read the file", null)).ShouldBe(["read_file", "web_search"]);
+        firstTurn = false;
+
+        (await Send("Read it again", "chat")).ShouldBe(["read_file", "web_search"]);
+        (await Send("Read it again", null)).ShouldBe(["read_file"]);
+    }
+
     private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
 
     private static string Body(string shape, string model) => shape switch
@@ -306,14 +350,14 @@ public sealed class DecisionToolsIntegrationTests
         private readonly ImposterAppFixture _base = new();
         private readonly WebApplicationFactory<HostApp::Program> _factory;
 
-        public App(IDecisionModelClient decisions, bool? enabled = null, bool defaultSelection = false)
+        public App(IDecisionModelClient decisions, bool? enabled = null, bool defaultSelection = false, bool sticky = false)
         {
             _factory = _base.WithWebHostBuilder(builder =>
             {
                 builder.ConfigureAppConfiguration((_, config) =>
                 {
                     config.Sources.Clear();
-                    config.AddInMemoryCollection(Config(enabled, defaultSelection));
+                    config.AddInMemoryCollection(Config(enabled, defaultSelection, sticky));
                 });
                 builder.ConfigureServices(services =>
                 {
@@ -341,9 +385,9 @@ public sealed class DecisionToolsIntegrationTests
             _base.Dispose();
         }
 
-        private static Dictionary<string, string?> Config(bool? enabled, bool defaultSelection)
+        private static Dictionary<string, string?> Config(bool? enabled, bool defaultSelection, bool sticky)
         {
-            var config = new Dictionary<string, string?>();
+            var config = new Dictionary<string, string?> { ["Imposter:DecisionsTools:StickyPerSession"] = sticky.ToString() };
             if (enabled.HasValue)
             {
                 config["Imposter:DecisionsTools:Enabled"] = enabled.Value.ToString();
@@ -363,7 +407,7 @@ public sealed class DecisionToolsIntegrationTests
                 config[$"{prefix}:IsDefault"] = "true";
             }
 
-            foreach (string shape in new[] { "chat", "responses", "anthropic", "downgrade" })
+            foreach (string shape in new[] { "chat", "responses", "anthropic", "downgrade", "caching" })
             {
                 string prefix = $"Imposter:Providers:{shape}-mapped";
                 config[$"{prefix}:Dialect"] = shape == "anthropic" ? "anthropic" : "openai";
@@ -373,6 +417,10 @@ public sealed class DecisionToolsIntegrationTests
                 if (shape == "downgrade")
                 {
                     config[$"{prefix}:OpenAiUpstreamApi"] = "chat_completions";
+                }
+                if (shape == "caching")
+                {
+                    config[$"{prefix}:Models:0:Caching"] = "true";
                 }
             }
 

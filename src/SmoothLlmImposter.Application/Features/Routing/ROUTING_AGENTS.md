@@ -333,7 +333,9 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
   lives in [HLD 014](../../../../.docs/hlds/014-decisions-tools-filter/README.md); do not couple the global gate to
   `IsImposter`, caching, normalization or session forwarding. Known tool-history references are replay
   dependencies, not prompt text — never rename or remove historical calls when pruning the catalog. Successful
-  classifier summaries log the canonical body shape, never the caller-controlled upstream path.
+  classifier summaries log the canonical body shape, never the caller-controlled upstream path. Optional sticky
+  selection (LADR-09) records only completed passes; recording must stay ahead of the "nothing removed" early
+  return, and the session identity must come from the inbound body, not the transformed one.
 
 ## Credential Overrides
 
@@ -366,18 +368,18 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 
 - **L0** `Domain.UnitTest/Routing` — matcher, dialect parser.
 - **L0** `Application.UnitTest/Routing` — resolver, transformers (`AnthropicCachingTests` covers caller layouts,
-  tool-tail injection and idempotency; `ToolCatalogOrdererTests` covers isolation, expiry, capacity, concurrency
-  and current-definition fidelity; passthrough body identity and fast-path exclusions), router, error factory, options
+  tool-tail injection and idempotency; `ToolCatalogOrdererTests` covers scope isolation, expiry wiring, rank capacity,
+  concurrency and current-definition fidelity; `SessionScopedMemoryTests` covers scope isolation, idle expiry, LRU eviction and serialized use; passthrough body identity and fast-path exclusions), router, error factory, options
   validator, `CodexToOpenAiSdkNormalizerTests` (normalization drop/flatten/name-rules/tool_choice/idempotency, flat+nested shapes), model-catalog responder, `WhoMessageResponderTests` (HLD 010 trigger semantics, envelope shape, streaming exclusion, no-secret-leakage).
   Ordering guard tests must seed a reversible rank order in the same model/session/caller scope;
   a fresh or mismatched scope makes a no-op assertion pass even when the guard is missing.
 - **L0** `Application.UnitTest/Routing/Decisions` — API golden shapes, history/choice integrity, body identity,
   bounded chunks, fail-open and cancellation, request-first state (reminder, Conductor and local-command wrappers, hook/system and tool-result turns
-  excluded), all-skip fallback, deferred-loading skip, core-tool `AlwaysKeep`, minimum-kept floor, per-question memo (tool-call continuation, invalid-answer retry), byte-preserving output and log-safe removed names; root option/env/validator tests remain in `Application.UnitTest/Routing`.
+  excluded), all-skip fallback, deferred-loading skip, core-tool `AlwaysKeep`, minimum-kept floor, per-question memo (tool-call continuation, invalid-answer retry), byte-preserving output, log-safe removed names, and sticky-per-session retention/non-recording/scoping; root option/env/validator tests remain in `Application.UnitTest/Routing`.
 - **L0** `Infrastructure.UnitTest/Clients/Decisions` — real resilience, full-body timeout, singleton gate and retry status policy.
 - **L2** `Host.IntegrationTest/DecisionToolsIntegrationTests` — prefixed/legacy paths, passthrough, downgrade,
-  who-probe bypass, disabled bytes, decision-stage caller abort and Claude Code reminder-shaped state with
-  verbatim forwarded messages.
+  who-probe bypass, disabled bytes, decision-stage caller abort, Claude Code reminder-shaped state with
+  verbatim forwarded messages, and sticky retention while session-less chats on a caching route share nothing.
 - **L2** `Host.IntegrationTest/ToolOrderingIntegrationTests` — config-enabled legacy/prefixed completion
   paths, ordering-before-cache injection, passthrough and current-catalog removals.
 - **L3** `Upstream.EvalTest` — **live** opencode-go conformance eval (HLD 004): a raw Codex catalog run through the
@@ -425,6 +427,7 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-23 | Sticky decision tools per session (HLD 014 LADR-09); `SessionScopedMemory` extracted from the orderer | — |
 | 2026-10-23 | Ralph review: Responses text breakpoints preserve caller order; rank-cap traffic refreshes idle clock; seeded guard regressions | #147 |
 | 2026-10-23 | LADR-008 first-seen ranks; caller-owned layouts; tool-tail breakpoint; prefix hierarchy; explicit JsonNode adds | — |
 | 2026-10-23 | Decision filter: `AlwaysKeep` core tools skip the classifier, `MinKeepTools` floor tops up by score, small catalogs skip classification, default `MinProbability` back to 0.50 (HLD 014 LADR-08) | #138 |

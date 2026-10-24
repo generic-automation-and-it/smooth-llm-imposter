@@ -17,6 +17,12 @@ internal sealed record DecisionTool(int Index, string Label, string Description)
                 return new DecisionTool(item.index, LabelFor(tool), DescriptionFor(tool));
             }).ToArray();
 
+    public static string[] KnownLabels(JsonArray tools, DecisionBodyShape shape, IReadOnlySet<int> excluded) =>
+        tools.Select((node, index) => (node, index))
+            .Where(item => !excluded.Contains(item.index) && item.node is JsonObject tool && IsKnown(tool, shape))
+            .Select(item => LabelFor((JsonObject)item.node!))
+            .ToArray();
+
     public static bool UsesDeferredLoading(JsonArray tools) =>
         tools.OfType<JsonObject>().Any(tool =>
             DecisionJson.Text(tool["type"]).StartsWith("tool_search", StringComparison.Ordinal) ||

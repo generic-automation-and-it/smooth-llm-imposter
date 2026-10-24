@@ -54,6 +54,8 @@ public sealed class DecisionsToolsOptions
 
     public string AlwaysKeep { get; set; } = "Bash,Read,Edit,Write,Skill";
 
+    public bool StickyPerSession { get; set; }
+
     public int MaxAttempts { get; set; } = 3;
 
     public int TimeoutSeconds { get; set; } = 60;

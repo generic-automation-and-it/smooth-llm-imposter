@@ -586,12 +586,151 @@ public sealed class DecisionToolsFilterTests
         logs.Events.ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task Sticky_session_keeps_previously_sent_tool_without_asking_when_classifier_now_skips_it()
+    {
+        var logs = new FilterLogger();
+        double first = 1;
+        var client = new DecisionStub { Answer = request => Answers(request, key => key == "t0" ? first : key == "t4" ? 1 : 0) };
+        DecisionToolsFilter filter = Create(client, logs, sticky: true);
+        (await Turn(filter, "First task", Session("chat"))).ShouldBe(["tool0", "tool4"]);
+        first = 0;
+
+        (await Turn(filter, "Second task", Session("chat"))).ShouldBe(["tool0", "tool4"]);
+
+        client.Requests[^1]["questions"]!.AsObject().Select(pair => pair.Key).ShouldBe(["t1", "t2", "t3"]);
+        logs.Events.ShouldContain((LogLevel.Debug, "Decisions filter Responses: 2 sticky tools kept without asking"));
+    }
+
+    [Fact]
+    public async Task Sticky_disabled_reasks_and_removes_a_tool_sent_earlier_in_the_session()
+    {
+        double first = 1;
+        var client = new DecisionStub { Answer = request => Answers(request, key => key == "t0" ? first : key == "t4" ? 1 : 0) };
+        DecisionToolsFilter filter = Create(client);
+        await Turn(filter, "First task", Session("chat"));
+        first = 0;
+
+        (await Turn(filter, "Second task", Session("chat"))).ShouldBe(["tool4"]);
+    }
+
+    [Fact]
+    public async Task Sticky_records_a_pass_that_removes_nothing()
+    {
+        bool keepAll = true;
+        var client = new DecisionStub { Answer = request => Answers(request, _ => keepAll ? 1 : 0) };
+        DecisionToolsFilter filter = Create(client, sticky: true);
+        await Turn(filter, "First task", Session("chat"));
+        keepAll = false;
+        int asked = client.Requests.Count;
+
+        (await Turn(filter, "Second task", Session("chat"))).ShouldBe(["tool0", "tool1", "tool2", "tool3", "tool4"]);
+        client.Requests.Count.ShouldBe(asked);
+    }
+
+    [Fact]
+    public async Task Sticky_does_not_record_fail_open_all_skip_or_small_catalog_passes()
+    {
+        var client = new DecisionStub { FailCall = 1, Answer = request => Answers(request, key => key == "t4" ? 1 : 0) };
+        DecisionToolsFilter failOpen = Create(client, sticky: true);
+        (await Turn(failOpen, "First task", Session("chat"))).Length.ShouldBe(5);
+        (await Turn(failOpen, "Second task", Session("chat"))).ShouldBe(["tool4"]);
+
+        bool allSkip = true;
+        client = new DecisionStub { Answer = request => Answers(request, key => !allSkip && key == "t4" ? 1 : 0) };
+        DecisionToolsFilter skipped = Create(client, sticky: true);
+        (await Turn(skipped, "First task", Session("chat"))).Length.ShouldBe(5);
+        allSkip = false;
+        (await Turn(skipped, "Second task", Session("chat"))).ShouldBe(["tool4"]);
+
+        client = new DecisionStub { Answer = request => Answers(request, key => key == "t4" ? 1 : 0) };
+        DecisionToolsFilter small = Create(client, minKeep: 5, sticky: true);
+        (await Turn(small, "First task", Session("chat"))).Length.ShouldBe(5);
+        client.Requests.ShouldBeEmpty();
+        (await Turn(small, "Second task", Session("chat"), count: 7)).ShouldBe(["tool0", "tool1", "tool2", "tool3", "tool4"]);
+        client.Requests.Single()["questions"]!.AsObject().Count.ShouldBe(7);
+    }
+
+    [Fact]
+    public async Task Sticky_does_not_record_a_partially_failed_pass()
+    {
+        var client = new DecisionStub { FailCall = 2, Answer = request => Answers(request, _ => 1) };
+        DecisionToolsFilter filter = Create(client, sticky: true);
+        (await Turn(filter, "First task", Session("chat"), count: 25)).Length.ShouldBe(25);
+
+        await Turn(filter, "Second task", Session("chat"), count: 25);
+
+        client.Requests[2]["questions"]!.AsObject().Count.ShouldBe(20);
+    }
+
+    [Fact]
+    public async Task Sticky_sets_are_scoped_by_session_and_caller_and_ignore_derived_or_injected_identities()
+    {
+        double first = 1;
+        var client = new DecisionStub { Answer = request => Answers(request, key => key == "t0" ? first : key == "t4" ? 1 : 0) };
+        DecisionToolsFilter filter = Create(client, sticky: true);
+        await Turn(filter, "First task", Session("chat"));
+        var authenticationOnly = new CallerHeaders([new("authorization", new[] { "Bearer caller" })]);
+        await Turn(filter, "First task", authenticationOnly);
+        string injected = Body(5).ToJsonString();
+        await filter.FilterAsync("/responses", WithInput(injected, "First task", "inbound"), CallerHeaders.None, WithInput(injected, "First task", null), Ct);
+        first = 0;
+
+        (await Turn(filter, "Second task", Session("other-chat"))).ShouldBe(["tool4"]);
+        (await Turn(filter, "Second task", Session("chat", "Bearer other"))).ShouldBe(["tool4"]);
+        (await Turn(filter, "Second task", authenticationOnly)).ShouldBe(["tool4"]);
+        string body = WithInput(injected, "Second task", "inbound");
+        Names(await filter.FilterAsync("/responses", body, CallerHeaders.None, WithInput(injected, "Second task", null), Ct)).ShouldBe(["tool4"]);
+        (await Turn(filter, "Second task", Session("chat"))).ShouldBe(["tool0", "tool4"]);
+    }
+
+    [Fact]
+    public async Task Sticky_cap_records_nothing_from_a_catalog_that_would_exceed_it()
+    {
+        int count = DecisionToolsFilter.MaxStickyTools + 1;
+        var client = new DecisionStub { Answer = request => Answers(request, _ => 1) };
+        DecisionToolsFilter filter = Create(client, sticky: true);
+        await Turn(filter, "First task", Session("chat"), count);
+        int asked = client.Requests.Count;
+
+        await Turn(filter, "Second task", Session("chat"), count);
+
+        client.Requests.Skip(asked).Sum(request => request["questions"]!.AsObject().Count).ShouldBe(count);
+    }
+
+    private async Task<string[]> Turn(DecisionToolsFilter filter, string input, CallerHeaders headers, int count = 5)
+    {
+        string body = WithInput(Body(count).ToJsonString(), input, null);
+        return Names(await filter.FilterAsync("/responses", body, headers, body, Ct));
+    }
+
+    private static string WithInput(string body, string input, string? promptCacheKey)
+    {
+        JsonObject root = JsonNode.Parse(body)!.AsObject();
+        root["input"] = input;
+        if (promptCacheKey is not null)
+        {
+            root["prompt_cache_key"] = promptCacheKey;
+        }
+        return root.ToJsonString();
+    }
+
+    private static string[] Names(string body) =>
+        JsonNode.Parse(body)!["tools"]!.AsArray().Select(tool => tool!["name"]!.GetValue<string>()).ToArray();
+
+    private static CallerHeaders Session(string session, string authentication = "Bearer caller") =>
+        new([new("x-session-id", new[] { session }), new("authorization", new[] { authentication })]);
+
     private static DecisionToolsFilter Create(
-        DecisionStub client, FilterLogger? logger = null, bool enabled = true, int minKeep = 0, string alwaysKeep = "") =>
+        DecisionStub client, FilterLogger? logger = null, bool enabled = true, int minKeep = 0, string alwaysKeep = "",
+        bool sticky = false) =>
         new(Options.Create(new ImposterOptions
         {
-            DecisionsTools = new DecisionsToolsOptions { Enabled = enabled, MinKeepTools = minKeep, AlwaysKeep = alwaysKeep }
-        }), client, logger ?? new FilterLogger());
+            DecisionsTools = new DecisionsToolsOptions
+            {
+                Enabled = enabled, MinKeepTools = minKeep, AlwaysKeep = alwaysKeep, StickyPerSession = sticky
+            }
+        }), client, TimeProvider.System, logger ?? new FilterLogger());
 
     private static JsonObject Body(int count)
     {
@@ -641,4 +780,11 @@ public sealed class DecisionToolsFilterTests
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
             Events.Add((logLevel, formatter(state, exception)));
     }
+}
+
+internal static class DecisionToolsFilterExtensions
+{
+    public static Task<string> FilterAsync(
+        this IDecisionToolsFilter filter, string path, string body, CancellationToken cancellationToken) =>
+        filter.FilterAsync(path, body, CallerHeaders.None, body, cancellationToken);
 }

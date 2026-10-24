@@ -73,6 +73,7 @@ The structured equivalent is `Imposter:DecisionsTools:<field>`.
 | `DECISIONS_TOOLS_MIN_PROBABILITY` | `MinProbability` |
 | `DECISIONS_TOOLS_MIN_KEEP` | `MinKeepTools` |
 | `DECISIONS_TOOLS_ALWAYS_KEEP` | `AlwaysKeep` |
+| `DECISIONS_TOOLS_STICKY_PER_SESSION` | `StickyPerSession` |
 | `DECISIONS_TOOLS_MAX_ATTEMPTS` | `MaxAttempts` |
 | `DECISIONS_TOOLS_TIMEOUT` | `TimeoutSeconds` |
 

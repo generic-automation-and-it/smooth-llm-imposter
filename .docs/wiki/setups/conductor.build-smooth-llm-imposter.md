@@ -374,10 +374,13 @@ provider mappings, secrets and optional decision settings while creating the con
 ### Optional decision-tool filter
 
 Set `DECISIONS_TOOLS_ENABLED=true` in the **workspace environment**, not the snapshot environment, to opt in.
-The script forwards all nine settings from the [decision settings table](../setup.md#optional-decision-model-tool-pre-filter):
+The script forwards all ten settings from the [decision settings table](../setup.md#optional-decision-model-tool-pre-filter):
 `DECISIONS_TOOLS_ENABLED`, `DECISIONS_TOOLS_BASE_URL`, `DECISIONS_TOOLS_PATH`, `DECISIONS_TOOLS_MODEL`,
-`DECISIONS_TOOLS_MIN_PROBABILITY`, `DECISIONS_TOOLS_MIN_KEEP`, `DECISIONS_TOOLS_ALWAYS_KEEP`, `DECISIONS_TOOLS_MAX_ATTEMPTS` and `DECISIONS_TOOLS_TIMEOUT`.
+`DECISIONS_TOOLS_MIN_PROBABILITY`, `DECISIONS_TOOLS_MIN_KEEP`, `DECISIONS_TOOLS_ALWAYS_KEEP`, `DECISIONS_TOOLS_STICKY_PER_SESSION`,
+`DECISIONS_TOOLS_MAX_ATTEMPTS` and `DECISIONS_TOOLS_TIMEOUT`.
 Unset settings retain the application's defaults; the installer does not enable filtering automatically.
+A workspace script pasted before `DECISIONS_TOOLS_STICKY_PER_SESSION` existed does not forward it: replace the
+lifecycle script with the one below and re-run it.
 
 For example, supply these workspace environment entries:
 
@@ -509,7 +512,7 @@ export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in the w
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
 elif sudo -n docker info >/dev/null 2>&1; then
-  DOCKER=(sudo -n --preserve-env=OPENCODE_GO_API_KEY,OPENROUTER_API_KEY,DECISIONS_TOOLS_ENABLED,DECISIONS_TOOLS_BASE_URL,DECISIONS_TOOLS_PATH,DECISIONS_TOOLS_MODEL,DECISIONS_TOOLS_MIN_PROBABILITY,DECISIONS_TOOLS_MIN_KEEP,DECISIONS_TOOLS_ALWAYS_KEEP,DECISIONS_TOOLS_MAX_ATTEMPTS,DECISIONS_TOOLS_TIMEOUT docker)
+  DOCKER=(sudo -n --preserve-env=OPENCODE_GO_API_KEY,OPENROUTER_API_KEY,DECISIONS_TOOLS_ENABLED,DECISIONS_TOOLS_BASE_URL,DECISIONS_TOOLS_PATH,DECISIONS_TOOLS_MODEL,DECISIONS_TOOLS_MIN_PROBABILITY,DECISIONS_TOOLS_MIN_KEEP,DECISIONS_TOOLS_ALWAYS_KEEP,DECISIONS_TOOLS_STICKY_PER_SESSION,DECISIONS_TOOLS_MAX_ATTEMPTS,DECISIONS_TOOLS_TIMEOUT docker)
 else
   echo "Docker is not reachable; on Linux the daemon is down, on macOS start Docker Desktop." >&2
   exit 1
@@ -656,6 +659,7 @@ fi
   -e DECISIONS_TOOLS_MIN_PROBABILITY \
   -e DECISIONS_TOOLS_MIN_KEEP \
   -e DECISIONS_TOOLS_ALWAYS_KEEP \
+  -e DECISIONS_TOOLS_STICKY_PER_SESSION \
   -e DECISIONS_TOOLS_MAX_ATTEMPTS \
   -e DECISIONS_TOOLS_TIMEOUT \
   "$IMAGE" >/dev/null

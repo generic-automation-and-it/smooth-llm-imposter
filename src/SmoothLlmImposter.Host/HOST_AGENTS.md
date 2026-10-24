@@ -27,7 +27,9 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   `Features/Routing/ROUTING_AGENTS.md`.
 - **Decision-filter seam (HLD 014).** Invoke on the post-transform body after who-probe/session translation,
   before forwarding and inside the caller-abort guard. Use the effective upstream Chat path for a Responses
-  downgrade; keep the enable/path/selection rules in Application, not endpoint lambdas.
+  downgrade; keep the enable/path/selection rules in Application, not endpoint lambdas. Also pass the captured
+  caller headers and the **pre-transform** request body: sticky selection (HLD 014 LADR-09) resolves the session
+  from them, and the transformed body can carry a router-injected `prompt_cache_key` shared by every chat.
 - **Tool-ordering seam (HLD 001 LADR-008).** Call the Application orderer on the original completion body
   inside route planning's error boundary, before router transforms. A post-transform hook would move
   Anthropic's injected tool-tail breakpoint away from the tail. Enabled ordering needs a captured
@@ -121,6 +123,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-23 | Decision filter also receives caller headers and pre-transform body (LADR-09) | — |
 | 2026-10-23 | Pre-transform ordering seam (LADR-008); native ARM64 verified, AMD64 external; no QEMU | — |
 | 2026-10-22 | Post-transform decision-filter seam under caller-abort guard | #138 |
 | 2026-10-21 | Scalar root redirect/preferred auth without embedded secrets; list-before-discovery workflow | — |

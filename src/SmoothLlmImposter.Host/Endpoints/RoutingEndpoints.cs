@@ -185,7 +185,8 @@ internal static class RoutingEndpoints
         {
             plan = plan with
             {
-                TransformedBody = await decisionFilter.FilterAsync(effectiveUpstreamPath, plan.TransformedBody, cancellationToken)
+                TransformedBody = await decisionFilter.FilterAsync(
+                    effectiveUpstreamPath, plan.TransformedBody, callerHeaders, requestBody, cancellationToken)
             };
             upstream = await forwarder.SendAsync(
                 plan.Decision,
