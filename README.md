@@ -104,7 +104,8 @@ tracking, virtual keys, load balancing, regional failover. Or run the other gate
 and have one of its entries point back at SmoothLlmImposter for subscription-backed models.
 
 **TL;DR — most gateways route API keys. This one routes subscriptions.** Pick the one that fits,
-or stack them.
+or stack them. Feature-by-feature comparison (CCR, LiteLLM):
+**[Comparisons](.docs/wiki/comparisons.md)**.
 
 ---
 
@@ -216,6 +217,7 @@ Both scripts auto-detect the dialect from `OPENAI_BASE_URL` / `ANTHROPIC_BASE_UR
 | Topic | Location |
 |---|---|
 | Architecture (tech stack, project structure) | [`.docs/wiki/architecture.md`](.docs/wiki/architecture.md) |
+| Comparisons (CCR, LiteLLM) | [`.docs/wiki/comparisons.md`](.docs/wiki/comparisons.md) |
 | Setup & run (all modes) | [`.docs/wiki/setup.md`](.docs/wiki/setup.md) · [`.docs/wiki/setups/`](.docs/wiki/setups/) |
 | Design (HLD, NFRs, LADRs) | [`.docs/wiki/hlds.md`](.docs/wiki/hlds.md) — HLD index; sources in [`.docs/hlds/`](.docs/hlds/) |
 | AI agent context & coding rules | [`AGENTS.md`](AGENTS.md) · [`.agents/`](.agents/) |
