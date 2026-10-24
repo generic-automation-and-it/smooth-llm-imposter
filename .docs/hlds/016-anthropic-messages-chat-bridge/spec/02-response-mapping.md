@@ -48,7 +48,7 @@ Emitted member order: `id, type, role, model, content, stop_reason, stop_sequenc
 
 | Member | Value |
 |---|---|
-| `id` | `msg_` followed by 24 characters drawn uniformly from `[0-9A-Za-z]` using a cryptographically secure generator; probabilistically unique — MUST NOT reuse within a message and SHOULD NOT coordinate across requests. The upstream `id` MUST NOT be exposed. |
+| `id` | `msg_` followed by 24 characters drawn uniformly from `[0-9A-Za-z]` using a cryptographically secure generator; unique per response (D3), probabilistically unique without cross-request coordination. The upstream `id` MUST NOT be exposed. |
 | `type` | `"message"` |
 | `role` | `"assistant"` |
 | `model` | The inbound model name from the context, byte for byte. The upstream's reported model MUST NOT be exposed; the value MUST NOT be `"unknown"` or empty. |

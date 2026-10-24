@@ -10,7 +10,7 @@
 
 ## Decision
 
-**Adopt** deterministic normalization: ids that are missing, illegal, too long or duplicated are replaced with synthesized ids; names are sanitized and, when too long, truncated with a deterministic hash suffix (stable across processes and replicas, e.g. truncated SHA-256/FNV of the full name). The name map is rebuilt for every request from its tools and history, and applied in reverse to the response. A name the map does not know is passed through unchanged.
+**Adopt** deterministic normalization: ids that are missing, illegal, too long or duplicated are replaced with synthesized ids; names are sanitized and, when too long, truncated with a deterministic hash suffix (stable across processes and replicas: first 8 lower-case hex digits of SHA-256 over UTF-8 bytes of the full name, per 01-request-mapping.md:252). The name map is rebuilt for every request from its tools and history, and applied in reverse to the response. A name the map does not know is passed through unchanged.
 
 ## Consequences
 

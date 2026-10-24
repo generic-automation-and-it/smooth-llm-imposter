@@ -264,7 +264,7 @@ Calls are always emitted one after another, in ascending (upstreamIndex, orderNo
    - Otherwise: empty -> `{}`; strictly parses to a JSON object -> use it compacted; otherwise (invalid JSON, or valid JSON that is not an object) make ONE repair attempt (5.6): if the repaired text parses to an object use it compacted, else FAIL(api_error, "Upstream returned invalid arguments for tool call <name>"). `{}` is never substituted for non-empty broken arguments.
 3. Id (D5): keep the upstream id if it matches `^[a-zA-Z0-9_-]{1,64}$` and is not in usedIds; otherwise synthesize `toolu_` + SYNTH_ID_CHARS random base62 characters. Add the final id to usedIds.
 4. Name (D6): map the upstream name through the reverse of `toolNameMap`; a name not in the map is used unchanged.
-5. Write, back to back: tool_use block start (index nextIdx++, id, name, `input:{}`), one `input_json_delta` carrying the compact JSON text, block stop. emittedToolUse++; add the text to outputEstimateState; mark the call emitted.
+5. Write, back to back: tool_use block start (index nextIdx++, id, name, `input:{}`), one `input_json_delta` carrying the compact JSON text, block stop. emittedToolUse++; feed the original tool name then the compact JSON text to outputEstimateState per 02 section 10.2 (no text retained); mark the call emitted.
 
 The block start is written only here, i.e. only after the call is complete and valid, so a dropped or failed call never leaves a started block (this satisfies D4's "only when id and name are known or the call completes").
 
