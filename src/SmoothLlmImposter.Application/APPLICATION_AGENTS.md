@@ -47,13 +47,17 @@ Classifier-only URL validation must not change the existing per-provider URL pol
 Tool ordering is a separate routing-local optimization (HLD 001 LADR-008), not a decision-model client
 concern or Mediator use case; do not attach its availability/rank policy to classifier answers.
 Per-session process memory (ordering ranks, HLD 014 sticky tool sets) goes through `SessionScopedMemory`
-and `SessionScope` keys; do not add another unbounded or unhashed session map.
+and `SessionScope` keys; do not add another unbounded or unhashed session map — `ProcessMemoryRegistrationTests`
+fails on any new singleton collection until it uses that type or is reviewed. Resolve the session identity from
+the **inbound** body and caller headers, never the transformed body: OpenAI transforms inject
+`prompt_cache_key` = inbound model, which turns every chat of a model into one "session".
 [HLD 015](../../.docs/hlds/015-shared-decision-model-integration/README.md) proposes shared integration ownership; it is not the current runtime contract.
 
 ## Changelog
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-24 | Per-session identity from inbound body; singleton-memory drift guard | — |
 | 2026-10-23 | Shared bounded `SessionScopedMemory` for ordering and sticky tool sets | — |
 | 2026-10-23 | Tool-ordering ownership separate from decision-model filtering (LADR-008) | — |
 | 2026-10-22 | Routing-local decision stage; classifier URL validation separate; HLD 015 proposed boundary | #138 |

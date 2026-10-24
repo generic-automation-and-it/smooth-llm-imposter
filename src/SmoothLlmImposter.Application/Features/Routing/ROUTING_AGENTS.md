@@ -369,7 +369,7 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 - **L0** `Domain.UnitTest/Routing` — matcher, dialect parser.
 - **L0** `Application.UnitTest/Routing` — resolver, transformers (`AnthropicCachingTests` covers caller layouts,
   tool-tail injection and idempotency; `ToolCatalogOrdererTests` covers scope isolation, expiry wiring, rank capacity,
-  concurrency and current-definition fidelity; `SessionScopedMemoryTests` covers scope isolation, idle expiry, LRU eviction and serialized use; passthrough body identity and fast-path exclusions), router, error factory, options
+  concurrency and current-definition fidelity; `SessionScopedMemoryTests` covers scope isolation, idle expiry, LRU eviction and serialized use; `ProcessMemoryRegistrationTests` (project root) rejects unreviewed singleton collections; passthrough body identity and fast-path exclusions), router, error factory, options
   validator, `CodexToOpenAiSdkNormalizerTests` (normalization drop/flatten/name-rules/tool_choice/idempotency, flat+nested shapes), model-catalog responder, `WhoMessageResponderTests` (HLD 010 trigger semantics, envelope shape, streaming exclusion, no-secret-leakage).
   Ordering guard tests must seed a reversible rank order in the same model/session/caller scope;
   a fresh or mismatched scope makes a no-op assertion pass even when the guard is missing.
