@@ -93,7 +93,7 @@ Existing operator names remain compatible; the legacy tool prefix does not imply
 | [02](nfrs/NFR-02-first-consumer-compatibility.md) | Compatibility | No HLD 014 configuration or behavioral regression | Accepted |
 | [03](nfrs/NFR-03-consumer-call-isolation.md) | Isolation | No cross-call state, answer or cancellation leakage | Accepted |
 
-NativeAOT remains the repository deployment baseline. Existing ARM64 tool-filter evidence validates the first consumer, not the proposed extraction or cross-consumer behavior. Acceptance requires the specific checks below; Linux AMD64 and real cache-hit measurement remain open under HLD 014.
+NativeAOT remains the repository deployment baseline. The extraction's macOS ARM64 publish and native smoke are recorded in the changelog; Linux AMD64/ARM64 native-runner gates and real cache-hit measurement remain open under HLD 014.
 
 ## Changelog
 

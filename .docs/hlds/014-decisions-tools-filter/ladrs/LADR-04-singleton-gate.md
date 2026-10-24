@@ -19,4 +19,4 @@ Retry transport exceptions, attempt timeouts, 502 and 503 up to MaxAttempts minu
 - Independent DI scopes share the same classifier gate.
 - Queue waits can fail-open without occupying OpenJEV.
 - Head-of-line blocking is accepted; this is process-wide, not a distributed gate.
-- 2026-10-24: the semaphore moved out of the client into a dedicated singleton gate shared by every decision consumer ([HLD 015 LADR-03](../../015-shared-decision-model-integration/ladrs/LADR-03-shared-uncached-resource-budget.md)); admission, retry and timeout semantics are unchanged.
+- 2026-10-24: the semaphore moved out of the client into a dedicated singleton gate shared by every decision consumer ([HLD 015 LADR-03](../../015-shared-decision-model-integration/ladrs/LADR-03-shared-uncached-resource-budget.md)); the named HTTP client is now `decision-service`; admission, retry and timeout semantics are unchanged.
