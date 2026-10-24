@@ -362,7 +362,7 @@ The context is derived from the request alone; nothing is persisted between requ
 ## 15. Transport notes
 
 - Target path: the provider base URL (which already contains any version segment) + `/chat/completions`; the inbound query string (for example `beta=true`) is not forwarded.
-- Credentials and every outbound header: see `04-harness-and-errors.md` (allowlist, D20; forwarder writes the credential as Bearer and strips `anthropic-version`, `anthropic-beta`, `x-api-key`, D17).
+- Credentials and every outbound header: see `04-harness-and-errors.md` (allowlist, D20; forwarder writes the managed credential per `AuthScheme`/`AuthHeader` and strips `anthropic-version`, `anthropic-beta`, `x-api-key`, D17).
 - Body-affecting items stay here: `content-type: application/json`, `stream_options` (section 11).
 - `count_tokens` is not mapped here (see 04).
 
