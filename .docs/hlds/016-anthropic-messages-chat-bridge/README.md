@@ -26,7 +26,7 @@ A provider option `AnthropicUpstreamApi` (`messages` default, `chat_completions`
 
 - Providers without the option, passthrough routes and reserved Copilot routes are byte-identical to today ([NFR-01](nfrs/NFR-01-non-bridged-transparency.md)).
 - Option plumbing covers every place a provider option lives (binding, env, cloner, both admin DTOs, validator) and is guarded by round-trip tests.
-- A `chat_completions` provider that cannot produce a Bearer credential fails validation.
+- A `chat_completions` provider that cannot produce a managed credential under its effective `AuthScheme` fails validation.
 
 ### 2. Faithful request mapping
 
