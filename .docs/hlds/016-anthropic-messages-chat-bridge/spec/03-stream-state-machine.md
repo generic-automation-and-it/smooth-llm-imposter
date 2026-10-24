@@ -291,7 +291,7 @@ Risk: the client sees no tool name or input while a long call is being generated
 
 ### 7.1 Merging usage
 
-A usage object is recognized when it is a JSON object (top-level `usage`, else the choice's `usage`). Counters are read only when they are finite JSON numbers (strings, null, booleans are ignored); each field is overwritten individually, last value wins.
+A usage object is recognized when it is a JSON object (top-level `usage`, else the choice's `usage`). A value is a "count" only if it is a JSON number that is finite and >= 0; fractional values are floored. Negative numbers, strings (including numeric strings), booleans, `null` and non-finite values are treated as absent. Where several candidate fields exist, the first count in the listed order wins. Each field is overwritten individually, last value wins.
 
 | Counter | Sources, first present wins (same candidate lists as 02 section 10.1, read from the recognized usage object) |
 |---|---|
