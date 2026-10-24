@@ -2,9 +2,7 @@
 
 ## TL;DR
 
-Passthrough credentials are for passthrough/default routing only. They are stored as protected ciphertext,
-managed through `/admin/credentials`, keyed by `(ProviderDialect, ProviderName)`, and resolved only after
-routing determines `IsImposter == false`.
+Passthrough/default-routing credentials only: protected ciphertext managed via `/admin/credentials`, keyed by `(ProviderDialect, ProviderName)`, resolved after routing determines `IsImposter == false`.
 
 ## Non-Negotiables
 
@@ -35,3 +33,4 @@ feature-owned SQLite file with its own key ring — never add Copilot tokens to 
 | 2026-06-15 | Centralized validation→400 via global `IExceptionHandler`; constant-time admin key comparison. | HLD 002 |
 | 2026-06-21 | HLD 008 Phase 2: credentials are provider-keyed, in-memory by default, EF optional; activation is scoped per provider. | #50 |
 | 2026-10-20 | Documented the narrow HLD 013 exception and its boundary from the generic credential store. | #126 |
+| 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery); in-file links updated. No behavior change. | #152 |

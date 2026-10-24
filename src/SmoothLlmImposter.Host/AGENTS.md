@@ -123,6 +123,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery); in-file links updated. No behavior change. | #152 |
 | 2026-10-23 | Decision filter also receives caller headers and pre-transform body (LADR-09) | — |
 | 2026-10-23 | Pre-transform ordering seam (LADR-008); native ARM64 verified, AMD64 external; no QEMU | — |
 | 2026-10-22 | Post-transform decision-filter seam under caller-abort guard | #138 |

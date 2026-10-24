@@ -2,10 +2,7 @@
 
 ## TL;DR
 
-Stateless same-dialect LLM router: reads the inbound `model`, rewrites it to a configured upstream
-("imposter") or passes through to the dialect's default provider, optionally injecting prompt caching,
-and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imposter-routing/`
-(`README.md` index → `diagrams/`, `nfrs/`, `ladrs/` subfolders).
+Stateless same-dialect LLM router: rewrites the inbound `model` to a configured upstream (or the dialect default passthrough), optionally injects prompt caching, and streams the response back; design rationale lives in `.docs/hlds/001-llm-imposter-routing/`.
 
 ## Non-Negotiables
 
@@ -427,6 +424,7 @@ and streams the response back. Design rationale lives in `.docs/hlds/001-llm-imp
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery); in-file links updated. No behavior change. | #152 |
 | 2026-10-23 | Sticky decision tools per session (HLD 014 LADR-09); `SessionScopedMemory` extracted from the orderer | — |
 | 2026-10-23 | Ralph review: Responses text breakpoints preserve caller order; rank-cap traffic refreshes idle clock; seeded guard regressions | #147 |
 | 2026-10-23 | LADR-008 first-seen ranks; caller-owned layouts; tool-tail breakpoint; prefix hierarchy; explicit JsonNode adds | — |

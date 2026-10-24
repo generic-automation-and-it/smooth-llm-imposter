@@ -14,4 +14,5 @@ Pure domain model — entities, aggregate roots, and value objects. Zero externa
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery). No behavior change. | #152 |
 | 2026-05-30 | Created — empty Clean Architecture domain skeleton (`Entities/`, `ValueObjects/`). | — |

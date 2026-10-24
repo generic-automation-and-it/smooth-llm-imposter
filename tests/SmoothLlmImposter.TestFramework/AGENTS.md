@@ -20,4 +20,5 @@ Shared xunit.v3 test fixtures and helpers reused across the L0/L1/L2 test projec
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery). No behavior change. | #152 |
 | 2026-05-30 | Created — lean fixtures (`ServiceProviderFixture`, `WebAppFixture<TProgram>`), xunit output logging, and test-case ordering helpers. | — |

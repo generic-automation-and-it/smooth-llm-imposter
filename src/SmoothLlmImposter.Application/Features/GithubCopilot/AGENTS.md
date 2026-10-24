@@ -33,6 +33,7 @@ Opt-in GitHub Copilot upstream providers (Anthropic Messages + OpenAI Responses 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery). No behavior change. | #152 |
 | 2026-10-22 | Aligned Copilot inference headers with opencode (User-Agent and OAuth client ID excepted): API version `2026-08-01`, `Openai-Intent` on both dialects, request-class-derived `X-Interaction-Type`, session-derived `X-Interaction-Id`, body-derived `X-Initiator` and `Copilot-Vision-Request`, merged `interleaved-thinking` beta. `X-Initiator` was always `user`, so every tool-loop turn presented as a user turn. L0 `GithubCopilotRequestHintsTests`, L2 header assertions. | — |
 | 2026-10-22 | Dropped `Copilot-Integration-Id: smooth-llm-imposter` from inference and model discovery (caller values stripped). With an `Iv1.` client the account got `400 model not available for integrator "copilot-language-server"`; opencode sends no such header. L0/L2 tests pin its absence. | — |
 | 2026-10-21 | Fixed: Complete looped on `github_unavailable` after an approved grant — `GithubOAuthClient` sent REST API version `2025-04-01` (a Copilot API version), and `api.github.com` rejected `/user` with `400`. Now `2022-11-28`; L0 tests pin the header on `/user` and `copilot_internal/user`. | — |

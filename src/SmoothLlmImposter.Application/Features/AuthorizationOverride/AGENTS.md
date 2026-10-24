@@ -2,10 +2,7 @@
 
 ## TL;DR
 
-Runtime, in-memory, per-provider switch (HLD 003 amended by HLD 008) that forces the **passthrough** path to
-present the active stored credential as `Authorization: Bearer`, dropping `x-api-key`. Default OFF, never
-persisted, OFF on restart. Dialect-only admin calls resolve to the dialect's enabled default provider. The
-forwarding behaviour it gates lives in `Features/Routing/` (`ImposterRouter`, `UpstreamForwarder`).
+Runtime in-memory per-provider switch (HLD 003 amended by HLD 008) forcing the passthrough path to present the active stored credential as `Authorization: Bearer`; default OFF, never persisted, OFF on restart.
 
 ## Non-Negotiables
 
@@ -49,3 +46,4 @@ forwarding behaviour it gates lives in `Features/Routing/` (`ImposterRouter`, `U
 |:-----|:-------|:----|
 | 2026-06-17 | Initial HLD 003 implementation: in-memory per-dialect force-Bearer switch, admin toggle endpoints, fail-closed. | HLD 003 |
 | 2026-06-21 | HLD 008 Phase 2: override is provider-addressable; dialect-only calls resolve to the default provider. | #50 |
+| 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery). No behavior change. | #152 |

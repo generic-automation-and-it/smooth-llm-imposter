@@ -57,6 +57,7 @@ the **inbound** body and caller headers, never the transformed body: OpenAI tran
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery); in-file links updated. No behavior change. | #152 |
 | 2026-10-24 | Per-session identity from inbound body; singleton-memory drift guard | — |
 | 2026-10-23 | Shared bounded `SessionScopedMemory` for ordering and sticky tool sets | — |
 | 2026-10-23 | Tool-ordering ownership separate from decision-model filtering (LADR-008) | — |
