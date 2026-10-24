@@ -38,31 +38,37 @@ internal sealed class DecisionToolsFilter(
         try
         {
             JsonObject root = JsonNodeMaterializer.ParseObject(body);
-            if (root["tools"] is not JsonArray { Count: > 0 } tools ||
-                (shape == DecisionBodyShape.Responses &&
-                 ((root.ContainsKey("previous_response_id") && root["previous_response_id"] is not null) ||
-                  (root.ContainsKey("conversation") && root["conversation"] is not null))))
+            if (root["tools"] is not JsonArray { Count: > 0 } tools)
             {
+                LogSkipped(shape, "no top-level tools array");
+                return body;
+            }
+
+            if (shape == DecisionBodyShape.Responses &&
+                ((root.ContainsKey("previous_response_id") && root["previous_response_id"] is not null) ||
+                 (root.ContainsKey("conversation") && root["conversation"] is not null)))
+            {
+                LogSkipped(shape, "server-held conversation state");
                 return body;
             }
 
             if (DecisionTool.UsesDeferredLoading(tools))
             {
-                logger.LogDebug("Decisions filter {Shape}: deferred tool loading present, forwarding unfiltered", shape);
+                LogSkipped(shape, "deferred tool loading present");
                 return body;
             }
 
             DecisionsToolsOptions settings = options.Value.DecisionsTools;
             if (tools.Count <= settings.MinKeepTools)
             {
-                logger.LogDebug("Decisions filter {Shape}: {Total} tools do not exceed the minimum-kept floor, forwarding unfiltered",
-                    shape, tools.Count);
+                LogSkipped(shape, $"{tools.Count} tools do not exceed the minimum-kept floor");
                 return body;
             }
 
             string state = DecisionPrompt.Extract(root, shape);
             if (string.IsNullOrWhiteSpace(state))
             {
+                LogSkipped(shape, "no user request in the conversation state");
                 return body;
             }
 
@@ -89,6 +95,7 @@ internal sealed class DecisionToolsFilter(
                     shape, probabilities.Count, candidates.Length);
             }
 
+            bool failedOpen = false;
             foreach (DecisionTool[] chunk in pending.Chunk(ChunkSize))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -103,6 +110,7 @@ internal sealed class DecisionToolsFilter(
                 catch (Exception failure)
                 {
                     LogFailOpen(failure);
+                    failedOpen = true;
                     break;
                 }
             }
@@ -137,6 +145,11 @@ internal sealed class DecisionToolsFilter(
 
             if (removed.Count == 0)
             {
+                if (!failedOpen)
+                {
+                    LogSkipped(shape, "no tool scored below the threshold");
+                }
+
                 return body;
             }
 
@@ -294,6 +307,9 @@ internal sealed class DecisionToolsFilter(
 
     private static string LogSafe(string label) =>
         new(label.Select(character => char.IsControl(character) ? '?' : character).ToArray());
+
+    private void LogSkipped(DecisionBodyShape shape, string reason) =>
+        logger.LogInformation("Decisions filter {Shape}: forwarded unfiltered, {Reason}", shape, reason);
 
     private void LogFailOpen(Exception failure) =>
         logger.LogWarning("Decisions filter failed open: {Reason} (status {StatusCode}, model {Model})",
