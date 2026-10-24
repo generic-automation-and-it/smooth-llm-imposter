@@ -317,7 +317,7 @@ Risk: subtracting a reported cache-write count assumes the upstream's prompt cou
 
 ### 7.3 stop_reason (D1)
 
-`lengthClass(finishReason)`: the lower-cased value contains `length`, `max_token` or `max_output`.
+`lengthClass(finishReason)`: trim ASCII whitespace and lowercase, then exact-match against the 02 section 9 list: `length`, `max_tokens`, `max_output_tokens`, `max_completion_tokens`, `model_context_window_exceeded`. No substring matching.
 - emittedToolUse >= 1 -> `tool_use` (whatever the finish_reason, including length: a call cut off by length was dropped, surviving complete calls count).
 - else lengthClass -> `max_tokens`.
 - else (`stop`, `content_filter`, `function_call`, unknown, absent, `tool_calls` with no surviving call) -> `end_turn`.
