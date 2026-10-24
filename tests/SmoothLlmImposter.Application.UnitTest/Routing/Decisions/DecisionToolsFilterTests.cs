@@ -315,6 +315,45 @@ public sealed class DecisionToolsFilterTests
         summary.ShouldNotContain("\n");
     }
 
+    [Fact]
+    public async Task Classifier_outcome_names_the_model_endpoint_and_session_it_was_asked_under()
+    {
+        var logs = new FilterLogger();
+        var client = new DecisionStub { Answer = request => Answers(request, key => key == "t0" ? 1 : 0) };
+
+        await Create(client, logs).FilterAsync("/responses", Body(3).ToJsonString(), Ct);
+
+        logs.Events.Single(entry => entry.Level == LogLevel.Information).Text.ShouldStartWith(
+            "Decisions filter Responses via model openjev at http://host.docker.internal:1234/v1/systemone, session none: kept 1/3 tools");
+    }
+
+    [Fact]
+    public async Task Captured_session_is_logged_as_a_digest_never_the_raw_value()
+    {
+        var logs = new FilterLogger();
+        var client = new DecisionStub { Answer = request => Answers(request, key => key == "t0" ? 1 : 0) };
+
+        await Create(client, logs).FilterAsync("/responses", Body(3).ToJsonString(), Session("secret-chat"), Body(3).ToJsonString(), Ct);
+
+        string summary = logs.Events.Single(entry => entry.Level == LogLevel.Information).Text;
+        summary.ShouldContain($"session {SessionScope.Hash("secret-chat")[..12]}: kept 1/3 tools");
+        summary.ShouldNotContain("secret-chat");
+    }
+
+    [Fact]
+    public async Task Classifier_endpoint_is_logged_without_userinfo()
+    {
+        var logs = new FilterLogger();
+        var client = new DecisionStub { Answer = request => Answers(request, key => key == "t0" ? 1 : 0) };
+
+        await Create(client, logs, baseUrl: "http://user:secret@host.docker.internal:1234/")
+            .FilterAsync("/responses", Body(3).ToJsonString(), Ct);
+
+        string summary = logs.Events.Single(entry => entry.Level == LogLevel.Information).Text;
+        summary.ShouldContain("at http://host.docker.internal:1234/v1/systemone, session none");
+        summary.ShouldNotContain("secret");
+    }
+
     [Theory]
     [InlineData("/chat/completions", "{\"type\":\"allowed_tools\",\"allowed_tools\":{\"mode\":\"required\",\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"drop\"}}]}}", "{\"type\":\"function\",\"function\":{\"name\":\"drop\"}}", "{\"type\":\"function\",\"function\":{\"name\":\"keep\"}}")]
     [InlineData("/responses", "{\"type\":\"allowed_tools\",\"mode\":\"required\",\"tools\":[{\"type\":\"function\",\"name\":\"drop\"}]}", "{\"type\":\"function\",\"name\":\"drop\"}", "{\"type\":\"function\",\"name\":\"keep\"}")]
@@ -583,8 +622,9 @@ public sealed class DecisionToolsFilterTests
         string body = root.ToJsonString();
         ReferenceEquals(await Create(client, logs).FilterAsync("/responses", body, Ct), body).ShouldBeTrue();
         logs.Events.Single().Level.ShouldBe(LogLevel.Warning);
+        logs.Events.Single().Text.ShouldContain("Decisions filter Responses via model openjev at http://host.docker.internal:1234/v1/systemone, session none failed open");
         logs.Events.Single().Text.ShouldContain(nameof(HttpRequestException));
-        logs.Events.Single().Text.ShouldContain("status 400, model openjev");
+        logs.Events.Single().Text.ShouldContain("(status 400)");
         logs.Events.Single().Text.ShouldNotContain("secret");
     }
 
@@ -739,12 +779,13 @@ public sealed class DecisionToolsFilterTests
 
     private static DecisionToolsFilter Create(
         DecisionStub client, FilterLogger? logger = null, bool enabled = true, int minKeep = 0, string alwaysKeep = "",
-        bool sticky = false) =>
+        bool sticky = false, string baseUrl = DecisionServiceOptions.DefaultBaseUrl) =>
         new(Options.Create(new ImposterOptions
         {
             DecisionsTools = new DecisionsToolsOptions
             {
-                Enabled = enabled, MinKeepTools = minKeep, AlwaysKeep = alwaysKeep, StickyPerSession = sticky
+                Enabled = enabled, MinKeepTools = minKeep, AlwaysKeep = alwaysKeep, StickyPerSession = sticky,
+                BaseUrl = baseUrl
             }
         }), client, TimeProvider.System, logger ?? new FilterLogger());
 

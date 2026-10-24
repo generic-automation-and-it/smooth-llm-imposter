@@ -14,6 +14,7 @@ internal sealed class DecisionToolsFilter(
 {
     private const int ChunkSize = 20;
     private const int InstructionLimit = 300;
+    private const int SessionTokenLength = 12;
     internal const int MaxStickyTools = 1024;
     private readonly DecisionAnswerCache _cache = new();
     private readonly SessionScopedMemory<HashSet<string>> _sticky =
@@ -72,7 +73,9 @@ internal sealed class DecisionToolsFilter(
                 return body;
             }
 
-            string? stickyScope = StickyScope(settings, shape, root, callerHeaders, inboundBody);
+            SessionIdentity identity = SessionIdentityResolver.Resolve(callerHeaders, inboundBody);
+            string session = SessionToken(identity);
+            string? stickyScope = StickyScope(settings, shape, root, callerHeaders, identity);
             DecisionTool[] candidates = WithoutSticky(
                 DecisionTool.ReadCandidates(tools, root, shape, AlwaysKeepNames(settings)), stickyScope, shape);
             var probabilities = new Dictionary<string, double>();
@@ -109,7 +112,7 @@ internal sealed class DecisionToolsFilter(
                 }
                 catch (Exception failure)
                 {
-                    LogFailOpen(failure);
+                    LogFailOpen(shape, session, failure);
                     failedOpen = true;
                     break;
                 }
@@ -124,8 +127,8 @@ internal sealed class DecisionToolsFilter(
             cancellationToken.ThrowIfCancellationRequested();
             if (removed.Count > 0 && removed.Count == tools.Count)
             {
-                logger.LogInformation("Decisions filter {Shape}: every tool scored below the threshold, kept all {Total}",
-                    shape, tools.Count);
+                logger.LogInformation("Decisions filter {Shape} via model {Model} at {Endpoint}, session {Session}: every tool scored below the threshold, kept all {Total}",
+                    shape, LogSafe(settings.Model), Endpoint(settings), session, tools.Count);
                 return body;
             }
 
@@ -147,7 +150,8 @@ internal sealed class DecisionToolsFilter(
             {
                 if (!failedOpen)
                 {
-                    LogSkipped(shape, "no tool scored below the threshold");
+                    logger.LogInformation("Decisions filter {Shape} via model {Model} at {Endpoint}, session {Session}: forwarded unfiltered, no tool scored below the threshold",
+                        shape, LogSafe(settings.Model), Endpoint(settings), session);
                 }
 
                 return body;
@@ -161,9 +165,9 @@ internal sealed class DecisionToolsFilter(
                 tools.RemoveAt(index);
             }
 
-            logger.LogInformation("Decisions filter {Shape}: kept {Kept}/{Total} tools in {ElapsedMs} ms, removed {Removed}",
-                shape, tools.Count, tools.Count + removed.Count, Stopwatch.GetElapsedTime(started).TotalMilliseconds,
-                string.Join(",", removedLabels));
+            logger.LogInformation("Decisions filter {Shape} via model {Model} at {Endpoint}, session {Session}: kept {Kept}/{Total} tools in {ElapsedMs} ms, removed {Removed}",
+                shape, LogSafe(settings.Model), Endpoint(settings), session, tools.Count, tools.Count + removed.Count,
+                Stopwatch.GetElapsedTime(started).TotalMilliseconds, string.Join(",", removedLabels));
             return DecisionJson.ReplaceTopLevel(body, root, "tools", "tool_choice");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -172,24 +176,27 @@ internal sealed class DecisionToolsFilter(
         }
         catch (Exception failure)
         {
-            LogFailOpen(failure);
+            logger.LogWarning("Decisions filter {Shape} failed open: {Reason}", shape, failure.GetType().Name);
             return body;
         }
     }
 
     private static string? StickyScope(
-        DecisionsToolsOptions settings, DecisionBodyShape shape, JsonObject root, CallerHeaders callerHeaders, string inboundBody)
+        DecisionsToolsOptions settings, DecisionBodyShape shape, JsonObject root, CallerHeaders callerHeaders, SessionIdentity identity)
     {
-        if (!settings.StickyPerSession)
+        if (!settings.StickyPerSession || !IsCaptured(identity))
         {
             return null;
         }
 
-        SessionIdentity identity = SessionIdentityResolver.Resolve(callerHeaders, inboundBody);
-        return identity.Source == SessionIdentitySource.Captured && identity.HasValue
-            ? SessionScope.Key(shape.ToString(), DecisionJson.Text(root["model"]), identity.Value!, callerHeaders)
-            : null;
+        return SessionScope.Key(shape.ToString(), DecisionJson.Text(root["model"]), identity.Value!, callerHeaders);
     }
+
+    private static bool IsCaptured(SessionIdentity identity) =>
+        identity.Source == SessionIdentitySource.Captured && identity.HasValue;
+
+    private static string SessionToken(SessionIdentity identity) =>
+        IsCaptured(identity) ? SessionScope.Hash(identity.Value!)[..SessionTokenLength] : "none";
 
     private DecisionTool[] WithoutSticky(DecisionTool[] candidates, string? stickyScope, DecisionBodyShape shape)
     {
@@ -311,7 +318,16 @@ internal sealed class DecisionToolsFilter(
     private void LogSkipped(DecisionBodyShape shape, string reason) =>
         logger.LogInformation("Decisions filter {Shape}: forwarded unfiltered, {Reason}", shape, reason);
 
-    private void LogFailOpen(Exception failure) =>
-        logger.LogWarning("Decisions filter failed open: {Reason} (status {StatusCode}, model {Model})",
-            failure.GetType().Name, (int?)(failure as HttpRequestException)?.StatusCode, LogSafe(options.Value.DecisionsTools.Model));
+    private void LogFailOpen(DecisionBodyShape shape, string session, Exception failure)
+    {
+        DecisionsToolsOptions settings = options.Value.DecisionsTools;
+        logger.LogWarning("Decisions filter {Shape} via model {Model} at {Endpoint}, session {Session} failed open: {Reason} (status {StatusCode})",
+            shape, LogSafe(settings.Model), Endpoint(settings), session, failure.GetType().Name,
+            (int?)(failure as HttpRequestException)?.StatusCode);
+    }
+
+    private static string Endpoint(DecisionsToolsOptions settings) =>
+        Uri.TryCreate(settings.BaseUrl.TrimEnd('/') + settings.Path, UriKind.Absolute, out Uri? endpoint)
+            ? LogSafe(endpoint.GetComponents(UriComponents.SchemeAndServer | UriComponents.Path, UriFormat.UriEscaped))
+            : "unparsed";
 }
