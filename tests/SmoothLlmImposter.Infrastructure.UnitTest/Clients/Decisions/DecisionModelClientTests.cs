@@ -5,7 +5,6 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
-using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Infrastructure.Clients.Decisions;
 
 namespace SmoothLlmImposter.Infrastructure.UnitTest.Clients.Decisions;
@@ -278,17 +277,16 @@ public class DecisionModelClientTests
     }
 
     [Fact]
-    public async Task Disabled_invalid_options_leave_client_resolution_inert()
+    public async Task No_opted_in_consumer_leaves_invalid_options_inert()
     {
         var handler = new CallbackHandler((_, _, _) => Task.FromResult(Success()));
         await using ServiceProvider provider = BuildProvider(handler, settings =>
         {
-            settings.Enabled = false;
             settings.BaseUrl = "invalid";
             settings.Path = "invalid";
             settings.MaxAttempts = 0;
             settings.TimeoutSeconds = -1;
-        });
+        }, consumers: [new FixtureConsumer(optedIn: false)]);
 
         provider.GetRequiredService<IDecisionModelClient>().ShouldNotBeNull();
         using HttpClient client = provider.GetRequiredService<IHttpClientFactory>()
@@ -297,23 +295,114 @@ public class DecisionModelClientTests
         handler.Calls.ShouldBe(0);
     }
 
+    [Fact]
+    public async Task A_non_tool_consumer_gets_the_configured_attempts_while_tool_filtering_is_disabled()
+    {
+        // The old profile fell back to three attempts whenever tool filtering was off (HLD 015 LADR-02).
+        var handler = new CallbackHandler((_, _, _) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadGateway)));
+        await using ServiceProvider provider = BuildProvider(handler, settings => settings.MaxAttempts = 2,
+            consumers: [new FixtureConsumer(optedIn: false), new FixtureConsumer(optedIn: true)]);
+
+        await Should.ThrowAsync<HttpRequestException>(() =>
+            provider.GetRequiredService<IDecisionModelClient>().DecideAsync(NonToolRequest("a"), Ct));
+
+        handler.Calls.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task The_default_model_is_supplied_only_when_the_request_omits_one_and_the_request_is_not_mutated()
+    {
+        var sentModels = new List<string?>();
+        var handler = new CallbackHandler(async (_, request, ct) =>
+        {
+            JsonObject sent = JsonNode.Parse(await request.Content!.ReadAsStringAsync(ct))!.AsObject();
+            sentModels.Add(sent["model"]?.GetValue<string>());
+            return Success();
+        });
+        await using ServiceProvider provider = BuildProvider(handler, settings => settings.Model = "service-default");
+        var client = provider.GetRequiredService<IDecisionModelClient>();
+        JsonObject withoutModel = NonToolRequest("a");
+        JsonObject withModel = NonToolRequest("b");
+        withModel["model"] = "consumer-choice";
+
+        await client.DecideAsync(withoutModel, Ct);
+        await client.DecideAsync(withModel, Ct);
+
+        sentModels.ShouldBe(["service-default", "consumer-choice"]);
+        withoutModel.ContainsKey("model").ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task Separately_constructed_clients_share_the_process_gate()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new CallbackHandler(async (call, _, ct) =>
+        {
+            if (call == 1)
+            {
+                entered.TrySetResult();
+                await release.Task.WaitAsync(ct);
+            }
+
+            return Success();
+        });
+        await using ServiceProvider provider = BuildProvider(handler);
+        var first = ActivatorUtilities.CreateInstance<DecisionModelClient>(provider);
+        var second = ActivatorUtilities.CreateInstance<DecisionModelClient>(provider);
+        first.ShouldNotBeSameAs(second);
+        using var ceiling = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        ceiling.CancelAfter(TimeSpan.FromSeconds(10));
+
+        Task<JsonObject> firstCall = first.DecideAsync(NonToolRequest("first"), ceiling.Token);
+        await entered.Task.WaitAsync(ceiling.Token);
+        Task<JsonObject> secondCall = second.DecideAsync(NonToolRequest("second"), ceiling.Token);
+
+        handler.Calls.ShouldBe(1);
+        secondCall.IsCompleted.ShouldBeFalse();
+        release.TrySetResult();
+        await Task.WhenAll(firstCall, secondCall);
+        handler.Calls.ShouldBe(2);
+    }
+
+    // A non-tool consumer's request: keyed choice questions with no tool, routing or workflow concept (HLD 015 Goal 1).
+    private static JsonObject NonToolRequest(string sentinel) => new()
+    {
+        ["state"] = $"Ticket {sentinel}: the deploy failed twice",
+        ["questions"] = JsonNode.Parse("""
+            {"q1":{"type":"choice","instructions":"Should the release be retried?",
+                   "criteria":{"yes":"transient failure","no":"code defect"}}}
+            """)
+    };
+
     private static ServiceProvider BuildProvider(
         HttpMessageHandler handler,
-        Action<DecisionsToolsOptions>? configure = null)
+        Action<DecisionServiceOptions>? configure = null,
+        IDecisionServiceConsumer[]? consumers = null)
     {
         IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection([]).Build();
         var services = new ServiceCollection();
         services.AddLogging();
-        services.Configure<ImposterOptions>(options =>
+        services.Configure<DecisionServiceOptions>(options =>
         {
-            options.DecisionsTools.Enabled = true;
-            options.DecisionsTools.BaseUrl = "https://decisions.test";
-            configure?.Invoke(options.DecisionsTools);
+            options.BaseUrl = "https://decisions.test";
+            configure?.Invoke(options);
         });
+        foreach (IDecisionServiceConsumer consumer in consumers ?? [new FixtureConsumer(optedIn: true)])
+        {
+            services.AddSingleton(consumer);
+        }
+
         services.AddInfrastructure(configuration);
         services.AddHttpClient(DecisionModelClient.HttpClientName)
             .ConfigurePrimaryHttpMessageHandler(() => handler);
         return services.BuildServiceProvider();
+    }
+
+    private sealed class FixtureConsumer(bool optedIn) : IDecisionServiceConsumer
+    {
+        public bool IsOptedIn => optedIn;
     }
 
     private static HttpResponseMessage Success() => new(HttpStatusCode.OK)
