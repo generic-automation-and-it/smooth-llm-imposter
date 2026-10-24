@@ -77,7 +77,7 @@ A token is 4 units. For a string s, `U(s)` = the sum of `weight(c)` over the Uni
 | `tool_use` block | 24 + `U(name)` + `U(compact(input))` (`input` absent or null counts as `{}`) |
 | `tool_result` block | 24 + content: string -> `U(string)`; list -> `U(` the nested text blocks' texts joined with `\n` `)`, plus 6000 per nested `image`, plus `U(compact(block))` per nested `tool_reference`, plus the placeholder rule of the "any other block" row per other nested block |
 | `thinking`, `redacted_thinking` block (dropped by 01) | 0 |
-| any other block (document, server-tool and server-tool-result blocks, unknown types), which 01 replaces by the text `[omitted: unsupported content block '<type>']` | `U(placeholder)`, `<type>` = the block's string `type` (`unknown` when absent or not a string) |
+| any other block (document, server-tool and server-tool-result blocks, unknown types), which 01 replaces by the text `[omitted: unsupported content block '<type>']` | `U(placeholder)`, `<type>` = the block's string `type` (`unknown` when absent or not a string). A `document` block is the exception: under `documentMode: image` a base64 or URL document counts as an `image` block (6000 units) per 01 section 7.6, and only a document that does not qualify under that mode falls back to `U(placeholder)` |
 | each custom tool in `tools` (no `type`, or `type` `custom`) | 48 + `U(name)` + `U(description)` + `U(compact(input_schema))` (absent or null schema counts as `{"type":"object","properties":{}}`) |
 | tool-search and typed server tool definitions, any other `tools` element, every other top-level field | 0 |
 
