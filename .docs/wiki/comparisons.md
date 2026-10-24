@@ -29,7 +29,7 @@ Legend: ✅ yes · ❌ no · ◐ partial · 🔜 planned. Sources: CCR README (`
 | Session identity forwarding (`session_id`, `x-opencode-session`) | ✅ (HLD 009) | ◐ (session affinity pinning) | ◐ (sticky pod pinning) |
 | `--who?` / `--newsession` zero-call probes + skills | ✅ (HLD 010) | ◐ (resolved-route logs only) | ❌ |
 | Codex→OpenAI-SDK transformer | ✅ (HLD 004) | ✅ (`apply_patch` bridge) | ✅ (OpenAI-format unification) |
-| Responses↔Chat downgrade + history normalization | ✅ (HLD 006) | ✅ (multi-protocol) | ✅ |
+| Responses→Chat downgrade + history normalization | ✅ (HLD 006) | ✅ (multi-protocol) | ✅ |
 | ZDR `encrypted_content` stripping | ✅ (HLD 011) | ❌ | ◐ (affinity handling) |
 | Per-provider upstream timeout ladder | ✅ (HLD 012) | ◐ (retry backoff only) | ✅ (timeouts + retries) |
 | Runtime provider CRUD admin API | ✅ (HLD 008) | ✅ (mgmt UI + API) | ✅ (keys/teams/models APIs + UI) |

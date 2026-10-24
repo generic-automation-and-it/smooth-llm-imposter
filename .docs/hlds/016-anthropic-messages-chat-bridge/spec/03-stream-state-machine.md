@@ -2,7 +2,7 @@
 
 Siblings: `01-request-mapping.md` (request side, sets `stream_options.include_usage`), `02-response-mapping.md` (non-stream mapping; shares stop_reason, usage, tool-argument and name/id rules), `04-harness-and-errors.md` (HTTP-level error responses, headers, token estimator, retry-after, context-overflow message text).
 
-Normative language: MUST / MUST NOT / SHOULD / MAY. This file describes the target behavior only. Decisions D1-D17 (`decisions.md`) are binding and are referenced by number.
+Normative language: MUST / MUST NOT / SHOULD / MAY. This file describes the target behavior only. Decisions D1-D21 (`00-cross-cutting-decisions.md`) are binding and are referenced by number.
 
 ---
 

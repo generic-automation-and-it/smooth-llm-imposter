@@ -4,7 +4,7 @@
 
 ## Context
 
-- [ROUTING_AGENTS.md](../../../../src/SmoothLlmImposter.Application/Features/Routing/ROUTING_AGENTS.md) states "same-dialect only"; this HLD narrows that rule, it does not remove it.
+- [AGENTS.md](../../../../src/SmoothLlmImposter.Application/Features/Routing/AGENTS.md) states "same-dialect only"; this HLD narrows that rule, it does not remove it.
 - Inbound model matching and route resolution are already per dialect, and a provider already declares which upstream API it speaks (`OpenAiUpstreamApi`).
 - Passthrough and Anthropic-native providers are production traffic and must not change.
 
@@ -17,5 +17,5 @@ The option follows the plumbing every provider option needs (options model, env 
 ## Consequences
 
 - Operators opt in per provider; one router can serve bridged and native Claude traffic side by side.
-- The "same-dialect only" rule in `ROUTING_AGENTS.md` must be amended when this HLD is accepted.
+- The "same-dialect only" rule in `AGENTS.md` must be amended when this HLD is accepted.
 - Reserved GitHub Copilot providers stay fixed to their native API ([HLD 013](../../013-github-copilot/README.md)).
