@@ -9,13 +9,18 @@ namespace SmoothLlmImposter.Application.Features.Routing.Decisions;
 internal sealed class DecisionToolsFilter(
     IOptions<ImposterOptions> options,
     IDecisionModelClient client,
+    TimeProvider timeProvider,
     ILogger<DecisionToolsFilter> logger) : IDecisionToolsFilter
 {
     private const int ChunkSize = 20;
     private const int InstructionLimit = 300;
+    internal const int MaxStickyTools = 1024;
     private readonly DecisionAnswerCache _cache = new();
+    private readonly SessionScopedMemory<HashSet<string>> _sticky =
+        new(timeProvider, () => new HashSet<string>(StringComparer.Ordinal));
 
-    public async Task<string> FilterAsync(string path, string body, CancellationToken cancellationToken)
+    public async Task<string> FilterAsync(
+        string path, string body, CallerHeaders callerHeaders, string inboundBody, CancellationToken cancellationToken)
     {
         if (!options.Value.DecisionsTools.Enabled)
         {
@@ -61,7 +66,9 @@ internal sealed class DecisionToolsFilter(
                 return body;
             }
 
-            DecisionTool[] candidates = DecisionTool.ReadCandidates(tools, root, shape, AlwaysKeepNames(settings));
+            string? stickyScope = StickyScope(settings, shape, root, callerHeaders, inboundBody);
+            DecisionTool[] candidates = WithoutSticky(
+                DecisionTool.ReadCandidates(tools, root, shape, AlwaysKeepNames(settings)), stickyScope, shape);
             var probabilities = new Dictionary<string, double>();
             var pending = new List<DecisionTool>();
             foreach (DecisionTool tool in candidates)
@@ -107,23 +114,25 @@ internal sealed class DecisionToolsFilter(
                 .ToHashSet();
 
             cancellationToken.ThrowIfCancellationRequested();
-            if (removed.Count == 0)
-            {
-                return body;
-            }
-
-            if (removed.Count == tools.Count)
+            if (removed.Count > 0 && removed.Count == tools.Count)
             {
                 logger.LogInformation("Decisions filter {Shape}: every tool scored below the threshold, kept all {Total}",
                     shape, tools.Count);
                 return body;
             }
 
-            int restored = RestoreMinimum(removed, candidates, probabilities, tools.Count, settings.MinKeepTools);
+            int restored = removed.Count == 0
+                ? 0
+                : RestoreMinimum(removed, candidates, probabilities, tools.Count, settings.MinKeepTools);
             if (restored > 0)
             {
                 logger.LogDebug("Decisions filter {Shape}: minimum-kept floor restored {Restored} highest-scoring tools",
                     shape, restored);
+            }
+
+            if (stickyScope is not null && candidates.All(tool => probabilities.ContainsKey(tool.Key)))
+            {
+                RecordSticky(stickyScope, DecisionTool.KnownLabels(tools, shape, removed));
             }
 
             if (removed.Count == 0)
@@ -153,6 +162,49 @@ internal sealed class DecisionToolsFilter(
             LogFailOpen(failure);
             return body;
         }
+    }
+
+    private static string? StickyScope(
+        DecisionsToolsOptions settings, DecisionBodyShape shape, JsonObject root, CallerHeaders callerHeaders, string inboundBody)
+    {
+        if (!settings.StickyPerSession)
+        {
+            return null;
+        }
+
+        SessionIdentity identity = SessionIdentityResolver.Resolve(callerHeaders, inboundBody);
+        return identity.Source == SessionIdentitySource.Captured && identity.HasValue
+            ? SessionScope.Key(shape.ToString(), DecisionJson.Text(root["model"]), identity.Value!, callerHeaders)
+            : null;
+    }
+
+    private DecisionTool[] WithoutSticky(DecisionTool[] candidates, string? stickyScope, DecisionBodyShape shape)
+    {
+        if (stickyScope is null)
+        {
+            return candidates;
+        }
+
+        HashSet<string> sticky = _sticky.Use(stickyScope, labels => labels.ToHashSet(StringComparer.Ordinal));
+        DecisionTool[] remaining = candidates.Where(tool => !sticky.Contains(SessionScope.Hash(tool.Label))).ToArray();
+        if (remaining.Length < candidates.Length)
+        {
+            logger.LogDebug("Decisions filter {Shape}: {Sticky} sticky tools kept without asking",
+                shape, candidates.Length - remaining.Length);
+        }
+        return remaining;
+    }
+
+    private void RecordSticky(string stickyScope, string[] labels)
+    {
+        string[] keys = labels.Select(SessionScope.Hash).ToArray();
+        _sticky.Use(stickyScope, sticky =>
+        {
+            if (sticky.Count + keys.Count(key => !sticky.Contains(key)) <= MaxStickyTools)
+            {
+                sticky.UnionWith(keys);
+            }
+        });
     }
 
     private static HashSet<string> AlwaysKeepNames(DecisionsToolsOptions settings) =>

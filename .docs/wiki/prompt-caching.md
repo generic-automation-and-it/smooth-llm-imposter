@@ -38,7 +38,13 @@ or guarantee that appending a tool reuses an earlier tools breakpoint.
   kept set as a chat advances. `AlwaysKeep` protects supplied core tools and `MinKeepTools` bounds pruning;
   neither freezes a session catalog. The per-question decision memo saves classifier work, not upstream
   prompt-cache tokens. Deferred-loading catalogs are not decision-filtered. If stable upstream prefixes
-  are the priority, leave `DECISIONS_TOOLS_ENABLED=false` (the default).
+  are the priority, leave `DECISIONS_TOOLS_ENABLED=false` (the default), or also set
+  `DECISIONS_TOOLS_STICKY_PER_SESSION=true`: a tool the filter forwarded then stays forwarded for the rest of
+  that session while the client still sends it, so the filter itself no longer changes the tool prefix between
+  turns. It uses the same captured identities as ordering below (derived fingerprints and the router's own
+  `prompt_cache_key` do not count), records nothing from a failed or all-skip pass, and grows the forwarded
+  catalog over a long session. Combined with ordering, a session's tool prefix changes only when the client
+  adds or drops a tool ([HLD 014 LADR-09](../hlds/014-decisions-tools-filter/ladrs/LADR-09-sticky-per-session.md)).
 
 ## Optional session-local stable ordering
 

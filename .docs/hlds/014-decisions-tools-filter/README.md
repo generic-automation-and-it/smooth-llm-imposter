@@ -26,7 +26,7 @@ The stage applies to imposter and passthrough routes, across OpenAI Chat, OpenAI
 
 ### 2. Conservative tool selection
 
-Each positively understood, unprotected tool receives an independent use/skip question. The use probability is compared inclusively with the configured threshold (default 0.50: more likely needed than not). A missing or invalid answer keeps the tool. Two settings bound the damage of a poorly calibrated classifier: tools named in `AlwaysKeep` (default `Bash,Read,Edit,Write,Skill`, matched exactly against tool name, MCP server label or hosted type) are never asked about and never removed, and a minimum-kept floor (`MinKeepTools`, default 20) restores the highest-scoring removed tools until at least that many tools remain, counting always-kept and history-protected ones; a catalog that does not exceed the floor makes no classifier call. A pass that would leave no tool at all keeps the catalog unchanged. A catalog using deferred loading — any `defer_loading: true` tool (including inside a namespace) or a `tool_search` tool — is skipped entirely: client-side deferral already keeps those tools out of the prompt, and removing the search gateway or Claude Code's "never call" placeholder would break it. The catalog remains in its original order; only `tools` and `tool_choice` are rewritten, and every other top-level value is forwarded byte-for-byte.
+Each positively understood, unprotected tool receives an independent use/skip question. The use probability is compared inclusively with the configured threshold (default 0.50: more likely needed than not). A missing or invalid answer keeps the tool. Two settings bound the damage of a poorly calibrated classifier: tools named in `AlwaysKeep` (default `Bash,Read,Edit,Write,Skill`, matched exactly against tool name, MCP server label or hosted type) are never asked about and never removed, and a minimum-kept floor (`MinKeepTools`, default 20) restores the highest-scoring removed tools until at least that many tools remain, counting always-kept and history-protected ones; a catalog that does not exceed the floor makes no classifier call. A pass that would leave no tool at all keeps the catalog unchanged. With `StickyPerSession` (default off) a tool forwarded after a completed pass stays forwarded for the rest of that captured session while the harness still supplies it — it is treated like `AlwaysKeep` — so the filter stops changing the cached tool prefix between user turns ([LADR-09](ladrs/LADR-09-sticky-per-session.md)). A catalog using deferred loading — any `defer_loading: true` tool (including inside a namespace) or a `tool_search` tool — is skipped entirely: client-side deferral already keeps those tools out of the prompt, and removing the search gateway or Claude Code's "never call" placeholder would break it. The catalog remains in its original order; only `tools` and `tool_choice` are rewritten, and every other top-level value is forwarded byte-for-byte.
 
 | Concern | OpenAI Chat | OpenAI Responses | Anthropic Messages |
 |---|---|---|---|
@@ -51,6 +51,7 @@ Unknown catalog or choice shapes are kept. History is never rewritten. Understoo
 - A pruned body keeps every top-level value other than `tools`/`tool_choice` byte-identical, including message escapes.
 - A pass removing nothing returns the original string instance.
 - Deprecated fields, unknown entries and protected history survive unchanged.
+- With `StickyPerSession`, a tool forwarded on an earlier completed pass of the same captured session is neither asked about nor removed; fail-open, all-skip and small-catalog passes record nothing; derived/absent identities and other sessions or callers share nothing.
 
 ### 3. Bounded classifier work
 
@@ -112,6 +113,7 @@ Per-provider overrides, persistent or distributed decision caching, tool-count s
 | [06](ladrs/LADR-06-history-and-choice-integrity.md) | Preserve history and clean dependent choices | Accepted |
 | [07](ladrs/LADR-07-chunk-memo-and-byte-preserving-output.md) | In-memory per-question memo; byte-preserving output; deferred-loading skip | Accepted |
 | [08](ladrs/LADR-08-core-tools-and-minimum-floor.md) | Always-kept core tools and a minimum-kept floor instead of a lower threshold | Accepted |
+| [09](ladrs/LADR-09-sticky-per-session.md) | Opt-in sticky tool selection per captured session | Accepted |
 
 ## Non-Functional Requirements
 
@@ -142,4 +144,5 @@ Per-provider overrides, persistent or distributed decision caching, tool-count s
 | 2026-10-23 | Labelled request-first state (no post-request assistant text, system only as fallback, reminder blocks and tool-result turns excluded); need-question wording; all-skip keeps catalog; deferred-loading skip; in-memory chunk memo; byte-preserving output; threshold 0.20; removed names logged (NFR-02) | #138 |
 | 2026-10-23 | Review fixes: memo keyed per tool question so tool-call continuations reuse answers; only valid answers cached; text between reminder spans kept | #141 |
 | 2026-10-23 | Conductor `<system_instruction>` and Claude Code local-command wrappers stripped from state; fail-open warning names HTTP status and configured model | — |
+| 2026-10-23 | Opt-in `StickyPerSession` keeps forwarded tools for the rest of a captured session (LADR-09) | — |
 | 2026-10-23 | Default threshold back to 0.50; `AlwaysKeep` core tools never asked; `MinKeepTools` floor (default 20) tops up by score; catalogs within the floor skip the classifier (LADR-08) | #138 |
