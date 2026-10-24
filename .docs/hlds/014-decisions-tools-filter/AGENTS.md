@@ -8,6 +8,7 @@ Read [README.md](README.md) first — decision-tool filtering intent, decisions 
 
 | Date | Change | Ref |
 |---|---|---|
+| 2026-10-24 | Skips logged at Information with a reason; Codex Responses requests (tools only in `additional_tools`) intentionally unfiltered (LADR-10) | — |
 | 2026-10-23 | Sticky per session: identity from inbound body, never the transformed one (LADR-09) | — |
 | 2026-10-23 | Memo reuse distinct from upstream cache hits; optional ordering is independent | — |
 | 2026-10-23 | Core-tool `AlwaysKeep`, `MinKeepTools` floor, threshold 0.50 (LADR-08) | #138 |
