@@ -7,9 +7,9 @@
 - At drafting (2026-10-22), existing deployments used seven DECISIONS_TOOLS variables and the corresponding structured options; HLD 014 has since added more.
 - Tool enablement and probability threshold are consumer policy; destination, default model and transport budgets are not.
 - Renaming settings during extraction would add migration risk without a second production consumer.
-- The shipped resilience profile falls back to fixed attempt and timeout values whenever tool filtering is disabled, so the transport's availability is still switched by tool enablement.
-- The shipped client resolves its destination, path and timeout from the routing feature's options type rather than a consumer-neutral one.
-- Startup validation of decision settings is gated on tool filtering's enable flag; no any-consumer predicate exists.
+- As shipped on 2026-10-24, the resilience profile falls back to fixed attempt and timeout values whenever tool filtering is disabled, so the transport's availability is still switched by tool enablement.
+- As shipped on 2026-10-24, the client resolves its destination, path and timeout from the routing feature's options type rather than a consumer-neutral one.
+- As shipped on 2026-10-24, startup validation of decision settings is gated on tool filtering's enable flag; no any-consumer predicate exists.
 
 ## Decision
 
