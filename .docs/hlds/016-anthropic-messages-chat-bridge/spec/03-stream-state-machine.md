@@ -30,7 +30,7 @@ Vocabulary: "bridge", "client", "upstream" as in `decisions.md`. "Frame" = one S
 | MAX_TOOL_CALLS | 128 | pending + emitted calls per message |
 | MAX_TOOL_ARGS_BYTES | 4,194,304 (4 MiB) | held argument text per call |
 | MAX_PENDING_BYTES | 16,777,216 (16 MiB) | held argument text across all pending calls |
-| MAX_ID_CHARS / MAX_NAME_CHARS | 256 / 256 | longer upstream ids are treated as illegal (D5); a longer name is treated as no name |
+
 | ERROR_MESSAGE_MAX_CHARS | 2,000 | truncation of upstream error text (D10) |
 | SYNTH_ID_CHARS | 24 | random characters after `msg_` / `toolu_` (D3, D5) |
 
@@ -223,7 +223,7 @@ The idle rule in WAIT_FIRST means message_start is written by the first upstream
 
 ### 5.1 Records and identity
 
-A call record has: orderNo (arrival order), upstreamIndex (if given), id (first non-empty string wins), name (first non-empty string of `function.name` or `name`, at most MAX_NAME_CHARS, wins; later different values are ignored), the held argument text, and `balanced`.
+A call record has: orderNo (arrival order), upstreamIndex (if given), id (first non-empty string wins), name (first non-empty string of `function.name` or `name`, at most 64 characters, wins; later different values are ignored), the held argument text, and `balanced`.
 
 Arguments of an entry: `function.arguments` if that key exists on `function`, else a top-level `arguments`. A string is a fragment as is. A JSON object or array is serialized to compact text and treated as one fragment. null/absent/empty contribute nothing.
 
@@ -262,7 +262,7 @@ Calls are always emitted one after another, in ascending (upstreamIndex, orderNo
 2. Arguments (D4), applied to the held text with surrounding whitespace removed:
    - If `lengthCut` (the call was still pending when the stream ended by the length limit): empty text -> drop the call; text that strictly parses to a JSON object -> use it compacted; anything else -> drop the call. No repair is attempted. A dropped call writes nothing (warning log).
    - Otherwise: empty -> `{}`; strictly parses to a JSON object -> use it compacted; otherwise (invalid JSON, or valid JSON that is not an object) make ONE repair attempt (5.6): if the repaired text parses to an object use it compacted, else FAIL(api_error, "Upstream returned invalid arguments for tool call <name>"). `{}` is never substituted for non-empty broken arguments.
-3. Id (D5): keep the upstream id if it matches `^[a-zA-Z0-9_-]{1,64}$` (and at most MAX_ID_CHARS) and is not in usedIds; otherwise synthesize `toolu_` + SYNTH_ID_CHARS random base62 characters. Add the final id to usedIds.
+3. Id (D5): keep the upstream id if it matches `^[a-zA-Z0-9_-]{1,64}$` and is not in usedIds; otherwise synthesize `toolu_` + SYNTH_ID_CHARS random base62 characters. Add the final id to usedIds.
 4. Name (D6): map the upstream name through the reverse of `toolNameMap`; a name not in the map is used unchanged.
 5. Write, back to back: tool_use block start (index nextIdx++, id, name, `input:{}`), one `input_json_delta` carrying the compact JSON text, block stop. emittedToolUse++; add the text to outputEstimateState; mark the call emitted.
 
@@ -308,12 +308,12 @@ Placeholders: an object with no recognized numeric counter (`{}`, nulls) and an 
 - message_start: always `input_tokens` = E, `output_tokens` = 1, both cache counters 0, regardless of any usage in the first chunk.
 - message_delta (written at FINALIZE), all four counters always present:
   - `cache_read_input_tokens` = cacheRead when prompt is reported, else 0.
-  - `input_tokens` = max(0, prompt - cacheRead) when prompt is reported; otherwise E.
-  - `cache_creation_input_tokens` = cacheWrite when reported, else 0. It is NOT subtracted from prompt (D8).
+  - `input_tokens` = max(0, prompt - cacheRead - cacheWrite) when prompt is reported; otherwise E.
+  - `cache_creation_input_tokens` = cacheWrite when reported, else 0; it is subtracted from `input_tokens` together with `cacheRead` (D8, identical to 02).
   - `output_tokens`: let c = completion if reported; else max(0, total - prompt) if prompt and total are both reported; else unreported. If c is unreported, or c is 0 while any content was emitted: max(1, estimator over all emitted text, thinking and tool_use input text), using the estimator defined in 04. Otherwise c (a reported 0 with no content emitted stays 0).
 - Estimates are never labelled as estimates on the wire. Empty usage is never emitted.
 
-Risk: if an upstream's prompt counter already includes cache-write tokens, D8 leaves them in `input_tokens` (they are not subtracted), so the client may count them twice (as input and as cache creation).
+Risk: subtracting a reported cache-write count assumes the upstream's prompt counter includes those tokens, as OpenAI's does; an upstream that reports them outside the prompt counter would understate `input_tokens` by that amount.
 
 ### 7.3 stop_reason (D1)
 
@@ -535,7 +535,7 @@ Output frames: `MS`, `PING`, `B+(i,text)`, `B+(i,think)` (always with `"signatur
 | ID | Input | Expected |
 |---|---|---|
 | U01 | U(100,20;cr=60) | in40 cc0 cr60 out20 |
-| U02 | prompt 100, cached 60, cache_write 10 | in40 cc10 cr60 (cache_write not subtracted) |
+| U02 | prompt 100, cached 60, cache_write 10 | in30 cc10 cr60 (both cache counters subtracted) |
 | U03 | cached 50 > prompt 10 | in0 |
 | U04 | usage nested in `choices[0].usage` with the finish | counted; finalized in that chunk |
 | U05 | only `prompt_cache_hit_tokens:30` | cr30 |
@@ -609,6 +609,7 @@ Output frames: `MS`, `PING`, `B+(i,text)`, `B+(i,think)` (always with `"signatur
 ---
 
 ## 12. Open items (need live-upstream measurement)
+- Tool-call argument streaming: native Messages streams `input_json_delta` fragments as they arrive; this design holds each call until its arguments validate (D4), so the client sees the tool name and input only at completion. The trade-off is deliberate (validation before execution, no silent `{}`). Revisit if a real Claude Code session shows unacceptable tool UX; the trigger is a user-visible stall on a large Write/Edit call.
 
 1. Whether any target upstream interleaves text or reasoning deltas between argument fragments of one call; the text-after-tool rule (5.4) would discard such late fragments.
 2. Frequency of `null` arguments or arguments delivered as a JSON string containing JSON; both currently fail validation (D4); an unwrap step may be warranted.

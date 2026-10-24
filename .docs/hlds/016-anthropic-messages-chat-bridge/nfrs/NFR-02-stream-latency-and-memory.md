@@ -8,7 +8,7 @@ Translating a stream must not delay or accumulate it beyond the one held tool-ca
 
 - `message_start` is written within 20 ms of the first upstream chunk being read.
 - Each translated text or reasoning delta is written within 5 ms (p99) of its source chunk for chunks up to 1 KiB, excluding upstream time.
-- Retained per-stream memory is the open block state plus held tool-call arguments only; held arguments are capped at 4 MiB per call and 16 MiB per stream, and an SSE event is capped at 8 MiB. Exceeding a cap ends the stream with a Messages error.
+- Memory is the open block state plus held tool-call arguments, capped at 4 MiB per call, 16 MiB per stream and 8 MiB per SSE event; exceeding a cap ends the stream with a Messages error.
 - A stream with no upstream bytes for 8 seconds still emits a ping.
 
 ## Verification

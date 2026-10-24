@@ -11,7 +11,7 @@
 
 **Adopt** an allowlist build of the Chat body. Optimization and metadata fields with no Chat meaning are dropped silently, and fields with privacy or compatibility cost (`metadata.user_id`, `reasoning_effort`) are off unless the operator opts in per provider.
 
-Unsupported content **blocks** in messages are replaced by a one-line text placeholder naming the omitted block type, so the session continues and the model can tell the user. Unsupported typed server **tool definitions** in `tools` are rejected with HTTP 400 naming the tool, so the client or model sees the failure. Both lists are normative in the [request spec](../spec/01-request-mapping.md).
+Unsupported content **blocks** in messages are replaced by a one-line text placeholder naming the omitted block type, so the session continues and the model can tell the user; a provider opt-in sends a base64 PDF or image document as an image part instead, for a vision-capable upstream. Unsupported typed server **tool definitions** in `tools` are rejected with HTTP 400 naming the tool, so the client or model sees the failure. Both lists are normative in the [request spec](../spec/01-request-mapping.md).
 
 ## Consequences
 

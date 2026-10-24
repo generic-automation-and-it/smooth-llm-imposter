@@ -83,10 +83,11 @@ Errors, usage and token counting behave so the client's retry, overload, compact
 
 ## Specification
 
-The normative behavior lives in `spec/`; each file ends with an edge-case matrix whose rows are the conformance tests to write, and an Open items list. JSON wire examples are in `examples/`.
+The normative behavior lives in `spec/`; each of 01 to 04 ends with an edge-case matrix whose rows are the conformance tests to write, and an Open items list. JSON wire examples are in `examples/`.
 
 | File | Covers |
 |---|---|
+| [00 Cross-cutting decisions](spec/00-cross-cutting-decisions.md) | D1-D21, the rules every other spec file cites |
 | [01 Request mapping](spec/01-request-mapping.md) | Pipeline, provider options, rejection list, fields, messages, tools, reasoning, vendor profiles |
 | [02 Response mapping](spec/02-response-mapping.md) | Non-streaming reply: envelope, text, reasoning, tool use, stop reason, usage, errors |
 | [03 Stream state machine](spec/03-stream-state-machine.md) | Chat SSE to Messages SSE: parser, frames, state machine, termination |
@@ -94,7 +95,7 @@ The normative behavior lives in `spec/`; each file ends with an edge-case matrix
 
 ## Known limitations
 
-- Hosted tools (web search and other typed server tools) fail with HTTP 400; documents and server-tool blocks in history become a text placeholder.
+- Hosted tools (web search and other typed server tools) fail with HTTP 400; documents and server-tool blocks in history become a text placeholder, unless the operator opts a vision-capable provider into document-as-image mode.
 - Thinking blocks carry an empty signature: they are display-only, and replaying a bridged session on a native Messages upstream that validates signatures can fail.
 - Token counts are estimates; an upstream without vision rejects images.
 - Long tool inputs reach the client when the call completes, not progressively.

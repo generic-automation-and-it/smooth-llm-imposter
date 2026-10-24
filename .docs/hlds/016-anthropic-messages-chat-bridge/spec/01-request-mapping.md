@@ -41,8 +41,13 @@ This table is the single authoritative list of per-provider options consumed by 
 | `userIdMode` | `off`, `hash`, `passthrough` | `off` | optional tuning | How `metadata.user_id` becomes the Chat `user` field (section 10). `off` sends nothing. |
 | `maxTokensField` | `max_tokens`, `max_completion_tokens` | `max_tokens` | optional tuning | Name of the output-limit key (section 10). |
 | `maxOutputTokens` | integer >= 16, or unset | unset | optional tuning | Upper cap applied to the output limit (section 10). |
+| `AnthropicUpstreamApi` | `messages`, `chat_completions` | `messages` | required (provider-level gate) | Turns bridging on for this provider; conventional env `<PROVIDER>_ANTHROPIC_UPSTREAM_API`. Only a `chat_completions` provider on a matched imposter route reaches this mapper. Validated at startup and on admin upsert: an unknown value fails; a `chat_completions` provider whose effective auth scheme (the provider's `AuthScheme`, else the Anthropic default `ApiKey`) is not `Bearer` fails, because a Chat upstream accepts no other scheme (D20). |
+| `forwardCacheControl` | boolean | `false` | optional tuning | Copies a block's `cache_control` object verbatim onto the corresponding Chat content part, tool message, tool definition or system part (sections 4 and 7). Only an upstream that understands Anthropic-style cache breakpoints benefits. |
+| `sendResponseFormat` | boolean | `false` | optional tuning | Maps `output_config.format` to Chat `response_format` (sections 4 and 10). |
+| `documentMode` | `placeholder`, `image` | `placeholder` | optional tuning | `placeholder` replaces an unsupported document with a text placeholder; `image` sends a base64 PDF or image document as an `image_url` data URL and a URL document as its URL, for a vision-capable upstream (sections 4 and 7.2). |
+| `midturnSystem` | `system`, `merge_into_user` | `system` | optional tuning | How an in-sequence `system` message is mapped (section 7.0). `merge_into_user` is for an upstream whose chat template allows only a leading system message. |
 
-Not options: streaming requests always carry `stream_options.include_usage = true` (D8); the output-limit floor of 16 always applies (D19); the bridge is enabled by the router's provider configuration (Anthropic-dialect provider with upstream API `chat_completions`, D17), not by a mapper option. Operator-facing documentation SHOULD reference this table rather than copy it.
+Not options: streaming requests always carry `stream_options.include_usage = true` (D8); the output-limit floor of 16 always applies (D19); the bridge is enabled by the provider option above as a router-side gate (Anthropic-dialect provider whose upstream API is `chat_completions`, D17), not by a mapper option. Operator-facing documentation SHOULD reference this table rather than copy it.
 
 ---------------------------------------------------------------------------------------------------
 
@@ -70,7 +75,7 @@ Order of checks (first violation wins): body, model, max_tokens, stream, tempera
 | R14 | `tool_choice` type `tool` naming a tool that is not among the surviving tools (compared by original name) | `tool_choice.name: no tool named "{name}" in tools` |
 | R15 | `tool_choice` type `any` / `required` / `tool` while no tool survives | `tool_choice: "{type}" requires at least one tool` (`{type}` = `any`, `required`, or `tool`) |
 | R16 | `messages` missing or null / not a list / empty list | `messages: Field required` / `messages: Input should be a valid list` / `messages: at least one message is required` |
-| R17 | message not an object / `role` not `user` or `assistant` (including `system`, `developer`, `tool`, missing) | `messages.{i}: Input should be a valid dictionary` / `messages.{i}.role: Input should be 'user' or 'assistant'` |
+| R17 | message not an object / `role` not `user`, `assistant` or `system` (including `developer`, `tool`, missing) | `messages.{i}: Input should be a valid dictionary` / `messages.{i}.role: Input should be 'user', 'assistant' or 'system'` |
 | R18 | message `content` missing or null / neither string nor list | `messages.{i}.content: Field required` / `messages.{i}.content: Input should be a valid string or list` |
 | R19 | content element not an object / without a string `type` (also for the elements of a tool_result content list, path `messages.{i}.content.{j}.content.{k}`) | `messages.{i}.content.{j}: Input should be a valid dictionary` / `messages.{i}.content.{j}.type: Field required` |
 | R20 | `tool_use` block (assistant) missing / empty `id`; missing / empty `name`; `input` present, not null, not an object | `messages.{i}.content.{j}.id: Field required` / `...name: Field required` / `messages.{i}.content.{j}.input: Input should be a valid dictionary` |
@@ -107,12 +112,14 @@ The Chat body is an allowlist build. Fields not listed here MUST be dropped (deb
 | `stop_sequences` | Section 10. |
 | `stream` | Section 11. |
 | `tools`, `tool_choice` | Sections 8, 9. |
-| `thinking`, `output_config` | Section 12 (read for effort; `budget_tokens` has no direct Chat equivalent). Wrong types are ignored (debug log). `output_config.format` is dropped. |
+| `thinking`, `output_config` | Section 12 (read for effort; `budget_tokens` has no direct Chat equivalent). Wrong types are ignored (debug log). `output_config.format` maps to Chat `response_format` when `sendResponseFormat` is `true` (section 10); dropped otherwise. |
 | `metadata` | Only `metadata.user_id` is read, and only when `userIdMode` is not `off` (section 10). Wrong type ignored. |
 | `service_tier`, `context_management`, `container`, `mcp_servers`, top-level `cache_control`, `betas`, `speed`, and any unknown field | Dropped. |
-| Per-block / per-tool: `cache_control`, `citations`, tool `defer_loading`, `eager_input_streaming`, `input_examples`, `allowed_callers`, tool `strict` | Dropped. All tools are sent regardless of `defer_loading`; the downstream tool filter decides what finally reaches the upstream. |
+| `cache_control` (per block, per tool, per system part) | Dropped unless `forwardCacheControl` is `true`, in which case each `cache_control` object is copied verbatim onto the corresponding Chat content part, tool message, tool definition or system content part. |
+| tool `strict` (boolean) | Forwarded verbatim as the Chat function object's `strict` member when it is a boolean; dropped otherwise. |
+| Per-block / per-tool: `citations`, tool `defer_loading`, `eager_input_streaming`, `input_examples`, `allowed_callers` | Dropped. All tools are sent regardless of `defer_loading`; the downstream tool filter decides what finally reaches the upstream. |
 | Tool-search server tool (`type` = `tool_search` or starting `tool_search_tool_`) | Silently removed from `tools` (D13). |
-| Unsupported content blocks in `system` or `messages` (`document`, `server_tool_use`, server-tool result blocks, any unknown type) | Replaced by one placeholder text part (section 7.2); debug log (D13). |
+| Unsupported content blocks in `system` or `messages` (`server_tool_use`, server-tool result blocks, any unknown type) | Replaced by one placeholder text part (section 7.2); debug log (D13). A `document` follows `documentMode`: placeholder by default, `image_url` in `image` mode (section 7.2). |
 
 ---------------------------------------------------------------------------------------------------
 
@@ -141,6 +148,13 @@ Attribution rule (D18): when `system` is a list, its FIRST element MUST be dropp
 
 ## 7. Messages
 
+### 7.0 Mid-turn system messages
+
+Claude Code inserts `role: "system"` messages inside `messages` (for example a token-count note after a tool result). They MUST be mapped, never rejected.
+
+- `midturnSystem: system` (default): each such message becomes one Chat `system` message at the same position. A string `content` is used verbatim; a list `content` yields text parts in order, every non-text block becoming the unsupported-block placeholder (7.2); an empty result drops the message.
+- `midturnSystem: merge_into_user`: the text (`\n`-joined, placeholders included) becomes the leading text part of the next user message; if no user message follows, it becomes its own user message. The client-facing history order is unchanged.
+
 ### 7.1 Walk
 
 Messages are processed in order. For each message the mapper builds a list of neutral items (below). A message that yields no items (for example one containing only white-space text) is removed; neighbours are not merged. A message containing an unsupported block always yields at least the placeholder item (7.2). The converted Chat sequence preserves message order; adjacent messages of the same role MUST NOT be merged except as specified in 7.4 (D14).
@@ -154,7 +168,11 @@ Messages are processed in order. For each message the mapper builds a list of ne
 | `tool_result` | tool-result item (7.5) | placeholder |
 | `tool_use` | placeholder | tool-use item (7.3) |
 | `thinking`, `redacted_thinking` | dropped (D7) | dropped by default; profile-dependent re-injection (section 13); `redacted_thinking` is always dropped; a non-empty `signature` is ignored |
-| every other `type` - including `document`, `server_tool_use`, `mcp_tool_use`, `web_search_tool_result` and every other `*_tool_result` server block, `search_result`, `container_upload`, `compaction`, and any unknown type | placeholder | placeholder |
+| every other `type` - including `server_tool_use`, `mcp_tool_use`, `web_search_tool_result` and every other `*_tool_result` server block, `search_result`, `container_upload`, `compaction`, and any unknown type (`document` is handled by the paragraph below) | placeholder | placeholder |
+
+A `document` block follows `documentMode`: with `placeholder` (default) it is an unsupported block; with `image` it becomes an image part (7.6) when `source.type` is `base64` (media type `application/pdf` or `image/*`) or `url` with a non-empty `url`, and an unsupported block otherwise.
+
+Risk: many Chat upstreams accept only `image/*` media types and reject a PDF data URL; `image` mode is therefore only for a provider known to accept PDFs, and the default stays `placeholder`.
 
 Unsupported-block placeholder (D13). A block marked "placeholder" MUST be replaced, at the position where it stood, by one text item whose text is exactly `[omitted: unsupported content block '<type>']`, where `<type>` is the block's `type` string verbatim. The placeholder is an ordinary text item: it merges with adjacent text under the `
 ` rule of section 5, forms part of the assistant `content`, and is never dropped as empty. A message whose only content was an unsupported block therefore keeps the placeholder and is not removed. Each replacement MUST be logged at debug level (block type, message index, block index). The same replacement applies to the nested blocks of a tool_result (7.5).
@@ -162,7 +180,7 @@ Unsupported-block placeholder (D13). A block marked "placeholder" MUST be replac
 ### 7.3 Assistant messages
 
 1. Text = all text items joined with `\n` (one `content` string regardless of interleaving with tool_use blocks).
-2. `tool_calls` = one entry per tool_use block in block order: `{"id":<tool_use.id verbatim>,"type":"function","function":{"name":<mapped name, 8.3>,"arguments":<compact JSON text of input; "{}" when input is absent or null>}}`. Ids are used as the client sent them (D5); the mapper does not rewrite ids. Input is never silently replaced when it has the wrong kind (R20).
+2. `tool_calls` = one entry per tool_use block in block order: `{"id":<mapped id>,"type":"function","function":{"name":<mapped name, 8.3>,"arguments":<compact JSON text of input; "{}" when input is absent or null>}}`. Id mapping (D5) is a per-request map filled in message order: an id matching `^[a-zA-Z0-9_-]{1,64}$` that no earlier block claimed maps to itself; any other id (illegal characters, too long, empty) maps to `toolu_` plus the first 24 lower-case hex digits of SHA-256 over the id's UTF-8 bytes; a repeat of an already-claimed original appends `_2`, `_3`, ... (truncating to 64). The map is deterministic for a given body, so `tool_result` matching (7.4) always finds the same target. Input is never silently replaced when it has the wrong kind (R20).
 3. The message is omitted if it has no text, no tool_calls and no re-injected reasoning (so a reasoning-only turn disappears under profile `none`, D7).
 4. `content` = the text when non-empty; `""` when the message has tool_calls or re-injected reasoning but no text. `tool_calls` is present only when non-empty.
 5. Reasoning fields: only per section 13.
@@ -173,7 +191,7 @@ Let P be the message immediately preceding this user message in the converted se
 
 Items of the user message are partitioned in original order into text items, image items and tool-result items.
 
-1. Matching: for each id in C, in call order, take the first not-yet-consumed tool-result item in this user message whose `tool_use_id` equals it; emit exactly one tool message `{"role":"tool","tool_call_id":<id>,"content":<conveyed text, 7.5>}` and mark that item consumed. The tool messages MUST be contiguous and MUST immediately follow P, in the assistant's call order (not in the order the client listed the results). An id in C with no result gets no tool message; the assistant `tool_calls` entry is kept as is.
+1. Matching: for each mapped id in C, in call order, take the first not-yet-consumed tool-result item in this user message whose `tool_use_id`, passed through the same map (7.3), equals it; emit exactly one tool message `{"role":"tool","tool_call_id":<mapped id>,"content":<conveyed text, 7.5>}` and mark that item consumed. The tool messages MUST be contiguous and MUST immediately follow P, in the assistant's call order (not in the order the client listed the results). An id in C with no result gets no tool message; the assistant `tool_calls` entry is kept as is.
 2. Image hoisting (D15): for each consumed tool-result item that contains images, in call order, after the last tool message, emit one user message `{"role":"user","content":[{"type":"text","text":"Images returned by tool call <tool_use_id>:"}, <image_url parts in order>]}`.
 3. Remaining items, in original order, form ONE sibling user message placed after the tool messages and hoisted messages:
    - text items: consecutive ones joined with `\n` into one text part;
@@ -223,7 +241,7 @@ A custom tool whose original name equals that of an earlier kept tool is dropped
 
 - `parameters` = `input_schema` copied verbatim (no sanitising); absent or null -> `{"type":"object","properties":{}}`.
 - `description` = the string verbatim when non-empty; otherwise omitted.
-- No `strict` key is ever emitted. Order of tools is preserved.
+- `strict` is emitted verbatim when the original tool carries a boolean `strict` (no other value is emitted). Order of tools is preserved.
 
 ### 8.3 Tool-name map (D6)
 
@@ -270,7 +288,8 @@ Risk: Claude Code does not send `disable_parallel_tool_use` or string-form `tool
 | output limit key (`max_tokens` or `max_completion_tokens` per option) | Value = client `max_tokens`; if < 16 it MUST be raised to 16 (D19: the client's startup probe sends 1); then, if `maxOutputTokens` is set and the value exceeds it, the value is the cap. The floor is applied before the cap. |
 | `stop` | `stop_sequences` as a list of strings, order and content preserved; empty list -> omitted. No truncation. |
 | `user` | By `userIdMode` (default `off`): `off` = never sent; `passthrough` = `metadata.user_id` verbatim when it is a non-empty string; `hash` = first 32 lower-case hex digits of SHA-256 over the UTF-8 bytes of that string. |
-| anything else | `n`, `seed`, penalties, `response_format`, `logprobs`, `top_k` equivalents are never emitted. |
+| `response_format` | Only from `output_config.format` and only when `sendResponseFormat` is `true`. `{"type":"json_schema","schema":S}` -> `{"type":"json_schema","json_schema":{"name":<N>,"schema":S'}}`, where `<N>` is `output_config.format.name` when it is a non-empty string, else `"response"`, and `S'` is `S` copied with `additionalProperties: false` added to every schema object that declares `"type": "object"` and lacks the key (never into `anyOf`/`allOf`/`oneOf` branches as such). A format of any other type, or a missing/non-object `schema`, emits nothing and is logged at debug. |
+| anything else | `n`, `seed`, penalties, `logprobs`, `top_k` equivalents are never emitted. |
 
 Risk: Claude Code's `metadata.user_id` embeds device and account identifiers (newer clients send a JSON string); `passthrough` forwards them to a third-party upstream, which is why the default is `off`. An upstream that needs a stable per-user key for cache affinity should get `hash`.
 
@@ -438,6 +457,9 @@ Conventions: base request `{"model":"m","max_tokens":100,"messages":[...]}` unle
 | P26 | assistant `[{tool_use A},{document}]` | `a: content "[omitted: unsupported content block 'document']", tool_calls [A]` |
 | P27 | placeholder type containing a quote or non-ASCII, e.g. type `a'b` | text `[omitted: unsupported content block 'a'b']` (type verbatim, no escaping) |
 
+| P90 | `cache_control` on a text block, `forwardCacheControl: true` | the Chat text part carries the same `cache_control` object |
+| P91 | `output_config.format` JSON schema, `sendResponseFormat: true` | `response_format: {"type":"json_schema","json_schema":{"name":"response","schema":<schema with additionalProperties:false on object types>}}` |
+| P92 | `output_config.format`, default options | no `response_format` key |
 ### 18.3 System (D18, D12)
 | ID | Input | Expected |
 |---|---|---|
@@ -465,6 +487,9 @@ Conventions: base request `{"model":"m","max_tokens":100,"messages":[...]}` unle
 | M09 | `tool_result` inside an assistant message / `tool_use` inside a user message | placeholder text `[omitted: unsupported content block 'tool_result']` / `'tool_use'` at that position |
 | M10 | identical input twice | byte-identical output |
 
+| M90 | user, `system` "note", user | `u`, `s: "note"`, `u`: the system message keeps its position |
+| M91 | same as M90 with `midturnSystem: merge_into_user` | `u: "note\n<text>"`, `u` (two user messages, no system) |
+| M92 | `system` message whose content is `[image]` | `s: "[omitted: unsupported content block 'image']"` |
 ### 18.5 Images (D15)
 | ID | Input | Expected |
 |---|---|---|
@@ -477,6 +502,8 @@ Conventions: base request `{"model":"m","max_tokens":100,"messages":[...]}` unle
 | I07 | base64 without `data` | 400 `...source.data: Field required` |
 | I08 | `[text A, image, text B]` | parts: text A, image_url, text B |
 
+| N90 | `document` base64 PDF, `documentMode: image` | `image_url` data URL part in the same user message |
+| N91 | `document` base64 PDF, default options | placeholder text part `[omitted: unsupported content block 'document']` |
 ### 18.6 tool_use / tool_result (D4, D5, D14, D15)
 | ID | Input | Expected |
 |---|---|---|
@@ -507,12 +534,14 @@ Conventions: base request `{"model":"m","max_tokens":100,"messages":[...]}` unle
 | T25 | tool_use `input: "{\"x\":1}"` (string) | 400 `messages.1.content.0.input: Input should be a valid dictionary` [D4: never silently substituted] |
 | T26 | input `{"a":1.0,"b":12345678901234567890,"c":1e2}` | `arguments: "{\"a\":1.0,\"b\":12345678901234567890,\"c\":1e2}"` [D4] |
 | T27 | input `{"b":1,"a":"<é>"}` | `arguments: "{\"b\":1,\"a\":\"<é>\"}"` (key order kept; no escaping) |
-| T28 | tool_use id `call.1:abc` | `tool_calls[0].id` and `t.tool_call_id` both `call.1:abc` [D5] |
+| T28 | tool_use id `call.1:abc` | `tool_calls[0].id` and `t.tool_call_id` both `toolu_<24 hex of SHA-256>`, stable on replay [D5] |
 | T29 | assistant with only tool_use | `content: ""`, `tool_calls` present |
 | T30 | tool message keys | exactly `role`, `tool_call_id`, `content` |
 | T31 | assistant message that already carries tool_calls is followed by a user turn without any tool_result, with text | `u: text` only |
 | T32 | tool_result content `[document]` only | `t: "[omitted: unsupported content block 'document']"` |
 
+| T90 | assistant tool_use id `call.1:abc`, next user tool_result `tool_use_id: call.1:abc` | both mapped to the same `toolu_<24 hex>`; tool message matches |
+| T91 | two tool_use blocks sharing id `dup` | ids `dup` and `dup_2`; a later result for `dup` matches the first |
 ### 18.7 Tool names and tools (D6)
 | ID | Input | Expected |
 |---|---|---|
@@ -536,6 +565,8 @@ Conventions: base request `{"model":"m","max_tokens":100,"messages":[...]}` unle
 | L06 | `tools: []` | no `tools` key |
 | L07 | only a tool-search tool | no `tools`, no `tool_choice` |
 
+| I90 | tool with `strict: true` | function object carries `"strict": true` |
+| I91 | tool with `strict: "yes"` (not boolean) | no `strict` key |
 ### 18.8 tool_choice
 | ID | Input | Expected |
 |---|---|---|
