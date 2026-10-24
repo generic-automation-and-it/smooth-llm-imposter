@@ -194,9 +194,9 @@ Why: the client keeps the string for display, usage tables and per-model feature
 |---|---|
 | Keep | An upstream id matching `^[a-zA-Z0-9_-]{1,64}$` that no earlier tool_use of the same message uses. |
 | Synthesize | Everything else (missing, empty, illegal characters, longer than 64, duplicate within the message): `toolu_` + 24 characters from `[0-9A-Za-z]`, cryptographically random, distinct within the message. Never positional (`call_0`), never derived from the upstream id. |
-| History | Ids the client echoes back are used as-is for the assistant `tool_calls[].id` and the tool message `tool_call_id` (01). No remapping, no state. |
+| History | Ids the client echoes back are passed through the same per-request deterministic map (01 section 7.3) for the assistant `tool_calls[].id` and the tool message `tool_call_id`: an id matching the pattern that no earlier block claimed maps to itself, any other id hashes to `toolu_` + 24 hex. No state. |
 
-Why: ids are stored in the client's transcript permanently. A vendor-style id (`functions.Bash:0`, ids containing `.`, `:` or `|`, empty ids, a repeated `call_0`) fails the id pattern that Messages-validating backends enforce, so any later request that carries it to such a backend (after a model switch or a different route) is rejected and the session is permanently poisoned; duplicate ids within a message break the client's tool_use / tool_result pairing. History ids need no remapping because both halves of a pair come from the same transcript and the translation is deterministic. Synthesized ids are 30 characters, below the length caps some Chat vendors place on tool-call ids.
+Why: ids are stored in the client's transcript permanently. A vendor-style id (`functions.Bash:0`, ids containing `.`, `:` or `|`, empty ids, a repeated `call_0`) fails the id pattern that Messages-validating backends enforce, so any later request that carries it to such a backend (after a model switch or a different route) is rejected and the session is permanently poisoned; duplicate ids within a message break the client's tool_use / tool_result pairing. History ids pass through the same map because both halves of a pair come from the same transcript and the translation is deterministic: already-mapped ids (`toolu_` + 24 hex, emitted by this bridge in an earlier turn) match the pattern and map to themselves, while foreign ids hash exactly as 01 section 7.3 specifies. Synthesized ids are 30 characters, below the length caps some Chat vendors place on tool-call ids.
 
 ### 5.2 Names (D6; algorithm in 01 "Tool-name map")
 
@@ -510,7 +510,7 @@ Notation: "env" = the Messages error envelope of 7.1; `S` = HTTP status. Estimat
 | I03 | Missing id / empty string | Synthesized. |
 | I04 | Two calls both `call_1` | First kept; second synthesized. |
 | I05 | Id of exactly 64 legal characters / 65 characters | Kept / synthesized. |
-| I06 | History carries a client-echoed id `functions.Bash:0` | Used as-is in the assistant `tool_calls[].id` and the tool message `tool_call_id`. |
+| I06 | History carries a client-echoed id `functions.Bash:0` | Passed through the per-request map (01 section 7.3): `toolu_` + 24 hex of SHA-256, same as T28 in 01. |
 | I07 | Tool `mcp__srv.name__do-it` | Upstream name `mcp__srv_name__do-it`; a reply naming it yields the original `mcp__srv.name__do-it` (stream and non-stream). |
 | I08 | 78-character tool name `mcp__averyverylongserver__averyverylongtoolname_that_goes_past_the_limit_of_64` | Upstream name `mcp__averyverylongserver__averyverylongtoolname_that_go_3609e2a4` (64 characters); restored on the reply. |
 | I09 | Tools `a_b` then `a.b` | `a_b` and `a_b_2e7336dc`; each restored to its own original. |
