@@ -5,7 +5,7 @@
 ## Context
 
 - The existing `/responses`-to-Chat downgrade rewrites the effective upstream path to `/v1/chat/completions` after planning, and [HLD 014](../../014-decisions-tools-filter/README.md) already filters Chat bodies at that path.
-- The forwarder relays caller headers verbatim except `Authorization` and `x-api-key`, and adds `anthropic-version` for Anthropic-dialect providers; for a third-party Chat host that relay would leak `cookie`, `user-agent`, `anthropic-beta` and SDK fingerprint headers.
+- The forwarder relays caller headers minus its fixed non-forwardable and managed-auth set, and adds `anthropic-version` for Anthropic-dialect providers; for a third-party Chat host that relay would leak `cookie`, `user-agent`, `anthropic-beta` and SDK fingerprint headers.
 - Anthropic-only prompt-cache breakpoints have no meaning on a Chat upstream.
 
 ## Decision

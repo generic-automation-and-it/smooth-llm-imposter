@@ -41,7 +41,7 @@ Legend: ✅ yes · ❌ no · ◐ partial · 🔜 planned. Sources: CCR README (`
 
 | Feature | Imposter | CCR | LiteLLM |
 |---|---|---|---|
-| Anthropic Messages ↔ Chat bridge | 🔜 (HLD 016, spec in progress) | ✅ (gateway translation) | ✅ (cross-provider translation) |
+| Anthropic Messages → Chat bridge | 🔜 (HLD 016, spec in progress) | ✅ (gateway translation) | ✅ (cross-provider translation) |
 | Shared decision-model integration | 🔜 (HLD 015, discovery) | ❌ | ❌ |
 
 ### Competitor-led (imposter has no equivalent)

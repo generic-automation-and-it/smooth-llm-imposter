@@ -109,3 +109,5 @@ Interaction of the decision filter with bridged Claude Code bodies; image handli
 | Date | Change | Ref |
 |---|---|---|
 | 2026-10-24 | Discovery: HLD, nine LADRs, four NFRs and four normative spec files authored | — |
+| 2026-10-24 | Review pass: usage formula unified across 02/03, relocated auth header allowed in the allowlist, enabling option spec'd in 01, README lists spec 00 | — |
+| 2026-10-24 | Cross-checked against LiteLLM's Anthropic-to-Chat bridge: mid-turn system messages mapped, deterministic tool-id map, opt-in cache-control / response-format / document-as-image, tool `strict` forwarded | — |
