@@ -176,7 +176,9 @@ internal sealed class DecisionToolsFilter(
         }
         catch (Exception failure)
         {
-            logger.LogWarning("Decisions filter {Shape} failed open: {Reason}", shape, failure.GetType().Name);
+            DecisionsToolsOptions outerSettings = options.Value.DecisionsTools;
+            logger.LogWarning("Decisions filter {Shape} via model {Model} at {Endpoint} failed open: {Reason}",
+                shape, LogSafe(outerSettings.Model), Endpoint(outerSettings), failure.GetType().Name);
             return body;
         }
     }
