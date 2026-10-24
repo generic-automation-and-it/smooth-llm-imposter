@@ -100,7 +100,7 @@ Array elements:
 
 - A `text` block MUST be emitted if and only if the final text has length greater than zero. Whitespace-only text is non-empty and MUST be emitted unchanged.
 - At most one `text` block per message. Text MUST NOT be split around tool calls (Chat carries no position information).
-- Markup such as `<think>...</think>` inside content is left untouched by default. A deployment MAY enable an explicit per-upstream option that moves a leading `<think>`/`<thinking>`/`<reasoning>` span (an unterminated span runs to the end of the text) into the reasoning text of section 6 and removes it from the text; the option is off by default and MUST be selected by configuration, never by sniffing.
+- Markup such as `<think>...</think>` inside content is left untouched by default. When the per-upstream `thinkMarkupExtraction` option (01 section 2) is enabled, a leading `<think>`/`<thinking>`/`<reasoning>` span (an unterminated span runs to the end of the text) is moved into the reasoning text of section 6 and removed from the text; the option is off by default and MUST be selected by configuration, never by sniffing.
 
 ---
 
