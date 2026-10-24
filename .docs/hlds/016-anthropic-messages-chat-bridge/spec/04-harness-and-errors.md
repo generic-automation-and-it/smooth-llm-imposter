@@ -162,17 +162,17 @@ Risk: a probe sent with `max_tokens` 1 may receive up to 16 tokens of text. The 
 |---|---|---|
 | `model` | an alias string (may carry a context suffix such as `[1m]`) | The router has already renamed the body model; the bridge copies it (01) and echoes the INBOUND name (section 4). |
 | `max_tokens` | 1 (probe), then 4,000 - 64,000+ | 3.2; 01 for validation and caps. |
-| `system` | list; first element is the attribution block; later blocks carry `cache_control` | 3.1; 01 ("System"). `cache_control` is ignored. |
+| `system` | list; first element is the attribution block; later blocks carry `cache_control` | 3.1; 01 ("System"). `cache_control` is dropped unless `forwardCacheControl` is `true` (01 sections 4 and 7). |
 | user text | `<system-reminder>...</system-reminder>` wrappers inside ordinary text parts | Preserved byte for byte (D12). |
 | `tool_result` (`is_error`, text, images, `tool_reference`) | one per tool call; text siblings in the same user message | 01 ("User messages and tool results", "Tool-result conveyed text", "Images"). |
 | `image` | screenshots, pasted files | 01 ("Images"). |
-| `document`, server-tool and unknown blocks (a PDF read; history carried over from an Anthropic-hosted session) | possible in history | Replaced by 01 with the text part `[omitted: unsupported content block '<type>']`; the request proceeds. Counted by the estimator (1.4.2). |
+| `document`, server-tool and unknown blocks (a PDF read; history carried over from an Anthropic-hosted session) | possible in history | Replaced by 01 with the text part `[omitted: unsupported content block '<type>']` (or `image_url` when `documentMode: image` qualifies per 01 section 7.6); the request proceeds. Counted by the estimator (1.4.2). |
 | `thinking`, `output_config.effort` | thinking enabled with a budget, adaptive or disabled; effort on supporting models | 01 ("Reasoning controls", "Vendor compat profiles"); a budget not below `max_tokens` is not an error. |
 | `tools` | 20-60 custom tools including `mcp__<server>__<tool>` names, `defer_loading`, tool-search entries | 01 ("Tools"); names: section 5. A typed server tool definition (for example the web-search type used by the CLI's WebSearch sub-request) is rejected with HTTP 400 naming the tool (01); the CLI reports the failure to the model. A tool-search definition is dropped. |
 | `tool_choice` | mostly `auto`; occasionally a forced tool | 01 ("tool_choice"). |
 | `metadata.user_id` | a JSON string embedding device and account identifiers (newer clients) or a legacy composite string | Not sent upstream by default; sent only as the provider option dictates (01, "Sampling, limits, stop, user"). |
 | `stream` | true for the main loop and compaction; false for utility calls | 01 ("Streaming"); replies per 02 / 03. |
-| `context_management`, `service_tier`, `container`, `mcp_servers`, `betas`, `cache_control`, `top_k` | possible | Dropped (01, field policy). |
+| `context_management`, `service_tier`, `container`, `mcp_servers`, `betas`, `cache_control`, `top_k` | possible | Dropped (01, field policy). Per-block `cache_control` follows `forwardCacheControl` (01). |
 
 ---------------------------------------------------------------------------------------------------
 
@@ -394,7 +394,7 @@ All of these are ordinary `POST /v1/messages` (or `count_tokens`) requests; none
 
 - Retries, fallback chains, circuit breakers, concurrency queues, idempotency keys (D21; the client retries).
 - Forwarding or deriving any caller header; per-vendor sniffing by host name (D20, D7).
-- Hosted web search, server tools, citations, files / batches / skills APIs, PDF input (D13, D16).
+- Hosted web search, server tools, citations, files / batches / skills APIs, PDF input as text (a PDF is sent as `image_url` only when `documentMode: image` qualifies per 01 sections 7.2 and 7.6; D13, D16).
 - Local model discovery, bootstrap, OAuth / federation endpoints, telemetry endpoints (router or client side).
 - Rewriting the reply model name beyond echoing the inbound one; exposing upstream ids, models or headers.
 - Billing, usage ledgers, key quotas, request logs of bodies.
@@ -607,7 +607,7 @@ Notation: "env" = the Messages error envelope of 7.1; `S` = HTTP status. Estimat
 | U04 | Identical request re-sent by the client after a 529 | Independent request; same mapping, different synthesized ids. |
 | U05 | Client closes the connection mid-stream | Upstream cancelled; no further bytes. |
 | U06 | Streaming failure, then the same body re-sent with `stream:false` and a large `max_tokens` (for example 20000) | Non-stream path serves it; deadline = router's provider timeout. |
-| U07 | PDF read: history contains a `document` block | Placeholder text part `[omitted: unsupported content block 'document']` (01); request proceeds. |
+| U07 | PDF read: history contains a `document` block | Placeholder text part `[omitted: unsupported content block 'document']` (01), or `image_url` when `documentMode: image` qualifies per 01 section 7.6; request proceeds. |
 | U08 | `count_tokens` bursts (5 concurrent partial bodies) | Each answered independently and deterministically. |
 
 ---------------------------------------------------------------------------------------------------

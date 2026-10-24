@@ -141,7 +141,7 @@ Input: string, list of blocks, absent or null.
 
 1. String: used as is (no trim). Empty or white-space-only -> no system message.
 2. List: apply the attribution rule (D18, below), then take the `text` of each remaining block whose `type` is `text`; every other block kind contributes the placeholder line of section 7.2 (debug log). Omit empty / white-space-only texts. Join the rest with one `\n`. Empty result -> no system message.
-3. Output: exactly one `{"role":"system","content":"<string>"}` as the first message. Never an array of parts. `cache_control` and `citations` are ignored.
+3. Output: exactly one `{"role":"system","content":"<string>"}` as the first message. Never an array of parts. `citations` is ignored. `cache_control` is absent unless `forwardCacheControl` is `true`, in which case each forwarded `cache_control` object is copied verbatim as a sibling `cache_control` member on the system message object (sections 4 and 7).
 
 Attribution rule (D18): when `system` is a list, its FIRST element MUST be dropped if it is a text block whose text starts with `x-anthropic-billing-header:` (ASCII case-insensitive, compared from the first character; no leading-whitespace tolerance). Only the first element is examined; a string-form `system` and later elements are never touched. The marker varies per request and would defeat upstream prefix caching. Recognition context and per-client detail: see `04-harness-and-errors.md`.
 
@@ -154,7 +154,7 @@ Attribution rule (D18): when `system` is a list, its FIRST element MUST be dropp
 Claude Code inserts `role: "system"` messages inside `messages` (for example a token-count note after a tool result). They MUST be mapped, never rejected.
 
 - `midturnSystem: system` (default): each such message becomes one Chat `system` message at the same position. A string `content` is used verbatim; a list `content` yields text parts in order, every non-text block becoming the unsupported-block placeholder (7.2); an empty result drops the message.
-- `midturnSystem: merge_into_user`: the text (`\n`-joined, placeholders included) becomes the leading text part of the next user message; if no user message follows, it becomes its own user message. The client-facing history order is unchanged.
+- `midturnSystem: merge_into_user`: the text (`\n`-joined, placeholders included) becomes the leading text part of the next user message; if no user message follows, it becomes its own user message. Consecutive mid-turn system messages accumulate in original order (joined with `\n`) and the combined text prepends to the same next user message. The client-facing history order is unchanged.
 
 ### 7.1 Walk
 
@@ -175,8 +175,7 @@ A `document` block follows `documentMode`: with `placeholder` (default) it is an
 
 Risk: many Chat upstreams accept only `image/*` media types and reject a PDF data URL; `image` mode is therefore only for a provider known to accept PDFs, and the default stays `placeholder`.
 
-Unsupported-block placeholder (D13). A block marked "placeholder" MUST be replaced, at the position where it stood, by one text item whose text is exactly `[omitted: unsupported content block '<type>']`, where `<type>` is the block's `type` string verbatim. The placeholder is an ordinary text item: it merges with adjacent text under the `
-` rule of section 5, forms part of the assistant `content`, and is never dropped as empty. A message whose only content was an unsupported block therefore keeps the placeholder and is not removed. Each replacement MUST be logged at debug level (block type, message index, block index). The same replacement applies to the nested blocks of a tool_result (7.5).
+Unsupported-block placeholder (D13). A block marked "placeholder" MUST be replaced, at the position where it stood, by one text item whose text is exactly `[omitted: unsupported content block '<type>']`, where `<type>` is the block's `type` string verbatim. The placeholder is an ordinary text item: it merges with adjacent text under the `\n` rule of section 5, forms part of the assistant `content`, and is never dropped as empty. A message whose only content was an unsupported block therefore keeps the placeholder and is not removed. Each replacement MUST be logged at debug level (block type, message index, block index). The same replacement applies to the nested blocks of a tool_result (7.5).
 
 ### 7.3 Assistant messages
 
@@ -251,7 +250,7 @@ Chat function names MUST match `^[a-zA-Z0-9_-]{1,64}$`. The mapper builds a per-
 Target name of an original name N:
 1. S = N with every maximal run of characters outside `[A-Za-z0-9_-]` replaced by one `_`. Existing underscores are never stripped.
 2. If length(S) <= 64 the candidate is S; otherwise the candidate is the first 55 characters of S + `_` + the first 8 lower-case hex digits of SHA-256 over the UTF-8 bytes of N.
-3. Equal original names share one target. If the candidate is already assigned to a different original name, the candidate becomes the first 55 characters of the candidate + `_` + the first 8 hex digits of SHA-256(N); if that is also taken, append `_2`, `_3`, ... (shortening the stem so the total stays <= 64) until free.
+3. Equal original names share one target. If the candidate is already assigned to a different original name, the candidate becomes the first 55 characters of the candidate + `_` + the first 8 hex digits of SHA-256(N); if that is also taken, append `_2`, `_3`, ... (shortening the stem from the end, keeping the leading characters, so the total stays <= 64) until free.
 
 The map is used for: function names, assistant tool_call names, `tool_choice` function name, tool_reference names. A name not in the map (e.g. a tool_reference to an unknown tool) is converted by steps 1-2 only. The response side (stream and non-stream) applies the reverse map; names unknown to it pass through unchanged (`02-response-mapping.md`, `03-stream-state-machine.md`).
 
@@ -289,7 +288,7 @@ Risk: Claude Code does not send `disable_parallel_tool_use` or string-form `tool
 | output limit key (`max_tokens` or `max_completion_tokens` per option) | Value = client `max_tokens`; if < 16 it MUST be raised to 16 (D19: the client's startup probe sends 1); then, if `maxOutputTokens` is set and the value exceeds it, the value is the cap. The floor is applied before the cap. |
 | `stop` | `stop_sequences` as a list of strings, order and content preserved; empty list -> omitted. No truncation. |
 | `user` | By `userIdMode` (default `off`): `off` = never sent; `passthrough` = `metadata.user_id` verbatim when it is a non-empty string; `hash` = first 32 lower-case hex digits of SHA-256 over the UTF-8 bytes of that string. |
-| `response_format` | Only from `output_config.format` and only when `sendResponseFormat` is `true`. `{"type":"json_schema","schema":S}` -> `{"type":"json_schema","json_schema":{"name":<N>,"schema":S'}}`, where `<N>` is `output_config.format.name` when it is a non-empty string, else `"response"`, and `S'` is `S` copied with `additionalProperties: false` added to every schema object that declares `"type": "object"` and lacks the key (never into `anyOf`/`allOf`/`oneOf` branches as such). A format of any other type, or a missing/non-object `schema`, emits nothing and is logged at debug. |
+| `response_format` | Only from `output_config.format` and only when `sendResponseFormat` is `true`. `{"type":"json_schema","schema":S}` -> `{"type":"json_schema","json_schema":{"name":<N>,"schema":S'}}`, where `<N>` is `output_config.format.name` when it is a non-empty string, else `"response"`, and `S'` is `S` copied with `additionalProperties: false` added to every subschema object that declares `"type": "object"` and lacks the key. The walk recurses into nested `properties` values, `items`, `additionalProperties` (when it is an object), `not`, and `anyOf`/`allOf`/`oneOf` elements; the key is never added directly to a combinator (`anyOf`/`allOf`/`oneOf`) object itself. A format of any other type, or a missing/non-object `schema`, emits nothing and is logged at debug. |
 | anything else | `n`, `seed`, penalties, `logprobs`, `top_k` equivalents are never emitted. |
 
 Risk: Claude Code's `metadata.user_id` embeds device and account identifiers (newer clients send a JSON string); `passthrough` forwards them to a third-party upstream, which is why the default is `off`. An upstream that needs a stable per-user key for cache affinity should get `hash`.
@@ -436,7 +435,7 @@ Conventions: base request `{"model":"m","max_tokens":100,"messages":[...]}` unle
 | P04 | assistant content `[{server_tool_use ...}]` only | assistant message kept: `content: "[omitted: unsupported content block 'server_tool_use']"` [D13] |
 | P05 | user content `[{web_search_tool_result ...}]` only | `u: "[omitted: unsupported content block 'web_search_tool_result']"` (message not empty) [D13] |
 | P06 | tool `{"type":"tool_search_tool_regex_20251119","name":"tool_search_tool_regex"}` plus a custom tool | tool-search tool silently absent; custom tool kept |
-| P07 | `cache_control` on system block, message blocks and tools | absent everywhere |
+| P07 | `cache_control` on system block, message blocks and tools | absent everywhere (under default options; with `forwardCacheControl: true` see P90) |
 | P08 | `top_k`, `service_tier`, `context_management`, `container`, `mcp_servers`, `betas`, unknown field | absent |
 | P09 | `metadata: {"user_id":"u1"}`, default options | no `user` (`userIdMode` default `off`) |
 | P10 | `userIdMode: passthrough` with `metadata: {"user_id":"u1"}` / `{}` / `{"user_id":""}` / `{"user_id":5}` | `user: "u1"` / none / none / none |
@@ -472,7 +471,7 @@ Conventions: base request `{"model":"m","max_tokens":100,"messages":[...]}` unle
 | S06 | marker with different case `X-Anthropic-Billing-Header:` first | dropped |
 | S07 | first element ` x-anthropic-billing-header:...` (leading space) | kept |
 | S08 | white-space-only text blocks and an `image` block in the list | white-space-only blocks contribute nothing; the image block contributes `[omitted: unsupported content block 'image']`; `s:` is that line |
-| S09 | `cache_control` on blocks | ignored |
+| S09 | `cache_control` on blocks | ignored (under default options; forwarded only when `forwardCacheControl` is `true`) |
 
 ### 18.4 Messages and text (D12, D14)
 | ID | Input | Expected |
@@ -537,7 +536,7 @@ Conventions: base request `{"model":"m","max_tokens":100,"messages":[...]}` unle
 | T27 | input `{"b":1,"a":"<é>"}` | `arguments: "{\"b\":1,\"a\":\"<é>\"}"` (key order kept; no escaping) |
 | T28 | tool_use id `call.1:abc` | `tool_calls[0].id` and `t.tool_call_id` both `toolu_<24 hex of SHA-256>`, stable on replay [D5] |
 | T29 | assistant with only tool_use | `content: ""`, `tool_calls` present |
-| T30 | tool message keys | exactly `role`, `tool_call_id`, `content` |
+| T30 | tool message keys | exactly `role`, `tool_call_id`, `content` (plus a sibling `cache_control` member only when `forwardCacheControl` is `true`) |
 | T31 | assistant message that already carries tool_calls is followed by a user turn without any tool_result, with text | `u: text` only |
 | T32 | tool_result content `[document]` only | `t: "[omitted: unsupported content block 'document']"` |
 
@@ -639,7 +638,7 @@ Conventions: base request `{"model":"m","max_tokens":100,"messages":[...]}` unle
 ### 18.11 Mixed realistic turns
 | ID | Input | Expected |
 |---|---|---|
-| Z01 | Claude Code first turn: marker + 2 system blocks, 2 user text blocks, 3 tools (one tool-search), thinking 16000, stream | see `01-request-examples.md` Example 1 |
+| Z01 | Claude Code first turn: marker + 2 system blocks, 2 user text blocks, 3 tools (one tool-search), thinking 16000, stream | see `../examples/01-request-examples.md` Example 1 |
 | Z02 | parallel calls, reversed result order, sibling reminder, thinking history | Example 2 |
 | Z03 | image in tool_result with text and sibling | Example 3 |
 | Z04 | deepseek profile turn (`sendReasoningEffort: true`) | Example 4 |
