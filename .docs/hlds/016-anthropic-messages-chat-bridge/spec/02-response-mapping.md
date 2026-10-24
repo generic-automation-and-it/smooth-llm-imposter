@@ -29,7 +29,7 @@ The bridge MUST process a reply in this order:
 
 1. Upstream status outside 200-299 -> error mapping (section 11). Stop.
 2. Parse the body as strict JSON (RFC 8259, no comments, no trailing commas). If it is not a JSON object -> HTTP 502 `api_error` (section 11.4). Stop.
-3. If the object has an `error` member that is an object or a non-empty string, and `choices` is not an array -> in-band error (section 11.5). Stop.
+3. If the object has an `error` member that is a non-empty object or a non-empty string, and `choices` is not an array -> in-band error (section 11.5). Stop.
 4. If `choices` is missing or not an array -> HTTP 502 `api_error`. Stop. (An empty array is valid: it is an empty output.)
 5. Select the choice (section 4).
 6. Extract text, refusal text, reasoning text and tool calls (sections 5-7).
@@ -301,7 +301,7 @@ The upstream HTTP status is kept unless a row says otherwise.
 
 Context-length overflow overrides the table: if the upstream error carries code `context_length_exceeded` (in `error.code` or `error.type`) or its message matches an overflow pattern (for example "maximum context length", "prompt is too long", "exceeds the context window"; the authoritative pattern list and the exact output wording are defined in 04), the bridge MUST emit HTTP 400, type `invalid_request_error`, with the message required by 04 (it starts with `prompt is too long`). This applies regardless of the upstream status and to in-band errors.
 
-Risk: keeping 401/403 from an upstream key problem makes the client believe its own credentials are invalid (it may re-run its key helper or prompt for login). The decision keeps the upstream status and the upstream's own message; the user-visible text is therefore the only hint that the fault is the upstream credential.
+Risk: keeping 401/403 from an upstream key problem makes the client believe its own credentials are invalid (it may re-run its key helper or prompt for login). The decision keeps the upstream status and the upstream's own message; the user-visible text is therefore the only hint that the fault is the upstream credential (plus the section 7.3 upstream-provider prefix applied per section 11.3).
 Risk: a 503 mapped to `overloaded_error` keeps status 503; the client's overload-specific handling is keyed on 529, so only its generic 5xx retry applies.
 
 ### 11.3 Message
@@ -315,7 +315,7 @@ Risk: a 503 mapped to `overloaded_error` keeps status 503; the client's overload
 
 ### 11.4 Bridge-originated failures
 
-| Condition | Status | `error.type` | Message (SHOULD) |
+| Condition | Status | `error.type` | Message |
 |---|---|---|---|
 | Upstream 2xx body is empty, not JSON, not an object, or lacks a `choices` array (and is not an in-band error) | 502 | `api_error` | `Upstream returned a response that is not a Chat Completions object.` |
 | Connection refused / DNS / TLS / reset before a response | 502 | `api_error` | `Failed to reach the upstream provider.` |
@@ -327,7 +327,7 @@ Deadlines: a non-streaming reply from a reasoning model may take minutes before 
 
 ### 11.5 In-band errors on a 2xx reply
 
-If the body has an `error` object (or non-empty string) and `choices` is not an array, it is an error, never a 200 message. Status = numeric `error.code` or `error.status` when that is an integer 400-599, else 502. Type from 11.2 (502 -> `api_error`). Message per 11.3. If the selected choice has an object member `error` and the choice has no text, reasoning or tool calls, the same treatment applies.
+If the body has a non-empty `error` object (or non-empty string) and `choices` is not an array, it is an error, never a 200 message. Status = numeric `error.code` or `error.status` when that is an integer 400-599, else 502. Type from 11.2 (502 -> `api_error`). Message per 11.3. If the selected choice has an object member `error` and the choice has no text, reasoning or tool calls, the same treatment applies.
 
 ### 11.6 Headers on errors
 

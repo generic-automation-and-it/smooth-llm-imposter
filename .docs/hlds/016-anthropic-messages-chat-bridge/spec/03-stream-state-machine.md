@@ -64,7 +64,7 @@ Exceeding any MAX_* limit is a stream failure (section 8, F-LIMIT).
 2. Exactly `[DONE]` (case-sensitive) -> the end sentinel (event DONE).
 3. Otherwise parse as JSON with depth limit MAX_JSON_DEPTH. A payload that is not parseable, or whose root is not a JSON object (arrays, strings, numbers, booleans, null), MUST be ignored (debug log, no frame, no error). It does not start the message.
 4. Classification of a parsed object, in order:
-   a. ERRCHUNK if the SSE event name is `error`, or the object has a top-level member `error` whose value is not null, not an empty string and not an empty object, or its `type` equals `error`.
+   a. ERRCHUNK if `choices` is not an array AND (the SSE event name is `error`, or the object has a top-level member `error` that is a non-empty object or a non-empty string, or its `type` equals `error`).
    b. otherwise CHUNK (any other event name, including `message`, is irrelevant).
 
 ### 2.3 Chunk interpretation (MUST)
@@ -258,7 +258,7 @@ Calls are always emitted one after another, in ascending (upstreamIndex, orderNo
 
 ### 5.5 EMIT_CALL(call, trigger)
 
-1. Name: if the call has no name: drop it (warning). If it is the only call seen in the message AND emittedTextBlocks == 0, FAIL(api_error, "Upstream returned a tool call without a name") (D4); otherwise continue.
+1. Name: if the call has no name: if it is the only call seen in the message AND emittedTextBlocks == 0, FAIL(api_error, "Upstream returned a tool call without a name") (D4); otherwise drop it (warning) and continue.
 2. Arguments (D4), applied to the held text with surrounding whitespace removed:
    - If `lengthCut` (the call was still pending when the stream ended by the length limit): empty text -> drop the call; text that strictly parses to a JSON object -> use it compacted; anything else -> drop the call. No repair is attempted. A dropped call writes nothing (warning log).
    - Otherwise: empty -> `{}`; strictly parses to a JSON object -> use it compacted; otherwise (invalid JSON, or valid JSON that is not an object) make ONE repair attempt (5.6): if the repaired text parses to an object use it compacted, else FAIL(api_error, "Upstream returned invalid arguments for tool call <name>"). `{}` is never substituted for non-empty broken arguments.
