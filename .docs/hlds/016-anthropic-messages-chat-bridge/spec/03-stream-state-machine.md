@@ -273,7 +273,7 @@ Risk: the client sees no tool name or input while a long call is being generated
 ### 5.6 Compaction and repair (MUST)
 
 - Compaction removes insignificant whitespace outside string literals. String literals (with their escapes) and number lexemes are copied unchanged (no numeric round trip); member order and duplicate keys are preserved.
-- Repair, one attempt, bounded by MAX_TOOL_ARGS_BYTES and MAX_JSON_DEPTH: (1) if the text ends inside a string literal, remove an incomplete trailing escape sequence (a lone backslash or a partial `\uXXXX`) if present and append `"`; (2) remove a single dangling trailing `,` (ignoring trailing whitespace); (3) append the closing `}`/`]` required by the still-open containers, innermost first; (4) strict-parse; accept only if the result is a JSON object. No other edit is permitted: a dangling `:`, a key without a value, a partial literal or number such as `tru` or `1.`, a mismatched bracket, or nesting deeper than MAX_JSON_DEPTH make the repair fail. Keys and values are never invented. (Same rule as 02 section 7.4, which is authoritative for tool-argument repair.)
+- Repair, one attempt, bounded by MAX_TOOL_ARGS_BYTES and MAX_JSON_DEPTH: (1) if the text ends inside a string literal, remove an incomplete trailing escape sequence (a lone backslash or a partial `\uXXXX`) if present and append `"`; (2) append the closing `}`/`]` required by the still-open containers, innermost first; (3) strict-parse; accept only if the result is a JSON object. No other edit is permitted: a dangling `,` or `:`, a key without a value, a partial literal or number such as `tru` or `1.`, a mismatched bracket, or nesting deeper than MAX_JSON_DEPTH make the repair fail. Keys and values are never invented.
 
 ---
 
@@ -293,13 +293,13 @@ Risk: the client sees no tool name or input while a long call is being generated
 
 A usage object is recognized when it is a JSON object (top-level `usage`, else the choice's `usage`). Counters are read only when they are finite JSON numbers (strings, null, booleans are ignored); each field is overwritten individually, last value wins.
 
-| Counter | Sources, first present wins (same candidate lists as 02 section 10.1, read from the recognized usage object) |
+| Counter | Sources, first present wins |
 |---|---|
-| prompt | `prompt_tokens`, `input_tokens`, `prompt_cache_hit_tokens` + `prompt_cache_miss_tokens` (only if both are counts) |
-| completion | `completion_tokens`, `output_tokens`, if `total_tokens` and prompt are counts: `total_tokens - prompt` (floor 0) |
+| prompt | `prompt_tokens`, `input_tokens` |
+| completion | `completion_tokens`, `output_tokens` |
 | total | `total_tokens` |
-| cacheRead | `prompt_tokens_details.cached_tokens`, `input_tokens_details.cached_tokens`, `cached_tokens`, `prompt_cache_hit_tokens`, `cache_read_input_tokens`, `cache_read_tokens` |
-| cacheWrite | `prompt_tokens_details.cache_write_tokens`, `prompt_tokens_details.cache_creation_tokens`, `input_tokens_details.cache_write_tokens`, `input_tokens_details.cache_creation_tokens`, `cache_creation_input_tokens`, `cache_creation_tokens`, `cache_write_tokens` |
+| cacheRead | `prompt_tokens_details.cached_tokens`, `input_tokens_details.cached_tokens`, `cached_tokens`, `cache_read_input_tokens`, `cache_read_tokens`, then (only when none of the preceding is present) the vendor alias `prompt_cache_hit_tokens` |
+| cacheWrite | `prompt_tokens_details.cache_write_tokens`, `prompt_tokens_details.cache_creation_tokens`, `input_tokens_details.cache_write_tokens`, `cache_creation_input_tokens`, `cache_creation_tokens`, `cache_write_tokens` |
 
 Placeholders: an object with no recognized numeric counter (`{}`, nulls) and an object whose recognized prompt, completion and total counters are all 0 are placeholders: they MUST NOT set `usageAfterFinish` and MUST NOT overwrite previously merged non-zero counters. A reported prompt of 0 is treated as unreported.
 
@@ -317,7 +317,7 @@ Risk: subtracting a reported cache-write count assumes the upstream's prompt cou
 
 ### 7.3 stop_reason (D1)
 
-`lengthClass(finishReason)`: trim ASCII whitespace and lowercase, then exact-match against the 02 section 9 list: `length`, `max_tokens`, `max_output_tokens`, `max_completion_tokens`, `model_context_window_exceeded`. No substring matching.
+`lengthClass(finishReason)`: the lower-cased value contains `length`, `max_token` or `max_output`.
 - emittedToolUse >= 1 -> `tool_use` (whatever the finish_reason, including length: a call cut off by length was dropped, surviving complete calls count).
 - else lengthClass -> `max_tokens`.
 - else (`stop`, `content_filter`, `function_call`, unknown, absent, `tool_calls` with no surviving call) -> `end_turn`.
@@ -563,7 +563,7 @@ Output frames: `MS`, `PING`, `B+(i,text)`, `B+(i,think)` (always with `"signatur
 | H07 | error `code:"context_length_exceeded"`, message `maximum context length is 8192` | ERR{invalid_request_error,"prompt is too long..."} |
 | H08 | error object as the first chunk | 1: ERR only (no MS) |
 | H09 | error with `status:503` | ERR{overloaded_error,...} |
-| H10 | object with both `error` and `choices` | treated as an error |
+| H10 | object with both `error` and `choices` | `choices` processed per 02 (the `error` member is ignored when `choices` is an array); in-band error only when `choices` is not an array (02 section 11.5) |
 | H11 | normal chunk with `"error":null`, `"error":""` or `"error":{}` | ordinary chunk |
 | H12 | R, T"Par", RST | ERR{api_error,"Upstream connection lost"} |
 | H13 | forwarder reports an idle timeout | ERR{api_error,"Upstream timed out"} |
