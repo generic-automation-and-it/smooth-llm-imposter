@@ -44,7 +44,9 @@ internal sealed class DecisionModelClient(
     // on a copy so the caller's request is never mutated (HLD 015 LADR-01, NFR-03).
     private static JsonObject WithDefaultModel(JsonObject request, string model)
     {
-        if (request.ContainsKey("model"))
+        if (request.TryGetPropertyValue("model", out JsonNode? existing)
+            && existing is not null
+            && !(existing is JsonValue existingValue && existingValue.GetValueKind() == JsonValueKind.Null))
         {
             return request;
         }
