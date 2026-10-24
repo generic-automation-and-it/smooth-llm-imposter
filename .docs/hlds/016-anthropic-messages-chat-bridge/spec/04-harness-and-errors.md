@@ -264,7 +264,7 @@ Context-length overflow (7.5) overrides the table. Stream-phase failures are `ev
 
 ### 7.2 Message text
 
-Source, first available: `error.message` (string); `error` (string); `message` (string); `detail` (string, or a list whose string elements and `msg` members are joined with `"; "`); `errors[0].message`; for a non-JSON body, the body text. Truncate to 2,000 characters (UTF-16 code units, never splitting a surrogate pair; no marker). Empty or unusable -> `Upstream returned HTTP <status> with no error message.`; an HTML document (first non-whitespace character `<`) -> `Upstream returned an HTML error page (HTTP <status>).` (never echoed). The message MUST NOT contain the configured provider key (replace any occurrence with `***`), upstream URLs or internal identifiers. Identical to 02 ("Message") except for 7.3 and 7.5.
+Source, first available: `error.message` (string); `error` (string); `message` (string); `detail` (string, or a list whose string elements and `msg` members are joined with `"; "`); `errors[0].message`; for a non-JSON body, the body text. Truncate to 2,000 characters (UTF-16 code units, never splitting a surrogate pair; no marker). Empty or unusable -> `Upstream returned HTTP <status> with no error message.`; an HTML document (first non-whitespace character `<`) -> `Upstream returned an HTML error page (HTTP <status>).` (never echoed). The bridge emits the extracted text verbatim (truncated as above). The router forwarder — the component that owns the managed credential — replaces any occurrence of the configured provider key (and BaseUrl host) with `***` before return. Identical to 02 ("Message") except for 7.3 and 7.5.
 
 ### 7.3 Upstream credential failures (401, 403)
 
@@ -404,7 +404,7 @@ All of these are ordinary `POST /v1/messages` (or `count_tokens`) requests; none
 ## 10. Implementation requirements (.NET)
 
 - JSON via a document model; no reflection serialization; NativeAOT-safe; no dynamic code generation.
-- The estimator walks the parsed body once; it MUST NOT copy large strings (base64 images and files are counted by length class without materialising copies where avoidable) and MUST NOT throw on any input.
+- The estimator walks the parsed body once; it MUST NOT copy large strings (base64 images and files are counted as 6000 units without inspecting payload bytes) and MUST NOT throw on any input.
 - The outbound header set is constructed from empty and filled from the allowlist only (2.2); a test MUST fail if any other header can appear.
 - Random ids (`msg_`, `toolu_`) come from a cryptographically secure generator.
 - Error construction is a single function from (status, headers, body text or in-band object) to (status, headers, envelope); overflow patterns are data.

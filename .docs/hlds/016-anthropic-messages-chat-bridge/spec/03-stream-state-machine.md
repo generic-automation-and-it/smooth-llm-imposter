@@ -65,14 +65,14 @@ Exceeding any MAX_* limit is a stream failure (section 8, F-LIMIT).
 3. Otherwise parse as JSON with depth limit MAX_JSON_DEPTH. A payload that is not parseable, or whose root is not a JSON object (arrays, strings, numbers, booleans, null), MUST be ignored (debug log, no frame, no error). It does not start the message.
 4. Classification of a parsed object, in order:
    a. ERRCHUNK if `choices` is not an array AND (the SSE event name is `error`, or the object has a top-level member `error` that is a non-empty object or a non-empty string, or its `type` equals `error`).
-   b. otherwise CHUNK (any other event name, including `message`, is irrelevant).
+   b. otherwise CHUNK (any other event name, including `message`, is irrelevant). A CHUNK whose selected choice carries an object `error` member and yields no text, refusal, reasoning, tool-entry or usage piece is an ERRCHUNK (choice-level in-band error, same mapping as 8.3); a choice-level `error` alongside any piece is ignored.
 
 ### 2.3 Chunk interpretation (MUST)
 
 For a CHUNK:
 - Choice selection: if `choices` is a non-empty array, use the element whose `index` is 0 if one exists, else the first element. All other elements are ignored. Empty, absent or non-array `choices` -> no choice.
 - Delta source: the choice's `delta` object; if there is none, the choice's `message` object is read as if it were the delta.
-- Text pieces (in this order): `content` as a string; or, when `content` is an array, the concatenation, with no separator, of its string elements and of the `text` strings of its object elements (typed `text` or untyped); then `delta.refusal` when it is a non-empty string. Each non-empty result is one text piece. Any other `content` shape is ignored.
+- Text pieces (in this order): `content` as a string; or, when `content` is an array, the concatenation, with no separator, of its string elements and of the `text` strings of its object elements (typed `text` or untyped); then `delta.refusal` when it is a non-empty string, emitted as its own text piece preceded by a `"\n"` delta when a content piece was emitted in the same chunk (identical to 02 section 5.2). Each non-empty result is one text piece. T05 becomes Dt(0,"x"), Dt(0,"\n"), Dt(0,"y"). Any other `content` shape is ignored.
 - Reasoning pieces: section 6.
 - Tool entries: `delta.tool_calls` when it is an array; other shapes are ignored. Non-object elements are skipped.
 - `finish_reason`: the choice's `finish_reason` when it is a non-empty string (lower-cased for comparisons); `null`, empty or other types are ignored.
@@ -145,7 +145,7 @@ Each frame is `event: <type>` LF `data: <compact JSON>` LF LF. The event name eq
 | finishDeadline | unset | time of first finish_reason + FINISH_GRACE |
 | usage | all unset | merged counters: prompt, completion, total, cacheRead, cacheWrite (7.1) |
 | usageAfterFinish | false | a usage object with at least one recognized non-placeholder counter was processed at or after the finish_reason |
-| outputEstimateState | zero | running counts the estimator needs over emitted text, thinking and tool_use input (no text is retained) |
+| outputEstimateState | zero | running counts the estimator needs over emitted text, thinking, and each emitted tool_use original name followed by compact input JSON (same list as 02 section 10.2). Feed name at section 5.5 step 5 (no text is retained) |
 | lastWriteAt | now | time of the last frame written (resets PING_IDLE) |
 
 Memory is bounded by the MAX_* constants; text and thinking content is never retained.
@@ -258,7 +258,7 @@ Calls are always emitted one after another, in ascending (upstreamIndex, orderNo
 
 ### 5.5 EMIT_CALL(call, trigger)
 
-1. Name: if the call has no name: if it is the only call seen in the message AND emittedTextBlocks == 0, FAIL(api_error, "Upstream returned a tool call without a name") (D4); otherwise drop it (warning) and continue.
+1. Name: if the call has no name: fail with FAIL(api_error, "Upstream returned a tool call without a name") (D4) only when no text block, no thinking block, and no other tool_use block was emitted; otherwise drop it (warning) and continue (same as 02 section 7.2).
 2. Arguments (D4), applied to the held text with surrounding whitespace removed:
    - If `lengthCut` (the call was still pending when the stream ended by the length limit): empty text -> drop the call; text that strictly parses to a JSON object -> use it compacted; anything else -> drop the call. No repair is attempted. A dropped call writes nothing (warning log).
    - Otherwise: empty -> `{}`; strictly parses to a JSON object -> use it compacted; otherwise (invalid JSON, or valid JSON that is not an object) make ONE repair attempt (5.6): if the repaired text parses to an object use it compacted, else FAIL(api_error, "Upstream returned invalid arguments for tool call <name>"). `{}` is never substituted for non-empty broken arguments.
@@ -440,7 +440,7 @@ Output frames: `MS`, `PING`, `B+(i,text)`, `B+(i,think)` (always with `"signatur
 | T02 | content `[{"type":"text","text":"a"},{"type":"text","text":"b"}]` | one Dt(0,"ab") |
 | T03 | content as an object or number | ignored |
 | T04 | refusal "No." | B+(0,text);Dt(0,"No.") |
-| T05 | content "x" + refusal "y" in one chunk | Dt(0,"x") then Dt(0,"y") |
+| T05 | content "x" + refusal "y" in one chunk | Dt(0,"x"), Dt(0,"\n"), Dt(0,"y") (refusal as its own piece with newline separator per 02 section 5.2) |
 | T06 | a 4-byte character split across two network reads | one Dt containing the complete character |
 | T07 | `{message:{content:"hi"}}` instead of delta | B+(0,text);Dt(0,"hi") |
 | T08 | choices `[{index:1,...},{index:0,delta:{content:"x"}}]` | the index-0 element is used: Dt(0,"x") |

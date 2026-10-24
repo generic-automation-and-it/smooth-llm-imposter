@@ -16,7 +16,7 @@ On a bridged route the outbound header set is an **allowlist** (content type, ac
 
 ## Consequences
 
-- This LADR narrows the routing "transparent proxy — do not strip or rewrite the request" rule for bridged routes only: on a bridged route the caller's header set is replaced by the allowlist, an explicit exception recorded here (as [LADR-01](LADR-01-per-provider-opt-in.md) records the same-dialect narrowing). Passthrough, default and native `/v1/messages` routes stay byte-transparent.
+- This LADR narrows the routing "transparent proxy — do not strip or rewrite the request" rule for bridged routes only: on a bridged route the caller's header set is replaced by the allowlist, an explicit exception recorded here (as [LADR-01](LADR-01-per-provider-opt-in.md) records the same-dialect narrowing). Passthrough, default and native `/v1/messages` routes stay byte-transparent with respect to the bridge (the independent HLD 014 decision filter still applies where enabled).
 - The filter sees Chat-shaped tools and messages; its Chat handling must be verified against bridged Claude Code traffic.
 - Nothing the caller sent (credential, cookies, client fingerprint) reaches a third-party Chat host.
 - `--who?` and `--newsession` keep working because they run before the forward seam.

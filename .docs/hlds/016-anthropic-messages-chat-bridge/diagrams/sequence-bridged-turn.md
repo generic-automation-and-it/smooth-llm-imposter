@@ -13,7 +13,7 @@ sequenceDiagram
     R->>R: tool ordering, route plan, model rename
     R->>B: matched imposter route, provider speaks Chat
     B->>B: map request (Messages to Chat)
-    B->>F: Chat body at /v1/chat/completions
+    B->>F: Chat body at /v1/chat/completions (note: session scope resolves from inbound Messages body/headers, not translated body)
     F->>U: filtered Chat request
     U-->>B: Chat JSON or SSE chunks
     B-->>H: Messages JSON or SSE events (incremental)

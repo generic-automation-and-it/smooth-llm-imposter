@@ -153,7 +153,7 @@ Attribution rule (D18): when `system` is a list, its FIRST element MUST be dropp
 
 Claude Code inserts `role: "system"` messages inside `messages` (for example a token-count note after a tool result). They MUST be mapped, never rejected.
 
-- `midturnSystem: system` (default): each such message becomes one Chat `system` message at the same position. A string `content` is used verbatim; a list `content` yields text parts in order, every non-text block becoming the unsupported-block placeholder (7.2); an empty result drops the message.
+- `midturnSystem: system` (default, note: use `merge_into_user` for strict-alternation upstreams until Open item 5 measured): each such message becomes one Chat `system` message at the same position. A string `content` is used verbatim; a list `content` yields text parts in order, every non-text block becoming the unsupported-block placeholder (7.2); an empty result drops the message.
 - `midturnSystem: merge_into_user`: the text (`\n`-joined, placeholders included) becomes the leading text part of the next user message; if no user message follows, it becomes its own user message. Consecutive mid-turn system messages accumulate in original order (joined with `\n`) and the combined text prepends to the same next user message. The client-facing history order is unchanged.
 
 ### 7.1 Walk
@@ -180,7 +180,7 @@ Unsupported-block placeholder (D13). A block marked "placeholder" MUST be replac
 ### 7.3 Assistant messages
 
 1. Text = all text items joined with `\n` (one `content` string regardless of interleaving with tool_use blocks).
-2. `tool_calls` = one entry per tool_use block in block order: `{"id":<mapped id>,"type":"function","function":{"name":<mapped name, 8.3>,"arguments":<compact JSON text of input; "{}" when input is absent or null>}}`. Id mapping (D5) is a per-request map filled in message order: an id matching `^[a-zA-Z0-9_-]{1,64}$` that no earlier block claimed maps to itself; any other id (illegal characters, too long, empty) maps to `toolu_` plus the first 24 lower-case hex digits of SHA-256 over the id's UTF-8 bytes; a repeat of an already-claimed original appends `_2`, `_3`, ... (truncating to 64). The map is deterministic for a given body, so `tool_result` matching (7.4) always finds the same target. Input is never silently replaced when it has the wrong kind (R20).
+2. `tool_calls` = one entry per tool_use block in block order: `{"id":<mapped id>,"type":"function","function":{"name":<mapped name, 8.3>,"arguments":<compact JSON text of input; "{}" when input is absent or null>}}`. Id mapping (D5) is a per-request map filled in message order: an id matching `^[a-zA-Z0-9_-]{1,64}$` that no earlier block claimed maps to itself; any other id (illegal characters, too long) maps to `toolu_` plus the first 24 lower-case hex digits of SHA-256 over the id's UTF-8 bytes (empty unreachable: R20 rejects first); a repeat of an already-claimed original appends `_2`, `_3`, ... (truncating to 64). The map is deterministic for a given body, so `tool_result` matching (7.4) always finds the same target. Input is never silently replaced when it has the wrong kind (R20).
 3. The message is omitted if it has no text, no tool_calls and no re-injected reasoning (so a reasoning-only turn disappears under profile `none`, D7).
 4. `content` = the text when non-empty; `""` when the message has tool_calls or re-injected reasoning but no text. `tool_calls` is present only when non-empty.
 5. Reasoning fields: only per section 13.

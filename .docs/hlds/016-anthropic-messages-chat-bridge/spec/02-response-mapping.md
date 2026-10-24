@@ -48,7 +48,7 @@ Emitted member order: `id, type, role, model, content, stop_reason, stop_sequenc
 
 | Member | Value |
 |---|---|
-| `id` | `msg_` followed by 24 characters drawn uniformly from `[0-9A-Za-z]` using a cryptographically secure generator; unique per response. The upstream `id` MUST NOT be exposed. |
+| `id` | `msg_` followed by 24 characters drawn uniformly from `[0-9A-Za-z]` using a cryptographically secure generator; probabilistically unique — MUST NOT reuse within a message and SHOULD NOT coordinate across requests. The upstream `id` MUST NOT be exposed. |
 | `type` | `"message"` |
 | `role` | `"assistant"` |
 | `model` | The inbound model name from the context, byte for byte. The upstream's reported model MUST NOT be exposed; the value MUST NOT be `"unknown"` or empty. |
@@ -172,7 +172,7 @@ Risk: emitting thinking blocks to a request that did not enable thinking is vali
 - Upstream id = non-empty string `id`.
 - If the upstream id matches `^[a-zA-Z0-9_-]{1,64}$` and has not already been used by an earlier block of this message, it is kept.
 - Otherwise (missing, empty, non-string, illegal characters, longer than 64, or duplicate within the message) the bridge MUST synthesize `toolu_` followed by 24 characters from `[0-9A-Za-z]`, cryptographically random, distinct from every other id in the message.
-- Ids MUST NOT be positional (`call_0` style) and MUST NOT be derived from the upstream id by any non-deterministic mapping. Ids echoed back by the client in later requests are used as-is by 01.
+- Ids MUST NOT be positional (`call_0` style) and MUST NOT be derived from the upstream id in any way; always synthesise as above. Ids echoed back by the client in later requests are used as-is by 01.
 
 ### 7.4 Arguments -> `input` (validate before emitting)
 
@@ -327,11 +327,11 @@ Deadlines: a non-streaming reply from a reasoning model may take minutes before 
 
 ### 11.5 In-band errors on a 2xx reply
 
-If the body has a non-empty `error` object (or non-empty string) and `choices` is not an array, it is an error, never a 200 message. Status = numeric `error.code` or `error.status` when that is an integer 400-599, else 502. Type from 11.2 (502 -> `api_error`). Message per 11.3. If the selected choice has an object member `error` and the choice has no text, reasoning or tool calls, the same treatment applies.
+If the body has a non-empty `error` object (or non-empty string) and `choices` is not an array, it is an error, never a 200 message. Status = numeric `error.code` or `error.status` when that is an integer 400-599, else 502. Type from 11.2 (502 -> `api_error`). Message per 11.3. If the selected choice has an object member `error` and the choice has no text, no refusal text, no reasoning or tool calls, the same treatment applies.
 
 ### 11.6 Headers on errors
 
-`retry-after` and `retry-after-ms` from the upstream response MUST be forwarded when present and valid; invalid values are dropped as specified in `04-harness-and-errors.md` section 7.4. No other upstream header is forwarded. Bridge-originated failures MAY carry `retry-after` for 429/503/529 equivalents only if the bridge knows a value.
+`retry-after` and `retry-after-ms` from the upstream response MUST be forwarded when present and valid; invalid values are dropped as specified in `04-harness-and-errors.md` section 7.4. No other upstream header is forwarded. Bridge-originated failures MUST NOT synthesize `retry-after`; a value, if any, comes from router configuration.
 
 The bridge needs the upstream status and the two retry headers in addition to the body; this is a requirement on the router seam (see Open items).
 
