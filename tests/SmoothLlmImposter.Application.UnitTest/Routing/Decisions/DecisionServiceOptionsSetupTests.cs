@@ -15,13 +15,12 @@ public class DecisionServiceOptionsSetupTests
         using ServiceProvider services = Build(new Dictionary<string, string?>());
 
         DecisionServiceOptions resolved = services.GetRequiredService<IOptions<DecisionServiceOptions>>().Value;
-        DecisionsToolsOptions documented = new ImposterOptions().DecisionsTools;
 
-        resolved.BaseUrl.ShouldBe(documented.BaseUrl);
-        resolved.Path.ShouldBe(documented.Path);
-        resolved.Model.ShouldBe(documented.Model);
-        resolved.MaxAttempts.ShouldBe(documented.MaxAttempts);
-        resolved.TimeoutSeconds.ShouldBe(documented.TimeoutSeconds);
+        resolved.BaseUrl.ShouldBe("http://host.docker.internal:1234");
+        resolved.Path.ShouldBe("/v1/systemone");
+        resolved.Model.ShouldBe("openjev");
+        resolved.MaxAttempts.ShouldBe(3);
+        resolved.TimeoutSeconds.ShouldBe(60);
     }
 
     [Fact]
