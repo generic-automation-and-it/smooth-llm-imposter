@@ -79,7 +79,7 @@ Claude Code auto-loads all `.md` files in `.claude/rules/` (symlinked to `.agent
 |------------|----------|---------------|-------------------------------|
 | Project-wide (git, PR, workflow) | `.agents/rules/` (flat) or a category folder | `true` | `"**"` |
 | Backend only | `.agents/rules/backend/` | `false` | `"**/*.cs"` |
-| Domain-specific | nearest `*_AGENTS.md` instead | n/a | n/a |
+| Domain-specific | nearest nested `AGENTS.md` instead | n/a | n/a |
 
 ## Creating a New Rule
 

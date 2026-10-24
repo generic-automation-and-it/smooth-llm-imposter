@@ -26,7 +26,7 @@ clients work against strict upstreams. Intent in README, decisions in `ladrs/`, 
   tool lists, or `User-Agent`/`originator` handling here.
 - **Supersession is real:** HLD 001 LADR-006 is superseded by LADR-01 — when touching routing, treat
   proxy-side normalization as sanctioned, but add it as a documented exception to the transparent-
-  proxy contract in `ROUTING_AGENTS.md`, not silently.
+  proxy contract in `AGENTS.md`, not silently.
 - **Live upstream evals are L3** — run only in a separate, secret-gated `pr_evals_gate` (org
   `OPENCODE_API_KEY`), never in the hermetic L0/L2 `pr-gate`; the gate stays **neutral** when the
   secret is absent (fork PRs) and never logs the key (LADR-04). Don't add external network/secrets
@@ -39,7 +39,7 @@ Only decisions whose violation produces wrong code. Full records in [`./ladrs/`]
 
 | LADR | Decision | Why it matters |
 |------|----------|----------------|
-| LADR-01 | Normalize proxy-side; client stays vanilla (supersedes HLD 001 LADR-006) | Establishes a third sanctioned request-rewrite class; build against it, update `ROUTING_AGENTS.md` |
+| LADR-01 | Normalize proxy-side; client stays vanilla (supersedes HLD 001 LADR-006) | Establishes a third sanctioned request-rewrite class; build against it, update `AGENTS.md` |
 | LADR-02 | Request-only; prefer removal over remap (**amended by LADR-05**) | Holds for tool normalization + transparent routes; the downgrade path may remap the response |
 | LADR-03 | Per-provider opt-in, off by default, startup-validated | Normalizing a provider that didn't opt in silently corrupts its requests |
 | LADR-04 | Live evals = L3, separate secret-gated `pr_evals_gate` | Putting external network/secrets in the hermetic L0/L2 gate breaks the infra-free test design |

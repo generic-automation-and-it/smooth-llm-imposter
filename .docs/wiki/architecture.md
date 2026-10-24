@@ -36,12 +36,12 @@ tests/
   SmoothLlmImposter.TestFramework/                                        # Shared fixtures
 ```
 
-For the authoritative per-layer context, see the `*_AGENTS.md` next to each project:
+For the authoritative per-layer context, see the nested `AGENTS.md` next to each project:
 
 | Layer | Context file |
 |---|---|
-| Domain | [`src/SmoothLlmImposter.Domain/DOMAIN_AGENTS.md`](../../src/SmoothLlmImposter.Domain/DOMAIN_AGENTS.md) |
-| Application | [`src/SmoothLlmImposter.Application/APPLICATION_AGENTS.md`](../../src/SmoothLlmImposter.Application/APPLICATION_AGENTS.md) |
-| Infrastructure | [`src/SmoothLlmImposter.Infrastructure/INFRASTRUCTURE_AGENTS.md`](../../src/SmoothLlmImposter.Infrastructure/INFRASTRUCTURE_AGENTS.md) |
-| Host | [`src/SmoothLlmImposter.Host/HOST_AGENTS.md`](../../src/SmoothLlmImposter.Host/HOST_AGENTS.md) |
-| Test framework | [`tests/SmoothLlmImposter.TestFramework/TEST_FRAMEWORK_AGENTS.md`](../../tests/SmoothLlmImposter.TestFramework/TEST_FRAMEWORK_AGENTS.md) |
+| Domain | [`src/SmoothLlmImposter.Domain/AGENTS.md`](../../src/SmoothLlmImposter.Domain/AGENTS.md) |
+| Application | [`src/SmoothLlmImposter.Application/AGENTS.md`](../../src/SmoothLlmImposter.Application/AGENTS.md) |
+| Infrastructure | [`src/SmoothLlmImposter.Infrastructure/AGENTS.md`](../../src/SmoothLlmImposter.Infrastructure/AGENTS.md) |
+| Host | [`src/SmoothLlmImposter.Host/AGENTS.md`](../../src/SmoothLlmImposter.Host/AGENTS.md) |
+| Test framework | [`tests/SmoothLlmImposter.TestFramework/AGENTS.md`](../../tests/SmoothLlmImposter.TestFramework/AGENTS.md) |

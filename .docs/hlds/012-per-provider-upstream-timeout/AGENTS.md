@@ -42,7 +42,7 @@ quality spec in [nfrs/](./nfrs/).
   for response headers; the client keeps `Timeout.InfiniteTimeSpan` so SSE bodies stream freely.
 - **Do not give each provider its own named `HttpClient`** (LADR-02). Providers are
   runtime-mutable (HLD 008); a provider created after startup would have no registered client.
-- **Keep `ROUTING_AGENTS.md`, the HLD 007 LADR-02 env table, and `setup.md` in sync** with
+- **Keep `AGENTS.md`, the HLD 007 LADR-02 env table, and `setup.md` in sync** with
   `ImposterOptionsPostConfigure.Fields` when a suffix is added — that table has drifted before.
 
 ## Key Behaviors

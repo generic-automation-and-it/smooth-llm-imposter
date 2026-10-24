@@ -1,4 +1,4 @@
-# INFRASTRUCTURE_AGENTS.md
+# Infrastructure — Layer Context
 
 ## TL;DR
 
@@ -53,6 +53,7 @@ Implements the contracts defined in Application — EF Core + PostgreSQL persist
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery); in-file links updated. No behavior change. | #152 |
 | 2026-10-22 | Auxiliary decisions-tools client; complete-response budget and shared gate | #138 |
 | 2026-10-20 | GitHub Copilot feature store: direct Microsoft.Data.Sqlite with parameterized ADO.NET (spike rejected Dapper.AOT — no .NET 10 interceptors on net10.0, so Dapper would run on reflection/ref-emit). Implements the Application-owned `IGithubCopilotConnectionStore`; feature-gated startup bootstrap opens no database while `ENABLE_GITHUB_COPILOT` is off. | `DependencyInjection`, `Persistence/GithubCopilot` (#126) |
 | 2026-09-22 | Per-attempt header timeouts derive from a per-provider base scaled ×1/×2/×3; global base 200s → 300s, so the default ladder is 300s/600s/900s. Base is carried per request (`UpstreamTimeoutSecondsKey`), not per client. | `DependencyInjection`, `UpstreamForwarder` (HLD 012) |

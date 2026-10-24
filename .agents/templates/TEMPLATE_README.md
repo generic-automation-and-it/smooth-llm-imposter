@@ -1,6 +1,6 @@
 # AGENTS.md Template Guide
 
-This guide explains how to create and maintain `*_AGENTS.md` context files for AI assistants.
+This guide explains how to create and maintain nested `AGENTS.md` context files for AI assistants.
 
 ## Project Structure
 
@@ -8,20 +8,20 @@ This guide explains how to create and maintain `*_AGENTS.md` context files for A
 ├── src/
 │   ├── [*].Application/
 │   │   └── {Feature}/
-│   │       └── {FEATURE}_AGENTS.md          # Feature-specific context
+│   │       └── AGENTS.md                     # Feature-specific context
 │   │
 │   └── [*].Infrastructure/
 │       └── {Concern}/
-│           └── {CONCERN}_AGENTS.md          # Infrastructure context
+│           └── AGENTS.md                     # Infrastructure context
 │
 ├── [*].Domain/
 │   └── Entities/
-│       └── DOMAIN_MODEL_AGENTS.md           # ERD and entity changes
+│       └── AGENTS.md                         # ERD and entity changes
 │
 ├── .docs/
 │   ├── adr/                                 # Architecture Decision Records
 │   ├── nfr/                                 # Non-Functional Requirements
-│   │   └── {CONCERN}_AGENTS.md              # Security, performance, etc.
+│   │   └── AGENTS.md                         # Security, performance, etc.
 │   ├── TEMPLATE_AGENTS.md                   # Template for new AGENTS.md
 │   └── TEMPLATE_README.md                   # This file
 │
@@ -36,13 +36,13 @@ This guide explains how to create and maintain `*_AGENTS.md` context files for A
 
 ### Rule 1: Every PR Must Include AGENTS.md Changes
 Each pull request must either:
-- Create a new `*_AGENTS.md` file, OR
-- Modify an existing `*_AGENTS.md` file
+- Create a new nested `AGENTS.md` file, OR
+- Modify an existing `AGENTS.md` file
 
 This ensures AI context stays synchronized with code changes.
 
 ### Rule 2: Non-Functional Concerns → `.docs/nfr/`
-Place infrastructure and cross-cutting concerns in `.docs/nfr/{CONCERN}_AGENTS.md`:
+Place infrastructure and cross-cutting concerns in `.docs/nfr/{concern}/AGENTS.md`:
 - Security configurations
 - Performance requirements
 - Logging/monitoring setup
@@ -57,11 +57,11 @@ Place entity relationship and domain model changes under the domain layer.
 
 ## Naming Convention
 
-Files must follow `UPPER_SNAKE_CASE_AGENTS.md` pattern:
-- ✅ `ADD_BUNKER_ORDER_AGENTS.md`
-- ✅ `SECRETS_AGENTS.md`
-- ❌ `add-bunker-order.AGENTS.md`
-- ❌ `secrets_agents.md`
+Each feature/layer folder owns one `AGENTS.md` (Claude Code auto-discovers nested `AGENTS.md` files):
+- ✅ `Features/Routing/AGENTS.md`
+- ✅ `Features/Credentials/AGENTS.md`
+- ❌ `Features/Routing/ROUTING_AGENTS.md`
+- ❌ `Features/Routing/routing_agents.md`
 
 ## Template Sections Reference
 
@@ -80,8 +80,8 @@ Files must follow `UPPER_SNAKE_CASE_AGENTS.md` pattern:
 ## Validation
 
 The Gemini CLI Code Review workflow validates AGENTS.md requirements:
-- **FULL reviews**: Must include new/modified `*_AGENTS.md` file
-- **Naming**: Must follow `UPPER_SNAKE_CASE_AGENTS.md` pattern
+- **FULL reviews**: Must include new/modified `AGENTS.md` file
+- **Naming**: Must be `AGENTS.md` in the closest feature/layer folder
 - **Template sections**: New files must include required sections
 
 See `.agents/rules/knowledge-conventional-contexts-quality.instructions.md` for full standards.

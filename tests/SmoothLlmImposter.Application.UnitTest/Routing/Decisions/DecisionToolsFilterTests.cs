@@ -283,6 +283,22 @@ public sealed class DecisionToolsFilterTests
         client.Requests.ShouldBeEmpty();
     }
 
+    [Theory]
+    [InlineData("/v1/responses", "{\"input\":[{\"type\":\"additional_tools\",\"role\":\"developer\",\"tools\":[{\"type\":\"namespace\",\"name\":\"functions\",\"tools\":[]}]},{\"type\":\"message\",\"role\":\"user\",\"content\":\"Hi\"}]}", "no top-level tools array")]
+    [InlineData("/v1/responses", "{\"tools\":[{\"type\":\"web_search\"}],\"input\":\"Hi\",\"previous_response_id\":\"resp_1\"}", "server-held conversation state")]
+    [InlineData("/v1/responses", "{\"tools\":[{\"type\":\"web_search\"}],\"input\":\"Hi\",\"conversation\":{\"id\":\"conv_1\"}}", "server-held conversation state")]
+    [InlineData("/v1/responses", "{\"tools\":[{\"type\":\"tool_search\"},{\"type\":\"web_search\"}],\"input\":\"Hi\"}", "deferred tool loading present")]
+    public async Task Skips_name_their_reason_at_information_level(string path, string body, string reason)
+    {
+        var logs = new FilterLogger();
+
+        ReferenceEquals(await Create(new DecisionStub(), logs, minKeep: 0).FilterAsync(path, body, Ct), body).ShouldBeTrue();
+
+        var skip = logs.Events.Where(entry => entry.Level == LogLevel.Information).ShouldHaveSingleItem();
+        skip.Text.ShouldContain("forwarded unfiltered");
+        skip.Text.ShouldContain(reason);
+    }
+
     [Fact]
     public async Task Removed_tool_names_are_logged_with_control_characters_neutralised()
     {

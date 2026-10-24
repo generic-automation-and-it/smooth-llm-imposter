@@ -48,7 +48,7 @@ In CI it runs in its own workflow (`.github/workflows/pr-evals-gate.yml`), separ
 ## Test Infrastructure
 
 Shared fixtures live in `tests/SmoothLlmImposter.TestFramework/` (a library; `IsTestProject=false`, no
-tests). See `tests/SmoothLlmImposter.TestFramework/TEST_FRAMEWORK_AGENTS.md` for the authoritative list. Key
+tests). See `tests/SmoothLlmImposter.TestFramework/AGENTS.md` for the authoritative list. Key
 pieces:
 
 - **`WebAppFixture<TProgram>`** — wraps `WebApplicationFactory<TProgram>`. Integration tests reference the
