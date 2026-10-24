@@ -7,10 +7,10 @@ Legend: ✅ yes · ❌ no · ◐ partial · 🔜 planned. Sources: CCR README (`
 ## TL;DR — what is special to the imposter
 
 - **Routes subscriptions, not just API keys.** Forwards caller subscription credentials (`claude setup-token`, ChatGPT session) or per-provider subscription bearers; opt-in GitHub Copilot OAuth pair (HLD 013). CCR imports OAuth logins into its own credential pool; LiteLLM is virtual-keys-over-paid-keys.
-- **Stateless, key-less, single native binary.** .NET NativeAOT, ~73 MB non-root Alpine, no DB/Redis by default. CCR needs Node 22 + SQLite; LiteLLM needs Postgres + Redis for full features.
+- **Key-less routing, single native binary.** .NET NativeAOT, ~73 MB non-root Alpine. Persistence exists where needed (Copilot OAuth SQLite, optional credential store) and may grow — statelessness is not the differentiator.
 - **Cache + tool work nobody else bundles.** Per-mapping cache injection, stable tool ordering, decision-model tool pre-filter with per-session sticky selection (HLD 014), opencode session forwarding (HLD 009), `--who?`/`--newsession` zero-upstream-call probes + skills (HLD 010).
 - **Upstream-specific fixes.** Codex→OpenAI-SDK shape (HLD 004), Responses↔Chat downgrade + history normalization (HLD 006), ZDR `encrypted_content` stripping (HLD 011), per-provider timeout ladder (HLD 012).
-- **Narrow on purpose.** Same-dialect only today; no GUI, no billing, no MCP gateway. Chain behind LiteLLM/CCR for those (see README "how to combine it").
+- **Built for local dev across TUIs + CLIs, not a company router.** Single dev runs it for Claude Code, Codex and friends; no multi-tenant keys, teams, spend limits or shared-state clustering. Chain behind LiteLLM/CCR for those (see README "how to combine it").
 
 ## Feature table
 
@@ -18,7 +18,7 @@ Legend: ✅ yes · ❌ no · ◐ partial · 🔜 planned. Sources: CCR README (`
 
 | Feature | Imposter | CCR | LiteLLM |
 |---|---|---|---|
-| Stateless, key-less default (no DB) | ✅ | ❌ (SQLite state) | ◐ (single-worker only) |
+| Key-less routing (keys from config/env, Copilot OAuth excepted) | ✅ | ❌ (SQLite credential pools) | ◐ (virtual keys over paid keys) |
 | NativeAOT single binary, ~73 MB | ✅ | ❌ (Node 22 / Electron) | ❌ (Python / Docker / Helm) |
 | Dual-dialect edge (OpenAI + Anthropic prefixes) | ✅ | ✅ (multi-protocol gateway) | ✅ (`/chat`, `/responses`, `/messages`) |
 | Model aliasing, first-match rewrite | ✅ | ✅ (ordered rules + rewrites) | ✅ (model groups + aliases) |
@@ -48,7 +48,7 @@ Legend: ✅ yes · ❌ no · ◐ partial · 🔜 planned. Sources: CCR README (`
 
 | Feature | Imposter | CCR | LiteLLM |
 |---|---|---|---|
-| Retries + ordered fallback models | ❌ | ✅ | ✅ |
+| Retries + ordered fallback models | ◐ (transport retries, same target; no fallback chain) | ✅ | ✅ |
 | Load-balancing strategies (least-busy, latency, cost) | ❌ | ◐ (pools + weights) | ✅ |
 | Cost tracking, budgets, spend limits | ❌ | ◐ (estimates, dashboards) | ✅ |
 | Guardrails / content filters | ❌ | ❌ | ✅ |
