@@ -222,8 +222,9 @@ forwarded — the highest-scoring ones fill the floor — so a vague request can
 Catalogs of that size or smaller are not classified at all. With `DECISIONS_TOOLS_STICKY_PER_SESSION=true`, a
 tool the filter forwarded stays forwarded for the rest of that chat while the client still sends it, so the
 upstream prompt cache is not invalidated by the filter between turns; it needs an explicit per-chat session id
-(see the [caching guide](prompt-caching.md)) and trades growing tool tokens for a stable prefix. Each pruning pass logs the removed tool names at Information level. Service
-failure keeps unresolved tools and continues inference; the warning names the HTTP status and model. A `400` on
+(see the [caching guide](prompt-caching.md)) and trades growing tool tokens for a stable prefix. Each classified pass logs its model, endpoint, a session digest (`session none` without a captured session id)
+and the removed tool names at Information level. Service failure keeps unresolved tools and continues inference;
+the warning names the HTTP status, model and endpoint. A `400` on
 every request usually means the model is not a decision model — LM Studio must list it with `"type": "decision"`
 in `/api/v1/models` (for example `kev-4b` or `openjev`); a model it lists as `llm` is rejected as
 `invalidModelIdentifier`.

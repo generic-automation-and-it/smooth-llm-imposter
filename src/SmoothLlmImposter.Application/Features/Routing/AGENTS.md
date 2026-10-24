@@ -329,8 +329,11 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 - **Decision-tool filtering (HLD 014).** Classification does not select a provider or alter auth. Its contract
   lives in [HLD 014](../../../../.docs/hlds/014-decisions-tools-filter/README.md); do not couple the global gate to
   `IsImposter`, caching, normalization or session forwarding. Known tool-history references are replay
-  dependencies, not prompt text — never rename or remove historical calls when pruning the catalog. Successful
-  classifier summaries log the canonical body shape, never the caller-controlled upstream path. Optional sticky
+  dependencies, not prompt text — never rename or remove historical calls when pruning the catalog. Classifier outcome
+  lines (kept, all-below-threshold, nothing-below-threshold, fail-open) log the canonical body shape, the configured
+  classifier model, the classifier endpoint (scheme, host, port and path only — userinfo and query dropped), and a
+  12-character SHA-256 digest of the captured session id (`session none` when no captured id is present). They never
+  log the caller-controlled upstream path or the raw session value. Optional sticky
   selection (LADR-09) records only completed passes; recording must stay ahead of the "nothing removed" early
   return, and the session identity must come from the inbound body, not the transformed one.
   The filter is one consumer of the shared decision service (HLD 015): `DecisionToolsConsumer` opts in through
@@ -432,6 +435,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-24 | Decision classifier outcome logs add model, endpoint (no userinfo or query) and a 12-char session digest; raw session never logged. Identity now resolves on every classified pass (extra inbound-body parse) | — |
 | 2026-10-24 | Tool filter is an HLD 015 consumer: transport settings mapped to the shared profile and validated there; `DecisionsToolsVariables` table + reflection drift guard; absent/blank coverage for all ten variables | #156 |
 | 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery); in-file links updated. No behavior change. | #152 |
 | 2026-10-24 | Decision filter logs every skip at Information with its reason (`no top-level tools array`, `server-held conversation state`, `deferred tool loading present`, floor, empty state, nothing below threshold). Codex `/responses` bodies carry tools only in an `input[0]` `additional_tools` item (4 namespaces / 12 tools observed), so they are skipped by design (HLD 014 LADR-10) | — |

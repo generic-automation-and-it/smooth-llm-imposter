@@ -144,5 +144,6 @@ Per-provider overrides, persistent or distributed decision caching, tool-count s
 | 2026-10-23 | Labelled request-first state (no post-request assistant text, system only as fallback, reminder blocks and tool-result turns excluded); need-question wording; all-skip keeps catalog; deferred-loading skip; in-memory chunk memo; byte-preserving output; threshold 0.20; removed names logged (NFR-02) | #138 |
 | 2026-10-23 | Review fixes: memo keyed per tool question so tool-call continuations reuse answers; only valid answers cached; text between reminder spans kept | #141 |
 | 2026-10-23 | Conductor `<system_instruction>` and Claude Code local-command wrappers stripped from state; fail-open warning names HTTP status and configured model | — |
+| 2026-10-24 | Classifier outcome logs name the configured model, classifier endpoint (userinfo and query dropped) and a session digest; raw session values stay unlogged | — |
 | 2026-10-23 | Opt-in `StickyPerSession` keeps forwarded tools for the rest of a captured session (LADR-09) | — |
 | 2026-10-23 | Default threshold back to 0.50; `AlwaysKeep` core tools never asked; `MinKeepTools` floor (default 20) tops up by score; catalogs within the floor skip the classifier (LADR-08) | #138 |
