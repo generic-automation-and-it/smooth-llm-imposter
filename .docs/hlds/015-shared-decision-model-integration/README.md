@@ -6,7 +6,7 @@
 | **Initiative** | Decisions |
 | **Owner** | SmoothLlmImposter maintainers |
 | **Related tracker** | [GitHub #138](https://github.com/generic-automation-and-it/smooth-llm-imposter/issues/138) — first consumer, not authorization to implement this extraction |
-| **Last updated** | 2026-10-22 |
+| **Last updated** | 2026-10-24 |
 
 ## Intent
 
@@ -41,11 +41,11 @@ Preserve the proven service contract: model, state and keyed choice questions pr
 
 ### 3. Preserve the first consumer's contract
 
-[HLD 014](../014-decisions-tools-filter/README.md) owns tool selection and remains authoritative for its default-off flag, seven existing operator settings, 20-question chunks, prompt/instruction caps, history protection and conservative fail-open behavior. Separating transport ownership must not silently change those contracts or inference forwarding.
+[HLD 014](../014-decisions-tools-filter/README.md) owns tool selection and remains authoritative for its default-off flag, every operator setting it documents, 20-question chunks, prompt/instruction caps, history protection and conservative fail-open behavior. Separating transport ownership must not silently change those contracts or inference forwarding.
 
 **Acceptance criteria / DoD**
 
-- Existing tool-filter configuration retains its documented defaults and effective values.
+- Every tool-filter operator setting HLD 014 documents — including `MinKeepTools`, `AlwaysKeep` and `StickyPerSession`, added after this design was drafted — retains its documented default, effective value and conventional precedence.
 - Disabled and no-drop requests retain exact body identity; successful pruning and failure handling remain equivalent.
 - No new shipped configuration enables tool filtering or any additional consumer.
 - Sharing the integration does not broaden which inference bodies may be inspected.
@@ -100,3 +100,4 @@ NativeAOT remains the repository deployment baseline. Existing ARM64 tool-filter
 | Date | Change | Ref |
 |---|---|---|
 | 2026-10-22 | Goals approved; shared-boundary LADRs, NFRs and diagrams drafted; runtime unchanged | #138 |
+| 2026-10-24 | Settings count retired for a count-free compatibility condition; transport deviations recorded in LADR-02; gate ownership stated in LADR-03; runtime unchanged | #156 |
