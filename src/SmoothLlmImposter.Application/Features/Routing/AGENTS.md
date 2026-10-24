@@ -333,6 +333,12 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   classifier summaries log the canonical body shape, never the caller-controlled upstream path. Optional sticky
   selection (LADR-09) records only completed passes; recording must stay ahead of the "nothing removed" early
   return, and the session identity must come from the inbound body, not the transformed one.
+  The filter is one consumer of the shared decision service (HLD 015): `DecisionToolsConsumer` opts in through
+  `DecisionsTools.Enabled`, and `DecisionServiceOptionsSetup` maps BaseUrl/Path/Model/MaxAttempts/TimeoutSeconds
+  onto `DecisionServiceOptions` after conventional precedence. The routing validator checks only consumer policy
+  (`MinProbability`, `MinKeepTools`); transport fields are validated by `DecisionServiceOptionsValidator`. Every
+  `DecisionsToolsOptions` property needs an entry in `ImposterOptionsPostConfigure.DecisionsToolsVariables` — the
+  reflection drift guard fails otherwise.
 
 ## Credential Overrides
 
@@ -373,7 +379,9 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 - **L0** `Application.UnitTest/Routing/Decisions` — API golden shapes, history/choice integrity, body identity,
   bounded chunks, fail-open and cancellation, request-first state (reminder, Conductor and local-command wrappers, hook/system and tool-result turns
   excluded), all-skip fallback, deferred-loading skip, core-tool `AlwaysKeep`, minimum-kept floor, per-question memo (tool-call continuation, invalid-answer retry), byte-preserving output, log-safe removed names, and sticky-per-session retention/non-recording/scoping; root option/env/validator tests remain in `Application.UnitTest/Routing`.
-- **L0** `Infrastructure.UnitTest/Clients/Decisions` — real resilience, full-body timeout, singleton gate and retry status policy.
+- **L0** `Infrastructure.UnitTest/Clients/Decisions` — real resilience, full-body timeout, shared gate across scopes and separately constructed clients, retry status policy, non-tool consumer transport while tool filtering is off, default model without request mutation.
+- **L0** `Application.UnitTest/Common/Clients/Decisions` and `Routing/Decisions/DecisionServiceOptionsSetupTests` — any-consumer validation, operator-name messages, mapping and conventional precedence; `DecisionsToolsOptionsTests` drift guard over every setting.
+- **L2** `Host.IntegrationTest/DecisionServiceIntegrationTests` — real client/gate/pipeline end to end, enabled-invalid startup failure, disabled-invalid inert.
 - **L2** `Host.IntegrationTest/DecisionToolsIntegrationTests` — prefixed/legacy paths, passthrough, downgrade,
   who-probe bypass, disabled bytes, decision-stage caller abort, Claude Code reminder-shaped state with
   verbatim forwarded messages, and sticky retention while session-less chats on a caching route share nothing.
@@ -424,6 +432,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-24 | Tool filter is an HLD 015 consumer: transport settings mapped to the shared profile and validated there; `DecisionsToolsVariables` table + reflection drift guard; absent/blank coverage for all ten variables | #156 |
 | 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery); in-file links updated. No behavior change. | #152 |
 | 2026-10-24 | Decision filter logs every skip at Information with its reason (`no top-level tools array`, `server-held conversation state`, `deferred tool loading present`, floor, empty state, nothing below threshold). Codex `/responses` bodies carry tools only in an `input[0]` `additional_tools` item (4 namespaces / 12 tools observed), so they are skipped by design (HLD 014 LADR-10) | — |
 | 2026-10-23 | Sticky decision tools per session (HLD 014 LADR-09); `SessionScopedMemory` extracted from the orderer | — |

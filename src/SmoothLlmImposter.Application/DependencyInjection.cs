@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using SmoothLlmImposter.Application.Common.Clients.Decisions;
 using SmoothLlmImposter.Application.Common.Pipelines;
 using SmoothLlmImposter.Application.Features.AuthorizationOverride;
 using SmoothLlmImposter.Application.Features.Credentials;
@@ -27,6 +28,14 @@ public static class DependencyInjection
         services.AddScoped<IRouteResolver, RouteResolver>();
         services.AddSingleton<IRequestNormalizer, CodexToOpenAiSdkNormalizer>();
         services.AddSingleton<IDecisionToolsFilter, DecisionToolsFilter>();
+
+        // Shared decision service (HLD 015): consumers opt in independently; the transport profile is mapped
+        // from the existing tool-filter operator surface and validated only while some consumer is opted in.
+        services.AddSingleton<IDecisionServiceConsumer, DecisionToolsConsumer>();
+        services.TryAddSingleton<DecisionServiceDemand>();
+        services.AddSingleton<IConfigureOptions<DecisionServiceOptions>, DecisionServiceOptionsSetup>();
+        services.AddSingleton<IValidateOptions<DecisionServiceOptions>, DecisionServiceOptionsValidator>();
+        services.AddHostedService<DecisionServiceStartupCheck>();
         services.AddSingleton<IToolCatalogOrderer, ToolCatalogOrderer>();
         services.AddSingleton<IChatToResponsesTransformer, ChatToResponsesStreamTransformer>();
         services.AddSingleton<IRequestTransformer, OpenAiRequestTransformer>();

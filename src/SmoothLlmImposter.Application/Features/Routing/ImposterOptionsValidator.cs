@@ -173,24 +173,9 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
             return;
         }
 
+        // Destination, path, model, attempts and timeout are the shared transport profile, validated by
+        // DecisionServiceOptionsValidator whenever any consumer opts in (HLD 015 LADR-02).
         const string prefix = "Imposter:DecisionsTools";
-
-        if (string.IsNullOrWhiteSpace(options.BaseUrl) ||
-            !Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out Uri? baseUrl) ||
-            (baseUrl.Scheme != Uri.UriSchemeHttp && baseUrl.Scheme != Uri.UriSchemeHttps))
-        {
-            failures.Add($"{prefix}:BaseUrl must be an absolute HTTP(S) URL.");
-        }
-
-        if (string.IsNullOrEmpty(options.Path) || !options.Path.StartsWith('/'))
-        {
-            failures.Add($"{prefix}:Path must start with '/'.");
-        }
-
-        if (string.IsNullOrWhiteSpace(options.Model))
-        {
-            failures.Add($"{prefix}:Model must be non-empty.");
-        }
 
         if (!double.IsFinite(options.MinProbability) || options.MinProbability is < 0 or > 1)
         {
@@ -200,16 +185,6 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         if (options.MinKeepTools is < 0 or > 1000)
         {
             failures.Add($"{prefix}:MinKeepTools must be between 0 and 1000.");
-        }
-
-        if (options.MaxAttempts is < 1 or > 10)
-        {
-            failures.Add($"{prefix}:MaxAttempts must be between 1 and 10.");
-        }
-
-        if (options.TimeoutSeconds < MinTimeoutSeconds || options.TimeoutSeconds > MaxTimeoutSeconds)
-        {
-            failures.Add($"{prefix}:TimeoutSeconds must be between {MinTimeoutSeconds} and {MaxTimeoutSeconds} seconds.");
         }
     }
 
