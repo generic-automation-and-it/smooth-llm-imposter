@@ -17,24 +17,24 @@ This file provides guidance for AI coding agents working in the SmoothLlmImposte
 
 ## Project Overview
 
-SmoothLlmImposter is a **stateless, key-less LLM request router**. It exposes OpenAI- and Anthropic-dialect endpoints and, per configuration, redirects an inbound model to an alternate upstream ("imposter") — rewriting the model name and optionally injecting prompt caching — or passes it through to the real provider. Unlike the Smooth Claude Proxy it stores nothing by default (keys come from config/env only; the sole exception is the opt-in GitHub Copilot feature, which persists encrypted OAuth credentials in a local SQLite file when `ENABLE_GITHUB_COPILOT=true`) and routes within a single dialect (no OpenAI⇄Anthropic translation). See `src/SmoothLlmImposter.Application/Features/Routing/ROUTING_AGENTS.md`.
+SmoothLlmImposter is a **stateless, key-less LLM request router**. It exposes OpenAI- and Anthropic-dialect endpoints and, per configuration, redirects an inbound model to an alternate upstream ("imposter") — rewriting the model name and optionally injecting prompt caching — or passes it through to the real provider. Unlike the Smooth Claude Proxy it stores nothing by default (keys come from config/env only; the sole exception is the opt-in GitHub Copilot feature, which persists encrypted OAuth credentials in a local SQLite file when `ENABLE_GITHUB_COPILOT=true`) and routes within a single dialect (no OpenAI⇄Anthropic translation). See `src/SmoothLlmImposter.Application/Features/Routing/AGENTS.md`.
 
 **Tech stack:** .NET 10 NativeAOT · ASP.NET Core minimal APIs · Clean Architecture (Domain / Application / Infrastructure / Host) · `IHttpClientFactory` streaming forwarder (no DB on the default route; opt-in Copilot uses local SQLite) · Serilog · xunit.v3
 
 ## AI Context Files
 
-Keep `*_AGENTS.md` files synchronised with code and documentation changes. Load the closest functional context before reading or editing feature code; the repository no longer vendors the `load-agents-context` hook or its generic skill. Standard global tooling setup is documented in `COLLABORATION.md`; repository-owned skills are listed in `.agents/skills/AGENTS.md`.
+Keep nested `AGENTS.md` files synchronised with code and documentation changes. Load the closest functional context before reading or editing feature code; the repository no longer vendors the `load-agents-context` hook or its generic skill. Standard global tooling setup is documented in `COLLABORATION.md`; repository-owned skills are listed in `.agents/skills/AGENTS.md`.
 
 ### Required Maintenance
 
-- Every PR should create or update at least one `*_AGENTS.md` file.
+- Every PR should create or update at least one nested `AGENTS.md` file.
 - Update the closest context file to the code you change. Prefer local context over adding more content to this root file.
 - When domain model or structural shape changes, also update the relevant implementation or architecture context.
 
 ### Placement Rules
 
 - Functional feature context belongs close to the feature code.
-- Cross-cutting concerns belong under `.docs/hlds/02-nfrs/` or the nearest `*_AGENTS.md`.
+- Cross-cutting concerns belong under `.docs/hlds/02-nfrs/` or the nearest `AGENTS.md`.
 - Avoid creating duplicate context files that restate the same plan at multiple levels without adding new information.
 
 ## Implementation Docs
@@ -147,6 +147,8 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-10-24: Renamed all prefixed functional context files to nested `AGENTS.md` (Claude Code auto-discovers `AGENTS.md`). 9 files via `git mv`: `APPLICATION/HOST/DOMAIN/INFRASTRUCTURE_*`, `CREDENTIALS/GITHUB_COPILOT/AUTHORIZATION_OVERRIDE/ROUTING_*`, `TEST_FRAMEWORK_*` → sibling `AGENTS.md`; filename H1s replaced with descriptive titles. All in-repo links updated; generic `*_AGENTS.md` convention mentions rewritten to nested `AGENTS.md` (root `AGENTS.md`, `COLLABORATION.md`, PR template, workflow/rules instructions, `architecture.md`, `testing.md`, `setup.md`, worktask template/hook, `TEMPLATE_README.md` naming/structure sections). Excluded: `.agents/AI_DEVELOPMENT_AGENTS.md` (slnx + docs reference), `.agents/templates/TEMPLATE_AGENTS.md` (template itself), `.github/CODE_REVIEW_GRAPH_AGENTS.md` + `WORKFLOWS_AGENTS.md` (two files, one `AGENTS.md` target — collision). Build clean, 0 warnings/errors; remaining 4 broken-link hits pre-existing and untouched.
+
 - 2026-10-23: HLD 014 LADR-09 — opt-in sticky decision-tool selection per session (`DECISIONS_TOOLS_STICKY_PER_SESSION`, default off). The decision filter re-selected tools every user turn, so the forwarded `tools` array — the first thing in every provider prompt-cache prefix — could change on each turn; HLD 001 LADR-008 ordering could not help because it never keeps a tool and runs before the filter. Now, for a captured session, every known tool forwarded after a completed pass stays forwarded (not asked, not removed) while the harness still sends it; fail-open, partial fail-open, all-skip and small-catalog passes record nothing. The filter now receives caller headers and the **pre-transform** body: the transformed OpenAI body carries a router-injected `prompt_cache_key` = inbound model, which would have made every chat of a model one "session" (caught in plan review, guarded by an L2 test). The bounded per-session map was extracted from `ToolCatalogOrderer` into `SessionScopedMemory`/`SessionScope` and is shared. Conductor installer forwards the tenth `DECISIONS_TOOLS_*` variable; existing pasted scripts must be replaced and re-run. 881 tests pass (L0/L1/L2); six mutations verified the new tests load-bearing; macOS ARM64 NativeAOT publish warning-free and a native smoke (env and structured binding) showed second-turn retention and cross-session isolation. Upstream cache-hit gain remains unmeasured.
 
 - 2026-10-23: HLD 014 decision filter: tool selection made robust to a poorly calibrated classifier (HLD 014 LADR-08). In a long Claude Code session `kev-4b` scored all 57 asked tools below the container's 0.60 threshold, so the 7 history-protected tools were all that remained (7 of 64). Counting only asked tools in the all-skip guard was tried and rejected: 3 of 4 measured vague requests then forwarded 64/64 tools. Instead `DECISIONS_TOOLS_ALWAYS_KEEP` (default `Bash,Read,Edit,Write,Skill`) are never asked about or removed, `DECISIONS_TOOLS_MIN_KEEP` (default 20) tops the kept set up by score (counting core and history-protected tools; catalogs within it skip the classifier), and `MinProbability` returns to 0.50. Replayed on the native binary against live `kev-4b` with a 64-tool catalog and 7 tools already used: 20/64 forwarded for all four requests, core 7 always present. Measured but not changed: earlier assistant text dominates the ranking (four unrelated requests shared 93% of their top-13 tools; request-only state 32%). Each new rule verified load-bearing by mutation; macOS ARM64 NativeAOT publish clean.
@@ -202,7 +204,7 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
   nature (a timeout only proves itself by elapsing), kept to ~3 s by the validator's 1 s floor and written
   without fixed sleeps: the stub waits on its own cancellation token, with a 10 s ceiling that is far above
   the 1 s budget under test and far below the 300 s default. Also fixed doc drift the original change missed:
-  `INFRASTRUCTURE_AGENTS.md` — the closest context file to `DependencyInjection.cs` — still documented the
+  `AGENTS.md` — the closest context file to `DependencyInjection.cs` — still documented the
   fixed 200/600/900 s ladder and gained no note of the per-request transport, and HLD 001 LADR-003 still
   stated 200 s and a 1,700 s worst-case header wait (now base ×6, 1,800 s on the shipped base). 444 pass.
 
@@ -288,7 +290,7 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
   `chat_completions` downgrade. The proxy has no decryption key (ZDR holds it server-side only), so it
   **drops** the whole reasoning item (LADR-01) rather than decode; plaintext/summary reasoning survives
   verbatim. Conventional env `_STRIP_ENCRYPTED_CONTENT` per provider. See
-  `src/SmoothLlmImposter.Application/Features/Routing/ROUTING_AGENTS.md`.
+  `src/SmoothLlmImposter.Application/Features/Routing/AGENTS.md`.
 - 2026-08-01: Kit release workflow fixed — it could never attach assets. Releases on this repo are
   **immutable**, so assets attach only *before* publication; `action-gh-release` created the release
   already published and every upload was rejected with "Cannot upload asset … to an immutable release".
@@ -365,7 +367,7 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
   `opencode-go-openai-responses` for future testing, but currently returns 422 from OpenCode Go and 404
   from OpenRouter — Codex requires full Responses API support which no provider reliably offers yet.
   `gpt-5.4`/`gpt-5.5` stay routed via `opencode-go-openai-chat` on `chat_completions` (proxy handles
-  `/responses`→Chat downgrade). `ROUTING_AGENTS.md` updated with Migration Plans section documenting
+  `/responses`→Chat downgrade). `AGENTS.md` updated with Migration Plans section documenting
   the provider dependency. `.conductor/scripts/imposter-container.sh` and the embedded `docker run` in
   `.docs/wiki/setups/conductor.build-smooth-llm-imposter.md` — Docker now checks GHCR for a newer
   `smooth-llm-imposter:latest` on every container start. Related comments and the "Image pull behavior"
@@ -430,7 +432,7 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 - 2026-07-29: Conductor workspace setup no longer overrides OpenCode Go session forwarding — it uses the image default (`SessionForwarding: opencode-go`), so matched routes stamp `session_id` / `x-opencode-session`. The per-provider opt-out ships commented out; re-enabling it requires the two exports, both names in `--preserve-env`, and the two `-e` flags. The `-e` flags are documented above the `docker run` rather than inline, because a `#` comment inside a backslash-continued argument list comments out every remaining line.
 - 2026-07-29: Conductor setup adds GitHub Copilot CLI and `code-review-graph`. The snapshot installs Python 3.12 + a dedicated venv (a `pip install --user` silently yields a 0-node graph — grammar probes run under `python -I`, which drops user site-packages); the workspace runs the repo-scoped `install --platform codex|copilot-cli` and `build`. `claude-code` is skipped because it rewrites tracked files (`CLAUDE.md`, `.claude/skills`, `.agents/settings.json`).
 - 2026-07-25: Conductor build setup removes `OpenAiUpstreamApi=chat_completions` from `opencode-go-openai` — GPT routes now use the Responses API default (no `/responses`→Chat downgrade). **Superseded 2026-07-29** — the image's `appsettings.json` already ships that value, so the change was a redundant-override cleanup, not an API switch; GPT-route behavior (`/v1/chat/completions`) is unchanged.
-- 2026-07-29: Conductor build setup correction — the 2026-07-25 entry above was misleading; the `OpenAiUpstreamApi=chat_completions` removal was a redundant-override cleanup (the image default already provides it), not an API switch to Responses. See `src/SmoothLlmImposter.Host/appsettings.json` and `src/SmoothLlmImposter.Application/Features/Routing/ROUTING_AGENTS.md`.
+- 2026-07-29: Conductor build setup correction — the 2026-07-25 entry above was misleading; the `OpenAiUpstreamApi=chat_completions` removal was a redundant-override cleanup (the image default already provides it), not an API switch to Responses. See `src/SmoothLlmImposter.Host/appsettings.json` and `src/SmoothLlmImposter.Application/Features/Routing/AGENTS.md`.
 - 2026-07-25: HLD 010 `--who?` and `--newsession` switch family implemented — `--who?` short-circuits the forward path with a dialect-shaped synthetic reply naming the inbound model, resolved upstream (or `passthrough`), auth scheme, and session identity; `--newsession` mints a synthetic session id and stores a caller→synthetic mapping in the `ISessionTranslationDictionary` singleton. Forward-path translation seam added. Diagnostic logging added to `WhoMessageResponder` (non-match reasons) and `RoutingEndpoints` (feature-disabled, translation applied). **Breaking change:** Bare `who?` trigger was replaced by `--who?`. LADRs/NFRs → Accepted; HLD → Completed.
 - 2026-07-25: Conductor workspace setup disables OpenCode Go session forwarding (`OPENCODE_GO_ANTHROPIC_SESSION_FORWARDING=none` and `OPENCODE_GO_OPENAI_SESSION_FORWARDING=none`). **Superseded 2026-07-29** — the overrides now ship commented out.
 - 2026-07-25: Conductor workspace setup mappings — sonnet/opus-4-6/opus-4-7→opencode-go (qwen3.6-plus/qwen3.7-plus/minimax-m3), haiku→OpenRouter tencent/hy3, gpt-5.4/5.5/5.6-luna→opencode-go (kimi-k2.7-code/glm-5.2/grok-4.5); require OPENROUTER_API_KEY; `openrouter-anthropic` defined fully in script (absent from base image).

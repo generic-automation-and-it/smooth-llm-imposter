@@ -34,7 +34,7 @@
 - [ ] No new warnings introduced
 - [ ] Breaking changes documented (if applicable)
 - [ ] Related ADRs/NFRs updated in `.docs/` (if applicable)
-- [ ] `*_AGENTS.md` context files updated to reflect changes
+- [ ] nested `AGENTS.md` context files updated to reflect changes
 
 ## AI Review Notes
 

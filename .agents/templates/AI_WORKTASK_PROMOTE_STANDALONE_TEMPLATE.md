@@ -11,7 +11,7 @@
 
 ### Context Loading (Phase 0 — MANDATORY FIRST)
 - **Load domain/feature context BEFORE asking clarifying questions** — you cannot ask intelligent questions without understanding existing patterns
-- Load the closest functional `*_AGENTS.md` context explicitly before asking clarifying questions (the repository no longer vendors the `load-agents-context` hook or its generic skill; see root `AGENTS.md` and `COLLABORATION.md`)
+- Load the closest functional nested `AGENTS.md` context explicitly before asking clarifying questions (the repository no longer vendors the `load-agents-context` hook or its generic skill; see root `AGENTS.md` and `COLLABORATION.md`)
 
 ### Model Selection Strategy
 
@@ -401,7 +401,7 @@ Does this plan look correct? Reply 'approved' to proceed, or provide feedback.
 ## Phase 5: Frigg (Document)
 
 ### Context Documentation Updated
-- [Domain]_AGENTS.md: [sections updated]
+- [Domain] AGENTS.md: [sections updated]
 - Root AGENTS.md: [sections updated]
 
 ### Architectural Decisions Recorded
@@ -557,7 +557,7 @@ Orchestrator consolidates reviews:
 - [commit 3]: [conventional message with ticket reference]
 
 ### Documentation Updated
-- [Domain]_AGENTS.md: [sections changed]
+- [Domain] AGENTS.md: [sections changed]
 - ADR files: [updated with actual implementation details]
 - Root AGENTS.md: [if applicable]
 

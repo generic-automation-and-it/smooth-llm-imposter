@@ -23,7 +23,7 @@ routing determines `IsImposter == false`.
 
 Matched imposter routes are still config-only **except** for reserved Copilot provider keys: those resolve a
 managed Bearer token and origin from the feature's published connection snapshot (see
-[`Features/GithubCopilot/GITHUB_COPILOT_AGENTS.md`](../GithubCopilot/GITHUB_COPILOT_AGENTS.md)). The generic
+[`Features/GithubCopilot/AGENTS.md`](../GithubCopilot/AGENTS.md)). The generic
 `ICredentialStore` and the passthrough override path are unchanged, and the Copilot store is a separate
 feature-owned SQLite file with its own key ring — never add Copilot tokens to this credential subsystem.
 

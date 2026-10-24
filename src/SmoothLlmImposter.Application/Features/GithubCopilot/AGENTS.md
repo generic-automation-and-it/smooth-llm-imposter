@@ -1,4 +1,4 @@
-# GITHUB_COPILOT_AGENTS.md
+# GitHub Copilot — Feature Context
 
 ## TL;DR
 

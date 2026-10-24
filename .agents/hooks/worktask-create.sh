@@ -19,7 +19,7 @@ WORK TASK CREATION TRIGGERED — Follow these steps:
 2. **Read the template**: Load `.agents/templates/AI_WORKTASK_PROMOTE_STANDALONE_TEMPLATE.md` as the base structure.
 
 3. **Populate Contexts section** — List ALL resources needed for a standalone AI coder:
-   ✓ Domain/feature AGENTS.md files (e.g., HOST_AGENTS.md, feature area docs)
+   ✓ Domain/feature AGENTS.md files (e.g., AGENTS.md, feature area docs)
    ✓ Architecture Decision Records (ADRs) from `.agents/rules/code-review-standards.instructions.md` relevant to the change
    ✓ Non-Functional Requirements (NFRs) that apply to this work
    ✓ Related rule files: backend-logging-conventions.instructions.md, git-policy.instructions.md, AI_WORKTASK_PROMOTE_TEMPLATE.md, etc.
@@ -28,7 +28,7 @@ WORK TASK CREATION TRIGGERED — Follow these steps:
    ✓ Database schema (if database changes expected)
    ✓ API documentation (if API changes expected)
    ✓ UI/UX specifications (if frontend changes expected)
-   Note: If no feature AGENTS.md exists, include "create [domain]_AGENTS.md" in Instructions
+   Note: If no feature AGENTS.md exists, include "create AGENTS.md in the closest feature/layer folder" in Instructions
 
 4. **Populate Instructions section** — Capture complete requirements:
 

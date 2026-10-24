@@ -5,7 +5,7 @@
 - Work on a branch off `main`: `<type>/<ticket>-short-description` (e.g. `feat/15-add-dialect-prefix`).
 - Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org). See
   [`.agents/rules/git/`](.agents/rules/git/).
-- Every PR should create or update at least one `*_AGENTS.md` context file.
+- Every PR should create or update at least one nested `AGENTS.md` context file.
 
 Build, run, and test instructions: [Developers — Getting Started](.docs/wiki/developers-gettingstarted.md).
 

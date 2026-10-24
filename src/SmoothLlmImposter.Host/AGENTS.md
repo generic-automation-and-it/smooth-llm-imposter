@@ -1,4 +1,4 @@
-# HOST_AGENTS.md
+# Host — Layer Context
 
 ## TL;DR
 
@@ -24,7 +24,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   upstream Chat Completions response back to Responses shape before writing to the caller. `CallerHeaders` are
   captured once and shared by route planning (HLD 009 session resolve) and the forwarder (header relay + optional
   `x-opencode-session` stamp). Routing/transform semantics live in Application — see
-  `Features/Routing/ROUTING_AGENTS.md`.
+  `Features/Routing/AGENTS.md`.
 - **Decision-filter seam (HLD 014).** Invoke on the post-transform body after who-probe/session translation,
   before forwarding and inside the caller-abort guard. Use the effective upstream Chat path for a Responses
   downgrade; keep the enable/path/selection rules in Application, not endpoint lambdas. Also pass the captured

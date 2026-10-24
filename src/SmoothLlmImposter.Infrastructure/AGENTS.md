@@ -1,4 +1,4 @@
-# INFRASTRUCTURE_AGENTS.md
+# Infrastructure — Layer Context
 
 ## TL;DR
 
