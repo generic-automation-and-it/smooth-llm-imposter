@@ -16,7 +16,7 @@ Input to the streaming bridge: a 2xx upstream response whose body is a Chat Comp
 - `toolNameMap`: per-request bidirectional tool-name map; the bridge uses the reverse direction (D6).
 Output: Messages SSE frames written to the client, in order, one writer at a time.
 
-Vocabulary: "bridge", "client", "upstream" as in `decisions.md`. "Frame" = one SSE event written to the client. "Block" = a content block. "Call" = one upstream tool call being assembled. "Pending call" = a call that has started and has not yet been emitted or dropped.
+Vocabulary: "bridge", "client", "upstream" as in `00-cross-cutting-decisions.md`. "Frame" = one SSE event written to the client. "Block" = a content block. "Call" = one upstream tool call being assembled. "Pending call" = a call that has started and has not yet been emitted or dropped.
 
 ### 0.2 Named constants
 
@@ -498,7 +498,7 @@ Output frames: `MS`, `PING`, `B+(i,text)`, `B+(i,think)` (always with `"signatur
 | C27 | args `{"a":}` , F:tool_calls | ERR{api_error,"Upstream returned invalid arguments for tool call <name>"} |
 | C28 | args `{"a":` , F:tool_calls | repair fails -> ERR (as C27) |
 | C29 | args `{"a":1,` , F:tool_calls | repair fails -> ERR |
-| C30 | args `[1]` or `null` or `"x"` , F:tool_calls | not an object, repair fails -> ERR |
+| C30 | args `[1]` or `"x"` , F:tool_calls | not an object, repair fails -> ERR (a JSON `null` argument contributes nothing per 5.1 and becomes `{}` per 5.5) |
 | C31 | args `{"path":"/t","content":"hel` , F:length, U | call cut off by length: dropped, no block; MD{max_tokens;...};MX |
 | C32 | args `{"a":1}` pending, F:length | valid as is: TU emitted; MD{tool_use;...} |
 | C33 | call 0 complete `{"a":1}`, call 1 args `{"b":` , F:length | call 0 emitted at call 1's start; call 1 dropped; MD{tool_use;...} |

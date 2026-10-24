@@ -2,7 +2,7 @@
 
 Status: FINAL target specification. Language: MUST / SHOULD / MAY as in RFC 2119.
 Siblings: `02-response-mapping.md` (Chat reply -> Messages reply), `03-stream-state-machine.md` (Chat SSE -> Messages SSE), `04-harness-and-errors.md` (client harness facts, token estimator, error envelope, outbound header allowlist, count_tokens).
-Binding cross-cutting decisions (D1-D20) are referenced as "Dn".
+Binding cross-cutting decisions (D1-D21) are referenced as "Dn".
 
 Vocabulary: "bridge" = the component translating a Claude Code Messages request into a Chat Completions request and the reply back. "Client" = Claude Code. "Upstream" = the Chat-only provider. "Neutral item" = an intermediate text / image / tool-use / tool-result / reasoning item.
 
@@ -32,16 +32,16 @@ The output MUST be a pure function of (input body, inbound model name, provider 
 
 ## 2. Provider options
 
-This table is the single authoritative list of per-provider options consumed by the mapper; other sections and other documents refer to options by these names and MUST NOT restate defaults. "Required by the bridge" = the bridge reads the option for every bridged provider and requires an explicit, valid value (a documented neutral default exists); "optional tuning" = off or neutral unless an operator opts in per provider.
+This table is the single authoritative list of per-provider options consumed by the mapper; other sections and other documents refer to options by these names and MUST NOT restate defaults. "Required by the bridge" = the bridge reads the option for every bridged provider and requires a valid value (the documented default applies when unset); "optional tuning" = off or neutral unless an operator opts in per provider.
 
 | Option | Values | Default | Class | Purpose |
 |---|---|---|---|---|
-| `compatProfile` | `none`, `deepseek`, `minimax`, `mimo`, `zhipu` | `none` | required by the bridge | Selects the optional vendor layer (section 13): history reasoning re-injection and vendor thinking keys. MUST be set explicitly by the operator; the mapper MUST NOT infer it from the upstream host. An unknown value is a startup configuration error. |
+| `compatProfile` | `none`, `deepseek`, `minimax`, `mimo`, `zhipu` | `none` | required by the bridge | Selects the optional vendor layer (section 13): history reasoning re-injection and vendor thinking keys. When unset the default `none` applies; the mapper MUST NOT infer it from the upstream host. An unknown value is a startup configuration error. |
 | `sendReasoningEffort` | boolean | `false` | optional tuning | Operator opt-in per provider for sending reasoning controls. When `false`, no reasoning control is sent at all: no `reasoning_effort` and no `thinking` key, under every profile (sections 12, 13). When `true`, the keys defined by the selected profile are sent. |
 | `userIdMode` | `off`, `hash`, `passthrough` | `off` | optional tuning | How `metadata.user_id` becomes the Chat `user` field (section 10). `off` sends nothing. |
 | `maxTokensField` | `max_tokens`, `max_completion_tokens` | `max_tokens` | optional tuning | Name of the output-limit key (section 10). |
 | `maxOutputTokens` | integer >= 16, or unset | unset | optional tuning | Upper cap applied to the output limit (section 10). |
-| `AnthropicUpstreamApi` | `messages`, `chat_completions` | `messages` | required (provider-level gate) | Turns bridging on for this provider; conventional env `<PROVIDER>_ANTHROPIC_UPSTREAM_API`. Only a `chat_completions` provider on a matched imposter route reaches this mapper. Validated at startup and on admin upsert: an unknown value fails; a `chat_completions` provider whose effective auth scheme (the provider's `AuthScheme`, else the Anthropic default `ApiKey`) is not `Bearer` fails, because a Chat upstream accepts no other scheme (D20). |
+| `AnthropicUpstreamApi` | `messages`, `chat_completions` | `messages` | required (provider-level gate) | Turns bridging on for this provider; conventional env `<PROVIDER>_ANTHROPIC_UPSTREAM_API`. Only a `chat_completions` provider on a matched imposter route reaches this mapper. Validated at startup and on admin upsert: an unknown value fails. The effective auth scheme is orthogonal (D20): the forwarder writes the managed credential per the provider's `AuthScheme`/`AuthHeader`, so a `chat_completions` provider may use `Bearer` or `ApiKey`. |
 | `forwardCacheControl` | boolean | `false` | optional tuning | Copies a block's `cache_control` object verbatim onto the corresponding Chat content part, tool message, tool definition or system part (sections 4 and 7). Only an upstream that understands Anthropic-style cache breakpoints benefits. |
 | `sendResponseFormat` | boolean | `false` | optional tuning | Maps `output_config.format` to Chat `response_format` (sections 4 and 10). |
 | `documentMode` | `placeholder`, `image` | `placeholder` | optional tuning | `placeholder` replaces an unsupported document with a text placeholder; `image` sends a base64 PDF or image document as an `image_url` data URL and a URL document as its URL, for a vision-capable upstream (sections 4 and 7.2). |

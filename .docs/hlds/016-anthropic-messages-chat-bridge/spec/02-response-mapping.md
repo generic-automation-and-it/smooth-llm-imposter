@@ -33,9 +33,10 @@ The bridge MUST process a reply in this order:
 4. If `choices` is missing or not an array -> HTTP 502 `api_error`. Stop. (An empty array is valid: it is an empty output.)
 5. Select the choice (section 4).
 6. Extract text, refusal text, reasoning text and tool calls (sections 5-7).
-7. Validate tool-call arguments (section 7.4). This step may drop calls or fail the message.
-8. Assemble blocks (section 8), compute `stop_reason` (section 9) and `usage` (section 10).
-9. Emit the message (section 3) with HTTP 200.
+7. If the selected choice carries an object member `error` and no text, refusal text, reasoning text or tool calls were extracted -> in-band error (section 11.5). Stop.
+8. Validate tool-call arguments (section 7.4). This step may drop calls or fail the message.
+9. Assemble blocks (section 8), compute `stop_reason` (section 9) and `usage` (section 10).
+10. Emit the message (section 3) with HTTP 200.
 
 Empty output is NOT an error: a reply with no text, no reasoning and no tool calls is translated faithfully (section 8.2). The bridge MUST NOT issue a second upstream request because an output was empty.
 
