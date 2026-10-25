@@ -20,10 +20,15 @@ sequenceDiagram
         loop each human message, in series
             S->>S: Remembered? replay and continue. Short or harness-only? continue
             S->>G: Can this message be optimized? (skipped if bypassed or circuit open)
-            G-->>S: Probability, or failure → continue to optimizer
-            S->>O: Instructions + this message only (skipped if circuit open)
-            O-->>S: Rewrite, or failure
-            S->>S: Validate; one targeted retry at most; record outcome
+            alt negative answer
+                G-->>S: No
+                S->>S: Record original; skip optimizer
+            else positive or failure
+                G-->>S: Probability, or failure → continue to optimizer
+                S->>O: Instructions + this message only (skipped if circuit open)
+                O-->>S: Rewrite, or failure
+                S->>S: Validate; one targeted retry at most; record outcome
+            end
         end
         S-->>K: Edits to message text, or no change
     end

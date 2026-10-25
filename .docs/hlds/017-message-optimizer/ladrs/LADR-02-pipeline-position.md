@@ -17,7 +17,7 @@ The tool filter classifies the original text, because the two branches start tog
 ## Consequences
 
 - One seam, one body, two independent branches.
-- The optimizer sees post-transform shapes: Messages and Chat Completions, including a Chat body produced by the Responses-to-Chat downgrade (Responses scope is Open item 4).
+- The optimizer sees post-transform shapes: Messages and Chat Completions inbound requests only. A Responses inbound request is untouched by this stage, whether or not it is downgraded (Responses scope is Open item 4).
 - Time-to-first-byte is the slower branch, not the sum.
 
 ## Related

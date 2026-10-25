@@ -8,7 +8,7 @@ A failing gate or optimizer costs at most one failed call per section per cooldo
 
 ## Verification
 
-L0 drives the real resilience pipeline with a stub transport and a short configured cooldown: one exhausted call opens the circuit, the next request makes no transport call, and a trial after the cooldown closes or reopens it — for the gate and the optimizer separately. L2 asserts the four failure combinations (gate down, optimizer down, both, neither) all reach the upstream with a valid body. A native smoke against unreachable gate and optimizer endpoints shows one failed call per section, immediate forwards afterwards, and the Error lines.
+L0 drives the real resilience pipeline with a stub transport and a short configured cooldown: one exhausted call opens the circuit, the next request makes no transport call, and a trial after the cooldown closes or reopens it — for the gate and the optimizer separately. L2 asserts the four failure combinations (gate down, optimizer down, both, neither) all reach the upstream with a valid body, and one case per branch failing alone asserts the other branch's edit is still applied. A native smoke against unreachable gate and optimizer endpoints shows one failed call per section, immediate forwards afterwards, and the Error lines.
 
 ## Acceptance Criteria
 

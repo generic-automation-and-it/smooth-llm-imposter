@@ -9,3 +9,4 @@ Read [README.md](README.md) first — intent, goals, decisions and quality requi
 | Date | Change | Ref |
 |---|---|---|
 | 2026-10-25 | Authored in Discovery: LADR-01..07, NFR-01..04, Open items 1..8 | #164 |
+| 2026-10-25 | Amended: LADR-08 parallel strategies; per-message candidates (Q21); isolated optimizer requests; switch exclusion | #164 |

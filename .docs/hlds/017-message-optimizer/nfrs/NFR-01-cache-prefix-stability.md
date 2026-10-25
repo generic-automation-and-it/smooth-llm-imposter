@@ -12,7 +12,7 @@ An L2 replay of a multi-turn Claude Code–shaped conversation — tool-call con
 
 ## Acceptance Criteria
 
-- Every previously forwarded turn is a byte-identical prefix of the next forward.
+- Every message already handled in a retained session is forwarded with byte-identical text on every later request.
 - A circuit closing does not cause an earlier, already-handled message to be rewritten.
 
 ## Applies To
