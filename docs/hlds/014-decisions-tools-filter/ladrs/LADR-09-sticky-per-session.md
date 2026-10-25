@@ -32,7 +32,7 @@ about and not removed while the harness still supplies them. New tools are class
   recorded too, so a harness that compacts away a tool call does not lose that tool mid-session.
 - **Bounds:** the same bounded session memory as HLD 001 LADR-008 (`SessionScopedMemory`) — 256 scopes, LRU eviction, 30-minute idle expiry,
   lost on restart; at most 1,024 tool keys per scope, beyond which nothing new is recorded.
-- **Shared memory extension (HLD 017 LADR-05):** `SessionScopedMemory` supports a per-instance lifetime and an uncapped mode. A new instance may carry its own idle TTL and scope cap; an uncapped instance drops a scope only on TTL expiry and holds no entry cap. Tool ordering and sticky tools keep 30 minutes and 256 scopes; the HLD 017 checksum cache uses its own instance with `LLM_MESSAGES_CACHE_TTL_HOURS` (default and maximum 120 hours) and no cap.
+- **Shared memory extension (HLD 017 LADR-05):** requires a per-instance lifetime and an uncapped mode on the future HLD 017 change — `SessionScopedMemory` currently offers only fixed 30-minute / 256-scope constants, so a per-instance TTL and uncapped mode are a requirement for that future change, not a shipped feature. Tool ordering and sticky tools keep 30 minutes and 256 scopes; the HLD 017 checksum cache uses its own instance with `LLM_MESSAGES_CACHE_TTL_HOURS` (default and maximum 120 hours) and no cap.
 
 ## Consequences
 
