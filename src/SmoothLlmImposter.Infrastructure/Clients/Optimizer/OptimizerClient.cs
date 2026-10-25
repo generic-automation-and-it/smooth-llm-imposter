@@ -116,7 +116,7 @@ internal sealed class OptimizerClient(
     {
         if (node is JsonValue value && value.TryGetValue(out string? text))
         {
-            if (string.IsNullOrEmpty(text))
+            if (string.IsNullOrWhiteSpace(text))
             {
                 throw new JsonException("Empty optimizer content string.");
             }
