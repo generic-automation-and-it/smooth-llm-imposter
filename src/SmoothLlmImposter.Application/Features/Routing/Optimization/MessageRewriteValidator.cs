@@ -25,6 +25,11 @@ public static class MessageRewriteValidator
     {
         var failed = new List<string>();
 
+        if (original is null || rewrite is null)
+        {
+            return new Result(false, new[] { "null-input" });
+        }
+
         if (string.IsNullOrEmpty(rewrite) || rewrite.Length >= original.Length)
         {
             failed.Add("length");
@@ -82,6 +87,22 @@ public static class MessageRewriteValidator
         foreach (Match m in EnvVar.Matches(rewrite))
         {
             if (!original.Contains(m.Value, StringComparison.Ordinal)) failed.Add($"introduced-env:{m.Value}");
+        }
+        foreach (Match m in Url.Matches(rewrite))
+        {
+            if (!original.Contains(m.Value, StringComparison.Ordinal)) failed.Add($"introduced-url:{m.Value}");
+        }
+        foreach (Match m in SlashCmd.Matches(rewrite))
+        {
+            if (!original.Contains(m.Value, StringComparison.Ordinal)) failed.Add($"introduced-slash:{m.Value}");
+        }
+        foreach (Match m in DollarCmd.Matches(rewrite))
+        {
+            if (!original.Contains(m.Value, StringComparison.Ordinal)) failed.Add($"introduced-dollar:{m.Value}");
+        }
+        foreach (Match m in Mention.Matches(rewrite))
+        {
+            if (!original.Contains(m.Value, StringComparison.Ordinal)) failed.Add($"introduced-mention:{m.Value}");
         }
 
         // Markdown structure: code-fence count must match.
