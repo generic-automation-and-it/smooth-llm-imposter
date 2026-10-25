@@ -119,6 +119,7 @@ Per-provider overrides, persistent or distributed decision caching, tool-count s
 | [09](ladrs/LADR-09-sticky-per-session.md) | Opt-in sticky tool selection per captured session | Accepted |
 | [10](ladrs/LADR-10-codex-additional-tools-not-filtered.md) | Codex `additional_tools` requests are not filtered | Accepted |
 | [11](ladrs/LADR-11-circuit-breaker.md) | Per-consumer circuit breaker: one failed call skips the filter for a cooldown (default 180 s) | Accepted — not yet implemented |
+| [12](ladrs/LADR-12-tool-filter-returns-edit.md) | Tool filter returns an edit to `tools`/`tool_choice`, not a body; overlap forwards original | Draft |
 
 ## Non-Functional Requirements
 
@@ -154,3 +155,5 @@ Per-provider overrides, persistent or distributed decision caching, tool-count s
 | 2026-10-23 | Opt-in `StickyPerSession` keeps forwarded tools for the rest of a captured session (LADR-09) | — |
 | 2026-10-23 | Default threshold back to 0.50; `AlwaysKeep` core tools never asked; `MinKeepTools` floor (default 20) tops up by score; catalogs within the floor skip the classifier (LADR-08) | #138 |
 | 2026-10-25 | Circuit breaker amendment (design only): one failed classifier call opens a tool-filter circuit for an optional `DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS` cooldown (default 180); open passes skip with `circuit-open`; opening logs at Error (LADR-11, NFR-05). LADR-10 added to the decisions table | #164 |
+| 2026-10-25 | LADR-09 shared memory extension: per-instance lifetime and uncapped mode for HLD 017 checksum cache; tools keep 30 min and 256 scopes | #164 |
+| 2026-10-25 | Draft LADR-12: tool filter returns an edit to `tools`/`tool_choice`, not a body; overlap forwards original | #164 |
