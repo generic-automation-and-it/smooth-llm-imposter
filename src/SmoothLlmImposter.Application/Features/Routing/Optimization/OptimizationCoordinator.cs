@@ -158,10 +158,32 @@ internal sealed class OptimizationCoordinator(
         return null;
     }
 
-    private static bool Overlaps(string a, string b) =>
-        a.Equals(b, StringComparison.Ordinal) ||
-        a.StartsWith(b + "/", StringComparison.Ordinal) ||
-        b.StartsWith(a + "/", StringComparison.Ordinal);
+    private static bool Overlaps(string a, string b)
+    {
+        if (a.Equals(b, StringComparison.Ordinal))
+        {
+            return true;
+        }
+        // Compare segment-wise so "/arr/01" and "/arr/1" are recognised as the same slot,
+        // matching the int.TryParse resolution in Navigate/TrySet.
+        string[] aSegs = a.Split('/', StringSplitOptions.None);
+        string[] bSegs = b.Split('/', StringSplitOptions.None);
+        int common = Math.Min(aSegs.Length, bSegs.Length);
+        for (int i = 0; i < common; i++)
+        {
+            if (!SegmentsEqual(aSegs[i], bSegs[i]))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool SegmentsEqual(string x, string y) =>
+        string.Equals(NormalizeIndex(x), NormalizeIndex(y), StringComparison.Ordinal);
+
+    private static string NormalizeIndex(string segment) =>
+        int.TryParse(segment, out int index) ? index.ToString(System.Globalization.CultureInfo.InvariantCulture) : segment;
 
     private static string Unescape(string segment) =>
         segment.Replace("~1", "/").Replace("~0", "~");
