@@ -39,6 +39,7 @@ public static class DependencyInjection
         // Shared decision service (HLD 015): consumers opt in independently; the transport profile is mapped
         // from the existing tool-filter operator surface and validated only while some consumer is opted in.
         services.AddSingleton<IDecisionServiceConsumer, DecisionToolsConsumer>();
+        services.AddSingleton<IDecisionServiceConsumer, MessagesConsumer>();
         services.TryAddSingleton<DecisionServiceDemand>();
         services.AddSingleton<IConfigureOptions<DecisionServiceOptions>, DecisionServiceOptionsSetup>();
         services.AddSingleton<IValidateOptions<DecisionServiceOptions>, DecisionServiceOptionsValidator>();
