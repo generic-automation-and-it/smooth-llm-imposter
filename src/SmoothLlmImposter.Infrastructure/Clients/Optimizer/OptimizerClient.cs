@@ -88,6 +88,11 @@ internal sealed class OptimizerClient(
                 last = ex;
                 break;
             }
+            catch (JsonException)
+            {
+                // Deterministic envelope/content failure: do not retry.
+                throw;
+            }
             catch (Exception ex)
             {
                 last = ex;
@@ -106,6 +111,17 @@ internal sealed class OptimizerClient(
         (int)ex.StatusCode >= 500 ||
         ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests;
 
-    private static string MessageContentText(JsonNode? node) =>
-        node is JsonValue value && value.TryGetValue(out string? text) ? text ?? string.Empty : string.Empty;
+    private static string MessageContentText(JsonNode? node)
+    {
+        if (node is JsonValue value && value.TryGetValue(out string? text))
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                throw new JsonException("Empty optimizer content string.");
+            }
+            return text;
+        }
+
+        throw new JsonException("Unsupported content shape in optimizer reply.");
+    }
 }
