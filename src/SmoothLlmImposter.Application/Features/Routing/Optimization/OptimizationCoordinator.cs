@@ -183,7 +183,9 @@ internal sealed class OptimizationCoordinator(
         string.Equals(NormalizeIndex(x), NormalizeIndex(y), StringComparison.Ordinal);
 
     private static string NormalizeIndex(string segment) =>
-        int.TryParse(segment, out int index) ? index.ToString(System.Globalization.CultureInfo.InvariantCulture) : segment;
+        int.TryParse(segment, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int index)
+            ? index.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : segment;
 
     private static string Unescape(string segment) =>
         segment.Replace("~1", "/").Replace("~0", "~");
