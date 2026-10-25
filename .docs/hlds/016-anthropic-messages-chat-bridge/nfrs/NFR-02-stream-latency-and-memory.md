@@ -1,6 +1,6 @@
 # NFR-02: Streaming adds negligible latency and bounded memory
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Requirement
 

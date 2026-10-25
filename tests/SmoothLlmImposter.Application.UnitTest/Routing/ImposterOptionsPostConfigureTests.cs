@@ -203,8 +203,13 @@ public class ImposterOptionsPostConfigureTests
         {
             bool isBool = field.PropertyName is nameof(ProviderOptions.IsDefault)
                 or nameof(ProviderOptions.Enabled)
-                or nameof(ProviderOptions.StripEncryptedContent);
-            bool isInt = field.PropertyName is nameof(ProviderOptions.TimeoutSeconds);
+                or nameof(ProviderOptions.StripEncryptedContent)
+                or nameof(ProviderOptions.SendReasoningEffort)
+                or nameof(ProviderOptions.ForwardCacheControl)
+                or nameof(ProviderOptions.SendResponseFormat)
+                or nameof(ProviderOptions.ThinkMarkupExtraction);
+            bool isInt = field.PropertyName is nameof(ProviderOptions.TimeoutSeconds)
+                or nameof(ProviderOptions.MaxOutputTokens);
             string value = isBool ? "true" : isInt ? "450" : "v" + field.Suffix;
 
             var (options, _) = Resolve(

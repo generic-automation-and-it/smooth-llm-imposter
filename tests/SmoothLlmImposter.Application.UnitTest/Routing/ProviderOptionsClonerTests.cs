@@ -28,7 +28,18 @@ public class ProviderOptionsClonerTests
             RequestNormalization = "codex_to_openai_sdk",
             SessionForwarding = "opencode-go",
             StripEncryptedContent = true,
-            TimeoutSeconds = 450
+            TimeoutSeconds = 450,
+            AnthropicUpstreamApi = "chat_completions",
+            CompatProfile = "deepseek",
+            SendReasoningEffort = true,
+            UserIdMode = "hash",
+            MaxTokensField = "max_completion_tokens",
+            MaxOutputTokens = 32000,
+            ForwardCacheControl = true,
+            SendResponseFormat = true,
+            DocumentMode = "image",
+            ThinkMarkupExtraction = true,
+            MidturnSystem = "merge_into_user"
         };
 
         ProviderOptions clone = ProviderOptionsCloner.Clone(source);

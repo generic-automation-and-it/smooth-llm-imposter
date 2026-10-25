@@ -116,6 +116,16 @@ internal static class ProviderConfigurationValidation
             RuleFor(x => x.OpenAiUpstreamApi).Must(static x => OpenAiUpstreamApiParser.TryParse(x, out _)).WithMessage("OpenAiUpstreamApi must be 'responses' or 'chat_completions'.");
             RuleFor(x => x.RequestNormalization).Must(static x => RequestNormalizationParser.TryParse(x, out _)).WithMessage("RequestNormalization must be 'none' or 'codex_to_openai_sdk'.");
             RuleFor(x => x.SessionForwarding).Must(static x => SessionForwardingParser.TryParse(x, out _)).WithMessage("SessionForwarding must be 'none' or 'opencode-go' (also accepted: 'opencode_go', 'opencodego').");
+            RuleFor(x => x.AnthropicUpstreamApi).Must(static x => AnthropicUpstreamApiParser.TryParse(x, out _)).WithMessage("AnthropicUpstreamApi must be 'messages' or 'chat_completions'.");
+            RuleFor(x => x.CompatProfile).Must(static x => AnthropicChatCompatProfileParser.TryParse(x, out _)).WithMessage("CompatProfile must be 'none', 'deepseek', 'minimax', 'mimo' or 'zhipu'.");
+            RuleFor(x => x.UserIdMode).Must(static x => AnthropicChatUserIdModeParser.TryParse(x, out _)).WithMessage("UserIdMode must be 'off', 'hash' or 'passthrough'.");
+            RuleFor(x => x.MaxTokensField).Must(static x => AnthropicChatMaxTokensFieldParser.TryParse(x, out _)).WithMessage("MaxTokensField must be 'max_tokens' or 'max_completion_tokens'.");
+            RuleFor(x => x.DocumentMode).Must(static x => AnthropicChatDocumentModeParser.TryParse(x, out _)).WithMessage("DocumentMode must be 'placeholder' or 'image'.");
+            RuleFor(x => x.MidturnSystem).Must(static x => AnthropicChatMidturnSystemParser.TryParse(x, out _)).WithMessage("MidturnSystem must be 'system' or 'merge_into_user'.");
+            RuleFor(x => x.MaxOutputTokens)
+                .GreaterThanOrEqualTo(16)
+                .When(static x => x.MaxOutputTokens.HasValue)
+                .WithMessage("MaxOutputTokens must be at least 16, or omitted.");
             // Same 1-3600 range the startup validator enforces (HLD 012 NFR-01). EnsureValidRegistry would
             // also catch it, but as a whole-registry failure — this gives the caller the offending field.
             RuleFor(x => x.TimeoutSeconds)
@@ -141,6 +151,25 @@ internal static class ProviderConfigurationValidation
                 if (ApiDialectParser.TryParse(body.Dialect, out ApiDialect dialect) && dialect != ApiDialect.OpenAi)
                 {
                     context.AddFailure(nameof(body.RequestNormalization), "RequestNormalization 'codex_to_openai_sdk' is only valid on the 'openai' dialect.");
+                }
+            });
+            RuleFor(x => x).Custom(static (body, context) =>
+            {
+                if (!AnthropicUpstreamApiParser.TryParse(body.AnthropicUpstreamApi, out AnthropicUpstreamApi upstreamApi) ||
+                    upstreamApi != AnthropicUpstreamApi.ChatCompletions)
+                {
+                    return;
+                }
+
+                if (ApiDialectParser.TryParse(body.Dialect, out ApiDialect dialect) && dialect != ApiDialect.Anthropic)
+                {
+                    context.AddFailure(nameof(body.AnthropicUpstreamApi), "AnthropicUpstreamApi 'chat_completions' is only valid on the 'anthropic' dialect.");
+                }
+
+                if (!CredentialAuthSchemeParser.TryParse(body.AuthScheme, out CredentialAuthScheme? scheme) ||
+                    scheme != CredentialAuthScheme.Bearer)
+                {
+                    context.AddFailure(nameof(body.AuthScheme), "AnthropicUpstreamApi 'chat_completions' requires AuthScheme 'Bearer'.");
                 }
             });
         }

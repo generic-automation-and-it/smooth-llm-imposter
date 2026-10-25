@@ -18,15 +18,20 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   body `session_id` + both-dialects header `x-opencode-session`), and
   (5) **operator-opt-in global decision-tool filtering** (HLD 014), default off and applicable on
   **passthrough as well as imposter routes**, and (6) **opt-in first-seen tool ordering**
-  (HLD 001 LADR-008), before routing transforms, for explicitly identified sessions on completion paths.
-  These six are **request-only**. A single
+  (HLD 001 LADR-008), before routing transforms, for explicitly identified sessions on completion paths,
+  and (7) **opt-in Messages→Chat bridging** (HLD 016) on a matched Anthropic imposter route whose provider set
+  `AnthropicUpstreamApi: chat_completions`; it translates the body after planning and replaces the caller
+  header set with an allowlist, the one place the transparent-proxy rule is explicitly narrowed.
+  These seven are **request-only**. A single
   sanctioned **response-synthesizing** inspection class exists (HLD 010 — see "Who-message probe" below) and
   is gated on a config toggle; the who-probe and decision filter are the sanctioned readers of
-  `messages` content. The single sanctioned
-  response rewrite is `ChatToResponsesStreamTransformer`, and only on the matched OpenAI imposter
-  `/responses`→Chat downgrade path (`OpenAiUpstreamApi: chat_completions` + inbound `/responses`); it is an
-  incremental SSE transform, never a buffer/replay step (HLD 004 LADR-05 / NFR-05). Every other response stream is
-  byte-relayed unchanged (HLD 004 LADR-05). HLD 001 LADR-003
+  `messages` content. There are two sanctioned response rewrites:
+  `ChatToResponsesStreamTransformer` on the matched OpenAI imposter `/responses`→Chat downgrade path
+  (`OpenAiUpstreamApi: chat_completions` + inbound `/responses`), and the HLD 016 bridge's
+  `AnthropicChatResponseMapper` / `AnthropicChatStreamTranslator` on a bridged Anthropic imposter route.
+  Both are incremental transforms, never a buffer/replay step for streams (HLD 004 LADR-05 / NFR-05);
+  the bridge's 2xx-JSON-to-a-streaming-request replay is the one sanctioned non-SSE case (HLD 016 spec 03 §1).
+  Every other response stream is byte-relayed unchanged (HLD 004 LADR-05). HLD 001 LADR-003
   additionally distinguishes the HLD 014 decision-client timeout from inference transport. Adding a
   bespoke filter that drops a caller header (e.g. `anthropic-beta`) breaks beta body fields like
   `context_management` — only the fixed hop-by-hop/content set (`Host`, `Content-*`, `Connection`,
@@ -76,8 +81,11 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   effective scheme (`_AUTH_SCHEME` env → bound `AuthScheme` → dialect default) *before* choosing the
   secret, mirroring `UpstreamAuthResolver`, so the chosen var matches the header actually written. A
   blank/whitespace var is treated as absent (never wins the slot, never blanks an appsettings `Secret`).
-- **Same-dialect only.** Do not add OpenAI⇄Anthropic body translation here. An `openai` provider serves
-  openai requests; an `anthropic` provider serves anthropic requests.
+- **Same-dialect only, with one recorded narrowing.** Do not add OpenAI⇄Anthropic body translation here.
+  An `openai` provider serves openai requests; an `anthropic` provider serves anthropic requests. The one
+  exception is HLD 016: a matched Anthropic imposter route whose provider set
+  `AnthropicUpstreamApi: chat_completions` translates Messages→Chat and back (opt-in, default off; see
+  `Bridge/AGENTS.md`). Passthrough/default and native `messages` routes never translate.
 - **OpenAI Responses→Chat compatibility is explicit per provider.** `OpenAiUpstreamApi` defaults to
   `responses`. Set `OpenAiUpstreamApi: chat_completions` only for OpenAI-compatible upstreams that lack
   `/responses` (e.g. OpenRouter/opencode). On matched imposter routes only, `/responses` is forwarded to
@@ -225,7 +233,17 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   chat upstreams and stay flat for responses upstreams. If no tool survives, `tools`+`tool_choice` are removed
   (absent tools are accepted; an empty array is not guaranteed to be). Prior-turn `function_call`/
   `function_call_output` history for a dropped tool is **left untouched** — v1 only filters `tools[]`.
-- **Response translation — `ChatToResponsesStreamTransformer`.** This is the only response-side transformer. It
+- **Messages→Chat bridge (HLD 016).** `AnthropicUpstreamApi` defaults to `messages`; `chat_completions` on an
+  Anthropic provider enables the bridge on matched imposter routes only, and requires an effective `Bearer`
+  auth scheme (a bridged route always sends the router-managed credential). The Host seam maps the body after
+  planning, runs the decision filter on the **Chat** body, forwards once with the outbound header allowlist,
+  and maps the reply; `AnthropicRequestTransformer` skips its cache-breakpoint injection on a bridged route.
+  `POST /v1/messages/count_tokens` is answered locally with the shared estimator, and `count_tokens` never
+  calls upstream. Option plumbing follows the same HLD 011 rule: a new field must reach `ProviderOptions`,
+  the conventional env suffix map, `ProviderOptionsCloner.Clone`, both `/admin/providers` DTOs, the validator
+  and route materialisation, or it ships inert. Local traps live in `Bridge/AGENTS.md`; the normative behavior
+  is `.docs/hlds/016-anthropic-messages-chat-bridge/spec/`.
+- **Response translation — `ChatToResponsesStreamTransformer`.** This is the only OpenAI response-side transformer. It
   consumes upstream Chat Completions SSE line-by-line and emits Responses SSE frames as each source frame arrives:
   `response.created`/`in_progress`, message/content-part open events, text/reasoning/tool-call deltas, done
   events, then exactly one `response.completed` with assembled output + usage. It carries only bounded per-stream
@@ -373,6 +391,10 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 ## Test References
 
 - **L0** `Domain.UnitTest/Routing` — matcher, dialect parser.
+- **L0** `Application.UnitTest/Routing/Bridge` — HLD 016 request matrix (§18), response matrix (§15), stream
+  matrix (§10), estimator vectors (spec 04 §11.2), and bridge provider-option validation/materialisation.
+- **L2** `Host.IntegrationTest/AnthropicChatBridgeIntegrationTests` — bridged non-stream/stream, local
+  `count_tokens`, 405/404 endpoint policy, error + retry headers, header allowlist, non-bridged transparency.
 - **L0** `Application.UnitTest/Routing` — resolver, transformers (`AnthropicCachingTests` covers caller layouts,
   tool-tail injection and idempotency; `ToolCatalogOrdererTests` covers scope isolation, expiry wiring, rank capacity,
   concurrency and current-definition fidelity; `SessionScopedMemoryTests` covers scope isolation, idle expiry, LRU eviction and serialized use; `ProcessMemoryRegistrationTests` (project root) rejects unreviewed singleton collections; passthrough body identity and fast-path exclusions), router, error factory, options
@@ -435,8 +457,10 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-25 | HLD 016 ralph-loop fixes: bridged query-string suppression, bounded stream channel + per-read timer cancellation, in-band 2xx overflow/retry/redaction, choice-level errors, attribution cache-control. 1,267 tests pass; host NativeAOT publish clean. | HLD 016 |
 | 2026-10-24 | Decision classifier outcome logs add model, endpoint (no userinfo or query) and a 12-char session digest; raw session never logged. Identity now resolves on every classified pass (extra inbound-body parse) | — |
 | 2026-10-24 | Tool filter is an HLD 015 consumer: transport settings mapped to the shared profile and validated there; `DecisionsToolsVariables` table + reflection drift guard; absent/blank coverage for all ten variables | #156 |
+| 2026-10-24 | HLD 016 Messages→Chat bridge implemented: opt-in `AnthropicUpstreamApi: chat_completions` (Bearer-required) on matched Anthropic imposter routes, request/reply/stream mapping, local `count_tokens`, header allowlist, cache-injection skip. Seventh request-rewrite class and second response-rewrite class; same-dialect rule narrowed for bridged routes only. | HLD 016 |
 | 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery); in-file links updated. No behavior change. | #152 |
 | 2026-10-24 | Decision filter logs every skip at Information with its reason (`no top-level tools array`, `server-held conversation state`, `deferred tool loading present`, floor, empty state, nothing below threshold). Codex `/responses` bodies carry tools only in an `input[0]` `additional_tools` item (4 namespaces / 12 tools observed), so they are skipped by design (HLD 014 LADR-10) | — |
 | 2026-10-23 | Sticky decision tools per session (HLD 014 LADR-09); `SessionScopedMemory` extracted from the orderer | — |

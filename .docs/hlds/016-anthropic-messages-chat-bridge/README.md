@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | In Discovery — spec complete, nothing implemented |
+| **Status** | Accepted — implemented and verified on the host platform; live Claude Code session and Linux musl native gates remain external |
 | **Initiative** | Claude Code on Chat-only upstreams |
 | **Owner** | SmoothLlmImposter maintainers |
 | **Tracker** | TBD — owner: maintainers; trigger: before acceptance |
@@ -62,24 +62,24 @@ Errors, usage and token counting behave so the client's retry, overload, compact
 
 | LADR | Decision | Status |
 |---|---|---|
-| [01](ladrs/LADR-01-per-provider-opt-in.md) | Per-provider opt-in on matched imposter routes | Draft |
-| [02](ladrs/LADR-02-seam-and-header-hygiene.md) | Translate after planning, before the decision filter; header allowlist | Draft |
-| [03](ladrs/LADR-03-incremental-streaming.md) | Incremental, bounded-state streaming translation | Draft |
-| [04](ladrs/LADR-04-validated-tool-arguments.md) | Tool-call arguments held, validated, then emitted | Draft |
-| [05](ladrs/LADR-05-messages-shaped-errors-and-usage.md) | Errors and usage always in Messages shape | Draft |
-| [06](ladrs/LADR-06-allowlist-and-explicit-rejection.md) | Allowlist mapping; placeholders for history, rejection for intent | Draft |
-| [07](ladrs/LADR-07-tool-identity.md) | Stateless tool id and name normalization, reversed on reply | Draft |
-| [08](ladrs/LADR-08-reasoning-and-vendor-profiles.md) | Unsigned thinking; vendor profiles are explicit opt-ins | Draft |
-| [09](ladrs/LADR-09-local-count-tokens.md) | `count_tokens` answered locally by a shared estimator | Draft |
+| [01](ladrs/LADR-01-per-provider-opt-in.md) | Per-provider opt-in on matched imposter routes | Accepted |
+| [02](ladrs/LADR-02-seam-and-header-hygiene.md) | Translate after planning, before the decision filter; header allowlist | Accepted |
+| [03](ladrs/LADR-03-incremental-streaming.md) | Incremental, bounded-state streaming translation | Accepted |
+| [04](ladrs/LADR-04-validated-tool-arguments.md) | Tool-call arguments held, validated, then emitted | Accepted |
+| [05](ladrs/LADR-05-messages-shaped-errors-and-usage.md) | Errors and usage always in Messages shape | Accepted |
+| [06](ladrs/LADR-06-allowlist-and-explicit-rejection.md) | Allowlist mapping; placeholders for history, rejection for intent | Accepted |
+| [07](ladrs/LADR-07-tool-identity.md) | Stateless tool id and name normalization, reversed on reply | Accepted |
+| [08](ladrs/LADR-08-reasoning-and-vendor-profiles.md) | Unsigned thinking; vendor profiles are explicit opt-ins | Accepted |
+| [09](ladrs/LADR-09-local-count-tokens.md) | `count_tokens` answered locally by a shared estimator | Accepted |
 
 ## Non-Functional Requirements
 
 | NFR | Attribute | Status |
 |---|---|---|
-| [01](nfrs/NFR-01-non-bridged-transparency.md) | Non-bridged traffic unchanged | Draft |
-| [02](nfrs/NFR-02-stream-latency-and-memory.md) | Streaming latency and memory bounds | Draft |
-| [03](nfrs/NFR-03-request-fidelity.md) | Mapped requests satisfy a strict Chat upstream | Draft |
-| [04](nfrs/NFR-04-response-protocol-validity.md) | Every reply is a valid Messages reply | Draft |
+| [01](nfrs/NFR-01-non-bridged-transparency.md) | Non-bridged traffic unchanged | Accepted |
+| [02](nfrs/NFR-02-stream-latency-and-memory.md) | Streaming latency and memory bounds | Accepted |
+| [03](nfrs/NFR-03-request-fidelity.md) | Mapped requests satisfy a strict Chat upstream | Accepted |
+| [04](nfrs/NFR-04-response-protocol-validity.md) | Every reply is a valid Messages reply | Accepted |
 
 ## Specification
 
@@ -111,3 +111,5 @@ Interaction of the decision filter with bridged Claude Code bodies; image handli
 | 2026-10-24 | Discovery: HLD, nine LADRs, four NFRs and four normative spec files authored | — |
 | 2026-10-24 | Review pass: usage formula unified across 02/03, relocated auth header allowed in the allowlist, enabling option spec'd in 01, README lists spec 00 | — |
 | 2026-10-24 | Cross-checked against LiteLLM's Anthropic-to-Chat bridge: mid-turn system messages mapped, deterministic tool-id map, opt-in cache-control / response-format / document-as-image, tool `strict` forwarded | — |
+| 2026-10-25 | Ralph loop review (converged at loop 5): fixed bridged query-string forwarding, an unbounded stream event channel and abandoned per-chunk timers, in-band overflow status restriction, in-band `retry-after` forwarding, choice-level in-band errors, stream credential wording and key redaction, the dropped attribution block's `cache_control`, and dead API members. 1,267 tests pass (L0/L1/L2); host-platform NativeAOT publish warning-free. Deferred: live-session and NFR-02 measurement, body-less endpoint policy, and the decision filter's forced-tool protection. | — |
+| 2026-10-24 | Implemented (LADRs/NFRs Accepted): option plumbing and bridge mappers, Host seam, local `count_tokens`, header allowlist, tests and docs. Host-platform NativeAOT publish warning-free and native smoke passed. Spec corrections recorded: (1) spec 01 §2 said a `chat_completions` provider may use Bearer **or** ApiKey, but LADR-01 and the task require Bearer — the implementation requires an effective Bearer scheme at startup and upsert; (2) spec 04 §7.5.1's overflow detection keyword list omitted "context limit", which the P1 phrasing needs — added so Form A/B re-rendering works; (3) a body-less `GET /v1/messages` cannot resolve a bridged provider, so the 405 rule applies only when a model resolves the bridged route (body-less requests stay passthrough, NFR-01); (4) `count_tokens` without a `model` cannot resolve a route and keeps the existing 400 rather than the spec's T18 "served normally". Live Claude Code session and Linux musl native gates remain external. | — |

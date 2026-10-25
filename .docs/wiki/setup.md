@@ -287,6 +287,43 @@ follow the "Re-enable by confirming provider support" steps in
 [`AGENTS.md` Migration Plans](../../src/SmoothLlmImposter.Application/Features/Routing/AGENTS.md#migration-plans);
 the route will work without further configuration changes.
 
+### Bridging Claude Code to a Chat-Completions-only upstream (HLD 016)
+
+An Anthropic-dialect provider can be opted into the Messages→Chat bridge so Claude Code can use an
+OpenAI-Chat-Completions-only upstream. Set `AnthropicUpstreamApi = "chat_completions"` (default `"messages"`)
+on the provider; conventional env: `<PROVIDER>_ANTHROPIC_UPSTREAM_API=chat_completions`. The provider keeps
+its `anthropic` dialect and its model mappings; only a **matched imposter route** is bridged — passthrough and
+native `messages` routes stay byte-identical. The bridge requires an effective **`AuthScheme` of `Bearer`**
+(the Anthropic dialect default `ApiKey` fails startup and admin upsert).
+
+The bridge is off in every shipped `appsettings*.json`; enable it per deployment. Tuning options (provider
+keys, or conventional `<PROVIDER>_<FIELD>` env vars) and their defaults:
+
+| Option | Values | Default |
+|---|---|---|
+| `CompatProfile` | `none`, `deepseek`, `minimax`, `mimo`, `zhipu` | `none` |
+| `SendReasoningEffort` | boolean | `false` |
+| `UserIdMode` | `off`, `hash`, `passthrough` | `off` |
+| `MaxTokensField` | `max_tokens`, `max_completion_tokens` | `max_tokens` |
+| `MaxOutputTokens` | integer ≥ 16, or unset | unset |
+| `ForwardCacheControl` | boolean | `false` |
+| `SendResponseFormat` | boolean | `false` |
+| `DocumentMode` | `placeholder`, `image` | `placeholder` |
+| `ThinkMarkupExtraction` | boolean | `false` |
+| `MidturnSystem` | `system`, `merge_into_user` | `system` |
+
+`SendReasoningEffort` and `UserIdMode` are off by design: Claude Code has thinking on by default, so sending
+reasoning controls by default would 400 on strict upstreams, and `metadata.user_id` embeds device/account
+identifiers. Enable them per provider only after verifying the upstream. `DocumentMode: image` is only for a
+vision-capable upstream that accepts PDFs/images.
+
+Limitations are visible rather than silent: hosted/server tool definitions are rejected with HTTP 400; an
+unsupported content block in history becomes a text placeholder (`[omitted: unsupported content block '<type>']`);
+thinking blocks carry an empty signature (display-only); token counts are estimates and `POST /v1/messages/count_tokens`
+is answered locally without calling the upstream; long tool inputs reach the client when the call completes.
+Claude Code points at the Anthropic prefix (`ANTHROPIC_BASE_URL=http://127.0.0.1:5080/anthropic`), and the
+bridge performs one upstream attempt with no bridge-side retry.
+
 For generic OpenAI-compatible SDK/API-key clients, keep `/v1` in the client base URL because those clients append
 bare paths like `/responses`, `/chat/completions`, and `/models`:
 

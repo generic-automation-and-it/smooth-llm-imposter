@@ -1,6 +1,6 @@
 # LADR-02: Translate after planning, before the decision filter; sanitize headers and auth
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

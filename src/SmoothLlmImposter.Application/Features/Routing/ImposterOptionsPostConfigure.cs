@@ -89,6 +89,19 @@ internal sealed class ImposterOptionsPostConfigure(
         // Integer field: applied inline for the same reason as the booleans — parsing plus a Warning on an
         // unparseable value needs the logger the Apply delegate does not have.
         new("_TIMEOUT_SECONDS", nameof(ProviderOptions.TimeoutSeconds), static (_, _) => { }),
+        // HLD 016 Messages-to-Chat bridge surface. String options carry their parser's vocabulary; the
+        // boolean/integer options are applied inline for the same logger reason as above.
+        new("_ANTHROPIC_UPSTREAM_API", nameof(ProviderOptions.AnthropicUpstreamApi), static (p, v) => p.AnthropicUpstreamApi = v),
+        new("_COMPAT_PROFILE", nameof(ProviderOptions.CompatProfile), static (p, v) => p.CompatProfile = v),
+        new("_SEND_REASONING_EFFORT", nameof(ProviderOptions.SendReasoningEffort), static (_, _) => { }),
+        new("_USER_ID_MODE", nameof(ProviderOptions.UserIdMode), static (p, v) => p.UserIdMode = v),
+        new("_MAX_TOKENS_FIELD", nameof(ProviderOptions.MaxTokensField), static (p, v) => p.MaxTokensField = v),
+        new("_MAX_OUTPUT_TOKENS", nameof(ProviderOptions.MaxOutputTokens), static (_, _) => { }),
+        new("_FORWARD_CACHE_CONTROL", nameof(ProviderOptions.ForwardCacheControl), static (_, _) => { }),
+        new("_SEND_RESPONSE_FORMAT", nameof(ProviderOptions.SendResponseFormat), static (_, _) => { }),
+        new("_DOCUMENT_MODE", nameof(ProviderOptions.DocumentMode), static (p, v) => p.DocumentMode = v),
+        new("_THINK_MARKUP_EXTRACTION", nameof(ProviderOptions.ThinkMarkupExtraction), static (_, _) => { }),
+        new("_MIDTURN_SYSTEM", nameof(ProviderOptions.MidturnSystem), static (p, v) => p.MidturnSystem = v),
     ];
 
     // Naming-convention priority for the Secret slot, keyed by effective auth scheme. The scheme-matching
@@ -147,26 +160,39 @@ internal sealed class ImposterOptionsPostConfigure(
                     continue;
                 }
 
-                if (field.PropertyName == nameof(ProviderOptions.TimeoutSeconds))
+                if (field.PropertyName is nameof(ProviderOptions.TimeoutSeconds)
+                    or nameof(ProviderOptions.MaxOutputTokens))
                 {
                     // Out-of-range is rejected by the validator, not here: silently dropping a typo'd
-                    // 0/-5 would ship the global default while the operator believes their value applies.
-                    if (!int.TryParse(value, out int timeoutSeconds))
+                    // 0/-5 would ship the default while the operator believes their value applies.
+                    if (!int.TryParse(value, out int integerValue))
                     {
                         logger.LogWarning(
-                            "Ignoring conventional override {EnvVar} for provider {Provider} field {Field}: value '{Value}' is not a whole number of seconds.",
+                            "Ignoring conventional override {EnvVar} for provider {Provider} field {Field}: value '{Value}' is not a whole number.",
                             variable, key, field.PropertyName, value);
                         continue;
                     }
 
-                    provider.TimeoutSeconds = timeoutSeconds;
+                    if (field.PropertyName == nameof(ProviderOptions.TimeoutSeconds))
+                    {
+                        provider.TimeoutSeconds = integerValue;
+                    }
+                    else
+                    {
+                        provider.MaxOutputTokens = integerValue;
+                    }
+
                     LogApplied(variable, key, field.PropertyName);
                     continue;
                 }
 
                 if (field.PropertyName is nameof(ProviderOptions.IsDefault)
                     or nameof(ProviderOptions.Enabled)
-                    or nameof(ProviderOptions.StripEncryptedContent))
+                    or nameof(ProviderOptions.StripEncryptedContent)
+                    or nameof(ProviderOptions.SendReasoningEffort)
+                    or nameof(ProviderOptions.ForwardCacheControl)
+                    or nameof(ProviderOptions.SendResponseFormat)
+                    or nameof(ProviderOptions.ThinkMarkupExtraction))
                 {
                     if (!bool.TryParse(value, out bool booleanValue))
                     {
@@ -190,6 +216,18 @@ internal sealed class ImposterOptionsPostConfigure(
                             break;
                         case nameof(ProviderOptions.StripEncryptedContent):
                             provider.StripEncryptedContent = booleanValue;
+                            break;
+                        case nameof(ProviderOptions.SendReasoningEffort):
+                            provider.SendReasoningEffort = booleanValue;
+                            break;
+                        case nameof(ProviderOptions.ForwardCacheControl):
+                            provider.ForwardCacheControl = booleanValue;
+                            break;
+                        case nameof(ProviderOptions.SendResponseFormat):
+                            provider.SendResponseFormat = booleanValue;
+                            break;
+                        case nameof(ProviderOptions.ThinkMarkupExtraction):
+                            provider.ThinkMarkupExtraction = booleanValue;
                             break;
                     }
 
