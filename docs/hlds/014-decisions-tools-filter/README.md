@@ -154,3 +154,4 @@ Per-provider overrides, persistent or distributed decision caching, tool-count s
 | 2026-10-23 | Opt-in `StickyPerSession` keeps forwarded tools for the rest of a captured session (LADR-09) | — |
 | 2026-10-23 | Default threshold back to 0.50; `AlwaysKeep` core tools never asked; `MinKeepTools` floor (default 20) tops up by score; catalogs within the floor skip the classifier (LADR-08) | #138 |
 | 2026-10-25 | Circuit breaker amendment (design only): one failed classifier call opens a tool-filter circuit for an optional `DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS` cooldown (default 180); open passes skip with `circuit-open`; opening logs at Error (LADR-11, NFR-05). LADR-10 added to the decisions table | #164 |
+| 2026-10-25 | LADR-09 shared memory extension: per-instance lifetime and uncapped mode for HLD 017 checksum cache; tools keep 30 min and 256 scopes | #164 |

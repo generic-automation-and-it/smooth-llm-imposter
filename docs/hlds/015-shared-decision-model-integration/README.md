@@ -84,6 +84,7 @@ Existing operator names remain compatible; the legacy tool prefix does not imply
 | [02](ladrs/LADR-02-compatible-service-configuration.md) | Shared settings ownership with existing operator compatibility | Accepted |
 | [03](ladrs/LADR-03-shared-uncached-resource-budget.md) | One uncached, process-wide service budget | Accepted |
 | [04](ladrs/LADR-04-explicit-failure-semantics.md) | Bounded transport; explicit failures and caller cancellation | Accepted |
+| [05](ladrs/LADR-05-per-section-profiles-circuits-gates.md) | Resolved profile, circuit per section; gate per endpoint+model | Draft |
 
 ## Non-Functional Requirements
 
@@ -102,3 +103,4 @@ NativeAOT remains the repository deployment baseline. The extraction's macOS ARM
 | 2026-10-22 | Goals approved; shared-boundary LADRs, NFRs and diagrams drafted; runtime unchanged | #138 |
 | 2026-10-24 | Settings count retired for a count-free compatibility condition; transport deviations recorded in LADR-02; gate ownership stated in LADR-03; runtime unchanged | #156 |
 | 2026-10-24 | Extraction implemented; HLD, LADR-01..04 and NFR-01..03 Accepted. Consumer-neutral transport profile mapped from the unchanged operator surface; any-consumer opt-in predicate drives validation and the resilience profile; dedicated singleton gate; default model supplied when a consumer omits one. macOS ARM64 NativeAOT verified; Linux AMD64/ARM64 native runners remain open | #156 |
+| 2026-10-25 | Draft LADR-05: resolved profile, circuit per section; gate per endpoint+model; LADR-03 single gate retained as single-consumer case | #164 |

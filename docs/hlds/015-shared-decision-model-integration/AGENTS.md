@@ -11,3 +11,4 @@ Read [README.md](README.md) first — the shared-integration design, LADRs and N
 | 2026-10-22 | Goals approved; LADR-01..04 and NFR-01..03 drafted | #138 |
 | 2026-10-24 | Count-free settings condition; LADR-02 records three shipped transport deviations; LADR-03 gate-as-component | #156 |
 | 2026-10-24 | Extraction implemented and Accepted: `DecisionServiceOptions` + `IDecisionServiceConsumer`/`DecisionServiceDemand` in Application, `DecisionServiceGate` in Infrastructure; startup check is a hosted service, not `ValidateOnStart` (a startup validator would report an invalid routing config twice) | #156 |
+| 2026-10-25 | Draft LADR-05 per-section profiles, circuits, gates; LADR-03 retained as single-consumer case | #164 |

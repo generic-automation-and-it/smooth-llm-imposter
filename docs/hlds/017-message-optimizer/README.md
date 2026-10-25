@@ -91,9 +91,9 @@ No tool-output compression/masking (tracked with tool-decision work); no history
 
 ## Dependencies
 
-HLD 015 supplies one transport, resilience profile and process-wide gate. This design needs a resolved profile per section, a circuit per section (HLD 014 LADR-11 pattern) and one admission gate per distinct endpoint+model, amending HLD 015 LADR-03's single process-wide gate. HLD 014 LADR-05 and LADR-07 must also be amended: the tool filter returns an edit instead of a whole body (LADR-08), and the shared session-scoped memory (HLD 014 LADR-09) gains a per-instance lifetime and an uncapped mode.
+HLD 015 supplies one transport, resilience profile and process-wide gate. This design needs a resolved profile per section, a circuit per section (HLD 014 LADR-11 pattern) and one admission gate per distinct endpoint+model, amending HLD 015 LADR-03's single process-wide gate — see HLD 015 [LADR-05](../015-shared-decision-model-integration/ladrs/LADR-05-per-section-profiles-circuits-gates.md) (Draft). HLD 014 LADR-05 and LADR-07 must also be amended: the tool filter returns an edit instead of a whole body (LADR-08), and the shared session-scoped memory (HLD 014 LADR-09) gains a per-instance lifetime and an uncapped mode.
 
-Neither amendment exists yet; both are separate docs changes required before implementation.
+The HLD 015 amendment exists as Draft LADR-05; the HLD 014 edit-return amendment is a separate docs change required before implementation.
 
 ## Open items
 
@@ -143,3 +143,4 @@ Neither amendment exists yet; both are separate docs changes required before imp
 | 2026-10-25 | Amended: LADR-08 parallel strategies; per-message candidates (Q21); isolated optimizer requests; switch exclusion | #164 |
 | 2026-10-25 | Review fixes: Core Separation; HLD 014 dependency; Open item 8 resolved | #164 |
 | 2026-10-25 | LADR-05: session-scoped checksum cache, in memory, sliding TTL ≤ 5 days, uncapped; sessionless not cached | #164 |
+| 2026-10-25 | Dependencies reference HLD 015 LADR-05 Draft amendment for per-section profiles, circuits, gates | #164 |
