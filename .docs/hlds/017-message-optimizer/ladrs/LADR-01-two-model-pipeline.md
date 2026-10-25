@@ -10,7 +10,7 @@
 
 ## Decision
 
-**Use two models on two transports.** The gate is a consumer of the HLD 015 decision integration: one question, "can this message be optimized?", answered by a probability compared inclusively with the section's `MIN_PROBABILITY`; a missing or invalid answer continues to the optimizer, as a failed call does, but does not open the circuit — HLD 014 LADR-11 counts no malformed answers. The optimizer is a separate generation endpoint configured only by `LLM_MESSAGES_*`, called with a non-streaming OpenAI Chat Completions–compatible request (default path `/v1/chat/completions`) and an optional bearer `API_KEY`.
+**Use two models on two transports.** The gate is a consumer of the HLD 015 decision integration: one question, "can this message be optimized?", answered by a probability compared inclusively with the section's `MIN_PROBABILITY`; a missing or invalid answer continues to the optimizer, as a failed call does, but does not open the circuit — by this HLD's own decision: a malformed or missing answer is not a transport failure (HLD 015 LADR-04 reports malformed envelopes without retrying them). The optimizer is a separate generation endpoint configured only by `LLM_MESSAGES_*`, called with a non-streaming OpenAI Chat Completions–compatible request (default path `/v1/chat/completions`) and an optional bearer `API_KEY`.
 
 The optimizer never inherits a decision setting, because pointing a rewrite at the classifier endpoint would fail on every call.
 

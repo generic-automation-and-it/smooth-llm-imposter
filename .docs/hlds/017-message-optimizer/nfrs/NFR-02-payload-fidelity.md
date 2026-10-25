@@ -14,7 +14,7 @@ L0 fixtures drive the deterministic check with a rewrite that breaks each protec
 
 - Every protected class — including slash and dollar commands, `@` mentions and catalog tool and MCP names — has a rejecting and an accepting fixture.
 - The corpus run reports zero accepted rewrites with a changed protected element, and the rejected-rewrite rate.
-- An optimizer answer that echoes harness or instruction text is rejected.
+- An optimizer answer that echoes harness or instruction text is rejected (validated under LADR-04 as an added element).
 
 ## Applies To
 

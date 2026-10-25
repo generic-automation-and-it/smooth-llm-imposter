@@ -14,7 +14,7 @@ L2 captures every request the stub gate and optimizer receive for a Claude Code�
 
 - No harness, tool, assistant, system or non-text content in any gate or optimizer request.
 - No message text in any log line at any level.
-- Every optimizer request has exactly two parts — instructions and one message — and no `tools`, `tool_choice` or history.
+- Every optimizer request carries only system instructions and a single user message — no `tools`, `tool_choice` or history.
 - Two candidates are sent as two sequential requests, never one.
 - Disabled feature: zero requests to either endpoint.
 

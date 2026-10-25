@@ -24,7 +24,7 @@ sequenceDiagram
                 G-->>S: No
                 S->>S: Record original; skip optimizer
             else positive or failure
-                G-->>S: Probability, or failure → continue to optimizer
+                G-->>S: Probability, or failure/bypass/open-skip -> continue to optimizer
                 S->>O: Instructions + this message only (skipped if circuit open)
                 O-->>S: Rewrite, or failure
                 S->>S: Validate; one targeted retry at most; record outcome
@@ -32,6 +32,6 @@ sequenceDiagram
         end
         S-->>K: Edits to message text, or no change
     end
-    K->>U: Original body with both edits merged
+    K->>U: Original body with both edits merged (overlap -> forward original)
     U-->>C: Inference stream (unchanged)
 ```

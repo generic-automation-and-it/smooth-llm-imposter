@@ -13,7 +13,7 @@
 
 Agent users type prose the end LLM does not need. An operator may opt into a proof-reader: the imposter asks the decision model whether each unhandled user message can be tightened and, if so, has an optimizer LLM rewrite it — filler gone, technical facts and payloads exact — before upstream. Cost: up to one decision call and one optimizer call (plus at most one retry) per unhandled message, in series, before first upstream byte; user text to two operator services; answer-quality risk measured first ([Open item 1](#open-items)).
 
-This design narrows the routing transparent-proxy rule: the optimizer becomes a seventh sanctioned request-rewrite class and the first that rewrites `messages` content. The rule stays as written until this HLD is Accepted.
+This design narrows the routing transparent-proxy rule: the optimizer becomes a seventh sanctioned request-rewrite class (after (1) managed auth header, (2) caching injection, (3) request normalization, (4) session-identity forwarding, (5) decision-tool filtering and (6) first-seen tool ordering) and the first that rewrites `messages` content. The rule stays as written until this HLD is Accepted.
 
 ## Key Goals
 
@@ -81,6 +81,7 @@ The gate answers "worth rewriting?" and the optimizer proposes text; the proxy o
 
 > When in doubt, send what the user wrote.
 
+## Build baseline
 - NativeAOT baseline: NFRs verified on the published executable for both arches.
 
 ## Non-Goals
@@ -89,7 +90,7 @@ No tool-output compression/masking (tracked with tool-decision work); no history
 
 ## Dependencies
 
-HLD 015 supplies one transport, resilience profile and process-wide gate. This design needs a resolved profile per section, a circuit per section (HLD 014 LADR-11 pattern) and one admission gate per distinct endpoint+model.
+HLD 015 supplies one transport, resilience profile and process-wide gate. This design needs a resolved profile per section, a circuit per section (HLD 014 LADR-11 pattern) and one admission gate per distinct endpoint+model, amending HLD 015 LADR-03's single process-wide gate. HLD 014 LADR-05 and LADR-07 must also be amended: the tool filter returns an edit instead of a whole body (LADR-08).
 
 HLD 014 LADR-05 and LADR-07 must also be amended: the tool filter returns an edit instead of a whole body (LADR-08). Neither amendment exists yet; both are separate docs changes required before implementation.
 
@@ -97,7 +98,7 @@ HLD 014 LADR-05 and LADR-07 must also be amended: the tool filter returns an edi
 
 | # | Question | Recommendation (*Recorded* in #164; *Proposed* here, not yet agreed) |
 |---|---|---|
-| 1 | How is answer quality proven? CAVEWOMAN (arXiv 2606.24083) found caveman-styled prompts gave worse answers. | *Recorded:* A/B on tokens per task; probe recall, artifact trail, continuation, decisions (six dimensions); similarity scores are not evidence. Exit gate. |
+| 1 | How is answer quality proven? CAVEWOMAN (arXiv 2606.24083) found caveman-styled prompts gave worse answers. | *Recorded:* A/B on tokens per task; probe recall, artifact trail, continuation, decisions; similarity scores are not evidence. Exit gate. |
 | 2 | Which turns may be rewritten? | *Resolved (2026-10-25, KISS):* every human message not yet remembered; remembered ones are replayed (LADR-03, LADR-05). |
 | 3 | Restart or enablement: unremembered history is rewritten, missing the cache once. | *Proposed:* accept one cache miss per restart or enablement unless measurement shows otherwise. |
 | 4 | Responses API in scope? | *Proposed:* out of v1; revisit with a Codex measurement. |
