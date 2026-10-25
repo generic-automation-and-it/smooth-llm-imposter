@@ -121,6 +121,7 @@ internal sealed class MessageOptimizationStrategy(
                 continue;
             }
 
+            // MinChars is per human segment, not per whole message (see LlmMessagesOptions.MinChars).
             if (minChars > 0 && original.Trim().Length < minChars)
             {
                 humanRewrites.Add(original);
