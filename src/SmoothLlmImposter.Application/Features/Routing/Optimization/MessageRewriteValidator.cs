@@ -88,12 +88,20 @@ public static class MessageRewriteValidator
         {
             if (!original.Contains(m.Value, StringComparison.Ordinal)) failed.Add($"introduced-env:{m.Value}");
         }
+        // Track spans of introduced URLs so their path/mention segments are not
+        // reported a second time by the slash/mention loops below (one span, one token).
+        var introducedUrlSpans = new List<(int Start, int End)>();
         foreach (Match m in Url.Matches(rewrite))
         {
-            if (!original.Contains(m.Value, StringComparison.Ordinal)) failed.Add($"introduced-url:{m.Value}");
+            if (!original.Contains(m.Value, StringComparison.Ordinal))
+            {
+                failed.Add($"introduced-url:{m.Value}");
+                introducedUrlSpans.Add((m.Index, m.Index + m.Length));
+            }
         }
         foreach (Match m in SlashCmd.Matches(rewrite))
         {
+            if (introducedUrlSpans.Any(s => m.Index >= s.Start && m.Index < s.End)) continue;
             if (!original.Contains(m.Value, StringComparison.Ordinal)) failed.Add($"introduced-slash:{m.Value}");
         }
         foreach (Match m in DollarCmd.Matches(rewrite))
@@ -102,6 +110,7 @@ public static class MessageRewriteValidator
         }
         foreach (Match m in Mention.Matches(rewrite))
         {
+            if (introducedUrlSpans.Any(s => m.Index >= s.Start && m.Index < s.End)) continue;
             if (!original.Contains(m.Value, StringComparison.Ordinal)) failed.Add($"introduced-mention:{m.Value}");
         }
 
