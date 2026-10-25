@@ -17,7 +17,18 @@ public sealed record ProviderConfigurationResponse(
     string? SessionForwarding,
     bool? StripEncryptedContent,
     int? TimeoutSeconds,
-    IReadOnlyList<ProviderModelMappingResponse> Models)
+    IReadOnlyList<ProviderModelMappingResponse> Models,
+    string? AnthropicUpstreamApi = null,
+    string? CompatProfile = null,
+    bool? SendReasoningEffort = null,
+    string? UserIdMode = null,
+    string? MaxTokensField = null,
+    int? MaxOutputTokens = null,
+    bool? ForwardCacheControl = null,
+    bool? SendResponseFormat = null,
+    string? DocumentMode = null,
+    bool? ThinkMarkupExtraction = null,
+    string? MidturnSystem = null)
 {
     internal static ProviderConfigurationResponse From(string key, ProviderOptions provider) => new(
         key,
@@ -34,7 +45,18 @@ public sealed record ProviderConfigurationResponse(
         provider.SessionForwarding,
         provider.StripEncryptedContent,
         provider.TimeoutSeconds,
-        provider.Models.Select(ProviderModelMappingResponse.FromOptions).ToArray());
+        provider.Models.Select(ProviderModelMappingResponse.FromOptions).ToArray(),
+        provider.AnthropicUpstreamApi,
+        provider.CompatProfile,
+        provider.SendReasoningEffort,
+        provider.UserIdMode,
+        provider.MaxTokensField,
+        provider.MaxOutputTokens,
+        provider.ForwardCacheControl,
+        provider.SendResponseFormat,
+        provider.DocumentMode,
+        provider.ThinkMarkupExtraction,
+        provider.MidturnSystem);
 }
 
 public sealed record ProviderConfigurationBody(
@@ -51,7 +73,18 @@ public sealed record ProviderConfigurationBody(
     string? SessionForwarding,
     bool? StripEncryptedContent,
     int? TimeoutSeconds,
-    IReadOnlyList<ProviderModelMappingBody>? Models)
+    IReadOnlyList<ProviderModelMappingBody>? Models,
+    string? AnthropicUpstreamApi = null,
+    string? CompatProfile = null,
+    bool? SendReasoningEffort = null,
+    string? UserIdMode = null,
+    string? MaxTokensField = null,
+    int? MaxOutputTokens = null,
+    bool? ForwardCacheControl = null,
+    bool? SendResponseFormat = null,
+    string? DocumentMode = null,
+    bool? ThinkMarkupExtraction = null,
+    string? MidturnSystem = null)
 {
     internal ProviderOptions ToProviderOptions(string? secret = null) => new()
     {
@@ -69,6 +102,17 @@ public sealed record ProviderConfigurationBody(
         SessionForwarding = SessionForwarding,
         StripEncryptedContent = StripEncryptedContent,
         TimeoutSeconds = TimeoutSeconds,
+        AnthropicUpstreamApi = AnthropicUpstreamApi,
+        CompatProfile = CompatProfile,
+        SendReasoningEffort = SendReasoningEffort,
+        UserIdMode = UserIdMode,
+        MaxTokensField = MaxTokensField,
+        MaxOutputTokens = MaxOutputTokens,
+        ForwardCacheControl = ForwardCacheControl,
+        SendResponseFormat = SendResponseFormat,
+        DocumentMode = DocumentMode,
+        ThinkMarkupExtraction = ThinkMarkupExtraction,
+        MidturnSystem = MidturnSystem,
         Models = Models?.Select(static model => new ModelMappingOptions
         {
             From = model.From,

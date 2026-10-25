@@ -1,6 +1,6 @@
 # LADR-04: Tool-call arguments are held, validated, then emitted
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

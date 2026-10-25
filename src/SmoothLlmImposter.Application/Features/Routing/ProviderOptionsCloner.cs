@@ -18,6 +18,17 @@ internal static class ProviderOptionsCloner
         SessionForwarding = source.SessionForwarding,
         StripEncryptedContent = source.StripEncryptedContent,
         TimeoutSeconds = source.TimeoutSeconds,
+        AnthropicUpstreamApi = source.AnthropicUpstreamApi,
+        CompatProfile = source.CompatProfile,
+        SendReasoningEffort = source.SendReasoningEffort,
+        UserIdMode = source.UserIdMode,
+        MaxTokensField = source.MaxTokensField,
+        MaxOutputTokens = source.MaxOutputTokens,
+        ForwardCacheControl = source.ForwardCacheControl,
+        SendResponseFormat = source.SendResponseFormat,
+        DocumentMode = source.DocumentMode,
+        ThinkMarkupExtraction = source.ThinkMarkupExtraction,
+        MidturnSystem = source.MidturnSystem,
         Models = [.. source.Models.Select(Clone)]
     };
 

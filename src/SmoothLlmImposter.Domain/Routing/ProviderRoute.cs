@@ -37,8 +37,15 @@ public sealed record ProviderRoute(
     string? AuthHeader = null,
     SessionForwarding SessionForwarding = SessionForwarding.None,
     bool? StripEncryptedContent = null,
-    int? TimeoutSeconds = null)
+    int? TimeoutSeconds = null,
+    AnthropicChatBridgeOptions? AnthropicChatOptions = null)
 {
+    /// <summary>
+    /// Per-provider Messages-to-Chat bridge tuning (HLD 016). Defaults to the inert native-Messages
+    /// configuration so a hand-built route remains non-bridged unless it explicitly opts in.
+    /// </summary>
+    public AnthropicChatBridgeOptions AnthropicChat => AnthropicChatOptions ?? new();
+
     /// <summary>
     /// The stable identity used to key credentials and the authorization override — the provider's
     /// dictionary key (<see cref="ProviderKey"/>), never the human-facing <see cref="Name"/>. Callers

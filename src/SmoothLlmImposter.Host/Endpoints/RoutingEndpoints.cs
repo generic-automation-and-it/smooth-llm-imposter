@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Application.Features.Routing;
+using SmoothLlmImposter.Application.Features.Routing.Bridge;
 using SmoothLlmImposter.Application.Features.Routing.Decisions;
 using SmoothLlmImposter.Domain.Routing;
 
@@ -43,8 +44,8 @@ internal static class RoutingEndpoints
         // disambiguates shared paths like /v1/models that are identical across OpenAI and Anthropic — and the
         // captured tail is forwarded verbatim, so /v1/models, /v1/responses, /v1/messages/count_tokens, etc.
         // all proxy without a per-route mapping.
-        app.Map("/openai/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IDecisionToolsFilter decisionFilter, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, whoResponder, decisionFilter, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, loggerFactory));
+        app.Map("/openai/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IDecisionToolsFilter decisionFilter, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, IAnthropicChatBridge bridge, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, whoResponder, decisionFilter, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, bridge, loggerFactory));
 
         // Anthropic model discovery is answered LOCALLY from the route catalogue (distinct union of configured
         // `to` targets), not forwarded upstream (HLD 005, Anthropic scope). This specific GET route takes
@@ -57,19 +58,19 @@ internal static class RoutingEndpoints
             return Results.Text(responder.BuildModelsResponse(), "application/json");
         });
 
-        app.Map("/anthropic/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IDecisionToolsFilter decisionFilter, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.Anthropic, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, whoResponder, decisionFilter, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, loggerFactory));
+        app.Map("/anthropic/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IDecisionToolsFilter decisionFilter, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, IAnthropicChatBridge bridge, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.Anthropic, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, whoResponder, decisionFilter, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, bridge, loggerFactory));
 
         // Legacy unprefixed completion routes (POST only). The inbound path is the upstream path. Unprefixed
         // /v1/models is intentionally NOT mapped here — it is dialect-ambiguous; use the /openai or /anthropic prefix.
-        app.MapPost("/v1/chat/completions", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IDecisionToolsFilter decisionFilter, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/chat/completions", router, forwarder, responseTransformer, errors, whoResponder, decisionFilter, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, loggerFactory));
+        app.MapPost("/v1/chat/completions", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IDecisionToolsFilter decisionFilter, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, IAnthropicChatBridge bridge, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/chat/completions", router, forwarder, responseTransformer, errors, whoResponder, decisionFilter, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, bridge, loggerFactory));
 
-        app.MapPost("/v1/responses", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IDecisionToolsFilter decisionFilter, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/responses", router, forwarder, responseTransformer, errors, whoResponder, decisionFilter, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, loggerFactory));
+        app.MapPost("/v1/responses", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IDecisionToolsFilter decisionFilter, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, IAnthropicChatBridge bridge, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/responses", router, forwarder, responseTransformer, errors, whoResponder, decisionFilter, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, bridge, loggerFactory));
 
-        app.MapPost("/v1/messages", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IDecisionToolsFilter decisionFilter, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.Anthropic, "/v1/messages", router, forwarder, responseTransformer, errors, whoResponder, decisionFilter, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, loggerFactory));
+        app.MapPost("/v1/messages", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IDecisionToolsFilter decisionFilter, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, IAnthropicChatBridge bridge, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.Anthropic, "/v1/messages", router, forwarder, responseTransformer, errors, whoResponder, decisionFilter, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, bridge, loggerFactory));
     }
 
     // The {**upstreamPath} catch-all captures the tail WITHOUT a leading slash and excludes the query string.
@@ -91,6 +92,7 @@ internal static class RoutingEndpoints
         ISessionTranslationDictionary sessionTranslation,
         IGithubCopilotConnectionRegistry copilotRegistry,
         ImposterOptions imposterOptions,
+        IAnthropicChatBridge bridge,
         ILoggerFactory loggerFactory)
     {
         ILogger logger = loggerFactory.CreateLogger(LoggerCategory);
@@ -178,8 +180,79 @@ internal static class RoutingEndpoints
             plan = plan with { SessionIdentity = new SessionIdentity(translated, plan.SessionIdentity.Source) };
         }
 
+        // HLD 016: a matched Anthropic imposter route whose provider opted into
+        // AnthropicUpstreamApi=chat_completions is bridged. The mapper runs after planning/model rename and
+        // before the decision filter, so the filter sees the Chat body.
+        bool bridgedProvider = IsBridgedProvider(dialect, plan);
+        AnthropicChatCall? bridgedCall = null;
+
+        if (bridgedProvider)
+        {
+            if (IsUnsupportedBridgedPath(upstreamPath))
+            {
+                await WriteErrorAsync(
+                    context,
+                    dialect,
+                    errors,
+                    StatusCodes.Status404NotFound,
+                    $"Not found: {context.Request.Method} {upstreamPath}",
+                    "not_found_error",
+                    cancellationToken);
+                return;
+            }
+
+            bool isMessages = string.Equals(upstreamPath, "/v1/messages", StringComparison.Ordinal);
+            bool isCountTokens = string.Equals(upstreamPath, "/v1/messages/count_tokens", StringComparison.Ordinal);
+            if ((isMessages || isCountTokens) && !HttpMethods.IsPost(context.Request.Method))
+            {
+                context.Response.Headers.Allow = "POST";
+                await WriteErrorAsync(
+                    context,
+                    dialect,
+                    errors,
+                    StatusCodes.Status405MethodNotAllowed,
+                    "Method Not Allowed",
+                    "invalid_request_error",
+                    cancellationToken);
+                return;
+            }
+
+            if (isCountTokens)
+            {
+                try
+                {
+                    string countBody = bridge.CountTokens(requestBody, plan.Decision.Provider.AnthropicChat);
+                    context.Response.StatusCode = StatusCodes.Status200OK;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsync(countBody, cancellationToken);
+                }
+                catch (AnthropicChatRequestException ex)
+                {
+                    await WriteErrorAsync(context, dialect, errors, StatusCodes.Status400BadRequest, ex.Message, "invalid_request_error", cancellationToken);
+                }
+
+                return;
+            }
+
+            if (isMessages)
+            {
+                try
+                {
+                    bridgedCall = bridge.MapRequest(plan.TransformedBody, plan.InboundModel, plan.Decision.Provider.AnthropicChat);
+                    plan = plan with { TransformedBody = bridgedCall.ChatBody };
+                }
+                catch (AnthropicChatRequestException ex)
+                {
+                    await WriteErrorAsync(context, dialect, errors, StatusCodes.Status400BadRequest, ex.Message, "invalid_request_error", cancellationToken);
+                    return;
+                }
+            }
+        }
+
         bool translateChatToResponses = ShouldTranslateChatToResponses(dialect, upstreamPath, plan);
-        string effectiveUpstreamPath = translateChatToResponses ? "/v1/chat/completions" : upstreamPath;
+        string effectiveUpstreamPath = bridgedCall is not null
+            ? "/v1/chat/completions"
+            : translateChatToResponses ? "/v1/chat/completions" : upstreamPath;
         HttpResponseMessage upstream;
         try
         {
@@ -195,10 +268,13 @@ internal static class RoutingEndpoints
                 HttpMethod.Parse(context.Request.Method),
                 string.IsNullOrEmpty(plan.TransformedBody) ? null : plan.TransformedBody,
                 effectiveUpstreamPath,
-                context.Request.QueryString.Value,
+                // HLD 016 spec 01 section 15 / 04 E01: a bridged route never forwards the inbound query string.
+                bridgedCall is null ? context.Request.QueryString.Value : null,
                 callerHeaders,
                 plan.SessionIdentity,
-                cancellationToken);
+                cancellationToken,
+                useHeaderAllowlist: bridgedCall is not null,
+                allowlistAccept: bridgedCall is null ? null : bridgedCall.Stream ? "text/event-stream" : "application/json");
 
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -242,6 +318,20 @@ internal static class RoutingEndpoints
         {
             try
             {
+                if (bridgedCall is not null)
+                {
+                    await HandleBridgedResponseAsync(
+                        context,
+                        upstream,
+                        plan,
+                        bridgedCall,
+                        bridge,
+                        errors,
+                        logger,
+                        cancellationToken);
+                    return;
+                }
+
                 if (translateChatToResponses && !upstream.IsSuccessStatusCode)
                 {
                     string upstreamError = await upstream.Content.ReadAsStringAsync(cancellationToken);
@@ -416,6 +506,174 @@ internal static class RoutingEndpoints
 
         return new CallerHeaders(items);
     }
+
+    private static bool IsBridgedProvider(ApiDialect dialect, RoutePlan plan) =>
+        dialect == ApiDialect.Anthropic &&
+        plan.Decision.IsImposter &&
+        plan.Decision.Provider.AnthropicChat.IsBridged;
+
+    // Endpoints the bridge does not implement (HLD 016 spec 04 section 1.1 / D16).
+    private static readonly string[] UnsupportedBridgedPrefixes =
+    [
+        "/v1/messages/batches",
+        "/v1/files",
+        "/v1/skills",
+        "/v1/complete",
+        "/v1/organizations/",
+        "/v1/oauth/",
+        "/api/"
+    ];
+
+    private static bool IsUnsupportedBridgedPath(string path) =>
+        UnsupportedBridgedPrefixes.Any(prefix =>
+            path.StartsWith(prefix, StringComparison.Ordinal) ||
+            string.Equals(path, prefix.TrimEnd('/'), StringComparison.Ordinal));
+
+    private static async Task HandleBridgedResponseAsync(
+        HttpContext context,
+        HttpResponseMessage upstream,
+        RoutePlan plan,
+        AnthropicChatCall call,
+        IAnthropicChatBridge bridge,
+        IErrorResponseFactory errors,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        string? configuredSecret = plan.CredentialOverride?.Secret ?? plan.Decision.Provider.Secret;
+        // Read once: an in-band error on a 2xx reply must forward the same retry headers an HTTP error would.
+        (string? retryAfter, string? retryAfterMs) = ReadRetryHeaders(upstream);
+
+        if (!upstream.IsSuccessStatusCode)
+        {
+            string errorBody = await upstream.Content.ReadAsStringAsync(cancellationToken);
+            AnthropicChatReply reply = bridge.MapResponse(
+                (int)upstream.StatusCode, errorBody, retryAfter, retryAfterMs, call, configuredSecret);
+            await WriteBridgedReplyAsync(context, reply, cancellationToken);
+            return;
+        }
+
+        if (call.Stream)
+        {
+            context.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
+
+            if (IsEventStream(upstream))
+            {
+                SetBridgedStreamHeaders(context);
+                await using Stream upstreamStream = await upstream.Content.ReadAsStreamAsync(cancellationToken);
+                await foreach (string frame in bridge.TranslateStreamAsync(
+                    ReadLinesAsync(upstreamStream, cancellationToken), call, cancellationToken))
+                {
+                    await context.Response.WriteAsync(RedactErrorFrame(frame, configuredSecret), cancellationToken);
+                    await context.Response.Body.FlushAsync(cancellationToken);
+                }
+
+                return;
+            }
+
+            // A 2xx non-SSE body for a streaming request is mapped as Chat JSON and replayed as a complete
+            // Messages event sequence (spec 03 section 1).
+            string json = await upstream.Content.ReadAsStringAsync(cancellationToken);
+            AnthropicChatReply mapped = bridge.MapResponse(
+                (int)upstream.StatusCode, json, retryAfter, retryAfterMs, call, configuredSecret);
+            if (mapped.StatusCode != StatusCodes.Status200OK)
+            {
+                await WriteBridgedReplyAsync(context, mapped, cancellationToken);
+                return;
+            }
+
+            SetBridgedStreamHeaders(context);
+            foreach (string frame in bridge.ReplayAsStream(mapped, call))
+            {
+                await context.Response.WriteAsync(frame, cancellationToken);
+                await context.Response.Body.FlushAsync(cancellationToken);
+            }
+
+            return;
+        }
+
+        string body = await upstream.Content.ReadAsStringAsync(cancellationToken);
+        AnthropicChatReply replyBody = bridge.MapResponse(
+            (int)upstream.StatusCode, body, retryAfter, retryAfterMs, call, configuredSecret);
+        await WriteBridgedReplyAsync(context, replyBody, cancellationToken);
+        logger.LogDebug(
+            "Mapped bridged {Dialect} reply from provider {Provider} with status {Status}",
+            ApiDialect.Anthropic,
+            plan.Decision.Provider.Name,
+            replyBody.StatusCode);
+    }
+
+    // HLD 016 spec 04 section 7.2/10: the configured provider key must never reach the client, including
+    // inside an in-band stream error frame. Only error frames are rewritten; model text is never altered.
+    private static string RedactErrorFrame(string frame, string? configuredSecret) =>
+        !string.IsNullOrEmpty(configuredSecret) &&
+        frame.StartsWith("event: error", StringComparison.Ordinal)
+            ? frame.Replace(configuredSecret, "***", StringComparison.Ordinal)
+            : frame;
+
+    private static void SetBridgedStreamHeaders(HttpContext context)
+    {
+        context.Response.StatusCode = StatusCodes.Status200OK;
+        context.Response.ContentType = "text/event-stream; charset=utf-8";
+        context.Response.Headers.CacheControl = "no-cache, no-transform";
+        context.Response.Headers["X-Accel-Buffering"] = "no";
+    }
+
+    private static async Task WriteBridgedReplyAsync(
+        HttpContext context,
+        AnthropicChatReply reply,
+        CancellationToken cancellationToken)
+    {
+        context.Response.StatusCode = reply.StatusCode;
+        context.Response.ContentType = "application/json";
+
+        if (reply.StatusCode >= 400)
+        {
+            if (reply.RetryAfter is not null)
+            {
+                context.Response.Headers["retry-after"] = reply.RetryAfter;
+            }
+
+            if (reply.RetryAfterMs is not null)
+            {
+                context.Response.Headers["retry-after-ms"] = reply.RetryAfterMs;
+            }
+        }
+
+        await context.Response.WriteAsync(reply.Body, cancellationToken);
+    }
+
+    private static (string? RetryAfter, string? RetryAfterMs) ReadRetryHeaders(HttpResponseMessage upstream)
+    {
+        string? retryAfter = null;
+        if (upstream.Headers.TryGetValues("Retry-After", out IEnumerable<string>? retryValues))
+        {
+            string? value = retryValues.FirstOrDefault();
+            if (value is not null && IsValidRetryAfter(value))
+            {
+                retryAfter = value;
+            }
+        }
+
+        string? retryAfterMs = null;
+        if (upstream.Headers.TryGetValues("retry-after-ms", out IEnumerable<string>? retryMsValues))
+        {
+            string? value = retryMsValues.FirstOrDefault();
+            if (value is not null && int.TryParse(value, out int milliseconds) && milliseconds >= 0)
+            {
+                retryAfterMs = value;
+            }
+        }
+
+        return (retryAfter, retryAfterMs);
+    }
+
+    private static bool IsValidRetryAfter(string value) =>
+        (int.TryParse(value, out int seconds) && seconds >= 0) ||
+        DateTimeOffset.TryParse(
+            value,
+            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.AssumeUniversal,
+            out _);
 
     private static bool ShouldTranslateChatToResponses(ApiDialect dialect, string upstreamPath, RoutePlan plan) =>
         dialect == ApiDialect.OpenAi &&

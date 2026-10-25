@@ -1,6 +1,6 @@
 # LADR-05: Errors and usage always leave in Messages shape
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

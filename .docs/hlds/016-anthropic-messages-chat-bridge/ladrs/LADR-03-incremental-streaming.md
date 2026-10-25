@@ -1,6 +1,6 @@
 # LADR-03: Incremental, bounded-state streaming translation
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

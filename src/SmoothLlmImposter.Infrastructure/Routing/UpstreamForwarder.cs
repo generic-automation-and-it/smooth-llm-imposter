@@ -44,7 +44,9 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
         string? queryString,
         CallerHeaders callerHeaders,
         SessionIdentity? sessionIdentity,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool useHeaderAllowlist = false,
+        string? allowlistAccept = null)
     {
         Uri baseUrl = credentialOverride?.BaseUrlOverride ?? decision.Provider.BaseUrl;
 
@@ -69,11 +71,23 @@ internal sealed class UpstreamForwarder(IHttpClientFactory httpClientFactory, IL
             request.Content = new StringContent(body, Encoding.UTF8, "application/json");
         }
 
-        // Proxy the caller's headers through unchanged (minus hop-by-hop/content/auth), then manage auth only.
-        ForwardCallerHeaders(request, callerHeaders);
-        string? managedAuthHeader = ApplyAuthentication(request, decision, credentialOverride, dialect, callerHeaders);
-        EnsureAnthropicVersion(request, decision, credentialOverride, dialect);
-        ApplySessionIdentity(request, decision, sessionIdentity);
+        // HLD 016 D20: a bridged Anthropic Messages-to-Chat route builds its header set from an allowlist
+        // instead of relaying the caller's headers — nothing the caller sent (cookie, user-agent,
+        // anthropic-*, x-stainless-*, x-api-key) may reach a third-party Chat host.
+        if (useHeaderAllowlist)
+        {
+            request.Headers.TryAddWithoutValidation("accept", allowlistAccept ?? "application/json");
+            ApplyAuthentication(request, decision, credentialOverride, dialect, callerHeaders);
+            ApplySessionIdentity(request, decision, sessionIdentity);
+        }
+        else
+        {
+            // Proxy the caller's headers through unchanged (minus hop-by-hop/content/auth), then manage auth only.
+            ForwardCallerHeaders(request, callerHeaders);
+            string? managedAuthHeader = ApplyAuthentication(request, decision, credentialOverride, dialect, callerHeaders);
+            EnsureAnthropicVersion(request, decision, credentialOverride, dialect);
+            ApplySessionIdentity(request, decision, sessionIdentity);
+        }
         if (copilotProfile is not null)
         {
             ApplyCopilotHeaders(request, dialect, GithubCopilotRequestHints.Resolve(dialect, callerHeaders, body));
