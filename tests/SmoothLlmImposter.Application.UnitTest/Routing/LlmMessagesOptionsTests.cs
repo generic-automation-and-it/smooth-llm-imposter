@@ -20,6 +20,7 @@ public sealed class LlmMessagesOptionsTests
         options.TimeoutSeconds.ShouldBe(60);
         options.CircuitBreakSeconds.ShouldBe(180);
         options.CacheTtlHours.ShouldBe(120);
+        options.MinChars.ShouldBe(0);
         options.ApiKey.ShouldBeNull();
     }
 

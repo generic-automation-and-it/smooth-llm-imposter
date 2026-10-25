@@ -328,6 +328,7 @@ internal sealed class ImposterOptionsPostConfigure(
             [nameof(LlmMessagesOptions.TimeoutSeconds)] = "LLM_MESSAGES_TIMEOUT",
             [nameof(LlmMessagesOptions.CircuitBreakSeconds)] = "LLM_MESSAGES_CIRCUIT_BREAK_SECONDS",
             [nameof(LlmMessagesOptions.CacheTtlHours)] = "LLM_MESSAGES_CACHE_TTL_HOURS",
+            [nameof(LlmMessagesOptions.MinChars)] = "LLM_MESSAGES_MIN_CHARS",
             [nameof(LlmMessagesOptions.ApiKey)] = "LLM_MESSAGES_API_KEY",
         };
 
@@ -347,6 +348,7 @@ internal sealed class ImposterOptionsPostConfigure(
         ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.TimeoutSeconds)], nameof(options.TimeoutSeconds), value => options.TimeoutSeconds = value);
         ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.CircuitBreakSeconds)], nameof(options.CircuitBreakSeconds), value => options.CircuitBreakSeconds = value);
         ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.CacheTtlHours)], nameof(options.CacheTtlHours), value => options.CacheTtlHours = value);
+        ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.MinChars)], nameof(options.MinChars), value => options.MinChars = value);
         ApplyRootStringOverride(LlmMessagesVariables[nameof(options.ApiKey)], nameof(options.ApiKey), value => options.ApiKey = value);
     }
 
