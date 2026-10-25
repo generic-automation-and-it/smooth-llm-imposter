@@ -46,8 +46,8 @@ Implements the contracts defined in Application — EF Core + PostgreSQL persist
 - The `decision-service` client is auxiliary classification, not `imposter-upstream`: its full response body
   must remain inside the attempt timeout. Reusing inference header-only resilience would leave body stalls unbounded.
 - The process-wide gate is `DecisionServiceGate`, its own singleton that every client instance receives — never a
-  field on the client, or a second client registration would create a second budget ([HLD 015 LADR-03](../../.docs/hlds/015-shared-decision-model-integration/ladrs/LADR-03-shared-uncached-resource-budget.md)).
-  The uncached exception and retry-status contract live in [HLD 014 LADR-04](../../.docs/hlds/014-decisions-tools-filter/ladrs/LADR-04-singleton-gate.md).
+  field on the client, or a second client registration would create a second budget ([HLD 015 LADR-03](../../docs/hlds/015-shared-decision-model-integration/ladrs/LADR-03-shared-uncached-resource-budget.md)).
+  The uncached exception and retry-status contract live in [HLD 014 LADR-04](../../docs/hlds/014-decisions-tools-filter/ladrs/LADR-04-singleton-gate.md).
   Do not turn the gate into per-scope state or introduce a cache during a transport refactor.
 - The gate throws `DecisionGateTimeoutException` (Application contract), and the client translates the resilience
   library's timeout rejection into `DecisionServiceTimeoutException`; callers classify by these types, never by

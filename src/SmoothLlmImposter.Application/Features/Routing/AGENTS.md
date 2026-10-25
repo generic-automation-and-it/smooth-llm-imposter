@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-Stateless same-dialect LLM router: rewrites the inbound `model` to a configured upstream (or the dialect default passthrough), optionally injects prompt caching, and streams the response back; design rationale lives in `.docs/hlds/001-llm-imposter-routing/`.
+Stateless same-dialect LLM router: rewrites the inbound `model` to a configured upstream (or the dialect default passthrough), optionally injects prompt caching, and streams the response back; design rationale lives in `docs/hlds/001-llm-imposter-routing/`.
 
 ## Non-Negotiables
 
@@ -10,7 +10,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   carry provider name + model names only, plus the safe session token `session=captured|derived|none` (HLD 009) —
   never the raw session value or fingerprint inputs.
 - **Transparent proxy — do not strip or rewrite the request.** The forwarder relays the caller's inbound
-  headers and body to the upstream **unchanged**, with exactly six sanctioned request-rewrite classes: (1) the
+  headers and body to the upstream **unchanged**, with exactly seven sanctioned request-rewrite classes: (1) the
   **auth** header is managed (see below), (2) **caching injection** rewrites the body on a matched imposter
   route, (3) **opt-in request normalization** reshapes the body on a matched OpenAI imposter route that
   opted in (HLD 004 — see "Request normalization" below), and (4) **opt-in session-identity forwarding** stamps
@@ -242,7 +242,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   calls upstream. Option plumbing follows the same HLD 011 rule: a new field must reach `ProviderOptions`,
   the conventional env suffix map, `ProviderOptionsCloner.Clone`, both `/admin/providers` DTOs, the validator
   and route materialisation, or it ships inert. Local traps live in `Bridge/AGENTS.md`; the normative behavior
-  is `.docs/hlds/016-anthropic-messages-chat-bridge/spec/`.
+  is `docs/hlds/016-anthropic-messages-chat-bridge/spec/`.
 - **Response translation — `ChatToResponsesStreamTransformer`.** This is the only OpenAI response-side transformer. It
   consumes upstream Chat Completions SSE line-by-line and emits Responses SSE frames as each source frame arrives:
   `response.created`/`in_progress`, message/content-part open events, text/reasoning/tool-call deltas, done
@@ -345,7 +345,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   override: `IMPOSTER_WHO_MESSAGE_ENABLED` (bool; invalid value warns and keeps the bound default).
 
 - **Decision-tool filtering (HLD 014).** Classification does not select a provider or alter auth. Its contract
-  lives in [HLD 014](../../../../.docs/hlds/014-decisions-tools-filter/README.md); do not couple the global gate to
+  lives in [HLD 014](../../../../docs/hlds/014-decisions-tools-filter/README.md); do not couple the global gate to
   `IsImposter`, caching, normalization or session forwarding. Known tool-history references are replay
   dependencies, not prompt text — never rename or remove historical calls when pruning the catalog. Classifier outcome
   lines (kept, all-below-threshold, nothing-below-threshold, fail-open) log the canonical body shape, the configured
@@ -524,4 +524,5 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 | 2026-07-04 | Amended HLD 008 runtime consumption: `ProviderCatalog` now reads the already-seeded `IProviderRegistry` directly in each scoped catalog instead of forcing per-request `IOptionsSnapshot<ImposterOptions>` binding. This preserves next-request mutation visibility while removing the reflection configuration binder from the request path. | — |
 | 2026-07-26 | Ungated the shared-provider secret base fallback in `ImposterOptionsPostConfigure.TrySharedProviderSecretPrefix`: a lone dialect-suffixed provider (`openrouter-anthropic`) now resolves its `Secret` from the bare base env var (`OPENROUTER_API_KEY`) after its own suffixed var, with no sibling/base-provider requirement. The opencode-go shared-base case is unchanged. Added `Lone_dialect_suffixed_provider_resolves_base_api_key_without_sibling`. Doc comment + `AGENTS.md` Key Behavior updated. | #92 |
 | 2026-10-25 | Decision filter circuit breaker (LADR-11): consumer-local, service faults only, trial admission | — |
-| 2026-10-20 | Managed Copilot credential seam: reserved-profile routes resolve from the published snapshot and stamp `RoutePlan.Copilot`; D1 identity enforced in provider CRUD; path/origin policy in `UpstreamForwarder`. Fixed the stale singular `.docs/hld/001-…` link. | #126 |
+| 2026-10-25 | Added `MessagesConsumer` opting into the shared decision service for HLD 017 message optimization (WT-05) | #178 |
+| 2026-10-20 | Managed Copilot credential seam: reserved-profile routes resolve from the published snapshot and stamp `RoutePlan.Copilot`; D1 identity enforced in provider CRUD; path/origin policy in `UpstreamForwarder`. Fixed the stale singular `docs/hld/001-…` link. | #126 |

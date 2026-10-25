@@ -32,7 +32,29 @@ public sealed class ImposterOptions
 
     public DecisionsToolsOptions DecisionsTools { get; init; } = new();
 
+    /// <summary>
+    /// Message optimization as a decision-service consumer (HLD 017): opts into the shared
+    /// decision transport. Its own enable flag gates the message-optimization stage; transport
+    /// fields are resolved through the shared profile until per-section profiles (HLD 015 LADR-05)
+    /// are in place.
+    /// </summary>
+    public DecisionsMessagesOptions DecisionsMessages { get; init; } = new();
+
     public ToolOrderingOptions ToolOrdering { get; init; } = new();
+}
+
+public sealed class DecisionsMessagesOptions
+{
+    /// <summary>
+    /// Gates the message-optimization decision stage. When unset, takes the value of
+    /// <c>LLM_MESSAGES_ENABLED</c> (LADR-06); defaults to <c>false</c>.
+    /// </summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>
+    /// Minimum probability (inclusive) for a positive "can be optimized" answer.
+    /// </summary>
+    public double MinProbability { get; set; } = 0.50;
 }
 
 public sealed class ToolOrderingOptions

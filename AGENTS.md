@@ -2,7 +2,7 @@
 
 This file provides guidance for AI coding agents working in the SmoothLlmImposter repository.
 
-> **Note on remaining `Project` placeholders.** This repo was scaffolded from a template. The functional/buildable identifiers (solution, projects, namespaces, folders) have been renamed to `SmoothLlmImposter`. Lowercase `project` references and examples still remaining in `.agents/rules/**` and `.docs/**` prose are deferred template cleanup, not real references — replace them opportunistically when touching those files.
+> **Note on remaining `Project` placeholders.** This repo was scaffolded from a template. The functional/buildable identifiers (solution, projects, namespaces, folders) have been renamed to `SmoothLlmImposter`. Lowercase `project` references and examples still remaining in `.agents/rules/**` and `docs/**` prose are deferred template cleanup, not real references — replace them opportunistically when touching those files.
 
 ## TL;DR
 
@@ -39,14 +39,14 @@ Keep nested `AGENTS.md` files synchronised with code and documentation changes. 
 ### Placement Rules
 
 - Functional feature context belongs close to the feature code.
-- Cross-cutting concerns belong under `.docs/hlds/02-nfrs/` or the nearest `AGENTS.md`.
+- Cross-cutting concerns belong under `docs/hlds/02-nfrs/` or the nearest `AGENTS.md`.
 - Avoid creating duplicate context files that restate the same plan at multiple levels without adding new information.
 
 ## Implementation Docs
 
 All planned work is tracked as worktasks under `.context/work-tasks/` (gitignored — local only). Use `/create worktask` to scaffold a new one from the template.
 
-Setup docs in `.docs/wiki/setup.md` and `.docs/wiki/setups/` should keep client base-url examples aligned with
+Setup docs in `docs/wiki/setup.md` and `docs/wiki/setups/` should keep client base-url examples aligned with
 the run mode's published host port, including Codex `openai_base_url` and `ANTHROPIC_BASE_URL` examples where
 the guide is meant to be used by agent clients.
 Conductor sandbox setup docs should keep general snapshot tooling (including Docker CLI + Compose v2) separate
@@ -54,7 +54,7 @@ from SmoothLlmImposter-specific imposter runtime setup. Agent-tooling steps must
 repository-scoped (a tool that records an absolute repo path in its config, or writes into the working tree)
 belongs in the workspace lifecycle, because the snapshot is built before any clone exists.
 The `.conductor/` kit was removed in #125; maintain the paste-in lifecycle scripts in
-`.docs/wiki/setups/conductor.build-smooth-llm-imposter.md`, not a recreated kit. Document that existing UI
+`docs/wiki/setups/conductor.build-smooth-llm-imposter.md`, not a recreated kit. Document that existing UI
 scripts need replacement/re-run when container environment forwarding changes.
 Claude/Anthropic setup sections should also document that `claude setup-token` can create a Claude subscription
 token, which users may supply explicitly as an imposter provider `Secret` with the matching `AuthScheme`.
@@ -111,7 +111,7 @@ xunit.v3 · Shouldly · Bogus. Tiers (the distinction drives where a test belong
 - **L1** `SmoothLlmImposter.Infrastructure.ComponentTest` — real file I/O against temporary on-disk SQLite for the opt-in GitHub Copilot store (schema, transactions, reopen). File-I/O tests belong here, never in a `*.UnitTest` project.
 - **L2** `SmoothLlmImposter.Host.IntegrationTest` — boots the real Host in-process via `WebApplicationFactory` and swaps the `imposter-upstream` HTTP client for a stub transport. No containers; the default route is stateless and key-less, so only opt-in Copilot cases use a database (temporary SQLite).
 
-Shared fixtures live in `tests/SmoothLlmImposter.TestFramework/`. CI provisions a single WireMock service container (`127.0.0.1:19091`) for integration tests that stub upstream LLM endpoints over HTTP. See `.docs/wiki/testing.md`.
+Shared fixtures live in `tests/SmoothLlmImposter.TestFramework/`. CI provisions a single WireMock service container (`127.0.0.1:19091`) for integration tests that stub upstream LLM endpoints over HTTP. See `docs/wiki/testing.md`.
 
 ## Style and Dependencies
 
@@ -119,13 +119,13 @@ Authoritative stack and coding conventions for AI coders are in `.agents/rules/p
 
 ## Architecture Decisions (NFRs)
 
-Human-facing reviewer documentation lives in `.docs/wiki/`. Detailed high-level designs, non-functional requirements, and lightweight architecture decision records live under `.docs/hlds/`.
+Human-facing reviewer documentation lives in `docs/wiki/`. Detailed high-level designs, non-functional requirements, and lightweight architecture decision records live under `docs/hlds/`.
 
-The [`.docs/wiki/hlds.md`](.docs/wiki/hlds.md) **HLD table is the human-facing index** for `.docs/hlds/` (the README only links to it). **Keep it in sync** — when a new HLD is created, removed, or changes status (Discovery → Accepted → Completed, or → Cancelled), update the table in the same PR. A stale table makes the HLD folder harder to discover and contradicts the Drift Minimization rule below.
+The [`docs/wiki/hlds.md`](docs/wiki/hlds.md) **HLD table is the human-facing index** for `docs/hlds/` (the README only links to it). **Keep it in sync** — when a new HLD is created, removed, or changes status (Discovery → Accepted → Completed, or → Cancelled), update the table in the same PR. A stale table makes the HLD folder harder to discover and contradicts the Drift Minimization rule below.
 
 ## CI/CD
 
-PR gate — `.github/workflows/pr-gate.yml` (triggers: `pull_request` → `main`, `push` → `main`, `workflow_dispatch`): restore → build (Release) → test with coverage via the local action `.github/actions/test-with-coverage`, then publish + upload the coverage report. The job declares one WireMock service container (`127.0.0.1:19091`) as its only external dependency — no PostgreSQL/Redis/Aspire. Full step list, service ports, and local .NET tools: `.docs/wiki/ci.md`.
+PR gate — `.github/workflows/pr-gate.yml` (triggers: `pull_request` → `main`, `push` → `main`, `workflow_dispatch`): restore → build (Release) → test with coverage via the local action `.github/actions/test-with-coverage`, then publish + upload the coverage report. The job declares one WireMock service container (`127.0.0.1:19091`) as its only external dependency — no PostgreSQL/Redis/Aspire. Full step list, service ports, and local .NET tools: `docs/wiki/ci.md`.
 
 Container image publishing — `.github/workflows/publish-image.yml` pushes `ghcr.io/generic-automation-and-it/smooth-llm-imposter` from the repo-root `Dockerfile`. Keep published tags multi-architecture for both `linux/amd64` and `linux/arm64`; each arch builds on a native runner and the manifests merge afterwards — never a single QEMU-emulated build, because the NativeAOT compiler crashes under user-mode emulation. The `:latest` tag is emitted only on an automatic `push` to `main`; a manual `workflow_dispatch` run (allowed from any branch) skips `:latest` and instead publishes a user-supplied pre-release version tag (e.g. `1.0.0-rc.1`) via the required `version` input, plus the short-SHA tag.
 
@@ -154,6 +154,8 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 - 2026-10-25: Tool-filter classifier circuit breaker implemented (HLD 014 LADR-11, NFR-05). One failed classifier call now opens a consumer-local circuit for `CircuitBreakSeconds` (default 180, optional `DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS`); while open, passes skip with reason `circuit-open`, make no classifier request and never reach the shared gate, so a dead or misconfigured service costs one call per cooldown instead of the full 3x60 s retry budget per request. After the cooldown a single trial admission decides close-or-reopen; a cancelled trial releases the admission. Only service faults count: `HttpRequestException` with a 4xx status other than 408/429, any 5xx, transport failure, and a new `DecisionServiceTimeoutException` (the transport wraps the resilience library's timeout). Contention is a new `DecisionGateTimeoutException` and never opens the circuit; caller cancellation propagates. A success only closes the circuit when it came from the trial, so concurrent traffic cannot exceed the one-call-per-cooldown bound. Application owns the breaker in `Features/Routing/Decisions`; the shared transport profile is untouched, so a second decision consumer registers its own. Validation rejects 0/3601 and ignores the value while the filter is disabled; the reflection drift guard covers the new conventional variable. 1,310 tests pass (L0/L1/L2); three mutations verified the new tests load-bearing (skip check, 4xx classification, trial abandon); macOS ARM64 NativeAOT publish is warning-free and a native run against an unreachable classifier logged one Error open, then an Information `circuit-open` skip with no classifier request. The resilience pipeline keeps its own retry; a malformed answers envelope still fails open without opening the circuit (LADR-11's closed failure list). Linux runners not exercised.
 
+- 2026-10-25: Merged `.docs/` into `docs/` (`hlds/`, `wiki/` moved as-is, `.docs/` removed); rewrote all `.docs/` refs to `docs/` (md, cs, slnx, Dockerfile, templates, hook); `/docs/hld/` singular fixed to `/docs/hlds/`, `.dockerignore` now ignores `docs/`, hook watches `docs/adr|nfr/`.
+- 2026-10-25: HLD 017 (Decision-Gated Message Optimizer) authored in Discovery from #164 — design only, no runtime change. Opt-in `LLM_MESSAGES_ENABLED` stage that asks the decision model whether each user message the proxy has not handled yet can be tightened and has a separate optimizer LLM rewrite only its human spans, one message at a time, as a strategy running in parallel with the tool filter; the proxy validates every rewrite against the original, remembers and replays what it forwarded (no in-text marker), and fails open behind per-section circuits. It would become the seventh sanctioned request-rewrite class and the first to rewrite `messages` content; the routing transparent-proxy rule stays unchanged until the HLD is Accepted. Depends on HLD 015 (per-section profiles, circuits and admission gates) and HLD 014 (tool filter returns an edit) amendments. Index row added to `docs/wiki/hlds.md`.
 - 2026-10-25: Added Agent Response Format: questions numbered `Q1`, `Q2`, …; statements as numbered lists, no bullets. Removed the root `CLAUDE.md` → `AGENTS.md` symlink and its recreation in `agents-setup.sh`/`.ps1`, `AI_DEVELOPMENT_AGENTS.md` and `.github/copilot-instructions.md`.
 
 - 2026-10-25: HLD 016 ralph-loop review (converged at loop 5). Fixed: bridged routes forwarded the inbound query string (spec 01 §15/04 E01); the stream translator used an unbounded event channel and abandoned an 8-second delay/wait registration per chunk (NFR-02); in-band overflow was not detected at numeric statuses outside 400/413/422 (04 §7.5.1); in-band 2xx errors lost `retry-after`; non-stream choice-level `error` with no content became an empty 200 message (02 §2/§11.5); stream error frames could echo the configured key; in-band 401/403 stream errors lacked the upstream-credential wording; `SystemMessage` copied `cache_control` from the dropped attribution block; dead API and an unused parameter were removed. Overflow phrasings are now the spec-mandated data table. 1,267 tests pass (L0/L1/L2), host-platform NativeAOT publish warning-free. Deferred: live Claude Code session, NFR-02 p99/allocation measurement, body-less `GET /v1/messages` 405 and `count_tokens` without a model (both cannot resolve a route), and the decision filter's forced-tool protection (outside the branch diff).
@@ -164,7 +166,7 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 - 2026-10-24: HLD 016 Messages→Chat bridge implemented (LADRs/NFRs Accepted). Opt-in per-provider `AnthropicUpstreamApi: chat_completions` (default `messages`) on matched Anthropic imposter routes; an effective `Bearer` auth scheme is required at startup and admin upsert (LADR-01; this corrects spec 01 §2's "Bearer or ApiKey" wording). The Host seam maps the request after planning/model rename, runs the decision filter on the **Chat** body, forwards once with an outbound header allowlist (content type, accept, managed credential, router session header), and maps the reply; `AnthropicRequestTransformer` skips cache-breakpoint injection on a bridged route and `forwardCacheControl` is the bridge's own opt-in. Request mapping follows spec 01's allowlist/validation order, deterministic tool-name and tool-id maps, mid-turn system mapping, image hoisting, placeholders for unsupported blocks, canonical key order and reasoning profiles selected only by config. Reply mapping (non-stream and stream, sharing ids/stop reason/usage arithmetic) emits Messages error envelopes, validated-or-dropped tool arguments, unsigned thinking and non-empty estimated usage; `POST /v1/messages/count_tokens` is answered locally with the shared estimator. Option plumbing covers `ProviderOptions`, the conventional env suffix map, `ProviderOptionsCloner`, both `/admin/providers` DTOs, the validator and route materialisation, with a GET→PUT round-trip test. Tests: 1,250 pass (L0/L1/L2), including the spec matrices, an end-to-end bridged stream, count_tokens, header allowlist and non-bridged transparency; macOS ARM64 NativeAOT publish is warning-free and a native smoke covered `/health`, `count_tokens`, a non-stream bridged turn and a streamed bridged turn. Spec gaps recorded: spec 04 §7.5.1 omitted "context limit" from the overflow keyword list (added so Form A/B re-render); a body-less `GET /v1/messages` cannot resolve a bridged provider, so 405 applies only once a model resolves the route (body-less requests stay passthrough); `count_tokens` without a `model` keeps the existing 400. Live Claude Code session, Linux musl AMD64/ARM64 native runners and real upstream cache-hit measurement remain external gates.
 
-- 2026-10-24: HLD 016 (Anthropic Messages to Chat Completions bridge) authored in Discovery — design and normative spec only, no runtime change. Opt-in per-provider `AnthropicUpstreamApi: chat_completions` on matched imposter routes would let Claude Code use Chat-only upstreams; it narrows the "same-dialect only" rule, which stays in force until the HLD is Accepted. Nine LADRs (opt-in, seam and header allowlist, incremental streaming, validated tool arguments, Messages-shaped errors/usage, allowlist with placeholders, stateless tool identity, unsigned thinking with explicit vendor profiles, local `count_tokens`), four NFRs, and spec files 00-04 (edge-case matrices in 01-04) as the conformance test list. Spec derived from a behavioral analysis of an existing translating gateway, with its defects replaced by target behavior; Claude Code behavior assumptions (error recognition, empty-signature thinking, overflow phrasing) are unverified against a live CLI and listed as Open items. Index row added to `.docs/wiki/hlds.md`.
+- 2026-10-24: HLD 016 (Anthropic Messages to Chat Completions bridge) authored in Discovery — design and normative spec only, no runtime change. Opt-in per-provider `AnthropicUpstreamApi: chat_completions` on matched imposter routes would let Claude Code use Chat-only upstreams; it narrows the "same-dialect only" rule, which stays in force until the HLD is Accepted. Nine LADRs (opt-in, seam and header allowlist, incremental streaming, validated tool arguments, Messages-shaped errors/usage, allowlist with placeholders, stateless tool identity, unsigned thinking with explicit vendor profiles, local `count_tokens`), four NFRs, and spec files 00-04 (edge-case matrices in 01-04) as the conformance test list. Spec derived from a behavioral analysis of an existing translating gateway, with its defects replaced by target behavior; Claude Code behavior assumptions (error recognition, empty-signature thinking, overflow phrasing) are unverified against a live CLI and listed as Open items. Index row added to `docs/wiki/hlds.md`.
 - 2026-10-24: Renamed all prefixed functional context files to nested `AGENTS.md` (Claude Code auto-discovers `AGENTS.md`). 9 files via `git mv`: `APPLICATION/HOST/DOMAIN/INFRASTRUCTURE_*`, `CREDENTIALS/GITHUB_COPILOT/AUTHORIZATION_OVERRIDE/ROUTING_*`, `TEST_FRAMEWORK_*` → sibling `AGENTS.md`; filename H1s replaced with descriptive titles. All in-repo links updated; generic `*_AGENTS.md` convention mentions rewritten to nested `AGENTS.md` (root `AGENTS.md`, `COLLABORATION.md`, PR template, workflow/rules instructions, `architecture.md`, `testing.md`, `setup.md`, worktask template/hook, `TEMPLATE_README.md` naming/structure sections). Excluded: `.agents/AI_DEVELOPMENT_AGENTS.md` (slnx + docs reference), `.agents/templates/TEMPLATE_AGENTS.md` (template itself), `.github/CODE_REVIEW_GRAPH_AGENTS.md` + `WORKFLOWS_AGENTS.md` (two files, one `AGENTS.md` target — collision). Build clean, 0 warnings/errors; remaining 4 broken-link hits pre-existing and untouched.
 
 - 2026-10-23: HLD 014 LADR-09 — opt-in sticky decision-tool selection per session (`DECISIONS_TOOLS_STICKY_PER_SESSION`, default off). The decision filter re-selected tools every user turn, so the forwarded `tools` array — the first thing in every provider prompt-cache prefix — could change on each turn; HLD 001 LADR-008 ordering could not help because it never keeps a tool and runs before the filter. Now, for a captured session, every known tool forwarded after a completed pass stays forwarded (not asked, not removed) while the harness still sends it; fail-open, partial fail-open, all-skip and small-catalog passes record nothing. The filter now receives caller headers and the **pre-transform** body: the transformed OpenAI body carries a router-injected `prompt_cache_key` = inbound model, which would have made every chat of a model one "session" (caught in plan review, guarded by an L2 test). The bounded per-session map was extracted from `ToolCatalogOrderer` into `SessionScopedMemory`/`SessionScope` and is shared. Conductor installer forwards the tenth `DECISIONS_TOOLS_*` variable; existing pasted scripts must be replaced and re-run. 881 tests pass (L0/L1/L2); six mutations verified the new tests load-bearing; macOS ARM64 NativeAOT publish warning-free and a native smoke (env and structured binding) showed second-turn retention and cross-session isolation. Upstream cache-hit gain remains unmeasured.
@@ -185,7 +187,7 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 - 2026-10-20: GitHub Copilot opt-in integration implemented (HLD 013, #126). Adds reserved `github-anthropic`/`github-openai` provider pairs, GitHub device login, encrypted local SQLite credentials in a dedicated volume with an isolated Data Protection key ring, startup hydration and refresh, ordered admin APIs with a `message` help field, Scalar/OpenAPI, and managed Bearer routing for `/v1/messages` and `/responses` (Copilot Chat excluded). Matched Copilot routes resolve auth/origin from a published in-memory snapshot — never a per-inference DB lookup — a narrow documented exception to HLD 002 LADR-004. Persistence is direct `Microsoft.Data.Sqlite` (Dapper.AOT spiked and rejected: no .NET 10 interceptors). Verified: the full deterministic suite across L0/L1/L2, a host-platform NativeAOT publish, and a native run exercising `/health`, the Copilot admin endpoints, Scalar/OpenAPI and real GitHub device-code rejection. Live own-OAuth-app probes and Linux musl container runs remain external gates.
 
-- 2026-10-20: README slimmed. HLD index table moved to `.docs/wiki/hlds.md`; the stale Conductor-kit install section was dropped (the kit was removed in #125); the Customized Switches section now documents the live `--who?`/`--newsession` family (HLD 010 is Completed) instead of a not-yet-implemented preview; Quick start setups table gained stable `S01…` IDs; GitHub Copilot section marked foundation-only.
+- 2026-10-20: README slimmed. HLD index table moved to `docs/wiki/hlds.md`; the stale Conductor-kit install section was dropped (the kit was removed in #125); the Customized Switches section now documents the live `--who?`/`--newsession` family (HLD 010 is Completed) instead of a not-yet-implemented preview; Quick start setups table gained stable `S01…` IDs; GitHub Copilot section marked foundation-only.
 
 - 2026-10-20: Test tiers are now L0/L1/L2. Added L1 `Infrastructure.ComponentTest` (temporary on-disk SQLite for the opt-in GitHub Copilot store) and narrowed the "no DB" statements to the default stateless route; the router itself remains key-less unless `ENABLE_GITHUB_COPILOT` is on.
 
@@ -254,7 +256,7 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
   the developer's own Mac key, and `[ -n "${SSH_PRIVATE_KEY:-}" ]` is what stops the truncating redirect from
   replacing a working key with a zero-byte file on every workspace that injects no key. The variable is
   optional — nothing else in the kit needs SSH. The flattened paste-in copy and the script table in
-  `.docs/wiki/setups/conductor.build-smooth-llm-imposter.md` were updated in lockstep, and the guard is
+  `docs/wiki/setups/conductor.build-smooth-llm-imposter.md` were updated in lockstep, and the guard is
   recorded as a non-negotiable in `.conductor/AGENTS.md`.
 - 2026-08-12: A mid-stream upstream failure now ends the response deliberately instead of escaping the endpoint.
   Production symptom: `HttpIOException: The response ended prematurely. (ResponseEnded)` from
@@ -293,14 +295,14 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
   `ProviderCatalogTests` seed-materialization and the L2 `GET → PUT` round-trip; 4 tests fail without the
   clone fix. HLD 011 itself did not exist: the code and docs cited "HLD 011 / LADR-05" with no such folder,
   and `LADR-05` collided with unrelated LADR-05s under HLDs 004/008/010. Authored
-  `.docs/hlds/011-zdr-encrypted-content-sanitation/` (README, AGENTS, LADR-01 drop-whole-item, LADR-02
+  `docs/hlds/011-zdr-encrypted-content-sanitation/` (README, AGENTS, LADR-01 drop-whole-item, LADR-02
   independent-opt-in, LADR-03 no-validator-rule, NFR-01 no-decryption/no-logging, NFR-02 default-off
   transparency, stage-ordering diagram) and repointed every reference to LADR-01. The HLD 007 LADR-02
   conventional-env table was stale for five suffixes (`_AUTH_TOKEN`, `_AUTH_HEADER`, `_ENABLED`,
   `_SESSION_FORWARDING`, plus the new `_STRIP_ENCRYPTED_CONTENT`) and is now in sync with
   `ImposterOptionsPostConfigure.Fields`. The option stays **off by default and is set in no shipped
   `appsettings*.json`** — it is injected per deployment (`<PROVIDER>_STRIP_ENCRYPTED_CONTENT=true`) and
-  documented in `.docs/wiki/setup.md`. 417 tests pass.
+  documented in `docs/wiki/setup.md`. 417 tests pass.
 - 2026-08-09: Added `StripEncryptedContent` per-provider option (HLD 011) — drops OpenAI ZDR
   `encrypted_content` reasoning items on the `/responses` forward path so an upstream that cannot decrypt
   (e.g. LM Studio) no longer rejects with HTTP 400 "Encrypted content is not supported." Independent of
@@ -349,7 +351,7 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
   the operator works in a remote sandbox without filesystem access. The prior code ended its failure path
   with a bare `docker logs`, which answers "Cannot connect to the Docker daemon" in exactly the case that
   matters and silently discards the container output. Root cause of the daemon death is still unconfirmed.
-  `.conductor/AGENTS.md` and `.docs/wiki/setups/conductor.build-smooth-llm-imposter.md` (including its
+  `.conductor/AGENTS.md` and `docs/wiki/setups/conductor.build-smooth-llm-imposter.md` (including its
   embedded paste-in copy) updated to match.
 - 2026-08-01: Packaged the `.conductor` kit for distribution to other repos, **shipping the scripts
   as-is**. Added `.conductor/install.sh` (vendoring installer with `--ref` and `--check`; extracts
@@ -387,7 +389,7 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
   `gpt-5.4`/`gpt-5.5` stay routed via `opencode-go-openai-chat` on `chat_completions` (proxy handles
   `/responses`→Chat downgrade). `AGENTS.md` updated with Migration Plans section documenting
   the provider dependency. `.conductor/scripts/imposter-container.sh` and the embedded `docker run` in
-  `.docs/wiki/setups/conductor.build-smooth-llm-imposter.md` — Docker now checks GHCR for a newer
+  `docs/wiki/setups/conductor.build-smooth-llm-imposter.md` — Docker now checks GHCR for a newer
   `smooth-llm-imposter:latest` on every container start. Related comments and the "Image pull behavior"
   note in the wiki doc updated to reflect the new pull behavior. OpenCode Go session forwarding switched
   from actively disabled (`OPENCODE_GO_{ANTHROPIC,OPENAI}_SESSION_FORWARDING=none` exports + `-e` flags)

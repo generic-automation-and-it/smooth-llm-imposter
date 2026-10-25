@@ -3,7 +3,7 @@
 #
 # Without this file no Copilot storage is created. The volume is named and dedicated: removing it is the
 # only way to delete saved credentials in v1 and it removes every prefix in this installation. Full guide:
-# .docs/wiki/setups/github-copilot.configure-smooth-llm-imposter.md
+# docs/wiki/setups/github-copilot.configure-smooth-llm-imposter.md
 services:
   smooth-llm-imposter:
     environment:

@@ -129,6 +129,8 @@ internal sealed class ImposterOptionsPostConfigure(
 
         ApplyDecisionsToolsOverrides(options.DecisionsTools);
 
+        ApplyDecisionsMessagesOverrides(options.DecisionsMessages);
+
         foreach ((string key, ProviderOptions provider) in options.Providers)
         {
             string prefix = ToEnvPrefix(key);
@@ -282,6 +284,22 @@ internal sealed class ImposterOptionsPostConfigure(
         ApplyRootIntegerOverride(DecisionsToolsVariables[nameof(options.MaxAttempts)], nameof(options.MaxAttempts), value => options.MaxAttempts = value);
         ApplyRootIntegerOverride(DecisionsToolsVariables[nameof(options.TimeoutSeconds)], nameof(options.TimeoutSeconds), value => options.TimeoutSeconds = value);
         ApplyRootIntegerOverride(DecisionsToolsVariables[nameof(options.CircuitBreakSeconds)], nameof(options.CircuitBreakSeconds), value => options.CircuitBreakSeconds = value);
+    }
+
+    /// <summary>
+    /// Conventional variable per <see cref="DecisionsMessagesOptions"/> property (HLD 017).
+    /// </summary>
+    internal static readonly IReadOnlyDictionary<string, string> DecisionsMessagesVariables =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [nameof(DecisionsMessagesOptions.Enabled)] = "DECISIONS_MESSAGES_ENABLED",
+            [nameof(DecisionsMessagesOptions.MinProbability)] = "DECISIONS_MESSAGES_MIN_PROBABILITY",
+        };
+
+    private void ApplyDecisionsMessagesOverrides(DecisionsMessagesOptions options)
+    {
+        ApplyRootBooleanOverride(DecisionsMessagesVariables[nameof(options.Enabled)], nameof(options.Enabled), value => options.Enabled = value);
+        ApplyRootProbabilityOverride(DecisionsMessagesVariables[nameof(options.MinProbability)], nameof(options.MinProbability), value => options.MinProbability = value);
     }
 
     private void ApplyRootStringOverride(string variable, string propertyName, Action<string> apply)

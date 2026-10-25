@@ -81,7 +81,7 @@ Quality gate — spec/implementation sync check.
 
 - Update the context document loaded in Phase 0 with real implementation details
 - Finalize LADRs with actual outcomes
-- Review whether any `.docs/adrs/` or `.docs/nfrs/` need updating — if the implementation changes behavior covered by an existing ADR or NFR, update it; if a new architectural decision was made, create a new ADR
+- Review whether any `docs/adrs/` or `docs/nfrs/` need updating — if the implementation changes behavior covered by an existing ADR or NFR, update it; if a new architectural decision was made, create a new ADR
 - Update changelog with comprehensive entry
 
 **If a context document was loaded in Phase 0, it MUST be updated in Phase 8.** Loading a context document creates a mandatory update obligation — this is not optional regardless of path (lightweight or full).

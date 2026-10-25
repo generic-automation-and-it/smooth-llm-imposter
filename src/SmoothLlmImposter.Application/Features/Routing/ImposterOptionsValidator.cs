@@ -21,6 +21,7 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         List<string> failures = [];
 
         AddDecisionsToolsFailures(options.DecisionsTools, failures);
+        AddDecisionsMessagesFailures(options.DecisionsMessages, failures);
 
         if (options.Providers.Count == 0)
         {
@@ -192,6 +193,21 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         if (options.CircuitBreakSeconds is < 1 or > 3600)
         {
             failures.Add($"{prefix}:CircuitBreakSeconds must be between 1 and 3600 seconds.");
+        }
+    }
+
+    private static void AddDecisionsMessagesFailures(DecisionsMessagesOptions options, List<string> failures)
+    {
+        if (!options.Enabled)
+        {
+            return;
+        }
+
+        const string prefix = "Imposter:DecisionsMessages";
+
+        if (!double.IsFinite(options.MinProbability) || options.MinProbability is < 0 or > 1)
+        {
+            failures.Add($"{prefix}:MinProbability must be a finite number between 0 and 1.");
         }
     }
 

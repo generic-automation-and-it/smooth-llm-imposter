@@ -3,7 +3,7 @@
 # you instead `pull` the published GHCR image. Keys come from your shell or a
 # gitignored .env (compose auto-loads ./.env for ${...} interpolation).
 #
-# See .docs/wiki/setups/compose.run-smooth-llm-imposter.md
+# See docs/wiki/setups/compose.run-smooth-llm-imposter.md
 services:
   smooth-llm-imposter:
     image: ghcr.io/generic-automation-and-it/smooth-llm-imposter:latest
