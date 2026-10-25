@@ -1,3 +1,5 @@
+using SmoothLlmImposter.Application.Common.Clients.Decisions;
+
 namespace SmoothLlmImposter.Application.Features.Routing;
 
 /// <summary>
@@ -42,11 +44,11 @@ public sealed class DecisionsToolsOptions
 {
     public bool Enabled { get; set; }
 
-    public string BaseUrl { get; set; } = "http://host.docker.internal:1234";
+    public string BaseUrl { get; set; } = DecisionServiceOptions.DefaultBaseUrl;
 
-    public string Path { get; set; } = "/v1/systemone";
+    public string Path { get; set; } = DecisionServiceOptions.DefaultPath;
 
-    public string Model { get; set; } = "openjev";
+    public string Model { get; set; } = DecisionServiceOptions.DefaultModel;
 
     public double MinProbability { get; set; } = 0.50;
 
@@ -56,9 +58,9 @@ public sealed class DecisionsToolsOptions
 
     public bool StickyPerSession { get; set; }
 
-    public int MaxAttempts { get; set; } = 3;
+    public int MaxAttempts { get; set; } = DecisionServiceOptions.DefaultMaxAttempts;
 
-    public int TimeoutSeconds { get; set; } = 60;
+    public int TimeoutSeconds { get; set; } = DecisionServiceOptions.DefaultTimeoutSeconds;
 }
 
 /// <summary>

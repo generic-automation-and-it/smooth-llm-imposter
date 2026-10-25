@@ -51,12 +51,13 @@ and `SessionScope` keys; do not add another unbounded or unhashed session map �
 fails on any new singleton collection until it uses that type or is reviewed. Resolve the session identity from
 the **inbound** body and caller headers, never the transformed body: OpenAI transforms inject
 `prompt_cache_key` = inbound model, which turns every chat of a model into one "session".
-[HLD 015](../../.docs/hlds/015-shared-decision-model-integration/README.md) proposes shared integration ownership; it is not the current runtime contract.
+Shared ownership ([HLD 015](../../.docs/hlds/015-shared-decision-model-integration/README.md)) is the runtime contract: `Common/Clients/Decisions` holds the consumer-neutral `DecisionServiceOptions`, the `IDecisionServiceConsumer` opt-in and the `DecisionServiceDemand` any-consumer predicate. A new consumer registers its own `IDecisionServiceConsumer`; it must never reuse or toggle the tool filter's `Enabled`. The tool filter maps its legacy `Imposter:DecisionsTools`/`DECISIONS_TOOLS_*` surface onto the shared profile in `Features/Routing/Decisions`.
 
 ## Changelog
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-24 | HLD 015 implemented: consumer-neutral decision contract and opt-in predicate in `Common/Clients/Decisions`; transport validation moved out of the routing validator | #156 |
 | 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery); in-file links updated. No behavior change. | #152 |
 | 2026-10-24 | Per-session identity from inbound body; singleton-memory drift guard | — |
 | 2026-10-23 | Shared bounded `SessionScopedMemory` for ordering and sticky tool sets | — |

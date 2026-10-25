@@ -6,7 +6,7 @@
 | **Initiative** | Decisions |
 | **Owner** | SmoothLlmImposter maintainers |
 | **Tracker** | [GitHub #138](https://github.com/generic-automation-and-it/smooth-llm-imposter/issues/138) |
-| **Last updated** | 2026-10-23 |
+| **Last updated** | 2026-10-25 |
 
 ## Intent
 
@@ -75,12 +75,15 @@ At most 20 questions are sent per sequential chunk. The request carries model, s
 
 Decision failure is fail-open, not inference failure. A failed chunk keeps its tools and stops further classification; earlier successful chunks remain applied. Caller cancellation is different: propagate it without a fail-open Warning or inference forward.
 
+A failing classifier must not cost every request its full retry budget. One failed classifier call opens a circuit for the tool filter; while it is open, passes skip classification with reason `circuit-open` and forward the catalog unchanged, without taking the gate. After the cooldown (optional `DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS`, default 180) one trial call decides whether the circuit closes or reopens. Opening logs at Error; the trial and the close log at Information. The circuit belongs to this consumer only — other decision-service consumers can use different models and endpoints ([LADR-11](ladrs/LADR-11-circuit-breaker.md), [NFR-05](nfrs/NFR-05-classifier-outage-cost.md)). Not yet implemented.
+
 **Acceptance criteria / DoD**
 
 - Transport, envelope, timeout and gate failures preserve unresolved tools.
 - A second-chunk failure never invokes the third chunk.
 - Who-probe replies invoke neither the classifier nor the inference upstream.
 - Caller abort during classification makes no upstream call.
+- After one failed classifier call, passes within the cooldown make no classifier request and forward the catalog unchanged; a trial call after the cooldown closes or reopens the circuit; caller cancellation and gate-wait timeouts do not open it.
 
 ## Core Separation of Concerns
 
@@ -114,6 +117,8 @@ Per-provider overrides, persistent or distributed decision caching, tool-count s
 | [07](ladrs/LADR-07-chunk-memo-and-byte-preserving-output.md) | In-memory per-question memo; byte-preserving output; deferred-loading skip | Accepted |
 | [08](ladrs/LADR-08-core-tools-and-minimum-floor.md) | Always-kept core tools and a minimum-kept floor instead of a lower threshold | Accepted |
 | [09](ladrs/LADR-09-sticky-per-session.md) | Opt-in sticky tool selection per captured session | Accepted |
+| [10](ladrs/LADR-10-codex-additional-tools-not-filtered.md) | Codex `additional_tools` requests are not filtered | Accepted |
+| [11](ladrs/LADR-11-circuit-breaker.md) | Per-consumer circuit breaker: one failed call skips the filter for a cooldown (default 180 s) | Accepted — not yet implemented |
 
 ## Non-Functional Requirements
 
@@ -123,6 +128,7 @@ Per-provider overrides, persistent or distributed decision caching, tool-count s
 | [02](nfrs/NFR-02-classifier-data-egress.md) | Deliberate classifier egress; no sensitive classifier logging | Accepted |
 | [03](nfrs/NFR-03-serialized-service-budget.md) | Serialized load and complete-response timeout | Accepted |
 | [04](nfrs/NFR-04-native-runtime-parity.md) | Native/container classifier parity | Accepted |
+| [05](nfrs/NFR-05-classifier-outage-cost.md) | At most one failed classifier call per cooldown | Accepted — not yet implemented |
 
 ## Verification evidence
 
@@ -144,5 +150,7 @@ Per-provider overrides, persistent or distributed decision caching, tool-count s
 | 2026-10-23 | Labelled request-first state (no post-request assistant text, system only as fallback, reminder blocks and tool-result turns excluded); need-question wording; all-skip keeps catalog; deferred-loading skip; in-memory chunk memo; byte-preserving output; threshold 0.20; removed names logged (NFR-02) | #138 |
 | 2026-10-23 | Review fixes: memo keyed per tool question so tool-call continuations reuse answers; only valid answers cached; text between reminder spans kept | #141 |
 | 2026-10-23 | Conductor `<system_instruction>` and Claude Code local-command wrappers stripped from state; fail-open warning names HTTP status and configured model | — |
+| 2026-10-24 | Classifier outcome logs name the configured model, classifier endpoint (userinfo and query dropped) and a session digest; raw session values stay unlogged | — |
 | 2026-10-23 | Opt-in `StickyPerSession` keeps forwarded tools for the rest of a captured session (LADR-09) | — |
 | 2026-10-23 | Default threshold back to 0.50; `AlwaysKeep` core tools never asked; `MinKeepTools` floor (default 20) tops up by score; catalogs within the floor skip the classifier (LADR-08) | #138 |
+| 2026-10-25 | Circuit breaker amendment (design only): one failed classifier call opens a tool-filter circuit for an optional `DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS` cooldown (default 180); open passes skip with `circuit-open`; opening logs at Error (LADR-11, NFR-05). LADR-10 added to the decisions table | #164 |

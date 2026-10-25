@@ -1,9 +1,12 @@
 using System.Globalization;
+using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SmoothLlmImposter.Application.Common.Clients.Decisions;
 using SmoothLlmImposter.Application.Features.Routing;
+using SmoothLlmImposter.Application.Features.Routing.Decisions;
 
 namespace SmoothLlmImposter.Application.UnitTest.Routing;
 
@@ -113,6 +116,9 @@ public class DecisionsToolsOptionsTests
             ["DECISIONS_TOOLS_PATH"] = value,
             ["DECISIONS_TOOLS_MODEL"] = value,
             ["DECISIONS_TOOLS_MIN_PROBABILITY"] = value,
+            ["DECISIONS_TOOLS_MIN_KEEP"] = value,
+            ["DECISIONS_TOOLS_ALWAYS_KEEP"] = value,
+            ["DECISIONS_TOOLS_STICKY_PER_SESSION"] = value,
             ["DECISIONS_TOOLS_MAX_ATTEMPTS"] = value,
             ["DECISIONS_TOOLS_TIMEOUT"] = value
         });
@@ -122,6 +128,9 @@ public class DecisionsToolsOptionsTests
         options.DecisionsTools.Path.ShouldBe("/bound");
         options.DecisionsTools.Model.ShouldBe("bound-model");
         options.DecisionsTools.MinProbability.ShouldBe(0.25);
+        options.DecisionsTools.MinKeepTools.ShouldBe(7);
+        options.DecisionsTools.AlwaysKeep.ShouldBe("bound_tool");
+        options.DecisionsTools.StickyPerSession.ShouldBeTrue();
         options.DecisionsTools.MaxAttempts.ShouldBe(2);
         options.DecisionsTools.TimeoutSeconds.ShouldBe(30);
         logger.Entries.ShouldBeEmpty();
@@ -192,13 +201,48 @@ public class DecisionsToolsOptionsTests
             ["DECISIONS_TOOLS_TIMEOUT"] = "-5"
         });
 
-        ValidateOptionsResult result = new ImposterOptionsValidator().Validate(null, options);
+        ValidateOptionsResult policy = new ImposterOptionsValidator().Validate(null, options);
+        var transport = new DecisionServiceOptions();
+        new DecisionServiceOptionsSetup(Options.Create(options)).Configure(transport);
+        ValidateOptionsResult shared = new DecisionServiceOptionsValidator(
+            new DecisionServiceDemand([new DecisionToolsConsumer(Options.Create(options))])).Validate(null, transport);
 
-        result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldContain("MinProbability");
-        result.FailureMessage.ShouldContain("MaxAttempts");
-        result.FailureMessage.ShouldContain("TimeoutSeconds");
+        policy.Failed.ShouldBeTrue();
+        policy.FailureMessage.ShouldContain("MinProbability");
+        shared.Failed.ShouldBeTrue();
+        shared.FailureMessage.ShouldContain("MaxAttempts");
+        shared.FailureMessage.ShouldContain("TimeoutSeconds");
     }
+
+    [Fact]
+    public void Every_decision_setting_has_a_conventional_variable_that_overrides_it()
+    {
+        // Drift guard: reflects over the options type, so a new setting without a DECISIONS_TOOLS_* variable
+        // fails here instead of shipping without a conventional override (HLD 015 NFR-02).
+        PropertyInfo[] properties = typeof(DecisionsToolsOptions).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        ImposterOptionsPostConfigure.DecisionsToolsVariables.Keys
+            .ShouldBe(properties.Select(static property => property.Name), ignoreOrder: true);
+
+        foreach (PropertyInfo property in properties)
+        {
+            var options = new ImposterOptions();
+            object? before = property.GetValue(options.DecisionsTools);
+            string variable = ImposterOptionsPostConfigure.DecisionsToolsVariables[property.Name];
+
+            Apply(options, new Dictionary<string, string?> { [variable] = DifferentValue(property.PropertyType, before) });
+
+            property.GetValue(options.DecisionsTools).ShouldNotBe(before, $"{variable} should override {property.Name}");
+        }
+    }
+
+    private static string DifferentValue(Type type, object? current) => type switch
+    {
+        _ when type == typeof(bool) => (!(bool)current!).ToString(),
+        _ when type == typeof(int) => ((int)current! + 1).ToString(CultureInfo.InvariantCulture),
+        _ when type == typeof(double) => ((double)current! / 2).ToString(CultureInfo.InvariantCulture),
+        _ when type == typeof(string) => current + "-override",
+        _ => throw new NotSupportedException($"Add an override value for {type.Name} settings.")
+    };
 
     private static IConfiguration Configuration(IDictionary<string, string?> values) =>
         new ConfigurationBuilder().AddInMemoryCollection(values).Build();
@@ -219,6 +263,9 @@ public class DecisionsToolsOptionsTests
             Path = "/bound",
             Model = "bound-model",
             MinProbability = 0.25,
+            MinKeepTools = 7,
+            AlwaysKeep = "bound_tool",
+            StickyPerSession = true,
             MaxAttempts = 2,
             TimeoutSeconds = 30
         }

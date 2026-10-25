@@ -51,7 +51,6 @@ $allSuccess = (Create-Symlink ".agents\rules" "..\.github\instructions" $true) -
 
 # Create file symlinks for context files
 Write-Host "`nCreating file symlinks for context files..." -ForegroundColor Cyan
-$allSuccess = (Create-Symlink "CLAUDE.md" "AGENTS.md") -and $allSuccess
 $allSuccess = (Create-Symlink "GEMINI.md" "AGENTS.md") -and $allSuccess
 
 # Configure git to handle symlinks properly

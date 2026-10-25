@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using Polly;
@@ -53,12 +54,11 @@ public static class DependencyInjection
     {
         IHttpClientBuilder decisionsClient = services.AddHttpClient(DecisionModelClient.HttpClientName, client =>
             client.Timeout = Timeout.InfiniteTimeSpan);
-        decisionsClient.AddResilienceHandler("decisions-tools-retry", (builder, context) =>
+        decisionsClient.AddResilienceHandler("decision-service-retry", (builder, context) =>
             {
-                DecisionsToolsOptions settings = context.ServiceProvider
-                    .GetRequiredService<IOptions<ImposterOptions>>().Value.DecisionsTools;
-                int maxAttempts = settings.Enabled ? settings.MaxAttempts : 3;
-                int timeoutSeconds = settings.Enabled ? settings.TimeoutSeconds : 60;
+                DecisionServiceOptions settings = ResolveDecisionTransport(context.ServiceProvider);
+                int maxAttempts = settings.MaxAttempts;
+                int timeoutSeconds = settings.TimeoutSeconds;
 
                 if (maxAttempts > 1)
                 {
@@ -82,6 +82,8 @@ public static class DependencyInjection
                 builder.AddTimeout(TimeSpan.FromSeconds(timeoutSeconds));
             });
         decisionsClient.AddHttpMessageHandler(static () => new DecisionResponseBufferingHandler());
+        services.TryAddSingleton<DecisionServiceDemand>();
+        services.AddSingleton<DecisionServiceGate>();
         services.AddSingleton<IDecisionModelClient, DecisionModelClient>();
 
         services.AddHttpClient(UpstreamForwarder.HttpClientName, client =>
@@ -168,6 +170,15 @@ public static class DependencyInjection
 
         return services;
     }
+
+    /// <summary>
+    /// The decision transport profile (HLD 015 LADR-02). Its settings are validated only while a consumer is
+    /// opted in, so with none the profile is built from defaults and unused, possibly invalid settings stay inert.
+    /// </summary>
+    internal static DecisionServiceOptions ResolveDecisionTransport(IServiceProvider services) =>
+        services.GetRequiredService<DecisionServiceDemand>().IsRequired
+            ? services.GetRequiredService<IOptions<DecisionServiceOptions>>().Value
+            : new DecisionServiceOptions();
 
     internal static HttpRetryStrategyOptions CreateUpstreamRetryOptions() =>
         new()

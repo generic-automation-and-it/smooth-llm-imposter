@@ -1,6 +1,6 @@
 # NFR-01: Bounded shared execution
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Requirement
 

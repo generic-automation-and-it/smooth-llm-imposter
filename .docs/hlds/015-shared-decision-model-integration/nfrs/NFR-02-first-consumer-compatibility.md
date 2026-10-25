@@ -1,6 +1,6 @@
 # NFR-02: First-consumer compatibility
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Requirement
 
@@ -10,9 +10,11 @@ Extraction produces no observable regression in HLD 014's operator settings or t
 
 Compare pre-extraction and shared-integration behavior using HLD 014's configuration, API golden, failure, cancellation and downgrade fixtures. Verify startup validation when all consumers are disabled and when tool filtering is enabled. Exercise affected configuration and decision calls on published native artifacts; preserve Linux AMD64/ARM64 native-runner gates.
 
+Defaults and conventional precedence resolve identically, as asserted by `DecisionsToolsOptionsTests`: `Defaults_keep_filter_disabled_and_target_the_container_host`, `Structured_section_binds_every_decision_setting` and `All_ten_conventional_variables_override_the_bound_section` each assert all ten settings; `Absent_or_blank_variables_preserve_bound_settings` covers all ten variables; `Every_decision_setting_has_a_conventional_variable_that_overrides_it` reflects over `DecisionsToolsOptions` so a new setting without a conventional variable fails closed.
+
 ## Acceptance Criteria
 
-- All seven existing settings keep their documented effective values, including conventional precedence.
+- Every operator setting HLD 014 documents keeps its documented default and effective value, including conventional-over-structured precedence.
 - Existing tool-filter output and no-call/byte-identity assertions pass unchanged.
 - Classifier extraction does not change inference routing or introduce endpoints.
 - Native startup and decision-call behavior match the JIT contract; absent platform evidence is reported, not inferred.

@@ -1,6 +1,6 @@
 # LADR-01: Internal evidence contract, consumer-owned policy
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

@@ -249,18 +249,37 @@ internal sealed class ImposterOptionsPostConfigure(
             variable, key, propertyName);
     }
 
+    /// <summary>
+    /// Conventional variable per <see cref="DecisionsToolsOptions"/> property. The overrides below read their
+    /// names from here, so the drift guard that reflects over the options type covers the applied surface.
+    /// </summary>
+    internal static readonly IReadOnlyDictionary<string, string> DecisionsToolsVariables =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [nameof(DecisionsToolsOptions.Enabled)] = "DECISIONS_TOOLS_ENABLED",
+            [nameof(DecisionsToolsOptions.BaseUrl)] = "DECISIONS_TOOLS_BASE_URL",
+            [nameof(DecisionsToolsOptions.Path)] = "DECISIONS_TOOLS_PATH",
+            [nameof(DecisionsToolsOptions.Model)] = "DECISIONS_TOOLS_MODEL",
+            [nameof(DecisionsToolsOptions.MinProbability)] = "DECISIONS_TOOLS_MIN_PROBABILITY",
+            [nameof(DecisionsToolsOptions.MinKeepTools)] = "DECISIONS_TOOLS_MIN_KEEP",
+            [nameof(DecisionsToolsOptions.AlwaysKeep)] = "DECISIONS_TOOLS_ALWAYS_KEEP",
+            [nameof(DecisionsToolsOptions.StickyPerSession)] = "DECISIONS_TOOLS_STICKY_PER_SESSION",
+            [nameof(DecisionsToolsOptions.MaxAttempts)] = "DECISIONS_TOOLS_MAX_ATTEMPTS",
+            [nameof(DecisionsToolsOptions.TimeoutSeconds)] = "DECISIONS_TOOLS_TIMEOUT",
+        };
+
     private void ApplyDecisionsToolsOverrides(DecisionsToolsOptions options)
     {
-        ApplyRootBooleanOverride("DECISIONS_TOOLS_ENABLED", nameof(options.Enabled), value => options.Enabled = value);
-        ApplyRootStringOverride("DECISIONS_TOOLS_BASE_URL", nameof(options.BaseUrl), value => options.BaseUrl = value);
-        ApplyRootStringOverride("DECISIONS_TOOLS_PATH", nameof(options.Path), value => options.Path = value);
-        ApplyRootStringOverride("DECISIONS_TOOLS_MODEL", nameof(options.Model), value => options.Model = value);
-        ApplyRootProbabilityOverride("DECISIONS_TOOLS_MIN_PROBABILITY", nameof(options.MinProbability), value => options.MinProbability = value);
-        ApplyRootIntegerOverride("DECISIONS_TOOLS_MIN_KEEP", nameof(options.MinKeepTools), value => options.MinKeepTools = value);
-        ApplyRootStringOverride("DECISIONS_TOOLS_ALWAYS_KEEP", nameof(options.AlwaysKeep), value => options.AlwaysKeep = value);
-        ApplyRootBooleanOverride("DECISIONS_TOOLS_STICKY_PER_SESSION", nameof(options.StickyPerSession), value => options.StickyPerSession = value);
-        ApplyRootIntegerOverride("DECISIONS_TOOLS_MAX_ATTEMPTS", nameof(options.MaxAttempts), value => options.MaxAttempts = value);
-        ApplyRootIntegerOverride("DECISIONS_TOOLS_TIMEOUT", nameof(options.TimeoutSeconds), value => options.TimeoutSeconds = value);
+        ApplyRootBooleanOverride(DecisionsToolsVariables[nameof(options.Enabled)], nameof(options.Enabled), value => options.Enabled = value);
+        ApplyRootStringOverride(DecisionsToolsVariables[nameof(options.BaseUrl)], nameof(options.BaseUrl), value => options.BaseUrl = value);
+        ApplyRootStringOverride(DecisionsToolsVariables[nameof(options.Path)], nameof(options.Path), value => options.Path = value);
+        ApplyRootStringOverride(DecisionsToolsVariables[nameof(options.Model)], nameof(options.Model), value => options.Model = value);
+        ApplyRootProbabilityOverride(DecisionsToolsVariables[nameof(options.MinProbability)], nameof(options.MinProbability), value => options.MinProbability = value);
+        ApplyRootIntegerOverride(DecisionsToolsVariables[nameof(options.MinKeepTools)], nameof(options.MinKeepTools), value => options.MinKeepTools = value);
+        ApplyRootStringOverride(DecisionsToolsVariables[nameof(options.AlwaysKeep)], nameof(options.AlwaysKeep), value => options.AlwaysKeep = value);
+        ApplyRootBooleanOverride(DecisionsToolsVariables[nameof(options.StickyPerSession)], nameof(options.StickyPerSession), value => options.StickyPerSession = value);
+        ApplyRootIntegerOverride(DecisionsToolsVariables[nameof(options.MaxAttempts)], nameof(options.MaxAttempts), value => options.MaxAttempts = value);
+        ApplyRootIntegerOverride(DecisionsToolsVariables[nameof(options.TimeoutSeconds)], nameof(options.TimeoutSeconds), value => options.TimeoutSeconds = value);
     }
 
     private void ApplyRootStringOverride(string variable, string propertyName, Action<string> apply)

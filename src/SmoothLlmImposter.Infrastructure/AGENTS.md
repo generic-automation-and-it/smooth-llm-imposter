@@ -41,18 +41,23 @@ Implements the contracts defined in Application — EF Core + PostgreSQL persist
 - `SqliteGithubCopilotConnectionStore` is opened with a nullable connection string: while the feature is disabled
   it has none and any open attempt throws rather than creating a file.
 
-## Decision service transport (HLD 014)
+## Decision service transport (HLD 014, HLD 015)
 
-- The `decisions-tools` client is auxiliary classification, not `imposter-upstream`: its full response body
+- The `decision-service` client is auxiliary classification, not `imposter-upstream`: its full response body
   must remain inside the attempt timeout. Reusing inference header-only resilience would leave body stalls unbounded.
-- The singleton lifetime and process-wide gate are a deliberate exception to the cached/scoped singular-client
-  convention; rationale and retry-status contract live in [LADR-04](../../.docs/hlds/014-decisions-tools-filter/ladrs/LADR-04-singleton-gate.md).
-  Do not turn its gate into per-scope state or introduce a cache during a transport refactor.
+- The process-wide gate is `DecisionServiceGate`, its own singleton that every client instance receives — never a
+  field on the client, or a second client registration would create a second budget ([HLD 015 LADR-03](../../.docs/hlds/015-shared-decision-model-integration/ladrs/LADR-03-shared-uncached-resource-budget.md)).
+  The uncached exception and retry-status contract live in [HLD 014 LADR-04](../../.docs/hlds/014-decisions-tools-filter/ladrs/LADR-04-singleton-gate.md).
+  Do not turn the gate into per-scope state or introduce a cache during a transport refactor.
+- The client reads `DecisionServiceOptions`, never the routing options. The resilience profile follows
+  `DecisionServiceDemand` (any consumer opted in), not a consumer's enable flag; with no consumer it uses defaults
+  so unvalidated settings never reach Polly.
 
 ## Changelog
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-24 | Decision transport made consumer-neutral (HLD 015): `DecisionServiceGate` singleton, client reads `DecisionServiceOptions`, profile follows the any-consumer predicate; named client `decisions-tools` → `decision-service` | #156 |
 | 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery); in-file links updated. No behavior change. | #152 |
 | 2026-10-22 | Auxiliary decisions-tools client; complete-response budget and shared gate | #138 |
 | 2026-10-20 | GitHub Copilot feature store: direct Microsoft.Data.Sqlite with parameterized ADO.NET (spike rejected Dapper.AOT — no .NET 10 interceptors on net10.0, so Dapper would run on reflection/ref-emit). Implements the Application-owned `IGithubCopilotConnectionStore`; feature-gated startup bootstrap opens no database while `ENABLE_GITHUB_COPILOT` is off. | `DependencyInjection`, `Persistence/GithubCopilot` (#126) |

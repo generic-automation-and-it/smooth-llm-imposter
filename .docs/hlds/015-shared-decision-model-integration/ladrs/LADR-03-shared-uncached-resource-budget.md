@@ -1,6 +1,6 @@
 # LADR-03: One uncached, process-wide service budget
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 
@@ -14,6 +14,8 @@
 
 Keep the integration uncached and without durable results. This preserves the deliberate exception to the repository's cached/scoped singular-client convention recorded in [HLD 014 LADR-04](../../014-decisions-tools-filter/ladrs/LADR-04-singleton-gate.md). Neither a scoped client nor a per-feature gate may turn the process-wide limit into several independent limits.
 
+The gate is a process-wide component in its own right, never a field on whichever client happens to be registered singleton; a per-consumer client registration would otherwise multiply the budget NFR-01 caps.
+
 This is a local budget, not distributed coordination or a fairness guarantee. The gate bounds locally admitted calls; it cannot prove that a remote request stopped executing after a timeout or disconnect.
 
 ## Consequences
@@ -21,6 +23,7 @@ This is a local budget, not distributed coordination or a fairness guarantee. Th
 - Independent consumers cannot accidentally overlap admitted decision calls.
 - Head-of-line blocking and admission timeout are accepted costs.
 - Multiple Host processes can still contend at the same remote service.
+- Implemented 2026-10-24: the gate is a dedicated singleton component that every client instance receives, so a second client registration cannot create a second budget.
 
 ## Open
 

@@ -1,6 +1,6 @@
 # NFR-03: Consumer-call isolation
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Requirement
 
