@@ -12,7 +12,7 @@
 
 **Remember, per session, the exact text forwarded for each human message the stage handled, and replay it.** The key is a hash of the original span text plus the optimizer version (optimizer model and instruction revision). The recorded outcome is what was actually forwarded: the accepted rewrite, or the original — after a negative gate answer, a discarded rewrite, or a failed or open optimizer. A remembered message makes no gate or optimizer call. The first recorded outcome for a key is final: concurrent requests carrying the same new candidate reuse it instead of calling the optimizer again. A message below the length minimum is not recorded, because the check is deterministic.
 
-The memory is in-process and bounded; it evicts whole sessions, least recently used first, so an active session never loses part of its history and an evicted session behaves like a restart (Open item 3). Any human message the memory does not hold is a candidate again (LADR-03). No marker is written into forwarded text, and audit comes from logs (hash, outcome, sizes — NFR-04).
+The memory is in-process and bounded; it evicts whole sessions, least recently used first, so an active session never loses part of its history and an evicted session behaves like a restart (Open item 3). Any human message the memory does not hold is a candidate again (LADR-03). A request without a captured session id (HLD 009) uses one process-wide scope keyed by the content hash alone: identical text always gets the same outcome, and a replay returns only the rewrite of that same text, so no other caller's content is involved. That scope evicts entries oldest-first, so a sessionless conversation can miss the cache once after eviction. No marker is written into forwarded text, and audit comes from logs (hash, outcome, sizes — NFR-04).
 
 ## Consequences
 
@@ -21,6 +21,3 @@ The memory is in-process and bounded; it evicts whole sessions, least recently u
 - A restart loses the memory: the conversation's history is rewritten again on the next request, possibly with different bytes, so it misses the cache once (Open item 3).
 - Storing the forwarded text keeps user content in process memory for the entry's lifetime.
 
-## Open
-
-- Scope for requests without a captured session id — Open item 8, before Prototype.

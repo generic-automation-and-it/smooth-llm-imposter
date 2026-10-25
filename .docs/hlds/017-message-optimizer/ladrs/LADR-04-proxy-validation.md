@@ -19,4 +19,4 @@ The optimizer's instructions state that its only job is the message's prose and 
 - Fidelity does not depend on the optimizer model's obedience (NFR-02).
 - Some useful rewrites are discarded, e.g. one that rephrases a negation correctly.
 - A retry adds a second generation call on the failing path only.
-- A discarded rewrite is remembered as "original" (LADR-05), so the turn is not retried on later requests.
+- A discarded rewrite is remembered as "original" (LADR-05), so the message is not retried on later requests.

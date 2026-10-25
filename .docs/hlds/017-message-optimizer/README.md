@@ -9,11 +9,9 @@
 | **Depends on** | HLD 015 amendment (see [Dependencies](#dependencies)) |
 | **Last updated** | 2026-10-25 |
 
-> Discovery HLD: intent and spec only. Sequencing and sub-issues live in the tracker.
-
 ## Intent
 
-Agent users type prose the end LLM does not need. An operator may opt into a proof-reader: the imposter asks the decision model whether each unhandled user message can be tightened and, if so, has an optimizer LLM rewrite it — filler gone, technical facts and payloads exact — before upstream. Default path unchanged. Cost: one decision and one optimizer call per unhandled message, in series, before first upstream byte; user text to two operator services; answer-quality risk measured first ([Open item 1](#open-items)).
+Agent users type prose the end LLM does not need. An operator may opt into a proof-reader: the imposter asks the decision model whether each unhandled user message can be tightened and, if so, has an optimizer LLM rewrite it — filler gone, technical facts and payloads exact — before upstream. Cost: up to one decision call and one optimizer call (plus at most one retry) per unhandled message, in series, before first upstream byte; user text to two operator services; answer-quality risk measured first ([Open item 1](#open-items)).
 
 This design narrows the routing transparent-proxy rule: the optimizer becomes a seventh sanctioned request-rewrite class and the first that rewrites `messages` content. The rule stays as written until this HLD is Accepted.
 
@@ -44,7 +42,7 @@ Messages shorter than optional `LLM_MESSAGES_MIN_CHARS` (default set from measur
 
 ### 3. Rewrite only what the user wrote
 
-Every human-authored message in the array not yet remembered is a candidate, handled one at a time ([LADR-03](ladrs/LADR-03-human-spans-only.md)). Harness spans, tool results, assistant turns, system prompts and non-text content pass through; reassembled around them. The optimizer removes filler, pleasantries, hedging and redundant phrasing and keeps code, inline code, URLs and links, paths, commands, slash and dollar commands, `@` mentions, tool, skill, hook, plugin and rule names, technical terms, proper nouns, numbers, versions, environment variables, negations and markdown structure. The proxy checks every rewrite ([LADR-04](ladrs/LADR-04-proxy-validation.md)).
+Every human-authored message in the array not yet remembered is a candidate, handled one at a time ([LADR-03](ladrs/LADR-03-human-spans-only.md)). Harness spans, tool results, assistant turns, system prompts and non-text content pass through; reassembled around them. The optimizer removes filler, pleasantries, hedging and redundant phrasing and keeps every protected element: code, links, commands, mentions, tool and skill names, numbers, negations and structure. The proxy checks every rewrite ([LADR-04](ladrs/LADR-04-proxy-validation.md)).
 
 **Acceptance criteria / DoD**
 
@@ -53,7 +51,7 @@ Every human-authored message in the array not yet remembered is a candidate, han
 
 ### 4. Rewrite once, replay forever
 
-Clients resend original history each turn, so an upstream marker never returns. The proxy remembers what it forwarded for each human message — optimized or original — keyed by a hash of the original text and optimizer version, and replays it later without model calls ([LADR-05](ladrs/LADR-05-proxy-side-memory.md)). No message compressed twice; cache prefix stable ([NFR-01](nfrs/NFR-01-cache-prefix-stability.md)).
+The proxy remembers what it forwarded for each human message — optimized or original — keyed by a hash of the original text and optimizer version, and replays it later without model calls ([LADR-05](ladrs/LADR-05-proxy-side-memory.md)). No message compressed twice; cache prefix stable ([NFR-01](nfrs/NFR-01-cache-prefix-stability.md)).
 
 **Acceptance criteria / DoD**
 
@@ -73,9 +71,17 @@ Both models optional, each behind its own circuit: one failed call (after retrie
 - Caller cancellation propagates, makes no upstream call and opens no circuit.
 - A failing or timed-out branch leaves the other branch's edit applied; overlapping edits forward the original; caller cancellation stops both.
 
+## Core Separation of Concerns
+
+> The models propose; the proxy decides what is forwarded.
+
+The gate answers "worth rewriting?" and the optimizer proposes text; the proxy owns span selection, validation, memory, circuits and the final body. Each optimization is a strategy returning an edit; a coordinator runs the enabled ones concurrently and merges them. Application owns those rules, Infrastructure the two transports, Host invokes the coordinator.
+
 ## Guiding Principle — Uncertainty forwards the original
 
-> When in doubt, send what the user wrote. NativeAOT is the repository baseline: every NFR is verified on the published native executable for `linux/amd64` and `linux/arm64`.
+> When in doubt, send what the user wrote.
+
+- NativeAOT baseline: NFRs verified on the published executable for both arches.
 
 ## Non-Goals
 
@@ -83,22 +89,22 @@ No tool-output compression/masking (tracked with tool-decision work); no history
 
 ## Dependencies
 
-HLD 015 supplies one transport, resilience and process-wide gate. This design needs a resolved profile per section, a circuit per section (HLD 014 LADR-11 pattern) and one admission gate per distinct endpoint+model, so shared-model sections take turns and different-endpoint sections run in parallel. HLD 015 amended separately.
+HLD 015 supplies one transport, resilience profile and process-wide gate. This design needs a resolved profile per section, a circuit per section (HLD 014 LADR-11 pattern) and one admission gate per distinct endpoint+model.
 
-HLD 014 is also amended: its tool filter returns an edit, matching the LADR-05/LADR-07 contract here. Both amendments ship as separate docs changes.
+HLD 014 LADR-05 and LADR-07 must also be amended: the tool filter returns an edit instead of a whole body (LADR-08). Neither amendment exists yet; both are separate docs changes required before implementation.
 
 ## Open items
 
-| # | Question | Recommendation (*Recorded* = already in #164; *Proposed* = new here, not yet agreed) |
+| # | Question | Recommendation (*Recorded* in #164; *Proposed* here, not yet agreed) |
 |---|---|---|
-| 1 | How is answer quality proven? CAVEWOMAN (arXiv 2606.24083) found caveman-styled prompts gave worse answers. | *Recorded:* A/B on tokens per task; probe recall, artifact trail, continuation, decisions (six dimensions); similarity scores are not evidence. Discovery exit gate. |
+| 1 | How is answer quality proven? CAVEWOMAN (arXiv 2606.24083) found caveman-styled prompts gave worse answers. | *Recorded:* A/B on tokens per task; probe recall, artifact trail, continuation, decisions (six dimensions); similarity scores are not evidence. Exit gate. |
 | 2 | Which turns may be rewritten? | *Resolved (2026-10-25, KISS):* every human message not yet remembered; remembered ones are replayed (LADR-03, LADR-05). |
-| 3 | Memory lost on restart; pre-enablement history never remembered; next request rewrites it, missing cache once. | *Proposed:* accept one cache miss per restart or enablement unless measurement shows otherwise. |
+| 3 | Restart or enablement: unremembered history is rewritten, missing the cache once. | *Proposed:* accept one cache miss per restart or enablement unless measurement shows otherwise. |
 | 4 | Responses API in scope? | *Proposed:* out of v1; revisit with a Codex measurement. |
 | 5 | Does the tool filter classify the original or the optimized text? | *Resolved:* original text — the branches run in parallel (LADR-08). |
 | 6 | Route scope? | *Recorded:* per-route opt-out (request-billed upstreams gain nothing, pay latency). *Proposed:* both route kinds otherwise. |
-| 7 | Latency ceiling for gate + rewrite? | *Proposed:* measure first. Messages are handled in series, so the first request after a restart or enablement pays one gate and one rewrite per unremembered message; a down or bypassed gate sends every one to the optimizer. The "time-to-first-byte is the slower branch" claim (LADR-02, LADR-08) is a latency attribute measured by stubbing branches that each delay: forward starts after the slower delay, not their sum. |
-| 8 | Memory scope without a captured session id (HLD 009)? | TBD — owner: maintainers, before Prototype. |
+| 7 | Latency ceiling for gate + rewrite? | *Proposed:* measure. First request after restart/enablement pays a gate call and a rewrite per unremembered message, in series; a down or bypassed gate sends each to the optimizer. Measure "time-to-first-byte is the slower branch" (LADR-02, LADR-08) with delayed stubs. |
+| 8 | Memory scope without a captured session id (HLD 009)? | *Resolved (2026-10-25):* one process-wide scope keyed by the content hash alone (LADR-05). |
 
 ## Diagrams
 
@@ -133,3 +139,4 @@ HLD 014 is also amended: its tool filter returns an edit, matching the LADR-05/L
 |---|---|---|
 | 2026-10-25 | Authored in Discovery from #164: LADR-01..07, NFR-01..04, Open items 1..8 | #164 |
 | 2026-10-25 | Amended: LADR-08 parallel strategies; per-message candidates (Q21); isolated optimizer requests; switch exclusion | #164 |
+| 2026-10-25 | Review fixes: Core Separation; HLD 014 dependency; Open item 8 resolved | #164 |
