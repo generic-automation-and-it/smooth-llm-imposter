@@ -320,16 +320,113 @@ public sealed class MessageOptimizationStrategyTests
         cache.Stored.ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task A_disabled_strategy_returns_no_edit()
+    {
+        const string body = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
+        var gate = new StubGate((_, _) => Task.FromResult(true));
+        var optimizer = new StubOptimizer((_, _, _) => Task.FromResult("Review `foo()`."));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer, enabled: false);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            Request("/v1/chat/completions", body), TestContext.Current.CancellationToken);
+
+        edit.IsNoOp.ShouldBeTrue();
+        gate.Calls.ShouldBe(0);
+        optimizer.Calls.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_malformed_body_returns_no_edit()
+    {
+        var gate = new StubGate((_, _) => Task.FromResult(true));
+        var optimizer = new StubOptimizer((_, _, _) => Task.FromResult("Review this."));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            Request("/v1/chat/completions", "{not json"), TestContext.Current.CancellationToken);
+
+        edit.IsNoOp.ShouldBeTrue();
+        gate.Calls.ShouldBe(0);
+        optimizer.Calls.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task A_bypassed_gate_goes_straight_to_the_optimizer()
+    {
+        const string body = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
+        var gate = new StubGate((_, _) => Task.FromResult(false));
+        var optimizer = new StubOptimizer((_, _, _) => Task.FromResult("Review `foo()`."));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer, gateEnabled: false);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            Request("/v1/chat/completions", body), TestContext.Current.CancellationToken);
+
+        edit.Patches.Single().Replacement!.GetValue<string>().ShouldBe("Review `foo()`.");
+        gate.Calls.ShouldBe(0);
+        optimizer.Calls.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task An_optimizer_cancellation_propagates_and_stores_nothing()
+    {
+        const string body = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var cache = new FakeCache();
+        var gate = new StubGate((_, _) => Task.FromResult(true));
+        var optimizer = new StubOptimizer((_, _, token) => Task.FromCanceled<string>(token));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer, cache);
+
+        await Should.ThrowAsync<OperationCanceledException>(() =>
+            strategy.OptimizeAsync(Request("/v1/chat/completions", body), cts.Token));
+
+        cache.Stored.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_chat_tool_result_turn_is_skipped()
+    {
+        const string body = """{"model":"x","messages":[{"role":"user","content":[{"type":"tool_result","tool_call_id":"x","content":"out"}]}]}""";
+        var gate = new StubGate((_, _) => Task.FromResult(true));
+        var optimizer = new StubOptimizer((_, _, _) => Task.FromResult("unused"));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            Request("/v1/chat/completions", body), TestContext.Current.CancellationToken);
+
+        edit.IsNoOp.ShouldBeTrue();
+        gate.Calls.ShouldBe(0);
+        optimizer.Calls.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task An_empty_content_message_returns_no_edit()
+    {
+        const string body = """{"model":"x","messages":[{"role":"user","content":[]}]}""";
+        var gate = new StubGate((_, _) => Task.FromResult(true));
+        var optimizer = new StubOptimizer((_, _, _) => Task.FromResult("unused"));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            Request("/v1/chat/completions", body), TestContext.Current.CancellationToken);
+
+        edit.IsNoOp.ShouldBeTrue();
+        gate.Calls.ShouldBe(0);
+        optimizer.Calls.ShouldBe(0);
+    }
+
     private static MessageOptimizationStrategy Create(
         StubGate gate,
         StubOptimizer optimizer,
         IMessageChecksumCache? cache = null,
         int minChars = 0,
-        bool gateEnabled = true)
+        bool gateEnabled = true,
+        bool enabled = true)
     {
         var options = new ImposterOptions
         {
-            LlmMessages = new LlmMessagesOptions { Enabled = true, Model = "opt-model", MinChars = minChars },
+            LlmMessages = new LlmMessagesOptions { Enabled = enabled, Model = "opt-model", MinChars = minChars },
             DecisionsMessages = new DecisionsMessagesOptions { Enabled = gateEnabled, MinProbability = 0.5 }
         };
         return new MessageOptimizationStrategy(

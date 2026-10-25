@@ -42,15 +42,26 @@ public sealed class MessageGateTests
     [InlineData("""{"answers":{"optimize":{"probabilities":{"optimize":1.5}}}}""")]
     public async Task A_missing_or_invalid_answer_throws(string envelope)
     {
-        var client = new StubClient(_ => JsonNode.Parse(envelope)!.AsObject());
+        var client = new StubClient((_, _) => JsonNode.Parse(envelope)!.AsObject());
         MessageGate gate = Build(client);
 
         await Should.ThrowAsync<InvalidOperationException>(() =>
             gate.CanOptimizeAsync("text", TestContext.Current.CancellationToken));
     }
 
+    [Fact]
+    public async Task Caller_cancellation_propagates()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        MessageGate gate = Build(new CancellingClient(cts.Token));
+
+        await Should.ThrowAsync<OperationCanceledException>(() =>
+            gate.CanOptimizeAsync("text", cts.Token));
+    }
+
     private static MessageGate Create(double probability, Action<JsonObject>? capture = null) =>
-        Build(new StubClient(request =>
+        Build(new StubClient((request, _) =>
         {
             capture?.Invoke(request);
             return Answers(probability);
@@ -73,9 +84,15 @@ public sealed class MessageGateTests
         }
     };
 
-    private sealed class StubClient(Func<JsonObject, JsonObject> decide) : IDecisionModelClient
+    private sealed class StubClient(Func<JsonObject, CancellationToken, JsonObject> decide) : IDecisionModelClient
     {
         public Task<JsonObject> DecideAsync(JsonObject request, CancellationToken cancellationToken) =>
-            Task.FromResult(decide(request));
+            Task.FromResult(decide(request, cancellationToken));
+    }
+
+    private sealed class CancellingClient(CancellationToken token) : IDecisionModelClient
+    {
+        public Task<JsonObject> DecideAsync(JsonObject request, CancellationToken cancellationToken) =>
+            Task.FromCanceled<JsonObject>(token);
     }
 }
