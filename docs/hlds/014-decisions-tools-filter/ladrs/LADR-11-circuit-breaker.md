@@ -21,8 +21,8 @@
 - **Scope: the tool-filter consumer only.** Other decision-service consumers keep their own circuit,
   because they can use different models and endpoints.
 - **What counts as a failure:** one logical classifier call that ends in failure after its retries —
-  transport errors, attempt timeouts, 5xx responses (including 504), and 4xx responses except 408 and 429, which signal a
-  configuration error such as an unknown model. Caller cancellation is not a failure, and neither is a
+  transport errors, attempt timeouts, 5xx responses (including 504), and 4xx responses (which signal a
+  configuration error such as an unknown model), except transient 408 and 429. Caller cancellation is not a failure, and neither is a
   local gate-wait timeout (contention, not a service fault).
 - **Trip rule:** a failure ratio of 1.0 with a minimum throughput of 1 in a 30-second window — a single
   failed call opens the circuit.
