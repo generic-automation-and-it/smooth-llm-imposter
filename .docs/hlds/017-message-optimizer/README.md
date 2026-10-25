@@ -13,7 +13,7 @@
 
 Agent users type prose the end LLM does not need. An operator may opt into a proof-reader: the imposter asks the decision model whether each unhandled user message can be tightened and, if so, has an optimizer LLM rewrite it — filler gone, technical facts and payloads exact — before upstream. Cost: up to one decision call and one optimizer call (plus at most one retry) per unhandled message, in series, before first upstream byte; user text to two operator services; answer-quality risk measured first ([Open item 1](#open-items)).
 
-This design narrows the routing transparent-proxy rule: the optimizer becomes a seventh sanctioned request-rewrite class (after (1) managed auth header, (2) caching injection, (3) request normalization, (4) session-identity forwarding, (5) decision-tool filtering and (6) first-seen tool ordering) and the first that rewrites `messages` content. The rule stays as written until this HLD is Accepted.
+This design narrows the routing transparent-proxy rule: the optimizer becomes an eighth sanctioned request-rewrite class (after (1) managed auth header, (2) caching injection, (3) request normalization, (4) session-identity forwarding, (5) decision-tool filtering, (6) first-seen tool ordering and (7) opt-in Messages->Chat bridging (HLD 016)) and the first that rewrites `messages` content. The rule stays as written until this HLD is Accepted.
 
 ## Key Goals
 
@@ -92,7 +92,7 @@ No tool-output compression/masking (tracked with tool-decision work); no history
 
 HLD 015 supplies one transport, resilience profile and process-wide gate. This design needs a resolved profile per section, a circuit per section (HLD 014 LADR-11 pattern) and one admission gate per distinct endpoint+model, amending HLD 015 LADR-03's single process-wide gate. HLD 014 LADR-05 and LADR-07 must also be amended: the tool filter returns an edit instead of a whole body (LADR-08).
 
-HLD 014 LADR-05 and LADR-07 must also be amended: the tool filter returns an edit instead of a whole body (LADR-08). Neither amendment exists yet; both are separate docs changes required before implementation.
+Neither amendment exists yet; both are separate docs changes required before implementation.
 
 ## Open items
 

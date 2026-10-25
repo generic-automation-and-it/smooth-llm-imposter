@@ -10,7 +10,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   carry provider name + model names only, plus the safe session token `session=captured|derived|none` (HLD 009) —
   never the raw session value or fingerprint inputs.
 - **Transparent proxy — do not strip or rewrite the request.** The forwarder relays the caller's inbound
-  headers and body to the upstream **unchanged**, with exactly six sanctioned request-rewrite classes: (1) the
+  headers and body to the upstream **unchanged**, with exactly seven sanctioned request-rewrite classes: (1) the
   **auth** header is managed (see below), (2) **caching injection** rewrites the body on a matched imposter
   route, (3) **opt-in request normalization** reshapes the body on a matched OpenAI imposter route that
   opted in (HLD 004 — see "Request normalization" below), and (4) **opt-in session-identity forwarding** stamps
