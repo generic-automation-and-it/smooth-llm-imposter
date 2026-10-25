@@ -228,9 +228,15 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         }
 
         if (string.IsNullOrWhiteSpace(options.BaseUrl) ||
-            !Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _))
+            !Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out Uri? baseUrl) ||
+            (baseUrl.Scheme != Uri.UriSchemeHttp && baseUrl.Scheme != Uri.UriSchemeHttps))
         {
-            failures.Add($"{prefix}:BaseUrl must be an absolute URL when enabled.");
+            failures.Add($"{prefix}:BaseUrl must be an absolute HTTP(S) URL when enabled.");
+        }
+
+        if (string.IsNullOrEmpty(options.Path) || !options.Path.StartsWith('/'))
+        {
+            failures.Add($"{prefix}:Path must start with '/'.");
         }
 
         if (options.MaxAttempts is < 1 or > 10)
@@ -244,10 +250,6 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         if (options.CircuitBreakSeconds is < 1 or > 3600)
         {
             failures.Add($"{prefix}:CircuitBreakSeconds must be between 1 and 3600 seconds.");
-        }
-        else if (!Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _))
-        {
-            failures.Add($"{prefix}:BaseUrl must be an absolute HTTP(S) URL.");
         }
 
         if (string.IsNullOrWhiteSpace(options.Model))
