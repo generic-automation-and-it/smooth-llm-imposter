@@ -43,6 +43,64 @@ public sealed class MessageRewriteValidatorTests
         result.FailedElements.ShouldContain(element => element.StartsWith(expectedKind + ":", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("Please make no changes.", "Make nothing change.", "negation")]
+    [InlineData("Please run /model now.", "Run /models now.", "slash")]
+    [InlineData("Please ask @review now.", "Ask @reviewer now.", "mention")]
+    [InlineData("Please set HOME now.", "Set MYHOME now.", "env")]
+    public void Rejects_a_token_that_only_appears_inside_another_word(
+        string original, string rewrite, string expectedKind)
+    {
+        MessageRewriteValidator.Result result = MessageRewriteValidator.Validate(original, rewrite);
+
+        result.IsValid.ShouldBeFalse();
+        result.FailedElements.ShouldContain(element => element.StartsWith(expectedKind + ":", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("Please kindly check `foo()` now.", "Check `foo()`.")]
+    [InlineData("Please kindly visit https://example.com/a now.", "Visit https://example.com/a.")]
+    [InlineData("Please kindly see [docs](https://example.com/l) now.", "See [docs](https://example.com/l).")]
+    [InlineData("Please kindly run /usr/bin/env now.", "Run /usr/bin/env.")]
+    [InlineData("Please kindly read src/Features/Routing/AGENTS.md now.", "Read src/Features/Routing/AGENTS.md.")]
+    [InlineData("Please kindly open C:\\temp\\file.txt now.", "Open C:\\temp\\file.txt.")]
+    [InlineData("Please kindly use 42 items now.", "Use 42 items.")]
+    [InlineData("Please kindly pin 10.0.403-rc.1 now.", "Pin 10.0.403-rc.1.")]
+    [InlineData("Please kindly set LLM_MESSAGES_ENABLED now.", "Set LLM_MESSAGES_ENABLED.")]
+    [InlineData("Please kindly do not delete this.", "Do not delete this.")]
+    [InlineData("Please kindly run /model now.", "Run /model.")]
+    [InlineData("Please kindly invoke $skill now.", "Invoke $skill.")]
+    [InlineData("Please kindly ask @reviewer now.", "Ask @reviewer.")]
+    [InlineData("Please kindly call config.value now.", "Call config.value.")]
+    [InlineData("Please kindly check user_id now.", "Check user_id.")]
+    [InlineData("Please kindly use getUser now.", "Use getUser.")]
+    public void Accepts_a_rewrite_that_preserves_one_protected_class(string original, string rewrite)
+    {
+        MessageRewriteValidator.Validate(original, rewrite).IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Accepts_a_rewrite_that_preserves_markdown_structure()
+    {
+        const string structure = "# Title\n- one\n  - two\n```\ncode\n```\n";
+        MessageRewriteValidator.Validate(
+            structure + "Please kindly review this.",
+            structure + "Review this.").IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Rejects_null_inputs()
+    {
+        MessageRewriteValidator.Validate(null!, "rewrite").FailedElements.ShouldContain("null-input");
+        MessageRewriteValidator.Validate("original", null!).FailedElements.ShouldContain("null-input");
+    }
+
+    [Fact]
+    public void Rejects_an_empty_rewrite()
+    {
+        MessageRewriteValidator.Validate("Please review this.", "").FailedElements.ShouldContain("length");
+    }
+
     [Fact]
     public void Requires_a_catalog_name_only_when_the_original_mentions_it()
     {

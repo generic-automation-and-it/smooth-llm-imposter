@@ -38,6 +38,26 @@ public static class MessageRewriteValidator
     private static readonly Regex Heading = new(@"(?m)^(#{1,6})\s", RegexOptions.Compiled);
     private static readonly Regex ListItem = new(@"(?m)^([ \t]*)(?:[-*+]|\d+\.)\s", RegexOptions.Compiled);
 
+    private static readonly (Regex Pattern, string Kind, bool IgnoreCase)[] TokenClasses =
+    [
+        (CodeSpan, "code", false),
+        (Url, "url", false),
+        (AbsolutePath, "path", false),
+        (RelativePath, "path", false),
+        (NestedRelativePath, "path", false),
+        (WindowsPath, "path", false),
+        (Number, "number", false),
+        (Version, "version", false),
+        (EnvVar, "env", false),
+        (Negation, "negation", true),
+        (SlashCommand, "slash", false),
+        (DollarCommand, "dollar", false),
+        (Mention, "mention", false),
+        (DottedIdentifier, "identifier", false),
+        (SnakeIdentifier, "identifier", false),
+        (CamelIdentifier, "identifier", false),
+    ];
+
     public static Result Validate(
         string original,
         string rewrite,
@@ -56,53 +76,30 @@ public static class MessageRewriteValidator
             failed.Add("length");
         }
 
-        RequireTokens(original, rewrite, CodeSpan, "code", failed);
-        RequireTokens(original, rewrite, Url, "url", failed);
+        foreach ((Regex pattern, string kind, bool ignoreCase) in TokenClasses)
+        {
+            RequireTokens(original, rewrite, pattern, kind, failed, ignoreCase);
+        }
         RequireMarkdownTargets(original, rewrite, failed);
-        RequireTokens(original, rewrite, AbsolutePath, "path", failed);
-        RequireTokens(original, rewrite, RelativePath, "path", failed);
-        RequireTokens(original, rewrite, NestedRelativePath, "path", failed);
-        RequireTokens(original, rewrite, WindowsPath, "path", failed);
-        RequireTokens(original, rewrite, Number, "number", failed);
-        RequireTokens(original, rewrite, Version, "version", failed);
-        RequireTokens(original, rewrite, EnvVar, "env", failed);
-        RequireTokens(original, rewrite, Negation, "negation", failed, ignoreCase: true);
-        RequireTokens(original, rewrite, SlashCommand, "slash", failed);
-        RequireTokens(original, rewrite, DollarCommand, "dollar", failed);
-        RequireTokens(original, rewrite, Mention, "mention", failed);
-        RequireTokens(original, rewrite, DottedIdentifier, "identifier", failed);
-        RequireTokens(original, rewrite, SnakeIdentifier, "identifier", failed);
-        RequireTokens(original, rewrite, CamelIdentifier, "identifier", failed);
 
         if (protectedNames is not null)
         {
             foreach (string name in protectedNames)
             {
                 if (!string.IsNullOrWhiteSpace(name) &&
-                    original.Contains(name, StringComparison.Ordinal) &&
-                    !rewrite.Contains(name, StringComparison.Ordinal))
+                    ContainsToken(original, name, ignoreCase: false) &&
+                    !ContainsToken(rewrite, name, ignoreCase: false))
                 {
                     failed.Add($"name:{name}");
                 }
             }
         }
 
-        RejectIntroduced(original, rewrite, CodeSpan, "code", failed);
-        RejectIntroduced(original, rewrite, Url, "url", failed);
+        foreach ((Regex pattern, string kind, bool ignoreCase) in TokenClasses)
+        {
+            RejectIntroduced(original, rewrite, pattern, kind, failed, ignoreCase);
+        }
         RejectIntroducedMarkdownTargets(original, rewrite, failed);
-        RejectIntroduced(original, rewrite, AbsolutePath, "path", failed);
-        RejectIntroduced(original, rewrite, RelativePath, "path", failed);
-        RejectIntroduced(original, rewrite, NestedRelativePath, "path", failed);
-        RejectIntroduced(original, rewrite, WindowsPath, "path", failed);
-        RejectIntroduced(original, rewrite, Number, "number", failed);
-        RejectIntroduced(original, rewrite, Version, "version", failed);
-        RejectIntroduced(original, rewrite, EnvVar, "env", failed);
-        RejectIntroduced(original, rewrite, SlashCommand, "slash", failed);
-        RejectIntroduced(original, rewrite, DollarCommand, "dollar", failed);
-        RejectIntroduced(original, rewrite, Mention, "mention", failed);
-        RejectIntroduced(original, rewrite, DottedIdentifier, "identifier", failed);
-        RejectIntroduced(original, rewrite, SnakeIdentifier, "identifier", failed);
-        RejectIntroduced(original, rewrite, CamelIdentifier, "identifier", failed);
 
         foreach (Match tag in HarnessTag.Matches(rewrite))
         {
@@ -183,10 +180,7 @@ public static class MessageRewriteValidator
     {
         foreach (string token in Tokens(pattern, original))
         {
-            bool present = ignoreCase
-                ? rewrite.Contains(token, StringComparison.OrdinalIgnoreCase)
-                : rewrite.Contains(token, StringComparison.Ordinal);
-            if (!present)
+            if (!ContainsToken(rewrite, token, ignoreCase))
             {
                 failed.Add($"{kind}:{token}");
             }
@@ -197,19 +191,25 @@ public static class MessageRewriteValidator
     {
         foreach (Match match in MarkdownLinkTarget.Matches(original))
         {
-            string target = match.Groups["target"].Value;
-            if (!rewrite.Contains(target, StringComparison.Ordinal))
+            string target = TrimTerminalPunctuation(match.Groups["target"].Value);
+            if (!ContainsToken(rewrite, target, ignoreCase: false))
             {
                 failed.Add($"link:{target}");
             }
         }
     }
 
-    private static void RejectIntroduced(string original, string rewrite, Regex pattern, string kind, List<string> failed)
+    private static void RejectIntroduced(
+        string original,
+        string rewrite,
+        Regex pattern,
+        string kind,
+        List<string> failed,
+        bool ignoreCase)
     {
         foreach (string token in Tokens(pattern, rewrite))
         {
-            if (!original.Contains(token, StringComparison.Ordinal))
+            if (!ContainsToken(original, token, ignoreCase))
             {
                 failed.Add($"introduced-{kind}:{token}");
             }
@@ -220,16 +220,42 @@ public static class MessageRewriteValidator
     {
         foreach (Match match in MarkdownLinkTarget.Matches(rewrite))
         {
-            string target = match.Groups["target"].Value;
-            if (!original.Contains(target, StringComparison.Ordinal))
+            string target = TrimTerminalPunctuation(match.Groups["target"].Value);
+            if (!ContainsToken(original, target, ignoreCase: false))
             {
                 failed.Add($"introduced-link:{target}");
             }
         }
     }
 
+    private static bool ContainsToken(string text, string token, bool ignoreCase)
+    {
+        StringComparison comparison = ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        int index = 0;
+        while (index < text.Length && (index = text.IndexOf(token, index, comparison)) >= 0)
+        {
+            bool startBounded = index == 0 || !IsWordChar(token[0]) || !IsWordChar(text[index - 1]);
+            int end = index + token.Length;
+            bool endBounded = end >= text.Length || !IsWordChar(token[^1]) || !IsWordChar(text[end]);
+            if (startBounded && endBounded)
+            {
+                return true;
+            }
+            index++;
+        }
+        return false;
+    }
+
+    private static bool IsWordChar(char character) => char.IsLetterOrDigit(character) || character == '_';
+
     private static IEnumerable<string> Tokens(Regex pattern, string text) =>
-        pattern.Matches(text).Select(static match => match.Value).Distinct(StringComparer.Ordinal);
+        pattern.Matches(text)
+            .Select(static match => TrimTerminalPunctuation(match.Value))
+            .Where(static value => value.Length > 0)
+            .Distinct(StringComparer.Ordinal);
+
+    private static string TrimTerminalPunctuation(string value) =>
+        value.TrimEnd('.', ',', ';', ':', '!');
 
     private static void RequireSameStructure(
         string original,
