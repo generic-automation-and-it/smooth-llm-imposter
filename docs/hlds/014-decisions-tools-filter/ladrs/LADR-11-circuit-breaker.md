@@ -1,6 +1,6 @@
 # LADR-11: Circuit breaker on tool-filter classifier calls
 
-**Status:** Accepted (2026-10-25) — not yet implemented
+**Status:** Accepted (2026-10-25) — implemented
 
 ## Context
 
@@ -21,8 +21,8 @@
 - **Scope: the tool-filter consumer only.** Other decision-service consumers keep their own circuit,
   because they can use different models and endpoints.
 - **What counts as a failure:** one logical classifier call that ends in failure after its retries —
-  transport errors, attempt timeouts, 5xx responses (including 504), and 4xx responses, which signal a
-  configuration error such as an unknown model. Caller cancellation is not a failure, and neither is a
+  transport errors, attempt timeouts, 5xx responses (including 504), and 4xx responses (which signal a
+  configuration error such as an unknown model), except transient 408 and 429. Caller cancellation is not a failure, and neither is a
   local gate-wait timeout (contention, not a service fault).
 - **Trip rule:** a failure ratio of 1.0 with a minimum throughput of 1 in a 30-second window — a single
   failed call opens the circuit.
@@ -53,6 +53,10 @@
   forwarded whole meanwhile, which is the safe direction.
 - A second decision-service consumer needs its own breaker instance, so a shared resilience pipeline
   cannot hold one process-wide breaker for all consumers.
+
+## Implementation outcome (2026-10-25)
+
+Implemented as an Application-owned consumer singleton (`DecisionCircuitBreaker`, `Features/Routing/Decisions`) consulted by the filter before the client call, so an open circuit never reaches the gate. Failure classification treats 4xx as a configuration fault except 408 and 429, which are transient. A dedicated `DecisionServiceTimeoutException` (wrapped by the transport from the resilience library's timeout) and `DecisionGateTimeoutException` (thrown by the gate) keep classification off exception text. After the cooldown one caller wins a trial admission; a cancelled trial clears the admission so it cannot wedge the circuit, and only a trial's success closes the circuit (a pass admitted before the open cannot close it).
 
 ## Revisit when
 

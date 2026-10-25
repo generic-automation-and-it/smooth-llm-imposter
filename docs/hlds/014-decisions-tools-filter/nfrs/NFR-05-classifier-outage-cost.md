@@ -1,6 +1,6 @@
 # NFR-05: Classifier outage cost
 
-**Status:** Accepted (2026-10-25) — not yet implemented
+**Status:** Accepted (2026-10-25) — implemented
 
 ## Requirement
 

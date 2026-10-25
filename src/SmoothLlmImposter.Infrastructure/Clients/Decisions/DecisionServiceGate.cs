@@ -1,3 +1,5 @@
+using SmoothLlmImposter.Application.Common.Clients.Decisions;
+
 namespace SmoothLlmImposter.Infrastructure.Clients.Decisions;
 
 /// <summary>
@@ -12,7 +14,7 @@ internal sealed class DecisionServiceGate : IDisposable
     {
         if (!await _semaphore.WaitAsync(timeout, cancellationToken))
         {
-            throw new TimeoutException("The decision service concurrency gate timed out.");
+            throw new DecisionGateTimeoutException("The decision service concurrency gate timed out.");
         }
 
         return new Admission(_semaphore);
