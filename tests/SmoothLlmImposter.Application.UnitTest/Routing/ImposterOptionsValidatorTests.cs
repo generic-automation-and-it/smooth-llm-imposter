@@ -382,4 +382,111 @@ public class ImposterOptionsValidatorTests
         var provider = new ProviderOptions { Dialect = "openai", BaseUrl = "https://a.example", SessionForwarding = forwarding };
         _validator.Validate(null, Options(("a", provider))).Succeeded.ShouldBeTrue();
     }
+
+    [Fact]
+    public void Disabled_optimizer_ignores_invalid_settings()
+    {
+        var options = Options(Valid("a"));
+        options.LlmMessages.Enabled = false;
+        options.LlmMessages.BaseUrl = "not-a-url";
+        options.LlmMessages.Model = "";
+        options.LlmMessages.CacheTtlHours = 0;
+        options.LlmMessages.MaxAttempts = 0;
+        options.LlmMessages.TimeoutSeconds = 0;
+        options.LlmMessages.CircuitBreakSeconds = 0;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Enabled_optimizer_accepts_complete_settings()
+    {
+        var options = Options(Valid("a"));
+        options.LlmMessages.Enabled = true;
+        options.LlmMessages.BaseUrl = "https://opt.example";
+        options.LlmMessages.Model = "opt-model";
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("ftp://opt.example")]
+    [InlineData("relative/path")]
+    public void Enabled_optimizer_requires_an_absolute_http_url(string baseUrl)
+    {
+        var options = Options(Valid("a"));
+        options.LlmMessages.Enabled = true;
+        options.LlmMessages.Model = "opt-model";
+        options.LlmMessages.BaseUrl = baseUrl;
+
+        _validator.Validate(null, options).Failed.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(121)]
+    public void Enabled_optimizer_rejects_cache_ttl_outside_one_to_120_hours(int hours)
+    {
+        var options = Options(Valid("a"));
+        options.LlmMessages.Enabled = true;
+        options.LlmMessages.BaseUrl = "https://opt.example";
+        options.LlmMessages.Model = "opt-model";
+        options.LlmMessages.CacheTtlHours = hours;
+
+        _validator.Validate(null, options).Failed.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(11)]
+    public void Enabled_optimizer_rejects_max_attempts_outside_range(int attempts)
+    {
+        var options = Options(Valid("a"));
+        options.LlmMessages.Enabled = true;
+        options.LlmMessages.BaseUrl = "https://opt.example";
+        options.LlmMessages.Model = "opt-model";
+        options.LlmMessages.MaxAttempts = attempts;
+
+        _validator.Validate(null, options).Failed.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3601)]
+    public void Enabled_optimizer_rejects_timeout_outside_range(int seconds)
+    {
+        var options = Options(Valid("a"));
+        options.LlmMessages.Enabled = true;
+        options.LlmMessages.BaseUrl = "https://opt.example";
+        options.LlmMessages.Model = "opt-model";
+        options.LlmMessages.TimeoutSeconds = seconds;
+
+        _validator.Validate(null, options).Failed.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3601)]
+    public void Enabled_optimizer_rejects_circuit_break_outside_range(int seconds)
+    {
+        var options = Options(Valid("a"));
+        options.LlmMessages.Enabled = true;
+        options.LlmMessages.BaseUrl = "https://opt.example";
+        options.LlmMessages.Model = "opt-model";
+        options.LlmMessages.CircuitBreakSeconds = seconds;
+
+        _validator.Validate(null, options).Failed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Enabled_optimizer_requires_a_model()
+    {
+        var options = Options(Valid("a"));
+        options.LlmMessages.Enabled = true;
+        options.LlmMessages.BaseUrl = "https://opt.example";
+        options.LlmMessages.Model = " ";
+
+        _validator.Validate(null, options).Failed.ShouldBeTrue();
+    }
 }

@@ -143,6 +143,15 @@ internal sealed class ImposterOptionsPostConfigure(
             options.DecisionsMessages.Enabled = options.LlmMessages.Enabled;
         }
 
+        // The gate has no effect while the optimizer is off, whatever its own value says (LADR-06).
+        // Leaving it enabled would opt the message consumer into the shared decision demand.
+        if (!options.LlmMessages.Enabled && options.DecisionsMessages.Enabled)
+        {
+            logger.LogInformation(
+                "DECISIONS_MESSAGES_ENABLED is ignored while LLM_MESSAGES_ENABLED is off; the message gate is disabled.");
+            options.DecisionsMessages.Enabled = false;
+        }
+
         foreach ((string key, ProviderOptions provider) in options.Providers)
         {
             string prefix = ToEnvPrefix(key);
