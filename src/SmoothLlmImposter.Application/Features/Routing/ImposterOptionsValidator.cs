@@ -245,6 +245,10 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         {
             failures.Add($"{prefix}:CircuitBreakSeconds must be between 1 and 3600 seconds.");
         }
+        else if (!Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _))
+        {
+            failures.Add($"{prefix}:BaseUrl must be an absolute HTTP(S) URL.");
+        }
 
         if (string.IsNullOrWhiteSpace(options.Model))
         {

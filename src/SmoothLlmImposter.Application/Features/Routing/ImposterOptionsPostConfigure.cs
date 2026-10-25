@@ -134,8 +134,11 @@ internal sealed class ImposterOptionsPostConfigure(
 
         ApplyLlmMessagesOverrides(options.LlmMessages);
 
-        // DECISIONS_MESSAGES_ENABLED unset takes LLM_MESSAGES_ENABLED value (LADR-06).
-        if (string.IsNullOrWhiteSpace(configuration["DECISIONS_MESSAGES_ENABLED"]))
+        // DECISIONS_MESSAGES_ENABLED unset (neither conventional env nor structured config) takes
+        // LLM_MESSAGES_ENABLED value (LADR-06). Never overwrite an explicit structured/appsettings value.
+        bool conventionalSet = !string.IsNullOrWhiteSpace(configuration["DECISIONS_MESSAGES_ENABLED"]);
+        bool structuredSet = !string.IsNullOrWhiteSpace(configuration["Imposter:DecisionsMessages:Enabled"]);
+        if (!conventionalSet && !structuredSet)
         {
             options.DecisionsMessages.Enabled = options.LlmMessages.Enabled;
         }
