@@ -227,9 +227,23 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
             failures.Add($"{prefix}:CacheTtlHours must be between 1 and 120.");
         }
 
-        if (string.IsNullOrWhiteSpace(options.BaseUrl))
+        if (string.IsNullOrWhiteSpace(options.BaseUrl) ||
+            !Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _))
         {
-            failures.Add($"{prefix}:BaseUrl is required when enabled.");
+            failures.Add($"{prefix}:BaseUrl must be an absolute URL when enabled.");
+        }
+
+        if (options.MaxAttempts is < 1 or > 10)
+        {
+            failures.Add($"{prefix}:MaxAttempts must be between 1 and 10.");
+        }
+        if (options.TimeoutSeconds is < 1 or > 3600)
+        {
+            failures.Add($"{prefix}:TimeoutSeconds must be between 1 and 3600 seconds.");
+        }
+        if (options.CircuitBreakSeconds is < 1 or > 3600)
+        {
+            failures.Add($"{prefix}:CircuitBreakSeconds must be between 1 and 3600 seconds.");
         }
 
         if (string.IsNullOrWhiteSpace(options.Model))
