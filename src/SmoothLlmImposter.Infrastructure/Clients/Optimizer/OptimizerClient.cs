@@ -37,7 +37,8 @@ internal sealed class OptimizerClient(
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                using var message = new HttpRequestMessage(HttpMethod.Post, settings.BaseUrl.TrimEnd('/') + settings.Path)
+                string path = string.IsNullOrWhiteSpace(settings.Path) ? "/v1/chat/completions" : settings.Path;
+                using var message = new HttpRequestMessage(HttpMethod.Post, settings.BaseUrl.TrimEnd('/') + path)
                 {
                     Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json")
                 };
