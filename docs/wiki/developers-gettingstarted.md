@@ -2,7 +2,7 @@
 
 Build, run, and test SmoothLlmImposter from source. For running the router in a packaged or
 deployed form (Docker, GHCR image, Compose) see the run-mode guides under
-[`.docs/wiki/setups/`](setups/) and the master [`.docs/wiki/setup.md`](setup.md).
+[`docs/wiki/setups/`](setups/) and the master [`docs/wiki/setup.md`](setup.md).
 
 ## Prerequisites
 
@@ -44,4 +44,4 @@ dotnet test SmoothLlmImposter.slnx
 ```
 
 Tests are infra-free (no DB, no containers); integration tests stub the upstream transport in-process. See
-[`.docs/wiki/testing.md`](testing.md).
+[`docs/wiki/testing.md`](testing.md).

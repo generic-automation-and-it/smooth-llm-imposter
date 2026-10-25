@@ -2,7 +2,7 @@
 #
 # Multi-stage build for the SmoothLlmImposter Host. The published GHCR image is
 # built from this file; you can also build it locally with Docker or Podman. See
-# .docs/wiki/setups/docker.run-smooth-llm-imposter.md for local build
+# docs/wiki/setups/docker.run-smooth-llm-imposter.md for local build
 # instructions.
 #
 # The build publishes NativeAOT (`-p:PublishAot=true`): a ~25 MB self-contained
@@ -58,5 +58,5 @@ USER $APP_UID
 
 # No in-image HEALTHCHECK is defined (deferred — probe
 # http://localhost:5080/health from the host, see
-# .docs/wiki/setups/docker.run-smooth-llm-imposter.md).
+# docs/wiki/setups/docker.run-smooth-llm-imposter.md).
 ENTRYPOINT ["./SmoothLlmImposter.Host"]

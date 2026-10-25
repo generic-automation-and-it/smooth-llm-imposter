@@ -1,7 +1,7 @@
 # Design documents (HLDs)
 
 Design detail — actors, request flow, routing decision, NFRs, and decision records — lives in the HLDs
-under [`.docs/hlds/`](../hlds/). Keep this index in sync when an HLD is created, removed, or changes status.
+under [`docs/hlds/`](../hlds/). Keep this index in sync when an HLD is created, removed, or changes status.
 
 | HLD | Status | Covers |
 |---|---|---|

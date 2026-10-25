@@ -69,7 +69,7 @@ path: the short-circuit runs before the forwarder; the translation runs after
   the simpler contract for the expected volume.
 - **Persisted to disk / DB** — rejected: the rest of SmoothLlmImposter is
   stateless and key-less (no DB in the default install — see
-  `.docs/hlds/008-runtime-config-crud/`). Persistence would require a new
+  `docs/hlds/008-runtime-config-crud/`). Persistence would require a new
   storage surface, contradicting the project's defaults.
 - **Header-based translation** (e.g. translate `x-opencode-session: caller-id`
   to `x-opencode-session: synthetic-id` only) — rejected: the resolved session

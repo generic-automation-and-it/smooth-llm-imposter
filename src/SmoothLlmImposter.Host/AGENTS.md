@@ -51,7 +51,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   `/responses`), with `wire_api = "responses"` and `requires_openai_auth = true` (Codex then sends its
   ChatGPT/subscription auth, which the router forwards on passthrough or replaces on a matched imposter route).
   `wire_api` stays `responses` even when the matched upstream speaks `chat_completions` — the Host bridges
-  Responses↔Chat (above). The run-mode setup docs under `.docs/wiki/setups/` write this file with that mode's
+  Responses↔Chat (above). The run-mode setup docs under `docs/wiki/setups/` write this file with that mode's
   published port; keep the port and prefix aligned there (root `AGENTS.md` carries this drift rule).
 - **Logging is config-driven, applied in code.** `Program.cs` sets a baseline `MinimumLevel.Information()` then applies the `Serilog:MinimumLevel:Default` / `Override:*` settings from `appsettings.json` / env vars explicitly (the old
   `Logging` section was dead config — Serilog never read it). `ReadFrom.Configuration` is deliberately not used: its assembly scanning finds no assemblies in a single-file NativeAOT binary, so the override surface would silently stop working there. Only `MinimumLevel:Default` / `Override:*` are read — `WriteTo` / `Enrich` / `Properties` config sections are ignored (no shipped config used them). Options DTOs must use mutable setters on bindable leaves — the config binding source generator silently emits no assignment for init-only properties (JIT reflection binds them, AOT stays default). `RoutingEndpoints` logs a **Debug** full-inbound-request
@@ -63,7 +63,7 @@ ASP.NET Core composition root (Minimal API). Wires the application together and 
   `AuthHeader` (e.g. `api-key`) is masked only in the **forwarder's outbound** dump. So a caller that sends its
   credential in a non-standard inbound header is not masked here — a known Debug-only gap. Enable
   with `Serilog__MinimumLevel__Override__SmoothLlmImposter.Routing=Debug`. See
-  `.docs/wiki/setups/logging.debug-smooth-llm-imposter.md`.
+  `docs/wiki/setups/logging.debug-smooth-llm-imposter.md`.
 - **Process-level last-resort crash logging is wired in `Program.cs`.** The Host subscribes to
   `AppDomain.CurrentDomain.UnhandledException` and `TaskScheduler.UnobservedTaskException` after `builder.Build()`
   so faults that escape request execution still get logged through DI-backed `ILogger` before process teardown.
