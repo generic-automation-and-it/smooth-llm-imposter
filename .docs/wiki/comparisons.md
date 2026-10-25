@@ -9,6 +9,7 @@ Legend: ✅ yes · ❌ no · ◐ partial · 🔜 planned. Sources: CCR README (`
 - **Routes subscriptions, not just API keys.** Forwards caller subscription credentials (`claude setup-token`, ChatGPT session) or per-provider subscription bearers; opt-in GitHub Copilot OAuth pair (HLD 013). CCR imports OAuth logins into its own credential pool; LiteLLM is virtual-keys-over-paid-keys.
 - **Key-less routing, single native binary.** .NET NativeAOT, ~73 MB non-root Alpine. Persistence exists where needed (Copilot OAuth SQLite, optional credential store) and may grow — statelessness is not the differentiator.
 - **Cache + tool work nobody else bundles.** Per-mapping cache injection, stable tool ordering, decision-model tool pre-filter with per-session sticky selection (HLD 014), opencode session forwarding (HLD 009), `--who?`/`--newsession` zero-upstream-call probes + skills (HLD 010).
+- **Cross-dialect bridge, not just same-dialect routing.** Opt-in Anthropic Messages→Chat Completions bridge lets Claude Code use Chat-only upstreams with local token counting, Messages-shaped errors/usage and validated tool arguments (HLD 016).
 - **Upstream-specific fixes.** Codex→OpenAI-SDK shape (HLD 004), Responses→Chat downgrade + history normalization (HLD 006), ZDR `encrypted_content` stripping (HLD 011), per-provider timeout ladder (HLD 012).
 - **Built for local dev across TUIs + CLIs, not a company router.** Single dev runs it for Claude Code, Codex and friends; no multi-tenant keys, teams, spend limits or shared-state clustering. Chain behind LiteLLM/CCR for those (see [README "how to combine it"](../../README.md#why-this-exists--and-how-to-combine-it)).
 
@@ -30,19 +31,14 @@ Legend: ✅ yes · ❌ no · ◐ partial · 🔜 planned. Sources: CCR README (`
 | `--who?` / `--newsession` zero-call probes + skills | ✅ (HLD 010) | ◐ (resolved-route logs only) | ❌ |
 | Codex→OpenAI-SDK transformer | ✅ (HLD 004) | ✅ (`apply_patch` bridge) | ✅ (OpenAI-format unification) |
 | Responses→Chat downgrade + history normalization | ✅ (HLD 006) | ✅ (multi-protocol) | ✅ |
+| Anthropic Messages → Chat bridge (Claude Code on Chat-only upstreams) | ✅ (HLD 016) | ✅ (gateway translation) | ✅ (cross-provider translation) |
+| Shared decision-model integration | ✅ (HLD 015) | ❌ | ❌ |
 | ZDR `encrypted_content` stripping | ✅ (HLD 011) | ❌ | ◐ (affinity handling) |
 | Per-provider upstream timeout ladder | ✅ (HLD 012) | ◐ (retry backoff only) | ✅ (timeouts + retries) |
 | Runtime provider CRUD admin API | ✅ (HLD 008) | ✅ (mgmt UI + API) | ✅ (keys/teams/models APIs + UI) |
 | GitHub Copilot opt-in provider pair | ✅ (HLD 013) | ❌ | ◐ (Copilot as provider) |
 | `/v1/models` aggregation | ✅ (HLD 005) | ✅ (catalog + discovery) | ✅ (model discovery) |
 | Full inbound request debug dump | ✅ | ✅ (body capture budget) | ✅ (callbacks, redaction flags) |
-
-### Planned (imposter)
-
-| Feature | Imposter | CCR | LiteLLM |
-|---|---|---|---|
-| Anthropic Messages → Chat bridge | 🔜 (HLD 016, spec in progress) | ✅ (gateway translation) | ✅ (cross-provider translation) |
-| Shared decision-model integration | 🔜 (HLD 015, discovery) | ❌ | ❌ |
 
 ### Competitor-led (imposter has no equivalent)
 
@@ -60,5 +56,5 @@ Legend: ✅ yes · ❌ no · ◐ partial · 🔜 planned. Sources: CCR README (`
 
 ## When to chain instead of replace
 
-- Need Chat-only upstream from Claude Code today → put CCR behind the imposter (imposter routes/caches/filters, CCR translates). Costs one hop + Node runtime; cache breakpoints lost at CCR step.
+- Need a Chat-only upstream from Claude Code → enable the imposter's opt-in Messages→Chat bridge (HLD 016, `AnthropicUpstreamApi: chat_completions`); no extra hop. Chain CCR only for capabilities the bridge does not cover (hosted tools, other protocols, non-Claude clients).
 - Need billing, guardrails, non-LLM endpoints → put LiteLLM in front or behind (README "how to combine it").
