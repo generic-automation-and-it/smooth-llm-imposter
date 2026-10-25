@@ -8,11 +8,13 @@ using Polly;
 using Polly.Timeout;
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
 using SmoothLlmImposter.Application.Common.Clients.GithubCopilot;
+using SmoothLlmImposter.Application.Common.Clients.Optimizer;
 using SmoothLlmImposter.Application.Common.Persistence;
 using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Infrastructure.Clients.GithubCopilot;
 using SmoothLlmImposter.Infrastructure.Clients.Decisions;
+using SmoothLlmImposter.Infrastructure.Clients.Optimizer;
 using SmoothLlmImposter.Infrastructure.Persistence;
 using SmoothLlmImposter.Infrastructure.Persistence.GithubCopilot;
 using SmoothLlmImposter.Infrastructure.Persistence.Stores;
@@ -85,6 +87,10 @@ public static class DependencyInjection
         services.TryAddSingleton<DecisionServiceDemand>();
         services.AddSingleton<DecisionServiceGate>();
         services.AddSingleton<IDecisionModelClient, DecisionModelClient>();
+
+        services.AddHttpClient(OptimizerClient.HttpClientName, client =>
+            client.Timeout = Timeout.InfiniteTimeSpan);
+        services.AddSingleton<IOptimizerClient, OptimizerClient>();
 
         services.AddHttpClient(UpstreamForwarder.HttpClientName, client =>
             client.Timeout = Timeout.InfiniteTimeSpan)
