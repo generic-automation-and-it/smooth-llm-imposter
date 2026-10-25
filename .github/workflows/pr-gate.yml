@@ -47,7 +47,9 @@ jobs:
 
     env:
       BUILD_CONFIGURATION: Release
-      DOTNET_VERSION: 10.0.x
+      # Exact pin: setup-dotnet resolves "10.0.x" through aka.ms, whose CDN can redirect to the
+      # unavailable dotnetorigin host; an exact version downloads from builds.dotnet.microsoft.com.
+      DOTNET_VERSION: 10.0.403
 
     services:
       wiremock:
