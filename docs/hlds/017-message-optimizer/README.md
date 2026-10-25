@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | In Discovery |
+| **Status** | Accepted |
 | **Initiative** | LLM-Optimization |
 | **Owner** | SmoothLlmImposter maintainers |
 | **Tracker** | [GitHub #164](https://github.com/generic-automation-and-it/smooth-llm-imposter/issues/164) |
@@ -91,9 +91,9 @@ No tool-output compression/masking (tracked with tool-decision work); no history
 
 ## Dependencies
 
-HLD 015 supplies one transport, resilience profile and process-wide gate. This design needs a resolved profile per section, a circuit per section (HLD 014 LADR-11 pattern) and one admission gate per distinct endpoint+model, amending HLD 015 LADR-03's single process-wide gate — see HLD 015 [LADR-05](../015-shared-decision-model-integration/ladrs/LADR-05-per-section-profiles-circuits-gates.md) (Draft). HLD 014 LADR-05 and LADR-07 must also be amended: the tool filter returns an edit instead of a whole body (LADR-08), and the shared session-scoped memory (HLD 014 LADR-09) gains a per-instance lifetime and an uncapped mode.
+HLD 015 supplies one transport, resilience profile and process-wide gate. This design needs a resolved profile per section, a circuit per section (HLD 014 LADR-11 pattern) and one admission gate per distinct endpoint+model, amending HLD 015 LADR-03's single process-wide gate — see HLD 015 [LADR-05](../015-shared-decision-model-integration/ladrs/LADR-05-per-section-profiles-circuits-gates.md) (Accepted). HLD 014 LADR-05 and LADR-07 must also be amended: the tool filter returns an edit instead of a whole body (LADR-08), and the shared session-scoped memory (HLD 014 LADR-09) gains a per-instance lifetime and an uncapped mode.
 
-The HLD 015 amendment exists as Draft LADR-05; the HLD 014 edit-return amendment exists as Draft [LADR-12](../014-decisions-tools-filter/ladrs/LADR-12-tool-filter-returns-edit.md).
+The HLD 015 amendment is Accepted as LADR-05; the HLD 014 edit-return amendment is Accepted as [LADR-12](../014-decisions-tools-filter/ladrs/LADR-12-tool-filter-returns-edit.md).
 
 ## Open items
 
@@ -145,3 +145,4 @@ The HLD 015 amendment exists as Draft LADR-05; the HLD 014 edit-return amendment
 | 2026-10-25 | LADR-05: session-scoped checksum cache, in memory, sliding TTL ≤ 5 days, uncapped; sessionless not cached | #164 |
 | 2026-10-25 | Dependencies reference HLD 015 LADR-05 Draft amendment for per-section profiles, circuits, gates | #164 |
 | 2026-10-25 | Dependencies reference HLD 014 LADR-12 Draft amendment for edit-return contract | #164 |
+| 2026-10-25 | Accepted by owner decision: HLD 015 LADR-05 and HLD 014 LADR-12 Accepted; Phase B implementation ungated | #164 |

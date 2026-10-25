@@ -11,6 +11,7 @@ Read [README.md](README.md) first — decision-tool filtering intent, decisions 
 | 2026-10-25 | Circuit breaker designed, not implemented: per-consumer, one failed call opens it, optional `DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS` cooldown (default 180), Error on open (LADR-11, NFR-05) | #164 |
 | 2026-10-25 | LADR-09 shared memory gains per-instance lifetime and uncapped mode for HLD 017 cache | #164 |
 | 2026-10-25 | Draft LADR-12 edit-return contract; overlap forwards original | #164 |
+| 2026-10-25 | HLD 017 Accepted: LADR-12 Accepted | #164 |
 | 2026-10-24 | Skips logged at Information with a reason; Codex Responses requests (tools only in `additional_tools`) intentionally unfiltered (LADR-10) | — |
 | 2026-10-23 | Sticky per session: identity from inbound body, never the transformed one (LADR-09) | — |
 | 2026-10-23 | Memo reuse distinct from upstream cache hits; optional ordering is independent | — |

@@ -1,6 +1,6 @@
 # LADR-05: Per-section profiles, circuits and admission gates
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

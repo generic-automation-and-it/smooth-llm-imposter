@@ -1,6 +1,6 @@
 # LADR-12: Tool filter returns an edit, not a body
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

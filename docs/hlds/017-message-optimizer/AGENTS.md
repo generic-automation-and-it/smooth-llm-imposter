@@ -14,3 +14,4 @@ Read [README.md](README.md) first — intent, goals, decisions and quality requi
 | 2026-10-25 | LADR-05 replaced: session-scoped checksum cache (sliding TTL ≤ 5 days, uncapped, memory only); sessionless not cached | #164 |
 | 2026-10-25 | Dependencies reference HLD 015 LADR-05 Draft per-section amendment | #164 |
 | 2026-10-25 | Dependencies reference HLD 014 LADR-12 Draft edit-return amendment | #164 |
+| 2026-10-25 | Accepted by owner decision: LADR-05 and LADR-12 Accepted; Phase B ungated; own LADR-01..08 and NFR-01..04 remain Draft | #164 |
