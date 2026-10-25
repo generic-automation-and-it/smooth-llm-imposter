@@ -9,6 +9,7 @@ namespace SmoothLlmImposter.Application.Features.Routing.Decisions;
 internal sealed class DecisionToolsFilter(
     IOptions<ImposterOptions> options,
     IDecisionModelClient client,
+    DecisionCircuitBreaker circuitBreaker,
     TimeProvider timeProvider,
     ILogger<DecisionToolsFilter> logger) : IDecisionToolsFilter
 {
@@ -99,22 +100,57 @@ internal sealed class DecisionToolsFilter(
             }
 
             bool failedOpen = false;
-            foreach (DecisionTool[] chunk in pending.Chunk(ChunkSize))
+            if (pending.Count > 0)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                DecisionCircuitBreaker.Admission admission = circuitBreaker.TryEnter();
+                if (admission == DecisionCircuitBreaker.Admission.Skip)
+                {
+                    LogSkipped(shape, "circuit-open");
+                    return body;
+                }
+
+                bool succeeded = false;
                 try
                 {
-                    await DecideAsync(state, chunk, probabilities, cancellationToken);
+                    if (admission == DecisionCircuitBreaker.Admission.Trial)
+                    {
+                        logger.LogInformation("Decisions filter {Shape} via model {Model} at {Endpoint}, session {Session}: circuit trial call",
+                            shape, LogSafe(settings.Model), Endpoint(settings), session);
+                    }
+
+                    foreach (DecisionTool[] chunk in pending.Chunk(ChunkSize))
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        try
+                        {
+                            await DecideAsync(state, chunk, probabilities, cancellationToken);
+                        }
+                        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                        {
+                            throw;
+                        }
+                        catch (Exception failure)
+                        {
+                            circuitBreaker.RecordFailure(failure, LogSafe(settings.Model), Endpoint(settings));
+                            LogFailOpen(shape, session, failure);
+                            failedOpen = true;
+                            break;
+                        }
+                    }
+
+                    if (!failedOpen)
+                    {
+                        circuitBreaker.RecordSuccess(
+                            admission == DecisionCircuitBreaker.Admission.Trial, LogSafe(settings.Model), Endpoint(settings));
+                        succeeded = true;
+                    }
                 }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                finally
                 {
-                    throw;
-                }
-                catch (Exception failure)
-                {
-                    LogFailOpen(shape, session, failure);
-                    failedOpen = true;
-                    break;
+                    if (admission == DecisionCircuitBreaker.Admission.Trial && !succeeded)
+                    {
+                        circuitBreaker.AbandonTrial();
+                    }
                 }
             }
 

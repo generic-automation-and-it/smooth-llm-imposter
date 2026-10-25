@@ -188,6 +188,11 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         {
             failures.Add($"{prefix}:MinKeepTools must be between 0 and 1000.");
         }
+
+        if (options.CircuitBreakSeconds is < 1 or > 3600)
+        {
+            failures.Add($"{prefix}:CircuitBreakSeconds must be between 1 and 3600 seconds.");
+        }
     }
 
     private static void AddAnthropicChatBridgeFailures(string prefix, ProviderOptions provider, List<string> failures)

@@ -60,6 +60,26 @@ public sealed class DecisionToolsIntegrationTests
     }
 
     [Fact]
+    public async Task An_opened_circuit_skips_classification_and_still_forwards_the_catalog()
+    {
+        var decisions = new StubDecisionClient
+        {
+            Decide = (_, _) => throw new HttpRequestException("classifier down", null, HttpStatusCode.BadGateway)
+        };
+        using var app = new App(decisions, enabled: true);
+
+        using HttpResponseMessage first = await app.Client.PostAsync("/v1/chat/completions", Json(Body("chat", "unmatched-model")), Ct);
+        first.StatusCode.ShouldBe(HttpStatusCode.OK);
+        decisions.Requests.Count.ShouldBe(1);
+
+        using HttpResponseMessage second = await app.Client.PostAsync("/v1/chat/completions", Json(Body("chat", "unmatched-model")), Ct);
+        second.StatusCode.ShouldBe(HttpStatusCode.OK);
+        decisions.Requests.Count.ShouldBe(1);
+        app.Upstream.RequestCount.ShouldBe(2);
+        JsonNode.Parse(app.Upstream.LastRequestBody!)!["tools"]!.AsArray().Count.ShouldBe(2);
+    }
+
+    [Fact]
     public async Task Claude_code_reminder_blocks_are_not_sent_as_decision_state()
     {
         var decisions = new StubDecisionClient();

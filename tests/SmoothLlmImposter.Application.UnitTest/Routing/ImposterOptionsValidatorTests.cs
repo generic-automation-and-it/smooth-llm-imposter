@@ -67,6 +67,44 @@ public class ImposterOptionsValidatorTests
     }
 
     [Theory]
+    [InlineData(1)]
+    [InlineData(180)]
+    [InlineData(3600)]
+    public void Decision_circuit_break_within_range_is_accepted(int seconds)
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.Enabled = true;
+        options.DecisionsTools.CircuitBreakSeconds = seconds;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3601)]
+    public void Decision_circuit_break_out_of_range_fails(int seconds)
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.Enabled = true;
+        options.DecisionsTools.CircuitBreakSeconds = seconds;
+
+        ValidateOptionsResult result = _validator.Validate(null, options);
+
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("Imposter:DecisionsTools:CircuitBreakSeconds");
+    }
+
+    [Fact]
+    public void Disabled_decisions_tools_ignore_an_invalid_circuit_break()
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.Enabled = false;
+        options.DecisionsTools.CircuitBreakSeconds = 0;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Theory]
     [InlineData(-1)]
     [InlineData(1001)]
     public void Decision_minimum_kept_tools_out_of_range_fails(int minimum)

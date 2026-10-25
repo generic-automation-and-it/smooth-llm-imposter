@@ -29,6 +29,7 @@ public static class DependencyInjection
         services.AddScoped<IRouteResolver, RouteResolver>();
         services.AddSingleton<IRequestNormalizer, CodexToOpenAiSdkNormalizer>();
         services.AddSingleton<IDecisionToolsFilter, DecisionToolsFilter>();
+        services.AddSingleton<DecisionCircuitBreaker>();
 
         // Shared decision service (HLD 015): consumers opt in independently; the transport profile is mapped
         // from the existing tool-filter operator surface and validated only while some consumer is opted in.

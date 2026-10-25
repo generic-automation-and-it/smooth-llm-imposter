@@ -61,6 +61,14 @@ public sealed class DecisionsToolsOptions
     public int MaxAttempts { get; set; } = DecisionServiceOptions.DefaultMaxAttempts;
 
     public int TimeoutSeconds { get; set; } = DecisionServiceOptions.DefaultTimeoutSeconds;
+
+    /// <summary>
+    /// Cooldown after one failed classifier call opens the tool-filter circuit (HLD 014 LADR-11, NFR-05).
+    /// While open, passes skip classification and forward the catalog unchanged.
+    /// </summary>
+    public int CircuitBreakSeconds { get; set; } = DefaultCircuitBreakSeconds;
+
+    public const int DefaultCircuitBreakSeconds = 180;
 }
 
 /// <summary>

@@ -49,6 +49,9 @@ Implements the contracts defined in Application — EF Core + PostgreSQL persist
   field on the client, or a second client registration would create a second budget ([HLD 015 LADR-03](../../.docs/hlds/015-shared-decision-model-integration/ladrs/LADR-03-shared-uncached-resource-budget.md)).
   The uncached exception and retry-status contract live in [HLD 014 LADR-04](../../.docs/hlds/014-decisions-tools-filter/ladrs/LADR-04-singleton-gate.md).
   Do not turn the gate into per-scope state or introduce a cache during a transport refactor.
+- The gate throws `DecisionGateTimeoutException` (Application contract), and the client translates the resilience
+  library's timeout rejection into `DecisionServiceTimeoutException`; callers classify by these types, never by
+  exception text.
 - The client reads `DecisionServiceOptions`, never the routing options. The resilience profile follows
   `DecisionServiceDemand` (any consumer opted in), not a consumer's enable flag; with no consumer it uses defaults
   so unvalidated settings never reach Polly.
@@ -57,6 +60,7 @@ Implements the contracts defined in Application — EF Core + PostgreSQL persist
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-25 | Decision exceptions: gate timeout and attempt timeout have Application contract types (LADR-11) | — |
 | 2026-10-24 | Decision transport made consumer-neutral (HLD 015): `DecisionServiceGate` singleton, client reads `DecisionServiceOptions`, profile follows the any-consumer predicate; named client `decisions-tools` → `decision-service` | #156 |
 | 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery); in-file links updated. No behavior change. | #152 |
 | 2026-10-22 | Auxiliary decisions-tools client; complete-response budget and shared gate | #138 |

@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Options;
+using Polly.Timeout;
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
 
 namespace SmoothLlmImposter.Infrastructure.Clients.Decisions;
@@ -27,17 +28,30 @@ internal sealed class DecisionModelClient(
             Content = new StringContent(
                 WithDefaultModel(request, settings.Model).ToJsonString(), Encoding.UTF8, "application/json")
         };
-        using HttpResponseMessage response = await client.SendAsync(
-            message, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        string body = await response.Content.ReadAsStringAsync(cancellationToken);
-        if (JsonNode.Parse(body) is not JsonObject envelope || envelope["answers"] is not JsonObject)
+        HttpResponseMessage response;
+        try
         {
-            throw new JsonException("The decision service returned an invalid answers envelope.");
+            response = await client.SendAsync(
+                message, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        }
+        catch (TimeoutRejectedException timeout)
+        {
+            throw new DecisionServiceTimeoutException(
+                "The decision service attempt timed out.", timeout);
         }
 
-        return envelope;
+        using (response)
+        {
+            response.EnsureSuccessStatusCode();
+
+            string body = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (JsonNode.Parse(body) is not JsonObject envelope || envelope["answers"] is not JsonObject)
+            {
+                throw new JsonException("The decision service returned an invalid answers envelope.");
+            }
+
+            return envelope;
+        }
     }
 
     // Model selection is request data; the integration supplies its default only when a consumer omits it,
