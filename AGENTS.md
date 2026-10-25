@@ -8,6 +8,11 @@ This file provides guidance for AI coding agents working in the SmoothLlmImposte
 
 .NET 10 NativeAOT LLM router. Every change must preserve compatibility with the published native executable, not just the local JIT host.
 
+## Agent Response Format
+
+1. Prefix every question to the user with `Q` and an incrementing number (`Q1`, `Q2`, `Q3`, …), so the user can answer by number.
+2. Write statements as numbered lists (`1.`, `2.`, `3.`), never as bullets (`-`, `*`, `•`).
+
 ## Non-Negotiables
 
 - **NativeAOT is the deployment baseline.** The published container runs a native executable without the .NET JIT runtime. New features, dependencies, data access, serialization, configuration binding, DI, and observability changes must remain compatible with that deployment.
@@ -147,6 +152,7 @@ This repository is hosted on **GitHub** at `https://github.com/generic-automatio
 
 ## Changelog
 
+- 2026-10-25: Added Agent Response Format: questions numbered `Q1`, `Q2`, …; statements as numbered lists, no bullets. Removed the root `CLAUDE.md` → `AGENTS.md` symlink and its recreation in `agents-setup.sh`/`.ps1`, `AI_DEVELOPMENT_AGENTS.md` and `.github/copilot-instructions.md`.
 - 2026-10-24: Decision-filter classifier logs now name the model, the classifier endpoint (userinfo and query dropped, so a credential in `DECISIONS_TOOLS_BASE_URL` never reaches the console) and a 12-character SHA-256 digest of the captured session id (`session none` without one). The digest lets a pass be traced to the session whose ordering and sticky caches it used, without logging raw session values. Routing AGENTS, HLD 014 and the setup doc updated; 908 tests pass (L0/L1/L2).
 - 2026-10-24: HLD 015 shared decision-model integration implemented and Accepted (#156). The decision transport no longer belongs to the tool filter: Application owns a consumer-neutral `DecisionServiceOptions` profile and an `IDecisionServiceConsumer` opt-in, and `DecisionServiceDemand` (any consumer opted in) now drives transport validation and the resilience profile — previously the profile fell back to fixed 3 attempts / 60 s whenever tool filtering was off, and validation was gated on the filter's `Enabled`. The client reads the shared profile instead of the routing options, and the process-wide gate is a dedicated `DecisionServiceGate` singleton rather than a client field. The operator surface is unchanged (`Imposter:DecisionsTools:*`, `DECISIONS_TOOLS_*`, same defaults, precedence and failure messages); the named HTTP client is renamed `decisions-tools` → `decision-service`. Startup validation runs as a hosted service, not `ValidateOnStart`: the profile resolves through the routing options, so a second startup validator reported an invalid routing configuration twice inside an `AggregateException` (caught by the existing legacy-array L2 test). Test gaps closed: reflection drift guard over every `DecisionsToolsOptions` property (backed by a new `DecisionsToolsVariables` table) and absent/blank preservation for all ten variables. 904 tests pass (L0/L1/L2), up from 887; six mutations confirmed the new tests catch the defects they target; macOS ARM64 NativeAOT publish warning-free and native smoke (valid route, enabled-invalid startup failure, disabled-invalid inert, single routing failure) passed. Linux AMD64/ARM64 native runners not exercised.
 
