@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Domain.Credentials;
 using SmoothLlmImposter.Domain.GithubCopilot;
 using SmoothLlmImposter.Domain.Routing;
+using SmoothLlmImposter.Application.Common.Clients.Optimizer;
 
 namespace SmoothLlmImposter.Application.Features.Routing;
 
@@ -22,6 +23,7 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
 
         AddDecisionsToolsFailures(options.DecisionsTools, failures);
         AddDecisionsMessagesFailures(options.DecisionsMessages, failures);
+        AddLlmMessagesFailures(options.LlmMessages, failures);
 
         if (options.Providers.Count == 0)
         {
@@ -208,6 +210,46 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         if (!double.IsFinite(options.MinProbability) || options.MinProbability is < 0 or > 1)
         {
             failures.Add($"{prefix}:MinProbability must be a finite number between 0 and 1.");
+        }
+    }
+
+    private static void AddLlmMessagesFailures(LlmMessagesOptions options, List<string> failures)
+    {
+        if (!options.Enabled)
+        {
+            return;
+        }
+
+        const string prefix = "Imposter:LlmMessages";
+
+        if (options.CacheTtlHours is < 1 or > 120)
+        {
+            failures.Add($"{prefix}:CacheTtlHours must be between 1 and 120.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.BaseUrl) ||
+            !Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            failures.Add($"{prefix}:BaseUrl must be an absolute HTTP(S) URL when enabled.");
+        }
+
+        if (options.MaxAttempts is < 1 or > 10)
+        {
+            failures.Add($"{prefix}:MaxAttempts must be between 1 and 10.");
+        }
+        if (options.TimeoutSeconds is < 1 or > 3600)
+        {
+            failures.Add($"{prefix}:TimeoutSeconds must be between 1 and 3600 seconds.");
+        }
+        if (options.CircuitBreakSeconds is < 1 or > 3600)
+        {
+            failures.Add($"{prefix}:CircuitBreakSeconds must be between 1 and 3600 seconds.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.Model))
+        {
+            failures.Add($"{prefix}:Model is required when enabled.");
         }
     }
 

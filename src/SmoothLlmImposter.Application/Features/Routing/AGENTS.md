@@ -527,3 +527,5 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 | 2026-10-25 | Added `MessagesConsumer` opting into the shared decision service for HLD 017 message optimization (WT-05) | #178 |
 | 2026-10-25 | Added optimizer LLM client (HLD 017 WT-06) | #181 |
 | 2026-10-20 | Managed Copilot credential seam: reserved-profile routes resolve from the published snapshot and stamp `RoutePlan.Copilot`; D1 identity enforced in provider CRUD; path/origin policy in `UpstreamForwarder`. Fixed the stale singular `docs/hld/001-…` link. | #126 |
+| 2026-10-25 | Layered settings resolution + switch semantics + cache TTL (HLD 017 WT-07) | #185 |
+| 2026-10-25 | Deterministic rewrite validation (HLD 017 WT-08) | #185 |

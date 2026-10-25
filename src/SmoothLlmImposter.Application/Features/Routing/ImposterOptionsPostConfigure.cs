@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Domain.Credentials;
 using SmoothLlmImposter.Domain.Routing;
+using SmoothLlmImposter.Application.Common.Clients.Optimizer;
 
 namespace SmoothLlmImposter.Application.Features.Routing;
 
@@ -130,6 +131,17 @@ internal sealed class ImposterOptionsPostConfigure(
         ApplyDecisionsToolsOverrides(options.DecisionsTools);
 
         ApplyDecisionsMessagesOverrides(options.DecisionsMessages);
+
+        ApplyLlmMessagesOverrides(options.LlmMessages);
+
+        // DECISIONS_MESSAGES_ENABLED unset (neither conventional env nor structured config) takes
+        // LLM_MESSAGES_ENABLED value (LADR-06). Never overwrite an explicit structured/appsettings value.
+        bool conventionalSet = !string.IsNullOrWhiteSpace(configuration["DECISIONS_MESSAGES_ENABLED"]);
+        bool structuredSet = !string.IsNullOrWhiteSpace(configuration["Imposter:DecisionsMessages:Enabled"]);
+        if (!conventionalSet && !structuredSet)
+        {
+            options.DecisionsMessages.Enabled = options.LlmMessages.Enabled;
+        }
 
         foreach ((string key, ProviderOptions provider) in options.Providers)
         {
@@ -296,10 +308,37 @@ internal sealed class ImposterOptionsPostConfigure(
             [nameof(DecisionsMessagesOptions.MinProbability)] = "DECISIONS_MESSAGES_MIN_PROBABILITY",
         };
 
+    internal static readonly IReadOnlyDictionary<string, string> LlmMessagesVariables =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [nameof(LlmMessagesOptions.Enabled)] = "LLM_MESSAGES_ENABLED",
+            [nameof(LlmMessagesOptions.BaseUrl)] = "LLM_MESSAGES_BASE_URL",
+            [nameof(LlmMessagesOptions.Path)] = "LLM_MESSAGES_PATH",
+            [nameof(LlmMessagesOptions.Model)] = "LLM_MESSAGES_MODEL",
+            [nameof(LlmMessagesOptions.MaxAttempts)] = "LLM_MESSAGES_MAX_ATTEMPTS",
+            [nameof(LlmMessagesOptions.TimeoutSeconds)] = "LLM_MESSAGES_TIMEOUT",
+            [nameof(LlmMessagesOptions.CircuitBreakSeconds)] = "LLM_MESSAGES_CIRCUIT_BREAK_SECONDS",
+            [nameof(LlmMessagesOptions.CacheTtlHours)] = "LLM_MESSAGES_CACHE_TTL_HOURS",
+            [nameof(LlmMessagesOptions.ApiKey)] = "LLM_MESSAGES_API_KEY",
+        };
+
     private void ApplyDecisionsMessagesOverrides(DecisionsMessagesOptions options)
     {
         ApplyRootBooleanOverride(DecisionsMessagesVariables[nameof(options.Enabled)], nameof(options.Enabled), value => options.Enabled = value);
         ApplyRootProbabilityOverride(DecisionsMessagesVariables[nameof(options.MinProbability)], nameof(options.MinProbability), value => options.MinProbability = value);
+    }
+
+    private void ApplyLlmMessagesOverrides(LlmMessagesOptions options)
+    {
+        ApplyRootBooleanOverride(LlmMessagesVariables[nameof(options.Enabled)], nameof(options.Enabled), value => options.Enabled = value);
+        ApplyRootStringOverride(LlmMessagesVariables[nameof(options.BaseUrl)], nameof(options.BaseUrl), value => options.BaseUrl = value);
+        ApplyRootStringOverride(LlmMessagesVariables[nameof(options.Path)], nameof(options.Path), value => options.Path = value);
+        ApplyRootStringOverride(LlmMessagesVariables[nameof(options.Model)], nameof(options.Model), value => options.Model = value);
+        ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.MaxAttempts)], nameof(options.MaxAttempts), value => options.MaxAttempts = value);
+        ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.TimeoutSeconds)], nameof(options.TimeoutSeconds), value => options.TimeoutSeconds = value);
+        ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.CircuitBreakSeconds)], nameof(options.CircuitBreakSeconds), value => options.CircuitBreakSeconds = value);
+        ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.CacheTtlHours)], nameof(options.CacheTtlHours), value => options.CacheTtlHours = value);
+        ApplyRootStringOverride(LlmMessagesVariables[nameof(options.ApiKey)], nameof(options.ApiKey), value => options.ApiKey = value);
     }
 
     private void ApplyRootStringOverride(string variable, string propertyName, Action<string> apply)
