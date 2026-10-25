@@ -60,17 +60,20 @@ internal sealed class DecisionCircuitBreaker(
             Consumer, model, endpoint);
     }
 
-    internal void RecordFailure(Exception failure, string model, string endpoint)
+    internal void RecordFailure(Exception failure, bool trial, string model, string endpoint)
     {
         if (!IsServiceFailure(failure))
         {
             return;
         }
 
-        Interlocked.Exchange(ref _trialAdmitted, 0);
         TimeSpan cooldown = TimeSpan.FromSeconds(options.Value.DecisionsTools.CircuitBreakSeconds);
         DateTimeOffset retryAt = timeProvider.GetUtcNow().Add(cooldown);
         Interlocked.Exchange(ref _openUntilUtcTicks, retryAt.UtcTicks);
+        if (trial)
+        {
+            Interlocked.Exchange(ref _trialAdmitted, 0);
+        }
         logger.LogError(
             "Decisions tool filter circuit opened for {Consumer} via model {Model} at {Endpoint}: {Cause}; no classifier request until {RetryAt:O}",
             Consumer, model, endpoint, Cause(failure), retryAt);

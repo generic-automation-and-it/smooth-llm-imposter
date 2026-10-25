@@ -42,7 +42,7 @@ public sealed class DecisionCircuitBreakerTests
         DecisionCircuitBreaker breaker = Create(clock, logs, cooldownSeconds: 30);
         breaker.TryEnter().ShouldBe(DecisionCircuitBreaker.Admission.Closed);
 
-        breaker.RecordFailure(new HttpRequestException("down", null, HttpStatusCode.InternalServerError), "model", "endpoint");
+        breaker.RecordFailure(new HttpRequestException("down", null, HttpStatusCode.InternalServerError), false, "model", "endpoint");
 
         breaker.TryEnter().ShouldBe(DecisionCircuitBreaker.Admission.Skip);
         breaker.TryEnter().ShouldBe(DecisionCircuitBreaker.Admission.Skip);
@@ -67,11 +67,11 @@ public sealed class DecisionCircuitBreakerTests
     {
         var clock = new ManualClock();
         DecisionCircuitBreaker breaker = Create(clock, new BreakerLogger(), cooldownSeconds: 30);
-        breaker.RecordFailure(new HttpRequestException("down"), "model", "endpoint");
+        breaker.RecordFailure(new HttpRequestException("down"), false, "model", "endpoint");
 
         clock.Advance(TimeSpan.FromSeconds(30));
         breaker.TryEnter().ShouldBe(DecisionCircuitBreaker.Admission.Trial);
-        breaker.RecordFailure(new HttpRequestException("down"), "model", "endpoint");
+        breaker.RecordFailure(new HttpRequestException("down"), true, "model", "endpoint");
 
         breaker.TryEnter().ShouldBe(DecisionCircuitBreaker.Admission.Skip);
         clock.Advance(TimeSpan.FromSeconds(29));
@@ -85,7 +85,7 @@ public sealed class DecisionCircuitBreakerTests
     {
         var clock = new ManualClock();
         DecisionCircuitBreaker breaker = Create(clock, new BreakerLogger(), cooldownSeconds: 30);
-        breaker.RecordFailure(new HttpRequestException("down"), "model", "endpoint");
+        breaker.RecordFailure(new HttpRequestException("down"), false, "model", "endpoint");
 
         clock.Advance(TimeSpan.FromSeconds(30));
         breaker.TryEnter().ShouldBe(DecisionCircuitBreaker.Admission.Trial);
@@ -99,7 +99,7 @@ public sealed class DecisionCircuitBreakerTests
     {
         var clock = new ManualClock();
         DecisionCircuitBreaker breaker = Create(clock, new BreakerLogger(), cooldownSeconds: 30);
-        breaker.RecordFailure(new HttpRequestException("down"), "model", "endpoint");
+        breaker.RecordFailure(new HttpRequestException("down"), false, "model", "endpoint");
 
         breaker.RecordSuccess(trial: false, "model", "endpoint");
 
@@ -111,11 +111,11 @@ public sealed class DecisionCircuitBreakerTests
     {
         var clock = new ManualClock();
         DecisionCircuitBreaker breaker = Create(clock, new BreakerLogger(), cooldownSeconds: 30);
-        breaker.RecordFailure(new HttpRequestException("down"), "model", "endpoint");
+        breaker.RecordFailure(new HttpRequestException("down"), false, "model", "endpoint");
         clock.Advance(TimeSpan.FromSeconds(30));
         breaker.TryEnter().ShouldBe(DecisionCircuitBreaker.Admission.Trial);
 
-        breaker.RecordFailure(new DecisionGateTimeoutException("gate"), "model", "endpoint");
+        breaker.RecordFailure(new DecisionGateTimeoutException("gate"), false, "model", "endpoint");
 
         breaker.TryEnter().ShouldBe(DecisionCircuitBreaker.Admission.Skip);
     }
@@ -125,11 +125,11 @@ public sealed class DecisionCircuitBreakerTests
     {
         var clock = new ManualClock();
         DecisionCircuitBreaker breaker = Create(clock, new BreakerLogger(), cooldownSeconds: 30);
-        breaker.RecordFailure(new DecisionGateTimeoutException("gate"), "model", "endpoint");
+        breaker.RecordFailure(new DecisionGateTimeoutException("gate"), false, "model", "endpoint");
         breaker.TryEnter().ShouldBe(DecisionCircuitBreaker.Admission.Closed);
 
-        breaker.RecordFailure(new HttpRequestException("down"), "model", "endpoint");
-        breaker.RecordFailure(new DecisionGateTimeoutException("gate"), "model", "endpoint");
+        breaker.RecordFailure(new HttpRequestException("down"), false, "model", "endpoint");
+        breaker.RecordFailure(new DecisionGateTimeoutException("gate"), false, "model", "endpoint");
         breaker.TryEnter().ShouldBe(DecisionCircuitBreaker.Admission.Skip);
     }
 

@@ -131,7 +131,7 @@ internal sealed class DecisionToolsFilter(
                         }
                         catch (Exception failure)
                         {
-                            circuitBreaker.RecordFailure(failure, LogSafe(settings.Model), Endpoint(settings));
+                            circuitBreaker.RecordFailure(failure, admission == DecisionCircuitBreaker.Admission.Trial, LogSafe(settings.Model), Endpoint(settings));
                             LogFailOpen(shape, session, failure);
                             failedOpen = true;
                             break;
