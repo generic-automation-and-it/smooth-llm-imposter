@@ -1,6 +1,6 @@
 # NFR-04: Every reply is a valid Messages reply
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Requirement
 

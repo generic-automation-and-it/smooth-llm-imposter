@@ -1,6 +1,6 @@
 # LADR-07: Tool ids and names are normalized statelessly and reversed
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

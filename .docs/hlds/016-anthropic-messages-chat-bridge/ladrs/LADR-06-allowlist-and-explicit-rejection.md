@@ -1,6 +1,6 @@
 # LADR-06: Allowlist request mapping; placeholders for history, rejection for intent
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

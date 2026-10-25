@@ -1,6 +1,6 @@
 # LADR-09: `count_tokens` is answered locally with a shared estimator
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

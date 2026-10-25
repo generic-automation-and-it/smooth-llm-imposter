@@ -34,7 +34,12 @@ internal sealed class AnthropicRequestTransformer : IRequestTransformer
 
         root["model"] = decision.TargetModel;
 
-        if (decision.CachingEnabled && !HasCallerCacheControl(root))
+        // HLD 016: a bridged Messages-to-Chat route handles Anthropic prompt-cache breakpoints through the
+        // mapper's forwardCacheControl option. Injecting them here would leave Anthropic-only breakpoints
+        // that the mapper then drops inconsistently.
+        bool bridged = decision.IsImposter && decision.Provider.AnthropicChat.IsBridged;
+
+        if (!bridged && decision.CachingEnabled && !HasCallerCacheControl(root))
         {
             if (root["tools"] is JsonArray tools)
             {

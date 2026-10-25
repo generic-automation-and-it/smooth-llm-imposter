@@ -227,6 +227,64 @@ public sealed class ProviderConfigAdminIntegrationTests
         response.Content.Headers.ContentType!.MediaType.ShouldBe("application/problem+json");
     }
 
+    [Fact]
+    public async Task Admin_round_trip_preserves_anthropic_chat_bridge_options()
+    {
+        // HLD 016 option plumbing: an omission from the admin DTOs or the registry clone silently clears
+        // the value on upsert (the HLD 011 failure mode), so GET -> PUT -> GET must preserve every field.
+        using var fixture = new ProviderConfigAppFixture(new Dictionary<string, string?>
+        {
+            ["Imposter:Providers:chat-bridge:Dialect"] = "anthropic",
+            ["Imposter:Providers:chat-bridge:BaseUrl"] = "https://chat.test",
+            ["Imposter:Providers:chat-bridge:AuthScheme"] = "Bearer",
+            ["Imposter:Providers:chat-bridge:AnthropicUpstreamApi"] = "chat_completions",
+            ["Imposter:Providers:chat-bridge:CompatProfile"] = "deepseek",
+            ["Imposter:Providers:chat-bridge:SendReasoningEffort"] = "true",
+            ["Imposter:Providers:chat-bridge:UserIdMode"] = "hash",
+            ["Imposter:Providers:chat-bridge:MaxTokensField"] = "max_completion_tokens",
+            ["Imposter:Providers:chat-bridge:MaxOutputTokens"] = "8192",
+            ["Imposter:Providers:chat-bridge:ForwardCacheControl"] = "true",
+            ["Imposter:Providers:chat-bridge:SendResponseFormat"] = "true",
+            ["Imposter:Providers:chat-bridge:DocumentMode"] = "image",
+            ["Imposter:Providers:chat-bridge:ThinkMarkupExtraction"] = "true",
+            ["Imposter:Providers:chat-bridge:MidturnSystem"] = "merge_into_user",
+            ["Imposter:Providers:chat-bridge:Models:0:From"] = "claude-*",
+            ["Imposter:Providers:chat-bridge:Models:0:To"] = "chat-model"
+        });
+        HttpClient client = AuthenticatedClient(fixture);
+
+        string getJson = await client.GetStringAsync("/admin/providers/chat-bridge", Ct);
+        ProviderConfigurationBody body = JsonNode.Parse(getJson)!.Deserialize<ProviderConfigurationBody>(JsonOptions)!;
+        body.AnthropicUpstreamApi.ShouldBe("chat_completions");
+        body.CompatProfile.ShouldBe("deepseek");
+        body.SendReasoningEffort.ShouldBe(true);
+        body.UserIdMode.ShouldBe("hash");
+        body.MaxTokensField.ShouldBe("max_completion_tokens");
+        body.MaxOutputTokens.ShouldBe(8192);
+        body.ForwardCacheControl.ShouldBe(true);
+        body.SendResponseFormat.ShouldBe(true);
+        body.DocumentMode.ShouldBe("image");
+        body.ThinkMarkupExtraction.ShouldBe(true);
+        body.MidturnSystem.ShouldBe("merge_into_user");
+
+        using HttpResponseMessage put = await client.PutAsJsonAsync("/admin/providers/chat-bridge", body, JsonOptions, Ct);
+        put.StatusCode.ShouldBe(HttpStatusCode.OK, await put.Content.ReadAsStringAsync(Ct));
+
+        string afterJson = await client.GetStringAsync("/admin/providers/chat-bridge", Ct);
+        ProviderConfigurationBody after = JsonNode.Parse(afterJson)!.Deserialize<ProviderConfigurationBody>(JsonOptions)!;
+        after.AnthropicUpstreamApi.ShouldBe("chat_completions");
+        after.CompatProfile.ShouldBe("deepseek");
+        after.SendReasoningEffort.ShouldBe(true);
+        after.UserIdMode.ShouldBe("hash");
+        after.MaxTokensField.ShouldBe("max_completion_tokens");
+        after.MaxOutputTokens.ShouldBe(8192);
+        after.ForwardCacheControl.ShouldBe(true);
+        after.SendResponseFormat.ShouldBe(true);
+        after.DocumentMode.ShouldBe("image");
+        after.ThinkMarkupExtraction.ShouldBe(true);
+        after.MidturnSystem.ShouldBe("merge_into_user");
+    }
+
     private static HttpClient AuthenticatedClient(ProviderConfigAppFixture fixture)
     {
         HttpClient client = fixture.CreateClient();

@@ -1,6 +1,6 @@
 # NFR-01: Non-bridged Anthropic traffic is unchanged
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Requirement
 

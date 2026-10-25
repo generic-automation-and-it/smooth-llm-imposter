@@ -1,6 +1,6 @@
 # NFR-03: Mapped requests satisfy a strict Chat upstream
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Requirement
 

@@ -1,6 +1,6 @@
 # LADR-01: Per-provider opt-in on matched imposter routes
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 

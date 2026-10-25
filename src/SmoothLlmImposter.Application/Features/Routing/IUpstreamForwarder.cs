@@ -38,5 +38,7 @@ public interface IUpstreamForwarder
         string? queryString,
         CallerHeaders callerHeaders,
         SessionIdentity? sessionIdentity,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        bool useHeaderAllowlist = false,
+        string? allowlistAccept = null);
 }

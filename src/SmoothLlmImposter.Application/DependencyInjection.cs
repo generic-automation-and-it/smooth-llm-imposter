@@ -8,6 +8,7 @@ using SmoothLlmImposter.Application.Features.Credentials;
 using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Application.Features.ProviderConfiguration;
 using SmoothLlmImposter.Application.Features.Routing;
+using SmoothLlmImposter.Application.Features.Routing.Bridge;
 using SmoothLlmImposter.Application.Features.Routing.Decisions;
 using SmoothLlmImposter.Application.Features.Routing.Normalization;
 
@@ -29,6 +30,12 @@ public static class DependencyInjection
         services.AddSingleton<IDecisionToolsFilter, DecisionToolsFilter>();
         services.AddSingleton<IToolCatalogOrderer, ToolCatalogOrderer>();
         services.AddSingleton<IChatToResponsesTransformer, ChatToResponsesStreamTransformer>();
+        // HLD 016 Messages-to-Chat bridge. Stateless per-request mappers; TimeProvider drives the stream
+        // timers (ping idle, finish grace).
+        services.AddSingleton<AnthropicChatRequestMapper>();
+        services.AddSingleton<AnthropicChatResponseMapper>();
+        services.AddSingleton<AnthropicChatStreamTranslator>();
+        services.AddSingleton<IAnthropicChatBridge, AnthropicChatBridge>();
         services.AddSingleton<IRequestTransformer, OpenAiRequestTransformer>();
         services.AddSingleton<IRequestTransformer, AnthropicRequestTransformer>();
         services.AddScoped<IImposterRouter, ImposterRouter>();

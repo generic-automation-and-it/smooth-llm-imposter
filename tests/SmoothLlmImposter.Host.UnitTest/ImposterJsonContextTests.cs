@@ -27,6 +27,10 @@ public sealed class ImposterJsonContextTests
         typeof(ImposterOptions),
         // Captured from inbound headers at the Host edge, never serialized.
         typeof(CallerHeaders),
+        // Opaque bridged-request handle passed between Host helpers and the bridge; never serialized.
+        typeof(SmoothLlmImposter.Application.Features.Routing.Bridge.AnthropicChatCall),
+        // Opaque bridged-reply handle; its Body string is written directly, never JSON-bound.
+        typeof(SmoothLlmImposter.Application.Features.Routing.Bridge.AnthropicChatReply),
     };
 
     [Fact]

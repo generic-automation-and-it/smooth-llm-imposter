@@ -1,6 +1,6 @@
 # LADR-08: Reasoning becomes unsigned thinking; vendor profiles are explicit opt-ins
 
-**Status:** Draft
+**Status:** Accepted
 
 ## Context
 
