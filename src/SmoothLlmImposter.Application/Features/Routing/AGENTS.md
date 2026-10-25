@@ -519,4 +519,4 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 | 2026-07-26 | Ungated the shared-provider secret base fallback in `ImposterOptionsPostConfigure.TrySharedProviderSecretPrefix`: a lone dialect-suffixed provider (`openrouter-anthropic`) now resolves its `Secret` from the bare base env var (`OPENROUTER_API_KEY`) after its own suffixed var, with no sibling/base-provider requirement. The opencode-go shared-base case is unchanged. Added `Lone_dialect_suffixed_provider_resolves_base_api_key_without_sibling`. Doc comment + `AGENTS.md` Key Behavior updated. | #92 |
 | 2026-10-20 | Managed Copilot credential seam: reserved-profile routes resolve from the published snapshot and stamp `RoutePlan.Copilot`; D1 identity enforced in provider CRUD; path/origin policy in `UpstreamForwarder`. Fixed the stale singular `docs/hld/001-…` link. | #126 |
 | 2026-10-25 | Added `MessagesConsumer` opting into the shared decision service for HLD 017 message optimization (WT-05) | #178 |
-| 2026-10-25 | Added optimizer LLM client (HLD 017 WT-06) | #178 |
+| 2026-10-25 | Added optimizer LLM client (HLD 017 WT-06) | #181 |

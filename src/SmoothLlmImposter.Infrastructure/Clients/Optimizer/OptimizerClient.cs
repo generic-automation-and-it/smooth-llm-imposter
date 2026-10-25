@@ -59,9 +59,36 @@ internal sealed class OptimizerClient(
                     throw new JsonException("Optimizer returned an invalid Chat Completions envelope.");
                 }
 
-                return DecisionJsonText(messageObj["content"]);
+                return MessageContentText(messageObj["content"]);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                // HttpClient.Timeout expiry without caller cancellation: retryable.
+                last = ex;
+                if (attempt < attempts - 1)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(100 * (attempt + 1)), cancellationToken);
+                }
+            }
+            catch (HttpRequestException ex) when (IsRetryableStatus(ex))
+            {
+                last = ex;
+                if (attempt < attempts - 1)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(100 * (attempt + 1)), cancellationToken);
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                // Permanent failure (e.g. 4xx): do not retry.
+                last = ex;
+                break;
+            }
+            catch (Exception ex)
             {
                 last = ex;
                 if (attempt < attempts - 1)
@@ -74,6 +101,11 @@ internal sealed class OptimizerClient(
         throw last ?? new InvalidOperationException("Optimizer request failed.");
     }
 
-    private static string DecisionJsonText(JsonNode? node) =>
+    private static bool IsRetryableStatus(HttpRequestException ex) =>
+        ex.StatusCode is null ||
+        (int)ex.StatusCode >= 500 ||
+        ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests;
+
+    private static string MessageContentText(JsonNode? node) =>
         node is JsonValue value && value.TryGetValue(out string? text) ? text ?? string.Empty : string.Empty;
 }
