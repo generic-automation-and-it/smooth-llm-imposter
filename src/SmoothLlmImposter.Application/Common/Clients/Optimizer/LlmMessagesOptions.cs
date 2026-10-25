@@ -24,5 +24,8 @@ public sealed class LlmMessagesOptions
 
     public int CacheTtlHours { get; set; } = 120;
 
+    /// <summary>Messages shorter than this skip both models; 0 disables the minimum.</summary>
+    public int MinChars { get; set; }
+
     public string? ApiKey { get; set; }
 }

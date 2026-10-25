@@ -438,6 +438,34 @@ public class ImposterOptionsValidatorTests
     }
 
     [Theory]
+    [InlineData(-1)]
+    [InlineData(10_001)]
+    public void Enabled_optimizer_rejects_min_chars_outside_range(int minChars)
+    {
+        var options = Options(Valid("a"));
+        options.LlmMessages.Enabled = true;
+        options.LlmMessages.BaseUrl = "https://opt.example";
+        options.LlmMessages.Model = "opt-model";
+        options.LlmMessages.MinChars = minChars;
+
+        _validator.Validate(null, options).Failed.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(10_000)]
+    public void Enabled_optimizer_accepts_min_chars_at_the_boundaries(int minChars)
+    {
+        var options = Options(Valid("a"));
+        options.LlmMessages.Enabled = true;
+        options.LlmMessages.BaseUrl = "https://opt.example";
+        options.LlmMessages.Model = "opt-model";
+        options.LlmMessages.MinChars = minChars;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(11)]
     public void Enabled_optimizer_rejects_max_attempts_outside_range(int attempts)

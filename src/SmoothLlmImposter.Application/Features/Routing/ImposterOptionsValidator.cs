@@ -227,6 +227,11 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
             failures.Add($"{prefix}:CacheTtlHours must be between 1 and 120.");
         }
 
+        if (options.MinChars is < 0 or > 10_000)
+        {
+            failures.Add($"{prefix}:MinChars must be between 0 and 10000.");
+        }
+
         if (string.IsNullOrWhiteSpace(options.BaseUrl) ||
             !Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out var uri) ||
             (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
