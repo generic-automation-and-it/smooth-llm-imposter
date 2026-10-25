@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
+using SmoothLlmImposter.Application.Features.Routing.Optimization;
 
 namespace SmoothLlmImposter.Application.Features.Routing.Decisions;
 
@@ -11,7 +12,7 @@ internal sealed class DecisionToolsFilter(
     IDecisionModelClient client,
     DecisionCircuitBreaker circuitBreaker,
     TimeProvider timeProvider,
-    ILogger<DecisionToolsFilter> logger) : IDecisionToolsFilter
+    ILogger<DecisionToolsFilter> logger) : IDecisionToolsFilter, IOptimizationStrategy
 {
     private const int ChunkSize = 20;
     private const int InstructionLimit = 300;
@@ -20,6 +21,37 @@ internal sealed class DecisionToolsFilter(
     private readonly DecisionAnswerCache _cache = new();
     private readonly SessionScopedMemory<HashSet<string>> _sticky =
         new(timeProvider, () => new HashSet<string>(StringComparer.Ordinal));
+
+    public string Name => "tools";
+
+    public bool Enabled => options.Value.DecisionsTools.Enabled;
+
+    public async Task<OptimizationEdit> OptimizeAsync(
+        OptimizationRequest request, CancellationToken cancellationToken)
+    {
+        string filtered = await FilterAsync(
+            request.Path, request.Body, request.CallerHeaders, request.InboundBody, cancellationToken);
+        if (ReferenceEquals(filtered, request.Body))
+        {
+            return OptimizationEdit.None;
+        }
+
+        JsonObject original = JsonNodeMaterializer.ParseObject(request.Body);
+        JsonObject after = JsonNodeMaterializer.ParseObject(filtered);
+        var patches = new List<OptimizationPatch>();
+        AddIfChanged(original, after, "tools", patches);
+        AddIfChanged(original, after, "tool_choice", patches);
+        return patches.Count == 0 ? OptimizationEdit.None : new OptimizationEdit(patches);
+    }
+
+    private static void AddIfChanged(
+        JsonObject original, JsonObject after, string name, List<OptimizationPatch> patches)
+    {
+        if (!JsonNode.DeepEquals(original[name], after[name]))
+        {
+            patches.Add(new OptimizationPatch($"/{name}", after[name]?.DeepClone()));
+        }
+    }
 
     public async Task<string> FilterAsync(
         string path, string body, CallerHeaders callerHeaders, string inboundBody, CancellationToken cancellationToken)
