@@ -21,8 +21,8 @@ internal sealed class OptimizerClient(
             ["model"] = settings.Model,
             ["messages"] = new JsonArray
             {
-                new JsonObject { ["role"] = "system", ["content"] = systemInstructions },
-                new JsonObject { ["role"] = "user", ["content"] = userText },
+                (JsonNode)new JsonObject { ["role"] = "system", ["content"] = systemInstructions },
+                (JsonNode)new JsonObject { ["role"] = "user", ["content"] = userText },
             },
             ["stream"] = false,
         };
@@ -90,19 +90,6 @@ string path = raw.StartsWith('/') ? raw : "/" + raw;
                 last = ex;
                 break;
             }
-            catch (JsonException)
-            {
-                // Deterministic envelope/content failure: do not retry.
-                throw;
-            }
-            catch (Exception ex)
-            {
-                last = ex;
-                if (attempt < attempts - 1)
-                {
-                    await Task.Delay(TimeSpan.FromMilliseconds(100 * (attempt + 1)), cancellationToken);
-                }
-            }
         }
 
         throw last ?? new InvalidOperationException("Optimizer request failed.");
@@ -111,7 +98,7 @@ string path = raw.StartsWith('/') ? raw : "/" + raw;
     private static bool IsRetryableStatus(HttpRequestException ex) =>
         ex.StatusCode is null ||
         (int)ex.StatusCode >= 500 ||
-        ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests;
+        ex.StatusCode is System.Net.HttpStatusCode.RequestTimeout or System.Net.HttpStatusCode.TooManyRequests;
 
     private static string MessageContentText(JsonNode? node)
     {
