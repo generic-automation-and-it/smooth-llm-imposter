@@ -52,6 +52,36 @@ public sealed class SessionScopedMemoryTests
     }
 
     [Fact]
+    public void Per_instance_lifetime_and_uncapped_capacity_are_honoured()
+    {
+        var clock = new ManualClock();
+        var memory = new SessionScopedMemory<List<string>>(
+            clock,
+            () => [],
+            idleLifetime: TimeSpan.FromHours(1),
+            maxScopes: int.MaxValue);
+
+        for (int index = 0; index < 300; index++)
+        {
+            memory.Use($"scope-{index}", values => values.Add("a"));
+        }
+
+        clock.Advance(TimeSpan.FromMinutes(59));
+        memory.Use("scope-0", values => values.Count).ShouldBe(1);
+
+        clock.Advance(TimeSpan.FromMinutes(2));
+        memory.Use("scope-0", values => values.Count).ShouldBe(1);
+        memory.Use("scope-299", values => values.Count).ShouldBe(0);
+    }
+
+    [Fact]
+    public void A_non_positive_capacity_is_rejected()
+    {
+        Should.Throw<ArgumentOutOfRangeException>(() =>
+            new SessionScopedMemory<List<string>>(TimeProvider.System, () => [], maxScopes: 0));
+    }
+
+    [Fact]
     public async Task Concurrent_use_of_one_scope_is_serialized()
     {
         SessionScopedMemory<List<int>> memory = new(TimeProvider.System, () => []);
