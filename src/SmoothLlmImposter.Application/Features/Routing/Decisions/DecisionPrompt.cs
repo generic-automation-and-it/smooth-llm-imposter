@@ -7,12 +7,11 @@ internal static class DecisionPrompt
 {
     private const int StateLimit = 2000;
 
-    private static readonly string[] HarnessTags =
-        ["system-reminder", "system_instruction", "local-command-caveat", "local-command-stdout", "local-command-stderr"];
+    private static string[] HarnessTags => HarnessSpans.HarnessTags;
 
-    private static readonly string[] CommandTags = ["command-name", "command-message", "command-args"];
+    private static string[] CommandTags => HarnessSpans.CommandTags;
 
-    private static readonly string[] LocalCommandOutputTags = ["<local-command-stdout>", "<local-command-stderr>"];
+    private static string[] LocalCommandOutputTags => HarnessSpans.LocalCommandOutputTags;
 
     public static string Extract(JsonObject root, DecisionBodyShape shape)
     {

@@ -22,7 +22,7 @@ The `build-and-test` job declares a single GitHub Actions service container — 
 ### Steps
 
 1. **Checkout** — `actions/checkout@v6`.
-2. **Install .NET SDK** — `actions/setup-dotnet@v5` (version from the `DOTNET_VERSION` env, currently `10.0.x`).
+2. **Install .NET SDK** — `actions/setup-dotnet@v5` (version from the `DOTNET_VERSION` env, currently `10.0.403`). The version is pinned exactly: a channel expression such as `10.0.x` resolves through aka.ms, whose CDN can redirect to the unavailable `dotnetorigin` host and fail the install; an exact version downloads from `builds.dotnet.microsoft.com`.
 3. **Restore** — `dotnet restore SmoothLlmImposter.slnx`.
 4. **Build** — `dotnet build SmoothLlmImposter.slnx --no-restore --configuration Release`.
 5. **Test with coverage** — local action `.github/actions/test-with-coverage`:

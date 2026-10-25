@@ -36,6 +36,7 @@ public static class DependencyInjection
         // and merges their edits. Concrete strategies are registered explicitly by their
         // worktasks (NativeAOT: no assembly scanning).
         services.AddSingleton<IOptimizationCoordinator, OptimizationCoordinator>();
+        services.AddSingleton<IMessageChecksumCache, MessageChecksumCache>();
 
         // Shared decision service (HLD 015): consumers opt in independently; the transport profile is mapped
         // from the existing tool-filter operator surface and validated only while some consumer is opted in.

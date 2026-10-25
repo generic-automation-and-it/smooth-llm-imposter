@@ -25,7 +25,9 @@ jobs:
     timeout-minutes: 15
 
     env:
-      DOTNET_VERSION: 10.0.x
+      # Exact pin: setup-dotnet resolves "10.0.x" through aka.ms, whose CDN can redirect to the
+      # unavailable dotnetorigin host; an exact version downloads from builds.dotnet.microsoft.com.
+      DOTNET_VERSION: 10.0.403
       BUILD_CONFIGURATION: Release
       # Empty on fork PRs (secrets are not exposed to forks) → the L3 tests skip and the job stays green.
       OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}

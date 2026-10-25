@@ -120,6 +120,34 @@ public class OptimizerClientTests
     }
 
     [Fact]
+    public async Task Retries_408_and_succeeds()
+    {
+        var handler = new CallbackHandler((call, _, _) =>
+            Task.FromResult(call < 2
+                ? new HttpResponseMessage(HttpStatusCode.RequestTimeout)
+                : Success()));
+        await using ServiceProvider provider = BuildProvider(handler);
+
+        string result = await provider.GetRequiredService<IOptimizerClient>().OptimizeAsync("i", "u", Ct);
+
+        result.ShouldBe("rewritten");
+        handler.Calls.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Unexpected_exceptions_are_not_retried()
+    {
+        var handler = new CallbackHandler((_, _, _) =>
+            Task.FromException<HttpResponseMessage>(new InvalidOperationException("programming error")));
+        await using ServiceProvider provider = BuildProvider(handler);
+
+        await Should.ThrowAsync<InvalidOperationException>(() =>
+            provider.GetRequiredService<IOptimizerClient>().OptimizeAsync("i", "u", Ct));
+
+        handler.Calls.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task Caller_cancellation_propagates_without_retry()
     {
         var handler = new CallbackHandler(async (_, _, ct) =>

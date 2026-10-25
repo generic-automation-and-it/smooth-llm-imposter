@@ -32,7 +32,13 @@ public class DecisionsMessagesOptionsTests
             object? before = property.GetValue(options.DecisionsMessages);
             string variable = ImposterOptionsPostConfigure.DecisionsMessagesVariables[property.Name];
 
-            Apply(options, new Dictionary<string, string?> { [variable] = DifferentValue(property.PropertyType, before) });
+            // The gate is inert while the optimizer is off (LADR-06), so enable the optimizer for the
+            // override check to observe the gate value rather than the forced-off switch.
+            Apply(options, new Dictionary<string, string?>
+            {
+                ["LLM_MESSAGES_ENABLED"] = "true",
+                [variable] = DifferentValue(property.PropertyType, before)
+            });
 
             property.GetValue(options.DecisionsMessages).ShouldNotBe(before, $"{variable} should override {property.Name}");
         }

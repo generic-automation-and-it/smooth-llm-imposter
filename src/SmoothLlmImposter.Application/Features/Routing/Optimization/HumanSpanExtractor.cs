@@ -8,12 +8,11 @@ namespace SmoothLlmImposter.Application.Features.Routing.Optimization;
 /// </summary>
 public static class HumanSpanExtractor
 {
-    private static readonly string[] HarnessTags =
-        ["system-reminder", "system_instruction", "local-command-caveat", "local-command-stdout", "local-command-stderr"];
+    private static string[] HarnessTags => HarnessSpans.HarnessTags;
 
-    private static readonly string[] CommandTags = ["command-name", "command-message", "command-args"];
+    private static string[] CommandTags => HarnessSpans.CommandTags;
 
-    private static readonly string[] LocalCommandOutputTags = ["<local-command-stdout>", "<local-command-stderr>"];
+    private static string[] LocalCommandOutputTags => HarnessSpans.LocalCommandOutputTags;
 
     public sealed record Segment(string Text, bool IsHuman);
 
@@ -26,20 +25,32 @@ public static class HumanSpanExtractor
 
         var ranges = new List<(int Start, int End)>();
 
-        // Harness tag spans (closed).
+        // Harness tag spans. Openers and closers are stack-paired so an unclosed opener stays
+        // ordinary text and cannot swallow a later closed block of the same tag.
         foreach (string tag in HarnessTags)
         {
             string open = $"<{tag}>";
             string close = $"</{tag}>";
+            var openers = new Stack<int>();
             int cursor = 0;
             while (true)
             {
-                int start = text.IndexOf(open, cursor, StringComparison.Ordinal);
-                if (start < 0) break;
-                int end = text.IndexOf(close, start, StringComparison.Ordinal);
-                if (end < 0) break;
-                ranges.Add((start, end + close.Length));
-                cursor = end + close.Length;
+                int nextOpen = text.IndexOf(open, cursor, StringComparison.Ordinal);
+                int nextClose = text.IndexOf(close, cursor, StringComparison.Ordinal);
+                if (nextOpen < 0 && nextClose < 0) break;
+
+                if (nextOpen >= 0 && (nextClose < 0 || nextOpen < nextClose))
+                {
+                    openers.Push(nextOpen);
+                    cursor = nextOpen + open.Length;
+                    continue;
+                }
+
+                if (openers.Count > 0)
+                {
+                    ranges.Add((openers.Pop(), nextClose + close.Length));
+                }
+                cursor = nextClose + close.Length;
             }
         }
 
@@ -94,18 +105,27 @@ public static class HumanSpanExtractor
     }
 
     public static string ExtractHumanText(string text) =>
-        string.Concat(Split(text).Where(s => s.IsHuman).Select(s => s.Text));
+        string.Join("\n", Split(text)
+            .Where(s => s.IsHuman && !string.IsNullOrEmpty(s.Text))
+            .Select(s => s.Text));
 
     public static string Reassemble(IReadOnlyList<Segment> segments, IReadOnlyList<string> rewrittenHuman)
     {
+        int humanCount = segments.Count(segment => segment.IsHuman);
+        if (rewrittenHuman.Count != humanCount)
+        {
+            throw new ArgumentException(
+                $"Expected {humanCount} rewritten human segment(s), received {rewrittenHuman.Count}.",
+                nameof(rewrittenHuman));
+        }
+
         var sb = new StringBuilder();
         int humanIndex = 0;
         foreach (Segment segment in segments)
         {
             if (segment.IsHuman)
             {
-                sb.Append(humanIndex < rewrittenHuman.Count ? rewrittenHuman[humanIndex] : segment.Text);
-                humanIndex++;
+                sb.Append(rewrittenHuman[humanIndex++]);
             }
             else
             {
@@ -117,23 +137,34 @@ public static class HumanSpanExtractor
 
     private static (int Start, int End)? NextCommandBlock(string text, int from)
     {
-        int start = CommandTags
-            .Select(tag => text.IndexOf($"<{tag}>", from, StringComparison.Ordinal))
-            .Where(position => position >= 0)
-            .DefaultIfEmpty(-1)
-            .Min();
-        if (start < 0) return null;
-
-        int end = start;
-        while (CommandSpanEnd(text, end) is int spanEnd)
+        int searchFrom = from;
+        while (true)
         {
-            end = spanEnd;
-            while (end < text.Length && char.IsWhiteSpace(text[end]))
+            int start = CommandTags
+                .Select(tag => text.IndexOf($"<{tag}>", searchFrom, StringComparison.Ordinal))
+                .Where(position => position >= 0)
+                .DefaultIfEmpty(-1)
+                .Min();
+            if (start < 0) return null;
+
+            int end = start;
+            while (CommandSpanEnd(text, end) is int spanEnd)
             {
-                end++;
+                end = spanEnd;
+                while (end < text.Length && char.IsWhiteSpace(text[end]))
+                {
+                    end++;
+                }
             }
+
+            if (end != start)
+            {
+                return (start, end);
+            }
+
+            // Unclosed opener: ordinary text. Skip it and keep looking for a later valid block.
+            searchFrom = start + 1;
         }
-        return end == start ? null : (start, end);
     }
 
     private static int? CommandSpanEnd(string text, int position)
@@ -145,7 +176,19 @@ public static class HumanSpanExtractor
             if (string.CompareOrdinal(text, position, open, 0, open.Length) == 0)
             {
                 int closeAt = text.IndexOf(close, position, StringComparison.Ordinal);
-                return closeAt < 0 ? null : closeAt + close.Length;
+                if (closeAt < 0)
+                {
+                    return null;
+                }
+
+                int nestedOpen = text.IndexOf(open, position + open.Length, StringComparison.Ordinal);
+                if (nestedOpen >= 0 && nestedOpen < closeAt)
+                {
+                    // This opener was superseded by a later one before any close; treat it as ordinary text.
+                    return null;
+                }
+
+                return closeAt + close.Length;
             }
         }
         return null;

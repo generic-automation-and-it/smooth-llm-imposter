@@ -9,9 +9,19 @@ internal static class SessionScope
     private static readonly string[] CallerHeaderNames =
         ["authorization", "x-api-key", "chatgpt-account-id", "openai-organization", "openai-project"];
 
-    public static string Key(string kind, string model, string identity, CallerHeaders headers)
+    public static string Key(string kind, string model, string identity, CallerHeaders headers) =>
+        KeyFor(kind, [model, identity], headers);
+
+    public static string Key(string kind, string identity, CallerHeaders headers) =>
+        KeyFor(kind, [identity], headers);
+
+    private static string KeyFor(string kind, string[] identityParts, CallerHeaders headers)
     {
-        var scope = new JsonArray(kind, model, identity);
+        var scope = new JsonArray(kind);
+        foreach (string part in identityParts)
+        {
+            scope.Add((JsonNode)JsonValue.Create(part));
+        }
         foreach (string header in CallerHeaderNames)
         {
             var values = new JsonArray();
