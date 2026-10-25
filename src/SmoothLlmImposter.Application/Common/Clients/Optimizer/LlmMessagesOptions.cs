@@ -22,5 +22,7 @@ public sealed class LlmMessagesOptions
 
     public int CircuitBreakSeconds { get; set; } = 180;
 
+    public int CacheTtlHours { get; set; } = 120;
+
     public string? ApiKey { get; set; }
 }

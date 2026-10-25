@@ -1,4 +1,5 @@
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
+using SmoothLlmImposter.Application.Common.Clients.Optimizer;
 
 namespace SmoothLlmImposter.Application.Features.Routing;
 
@@ -39,6 +40,8 @@ public sealed class ImposterOptions
     /// are in place.
     /// </summary>
     public DecisionsMessagesOptions DecisionsMessages { get; init; } = new();
+
+    public LlmMessagesOptions LlmMessages { get; init; } = new();
 
     public ToolOrderingOptions ToolOrdering { get; init; } = new();
 }
