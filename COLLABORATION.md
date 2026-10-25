@@ -7,7 +7,7 @@
   [`.agents/rules/git/`](.agents/rules/git/).
 - Every PR should create or update at least one nested `AGENTS.md` context file.
 
-Build, run, and test instructions: [Developers — Getting Started](.docs/wiki/developers-gettingstarted.md).
+Build, run, and test instructions: [Developers — Getting Started](docs/wiki/developers-gettingstarted.md).
 
 ## Recommended standard AI tooling
 

@@ -16,7 +16,7 @@ positional (`__N__`) addressing of providers anywhere in the system.
 L0 unit test: bind an `ImposterOptions` from a configuration whose provider dictionary is built in
 two different key orders; assert the resolved `ProviderRoute` for a given name is identical and
 that an override for that name lands on it in both orderings. A grep gate / review check confirms
-no `Providers__<digit>` pattern remains in source or `.docs/`.
+no `Providers__<digit>` pattern remains in source or `docs/`.
 
 ## Acceptance Criteria
 

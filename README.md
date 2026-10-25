@@ -22,7 +22,7 @@ unchanged. It is:
 
 There is **no `claude login` and no token capture** inside the Host by default (the opt-in Copilot device login is the exception) — you run it with `dotnet`, Docker, or
 the published GHCR image, and point your client's base URL at it. Full setup:
-**[`.docs/wiki/setup.md`](.docs/wiki/setup.md)**.
+**[`docs/wiki/setup.md`](docs/wiki/setup.md)**.
 
 ### Architecture at a glance
 
@@ -77,7 +77,7 @@ The same mechanism also enables:
   lines only). Set `Serilog:MinimumLevel:Override:SmoothLlmImposter.Routing` to `Debug` to log
   every routed call's HTTP method, upstream path, query string, **all headers**, and the **raw
   body** (auth secrets masked) — no rebuild, no client change. See the
-  [debug logging guide](.docs/wiki/setups/logging.debug-smooth-llm-imposter.md).
+  [debug logging guide](docs/wiki/setups/logging.debug-smooth-llm-imposter.md).
 
 ### Why this exists — and how to combine it
 
@@ -105,7 +105,7 @@ and have one of its entries point back at SmoothLlmImposter for subscription-bac
 
 **TL;DR — most gateways route API keys. This one routes subscriptions.** Pick the one that fits,
 or stack them. Feature-by-feature comparison (CCR, LiteLLM):
-**[Comparisons](.docs/wiki/comparisons.md)**.
+**[Comparisons](docs/wiki/comparisons.md)**.
 
 ---
 
@@ -118,28 +118,28 @@ either passes through to the dialect's default provider (forwarding the caller's
 no default is configured, returns a dialect-shaped 404.
 
 Design detail — actors, request flow, routing decision, NFRs, and decision records — is indexed in
-**[Design documents (HLDs)](.docs/wiki/hlds.md)**.
+**[Design documents (HLDs)](docs/wiki/hlds.md)**.
 
 ---
 
 ## Quick start
 
 New to the project? Building from source, running it, and testing are covered in
-**[Developers — Getting Started](.docs/wiki/developers-gettingstarted.md)**.
+**[Developers — Getting Started](docs/wiki/developers-gettingstarted.md)**.
 
 Pick the guide that matches how you want to run or work on the router:
 
 | ID | Name | Description | Link | Type |
 |---|---|---|---|---|
-| S01 | Setup (all modes) | Master setup & run guide — config model, dialect prefixes, and every run mode | [`.docs/wiki/setup.md`](.docs/wiki/setup.md) | Runtime |
-| S02 | Docker / Podman | Run the router in a container you build locally | [`docker.run-smooth-llm-imposter.md`](.docs/wiki/setups/docker.run-smooth-llm-imposter.md) | Runtime |
-| S03 | GHCR image | Run the published SmoothLlmImposter container from GHCR | [`ghcr.run-smooth-llm-imposter.md`](.docs/wiki/setups/ghcr.run-smooth-llm-imposter.md) | Runtime |
-| S04 | Compose | Run with `docker compose` / `podman-compose` | [`compose.run-smooth-llm-imposter.md`](.docs/wiki/setups/compose.run-smooth-llm-imposter.md) | Runtime |
-| S05 | Developers — Getting Started | Build, run, and test from source (prerequisites, build, test) | [`developers-gettingstarted.md`](.docs/wiki/developers-gettingstarted.md) | Developer |
-| S06 | Local debug | Run from source with a debugger attached | [`local-debug.run-smooth-llm-imposter.md`](.docs/wiki/setups/local-debug.run-smooth-llm-imposter.md) | Developer |
-| S07 | Conductor | Fresh-sandbox build & routing setup for Conductor workspaces | [`conductor.build-smooth-llm-imposter.md`](.docs/wiki/setups/conductor.build-smooth-llm-imposter.md) | Developer |
-| S08 | Logging debug | Dump the full inbound request for message-level debugging | [`logging.debug-smooth-llm-imposter.md`](.docs/wiki/setups/logging.debug-smooth-llm-imposter.md) | Developer |
-| S09 | GitHub Copilot (opt-in) | Device login, model discovery, mappings and credential removal for Copilot upstreams | [`github-copilot.configure-smooth-llm-imposter.md`](.docs/wiki/setups/github-copilot.configure-smooth-llm-imposter.md) | Runtime |
+| S01 | Setup (all modes) | Master setup & run guide — config model, dialect prefixes, and every run mode | [`docs/wiki/setup.md`](docs/wiki/setup.md) | Runtime |
+| S02 | Docker / Podman | Run the router in a container you build locally | [`docker.run-smooth-llm-imposter.md`](docs/wiki/setups/docker.run-smooth-llm-imposter.md) | Runtime |
+| S03 | GHCR image | Run the published SmoothLlmImposter container from GHCR | [`ghcr.run-smooth-llm-imposter.md`](docs/wiki/setups/ghcr.run-smooth-llm-imposter.md) | Runtime |
+| S04 | Compose | Run with `docker compose` / `podman-compose` | [`compose.run-smooth-llm-imposter.md`](docs/wiki/setups/compose.run-smooth-llm-imposter.md) | Runtime |
+| S05 | Developers — Getting Started | Build, run, and test from source (prerequisites, build, test) | [`developers-gettingstarted.md`](docs/wiki/developers-gettingstarted.md) | Developer |
+| S06 | Local debug | Run from source with a debugger attached | [`local-debug.run-smooth-llm-imposter.md`](docs/wiki/setups/local-debug.run-smooth-llm-imposter.md) | Developer |
+| S07 | Conductor | Fresh-sandbox build & routing setup for Conductor workspaces | [`conductor.build-smooth-llm-imposter.md`](docs/wiki/setups/conductor.build-smooth-llm-imposter.md) | Developer |
+| S08 | Logging debug | Dump the full inbound request for message-level debugging | [`logging.debug-smooth-llm-imposter.md`](docs/wiki/setups/logging.debug-smooth-llm-imposter.md) | Developer |
+| S09 | GitHub Copilot (opt-in) | Device login, model discovery, mappings and credential removal for Copilot upstreams | [`github-copilot.configure-smooth-llm-imposter.md`](docs/wiki/setups/github-copilot.configure-smooth-llm-imposter.md) | Runtime |
 
 ### GitHub Copilot (opt-in)
 
@@ -155,8 +155,8 @@ secret — so nothing ships with a hardcoded app identity.
 
 **Status:** implemented (Feature [#126](https://github.com/generic-automation-and-it/smooth-llm-imposter/issues/126)) —
 device login, model discovery, mappings, token refresh and managed routing for `/v1/messages` and `/responses`. Design:
-[HLD 013](.docs/hlds/013-github-copilot/README.md). Setup guide with the full curl walkthrough:
-**[GitHub Copilot — configure the imposter](.docs/wiki/setups/github-copilot.configure-smooth-llm-imposter.md)**.
+[HLD 013](docs/hlds/013-github-copilot/README.md). Setup guide with the full curl walkthrough:
+**[GitHub Copilot — configure the imposter](docs/wiki/setups/github-copilot.configure-smooth-llm-imposter.md)**.
 Verifying against your own registered OAuth application end-to-end (live account probes) is still an external
 release gate; the deterministic suites and the NativeAOT smoke run are green. Track it in
 [#126](https://github.com/generic-automation-and-it/smooth-llm-imposter/issues/126).
@@ -169,12 +169,12 @@ Two in-band switches short-circuit the forward path and return a dialect-shaped 
 **zero upstream calls**. They match when the **last user message** is exactly the switch (trimmed,
 case-sensitive) on a **non-streaming** request. Gated by `Imposter:WhoMessage:Enabled` (default `true`);
 set `IMPOSTER_WHO_MESSAGE_ENABLED=false` to opt out. Design:
-[HLD 010 — Who-Message Introspection](.docs/hlds/010-who-message-introspection/README.md).
+[HLD 010 — Who-Message Introspection](docs/hlds/010-who-message-introspection/README.md).
 
 | Switch | Reply |
 |---|---|
 | `--who?` | `Imposter: <inbound> → <target> (auth: <scheme>) session:<id>` or `Passthrough: <inbound> (auth: <scheme>) session:null` |
-| `--newsession` | `Session: <callerId> → <syntheticId>`; requires a caller session id (header or body field, same resolution as [HLD 009](.docs/hlds/009-session-identity-forwarding/README.md)). Later requests with that caller id are stamped with the synthetic one |
+| `--newsession` | `Session: <callerId> → <syntheticId>`; requires a caller session id (header or body field, same resolution as [HLD 009](docs/hlds/009-session-identity-forwarding/README.md)). Later requests with that caller id are stamped with the synthetic one |
 
 Limits: the session dictionary is process-lifetime and in-process (a restart or another replica loses it),
 and streaming requests are never intercepted — use the [skills](#skills) below, which send a non-streaming
@@ -184,7 +184,7 @@ probe for you.
 
 ## Skills
 
-Two Codex skills ship with this repo so an agent running through the imposter can confirm which upstream model it is really hitting, without spending upstream tokens or relying on the in-band `--who?` / `--newsession` switch (which the router does not synthesize on streaming requests — see [HLD 010](.docs/hlds/010-who-message-introspection/README.md), LADR-05).
+Two Codex skills ship with this repo so an agent running through the imposter can confirm which upstream model it is really hitting, without spending upstream tokens or relying on the in-band `--who?` / `--newsession` switch (which the router does not synthesize on streaming requests — see [HLD 010](docs/hlds/010-who-message-introspection/README.md), LADR-05).
 
 | Skill | What it does | Trigger |
 |---|---|---|
@@ -216,14 +216,14 @@ Both scripts auto-detect the dialect from `OPENAI_BASE_URL` / `ANTHROPIC_BASE_UR
 
 | Topic | Location |
 |---|---|
-| Architecture (tech stack, project structure) | [`.docs/wiki/architecture.md`](.docs/wiki/architecture.md) |
-| Comparisons (CCR, LiteLLM) | [`.docs/wiki/comparisons.md`](.docs/wiki/comparisons.md) |
-| Setup & run (all modes) | [`.docs/wiki/setup.md`](.docs/wiki/setup.md) · [`.docs/wiki/setups/`](.docs/wiki/setups/) |
-| Design (HLD, NFRs, LADRs) | [`.docs/wiki/hlds.md`](.docs/wiki/hlds.md) — HLD index; sources in [`.docs/hlds/`](.docs/hlds/) |
+| Architecture (tech stack, project structure) | [`docs/wiki/architecture.md`](docs/wiki/architecture.md) |
+| Comparisons (CCR, LiteLLM) | [`docs/wiki/comparisons.md`](docs/wiki/comparisons.md) |
+| Setup & run (all modes) | [`docs/wiki/setup.md`](docs/wiki/setup.md) · [`docs/wiki/setups/`](docs/wiki/setups/) |
+| Design (HLD, NFRs, LADRs) | [`docs/wiki/hlds.md`](docs/wiki/hlds.md) — HLD index; sources in [`docs/hlds/`](docs/hlds/) |
 | AI agent context & coding rules | [`AGENTS.md`](AGENTS.md) · [`.agents/`](.agents/) |
-| AI tooling setup | [`.docs/wiki/ai-tooling.md`](.docs/wiki/ai-tooling.md) |
-| Testing strategy | [`.docs/wiki/testing.md`](.docs/wiki/testing.md) |
-| CI/CD pipeline | [`.docs/wiki/ci.md`](.docs/wiki/ci.md) |
+| AI tooling setup | [`docs/wiki/ai-tooling.md`](docs/wiki/ai-tooling.md) |
+| Testing strategy | [`docs/wiki/testing.md`](docs/wiki/testing.md) |
+| CI/CD pipeline | [`docs/wiki/ci.md`](docs/wiki/ci.md) |
 
 ---
 

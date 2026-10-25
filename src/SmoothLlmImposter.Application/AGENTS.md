@@ -51,7 +51,7 @@ and `SessionScope` keys; do not add another unbounded or unhashed session map â€
 fails on any new singleton collection until it uses that type or is reviewed. Resolve the session identity from
 the **inbound** body and caller headers, never the transformed body: OpenAI transforms inject
 `prompt_cache_key` = inbound model, which turns every chat of a model into one "session".
-Shared ownership ([HLD 015](../../.docs/hlds/015-shared-decision-model-integration/README.md)) is the runtime contract: `Common/Clients/Decisions` holds the consumer-neutral `DecisionServiceOptions`, the `IDecisionServiceConsumer` opt-in and the `DecisionServiceDemand` any-consumer predicate. A new consumer registers its own `IDecisionServiceConsumer`; it must never reuse or toggle the tool filter's `Enabled`. The tool filter maps its legacy `Imposter:DecisionsTools`/`DECISIONS_TOOLS_*` surface onto the shared profile in `Features/Routing/Decisions`.
+Shared ownership ([HLD 015](../../docs/hlds/015-shared-decision-model-integration/README.md)) is the runtime contract: `Common/Clients/Decisions` holds the consumer-neutral `DecisionServiceOptions`, the `IDecisionServiceConsumer` opt-in and the `DecisionServiceDemand` any-consumer predicate. A new consumer registers its own `IDecisionServiceConsumer`; it must never reuse or toggle the tool filter's `Enabled`. The tool filter maps its legacy `Imposter:DecisionsTools`/`DECISIONS_TOOLS_*` surface onto the shared profile in `Features/Routing/Decisions`.
 
 ## Changelog
 

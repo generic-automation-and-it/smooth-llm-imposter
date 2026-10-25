@@ -2,7 +2,7 @@
 
 Imposter vs [claude-code-router](https://github.com/musistudio/claude-code-router) (CCR) vs [LiteLLM](https://github.com/BerriAI/litellm).
 
-Legend: ✅ yes · ❌ no · ◐ partial · 🔜 planned. Sources: CCR README (`main`, fetched 2026-10-24) + CCR docs; LiteLLM repo + `docs.litellm.ai`; imposter HLD index (`.docs/hlds/`).
+Legend: ✅ yes · ❌ no · ◐ partial · 🔜 planned. Sources: CCR README (`main`, fetched 2026-10-24) + CCR docs; LiteLLM repo + `docs.litellm.ai`; imposter HLD index (`docs/hlds/`).
 
 ## TL;DR — what is special to the imposter
 

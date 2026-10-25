@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-Opt-in translation of a matched Anthropic imposter route's Messages request to Chat Completions and the reply back. The normative behavior is `.docs/hlds/016-anthropic-messages-chat-bridge/spec/` (00–04); this file carries only local traps the spec does not repeat.
+Opt-in translation of a matched Anthropic imposter route's Messages request to Chat Completions and the reply back. The normative behavior is `docs/hlds/016-anthropic-messages-chat-bridge/spec/` (00–04); this file carries only local traps the spec does not repeat.
 
 ## Non-Negotiables
 
