@@ -54,16 +54,26 @@ internal sealed class OptimizationCoordinator(
 
     private static string Merge(string originalBody, IReadOnlyList<OptimizationEdit> edits)
     {
-        List<OptimizationPatch> all = edits.SelectMany(e => e.Patches).ToList();
+        List<OptimizationPatch> all = edits
+            .Where(e => e?.Patches is not null)
+            .SelectMany(e => e.Patches!)
+            .Where(p => p is not null && !string.IsNullOrEmpty(p.Pointer))
+            .ToList();
         if (all.Count == 0)
         {
             return originalBody;
         }
 
-        // Overlap: the same pointer claimed by more than one patch.
-        if (all.Select(p => p.Pointer).Distinct(StringComparer.Ordinal).Count() != all.Count)
+        // Overlap: the same pointer, or an ancestor/descendant of it, claimed by more than one patch.
+        for (int i = 0; i < all.Count; i++)
         {
-            return originalBody;
+            for (int j = i + 1; j < all.Count; j++)
+            {
+                if (Overlaps(all[i].Pointer, all[j].Pointer))
+                {
+                    return originalBody;
+                }
+            }
         }
 
         JsonObject root;
@@ -112,6 +122,10 @@ internal sealed class OptimizationCoordinator(
 
         if (current is JsonObject obj)
         {
+            if (!obj.ContainsKey(last))
+            {
+                return false;
+            }
             obj[last] = replacement;
             return true;
         }
@@ -143,6 +157,11 @@ internal sealed class OptimizationCoordinator(
 
         return null;
     }
+
+    private static bool Overlaps(string a, string b) =>
+        a.Equals(b, StringComparison.Ordinal) ||
+        a.StartsWith(b + "/", StringComparison.Ordinal) ||
+        b.StartsWith(a + "/", StringComparison.Ordinal);
 
     private static string Unescape(string segment) =>
         segment.Replace("~1", "/").Replace("~0", "~");
