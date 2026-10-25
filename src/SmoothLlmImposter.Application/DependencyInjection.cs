@@ -29,7 +29,11 @@ public static class DependencyInjection
         services.AddScoped<IProviderCatalog, ProviderCatalog>();
         services.AddScoped<IRouteResolver, RouteResolver>();
         services.AddSingleton<IRequestNormalizer, CodexToOpenAiSdkNormalizer>();
-        services.AddSingleton<IDecisionToolsFilter, DecisionToolsFilter>();
+        // One instance serves both the legacy filter contract and the optimization strategy, so the
+        // answer memo and sticky sets are shared.
+        services.AddSingleton<DecisionToolsFilter>();
+        services.AddSingleton<IDecisionToolsFilter>(static provider => provider.GetRequiredService<DecisionToolsFilter>());
+        services.AddSingleton<IOptimizationStrategy>(static provider => provider.GetRequiredService<DecisionToolsFilter>());
         services.AddSingleton<DecisionCircuitBreaker>();
 
         // Optimization coordinator (HLD 017 LADR-08): runs registered strategies concurrently
