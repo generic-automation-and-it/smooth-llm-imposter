@@ -30,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<IRouteResolver, RouteResolver>();
         services.AddSingleton<IRequestNormalizer, CodexToOpenAiSdkNormalizer>();
         services.AddSingleton<IDecisionToolsFilter, DecisionToolsFilter>();
+        services.AddSingleton<DecisionCircuitBreaker>();
 
         // Optimization coordinator (HLD 017 LADR-08): runs registered strategies concurrently
         // and merges their edits. Concrete strategies are registered explicitly by their

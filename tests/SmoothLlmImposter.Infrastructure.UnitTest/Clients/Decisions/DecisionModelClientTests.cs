@@ -179,7 +179,7 @@ public class DecisionModelClientTests
         ceiling.CancelAfter(TimeSpan.FromSeconds(10));
         var client = provider.GetRequiredService<IDecisionModelClient>();
 
-        await Should.ThrowAsync<Polly.Timeout.TimeoutRejectedException>(() =>
+        await Should.ThrowAsync<DecisionServiceTimeoutException>(() =>
             client.DecideAsync(new JsonObject(), ceiling.Token));
         await client.DecideAsync(new JsonObject(), ceiling.Token);
 
@@ -241,12 +241,12 @@ public class DecisionModelClientTests
         Task<JsonObject> firstCall = client.DecideAsync(new JsonObject { ["request"] = "first" }, cancelFirst.Token);
         await entered.Task.WaitAsync(ceiling.Token);
 
-        await Should.ThrowAsync<TimeoutException>(() =>
+        await Should.ThrowAsync<DecisionGateTimeoutException>(() =>
             client.DecideAsync(new JsonObject { ["request"] = "second" }, ceiling.Token));
 
         await cancelFirst.CancelAsync();
         Exception firstFailure = await Should.ThrowAsync<Exception>(() => firstCall);
-        (firstFailure is OperationCanceledException or Polly.Timeout.TimeoutRejectedException).ShouldBeTrue();
+        (firstFailure is OperationCanceledException or DecisionServiceTimeoutException).ShouldBeTrue();
         sentRequests.ShouldAllBe(body => body.Contains("first", StringComparison.Ordinal));
     }
 

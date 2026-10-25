@@ -268,6 +268,7 @@ internal sealed class ImposterOptionsPostConfigure(
             [nameof(DecisionsToolsOptions.StickyPerSession)] = "DECISIONS_TOOLS_STICKY_PER_SESSION",
             [nameof(DecisionsToolsOptions.MaxAttempts)] = "DECISIONS_TOOLS_MAX_ATTEMPTS",
             [nameof(DecisionsToolsOptions.TimeoutSeconds)] = "DECISIONS_TOOLS_TIMEOUT",
+            [nameof(DecisionsToolsOptions.CircuitBreakSeconds)] = "DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS",
         };
 
     private void ApplyDecisionsToolsOverrides(DecisionsToolsOptions options)
@@ -282,6 +283,7 @@ internal sealed class ImposterOptionsPostConfigure(
         ApplyRootBooleanOverride(DecisionsToolsVariables[nameof(options.StickyPerSession)], nameof(options.StickyPerSession), value => options.StickyPerSession = value);
         ApplyRootIntegerOverride(DecisionsToolsVariables[nameof(options.MaxAttempts)], nameof(options.MaxAttempts), value => options.MaxAttempts = value);
         ApplyRootIntegerOverride(DecisionsToolsVariables[nameof(options.TimeoutSeconds)], nameof(options.TimeoutSeconds), value => options.TimeoutSeconds = value);
+        ApplyRootIntegerOverride(DecisionsToolsVariables[nameof(options.CircuitBreakSeconds)], nameof(options.CircuitBreakSeconds), value => options.CircuitBreakSeconds = value);
     }
 
     /// <summary>

@@ -530,7 +530,7 @@ public sealed class DecisionToolsFilterTests
     {
         string body = Body(25).ToJsonString();
         var client = new DecisionStub { Answer = request => Answers(request, key => key == "t0" ? 1 : 0), FailCall = 1 };
-        DecisionToolsFilter filter = Create(client);
+        DecisionToolsFilter filter = Create(client, circuitBreakSeconds: 0);
 
         ReferenceEquals(await filter.FilterAsync("/responses", body, Ct), body).ShouldBeTrue();
         string first = await filter.FilterAsync("/responses", body, Ct);
@@ -629,6 +629,68 @@ public sealed class DecisionToolsFilterTests
     }
 
     [Fact]
+    public async Task One_failed_call_opens_the_circuit_and_the_next_pass_makes_no_classifier_call()
+    {
+        var logs = new FilterLogger();
+        var client = new DecisionStub { FailCall = 1 };
+        IOptions<ImposterOptions> options = DecisionOptions();
+        var breaker = new DecisionCircuitBreaker(options, TimeProvider.System, new BreakerLogger());
+        DecisionToolsFilter filter = Create(options, client, logs, breaker);
+        string body = Body(1).ToJsonString();
+
+        ReferenceEquals(await filter.FilterAsync("/responses", body, Ct), body).ShouldBeTrue();
+        client.Requests.Count.ShouldBe(1);
+        ReferenceEquals(await filter.FilterAsync("/responses", body, Ct), body).ShouldBeTrue();
+        client.Requests.Count.ShouldBe(1);
+        logs.Events.ShouldContain(entry => entry.Text.Contains("circuit-open"));
+    }
+
+    [Fact]
+    public async Task Gate_contention_is_fail_open_without_opening_the_circuit()
+    {
+        var client = new DecisionStub { FailCall = 1, Failure = new DecisionGateTimeoutException("gate") };
+        IOptions<ImposterOptions> options = DecisionOptions();
+        var breaker = new DecisionCircuitBreaker(options, TimeProvider.System, new BreakerLogger());
+        DecisionToolsFilter filter = Create(options, client, new FilterLogger(), breaker);
+        string body = Body(1).ToJsonString();
+
+        await filter.FilterAsync("/responses", body, Ct);
+        await filter.FilterAsync("/responses", body, Ct);
+        client.Requests.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task A_cancelled_trial_leaves_the_circuit_ready_for_the_next_trial()
+    {
+        string body = Body(1).ToJsonString();
+        IOptions<ImposterOptions> options = DecisionOptions(circuitBreakSeconds: 0);
+        var breaker = new DecisionCircuitBreaker(options, TimeProvider.System, new BreakerLogger());
+
+        await Create(options, new DecisionStub { FailCall = 1 }, new FilterLogger(), breaker).FilterAsync("/responses", body, Ct);
+
+        using var abort = new CancellationTokenSource();
+        var cancelling = new DecisionStub { Answer = _ => { abort.Cancel(); throw new OperationCanceledException(abort.Token); } };
+        DecisionToolsFilter trial = Create(options, cancelling, new FilterLogger(), breaker);
+        await Should.ThrowAsync<OperationCanceledException>(() => trial.FilterAsync("/responses", body, abort.Token));
+
+        var next = new DecisionStub();
+        await Create(options, next, new FilterLogger(), breaker).FilterAsync("/responses", body, Ct);
+        next.Requests.Count.ShouldBe(1);
+    }
+
+    private static IOptions<ImposterOptions> DecisionOptions(int circuitBreakSeconds = DecisionsToolsOptions.DefaultCircuitBreakSeconds) =>
+        Options.Create(new ImposterOptions
+        {
+            DecisionsTools = new DecisionsToolsOptions
+            {
+                Enabled = true,
+                MinKeepTools = 0,
+                BaseUrl = DecisionServiceOptions.DefaultBaseUrl,
+                CircuitBreakSeconds = circuitBreakSeconds
+            }
+        });
+
+    [Fact]
     public async Task Invalid_envelope_is_fail_open_and_caller_cancellation_is_not()
     {
         var client = new DecisionStub { Answer = _ => new JsonObject() };
@@ -688,13 +750,13 @@ public sealed class DecisionToolsFilterTests
     public async Task Sticky_does_not_record_fail_open_all_skip_or_small_catalog_passes()
     {
         var client = new DecisionStub { FailCall = 1, Answer = request => Answers(request, key => key == "t4" ? 1 : 0) };
-        DecisionToolsFilter failOpen = Create(client, sticky: true);
+        DecisionToolsFilter failOpen = Create(client, sticky: true, circuitBreakSeconds: 0);
         (await Turn(failOpen, "First task", Session("chat"))).Length.ShouldBe(5);
         (await Turn(failOpen, "Second task", Session("chat"))).ShouldBe(["tool4"]);
 
         bool allSkip = true;
         client = new DecisionStub { Answer = request => Answers(request, key => !allSkip && key == "t4" ? 1 : 0) };
-        DecisionToolsFilter skipped = Create(client, sticky: true);
+        DecisionToolsFilter skipped = Create(client, sticky: true, circuitBreakSeconds: 0);
         (await Turn(skipped, "First task", Session("chat"))).Length.ShouldBe(5);
         allSkip = false;
         (await Turn(skipped, "Second task", Session("chat"))).ShouldBe(["tool4"]);
@@ -711,7 +773,7 @@ public sealed class DecisionToolsFilterTests
     public async Task Sticky_does_not_record_a_partially_failed_pass()
     {
         var client = new DecisionStub { FailCall = 2, Answer = request => Answers(request, _ => 1) };
-        DecisionToolsFilter filter = Create(client, sticky: true);
+        DecisionToolsFilter filter = Create(client, sticky: true, circuitBreakSeconds: 0);
         (await Turn(filter, "First task", Session("chat"), count: 25)).Length.ShouldBe(25);
 
         await Turn(filter, "Second task", Session("chat"), count: 25);
@@ -779,15 +841,33 @@ public sealed class DecisionToolsFilterTests
 
     private static DecisionToolsFilter Create(
         DecisionStub client, FilterLogger? logger = null, bool enabled = true, int minKeep = 0, string alwaysKeep = "",
-        bool sticky = false, string baseUrl = DecisionServiceOptions.DefaultBaseUrl) =>
-        new(Options.Create(new ImposterOptions
+        bool sticky = false, string baseUrl = DecisionServiceOptions.DefaultBaseUrl,
+        DecisionCircuitBreaker? breaker = null,
+        // 0 keeps a post-failure pass reachable for tests whose subject is the cache or sticky set, not the breaker.
+        int circuitBreakSeconds = DecisionsToolsOptions.DefaultCircuitBreakSeconds) =>
+        Create(Options.Create(new ImposterOptions
         {
             DecisionsTools = new DecisionsToolsOptions
             {
                 Enabled = enabled, MinKeepTools = minKeep, AlwaysKeep = alwaysKeep, StickyPerSession = sticky,
-                BaseUrl = baseUrl
+                BaseUrl = baseUrl, CircuitBreakSeconds = circuitBreakSeconds
             }
-        }), client, TimeProvider.System, logger ?? new FilterLogger());
+        }), client, logger, breaker);
+
+    private static DecisionToolsFilter Create(
+        IOptions<ImposterOptions> options, DecisionStub client, FilterLogger? logger, DecisionCircuitBreaker? breaker) =>
+        new(options, client,
+            breaker ?? new DecisionCircuitBreaker(options, TimeProvider.System, new BreakerLogger()),
+            TimeProvider.System, logger ?? new FilterLogger());
+
+    private sealed class BreakerLogger : ILogger<DecisionCircuitBreaker>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => false;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+        }
+    }
 
     private static JsonObject Body(int count)
     {
@@ -816,13 +896,14 @@ public sealed class DecisionToolsFilterTests
         public List<JsonObject> Requests { get; } = [];
         public Func<JsonObject, JsonObject> Answer { get; init; } = request => Answers(request, _ => 0);
         public int FailCall { get; init; }
+        public Exception? Failure { get; init; }
 
         public Task<JsonObject> DecideAsync(JsonObject request, CancellationToken cancellationToken)
         {
             Requests.Add(request);
             if (Requests.Count == FailCall)
             {
-                throw new HttpRequestException("secret error payload", null, System.Net.HttpStatusCode.BadRequest);
+                throw Failure ?? new HttpRequestException("secret error payload", null, System.Net.HttpStatusCode.BadRequest);
             }
 
             return Task.FromResult(Answer(request));

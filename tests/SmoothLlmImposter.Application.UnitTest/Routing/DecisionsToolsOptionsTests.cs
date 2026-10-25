@@ -27,6 +27,7 @@ public class DecisionsToolsOptionsTests
         options.StickyPerSession.ShouldBeFalse();
         options.MaxAttempts.ShouldBe(3);
         options.TimeoutSeconds.ShouldBe(60);
+        options.CircuitBreakSeconds.ShouldBe(180);
     }
 
     [Fact]
@@ -44,7 +45,8 @@ public class DecisionsToolsOptionsTests
                 ["Imposter:DecisionsTools:AlwaysKeep"] = "shell,apply_patch",
                 ["Imposter:DecisionsTools:StickyPerSession"] = "true",
                 ["Imposter:DecisionsTools:MaxAttempts"] = "5",
-                ["Imposter:DecisionsTools:TimeoutSeconds"] = "90"
+                ["Imposter:DecisionsTools:TimeoutSeconds"] = "90",
+                ["Imposter:DecisionsTools:CircuitBreakSeconds"] = "45"
             }).GetSection(ImposterOptions.SectionName))
             .BuildServiceProvider();
 
@@ -60,10 +62,11 @@ public class DecisionsToolsOptionsTests
         options.StickyPerSession.ShouldBeTrue();
         options.MaxAttempts.ShouldBe(5);
         options.TimeoutSeconds.ShouldBe(90);
+        options.CircuitBreakSeconds.ShouldBe(45);
     }
 
     [Fact]
-    public void All_ten_conventional_variables_override_the_bound_section()
+    public void All_conventional_variables_override_the_bound_section()
     {
         ImposterOptions options = BoundOptions();
         Apply(options, new Dictionary<string, string?>
@@ -77,7 +80,8 @@ public class DecisionsToolsOptionsTests
             ["DECISIONS_TOOLS_ALWAYS_KEEP"] = "shell,apply_patch",
             ["DECISIONS_TOOLS_STICKY_PER_SESSION"] = "true",
             ["DECISIONS_TOOLS_MAX_ATTEMPTS"] = "5",
-            ["DECISIONS_TOOLS_TIMEOUT"] = "90"
+            ["DECISIONS_TOOLS_TIMEOUT"] = "90",
+            ["DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS"] = "45"
         });
 
         options.DecisionsTools.Enabled.ShouldBeFalse();
@@ -90,6 +94,7 @@ public class DecisionsToolsOptionsTests
         options.DecisionsTools.StickyPerSession.ShouldBeTrue();
         options.DecisionsTools.MaxAttempts.ShouldBe(5);
         options.DecisionsTools.TimeoutSeconds.ShouldBe(90);
+        options.DecisionsTools.CircuitBreakSeconds.ShouldBe(45);
     }
 
     [Fact]
@@ -120,7 +125,8 @@ public class DecisionsToolsOptionsTests
             ["DECISIONS_TOOLS_ALWAYS_KEEP"] = value,
             ["DECISIONS_TOOLS_STICKY_PER_SESSION"] = value,
             ["DECISIONS_TOOLS_MAX_ATTEMPTS"] = value,
-            ["DECISIONS_TOOLS_TIMEOUT"] = value
+            ["DECISIONS_TOOLS_TIMEOUT"] = value,
+            ["DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS"] = value
         });
 
         options.DecisionsTools.Enabled.ShouldBeTrue();
@@ -133,6 +139,7 @@ public class DecisionsToolsOptionsTests
         options.DecisionsTools.StickyPerSession.ShouldBeTrue();
         options.DecisionsTools.MaxAttempts.ShouldBe(2);
         options.DecisionsTools.TimeoutSeconds.ShouldBe(30);
+        options.DecisionsTools.CircuitBreakSeconds.ShouldBe(180);
         logger.Entries.ShouldBeEmpty();
     }
 
@@ -149,12 +156,14 @@ public class DecisionsToolsOptionsTests
             {
                 ["DECISIONS_TOOLS_MIN_PROBABILITY"] = "0.50",
                 ["DECISIONS_TOOLS_MAX_ATTEMPTS"] = "7",
-                ["DECISIONS_TOOLS_TIMEOUT"] = "120"
+                ["DECISIONS_TOOLS_TIMEOUT"] = "120",
+                ["DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS"] = "240"
             });
 
             options.DecisionsTools.MinProbability.ShouldBe(0.50);
             options.DecisionsTools.MaxAttempts.ShouldBe(7);
             options.DecisionsTools.TimeoutSeconds.ShouldBe(120);
+            options.DecisionsTools.CircuitBreakSeconds.ShouldBe(240);
         }
         finally
         {
