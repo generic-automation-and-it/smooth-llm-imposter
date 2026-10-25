@@ -1,23 +1,26 @@
-# LADR-05: Proxy-side memory of what was forwarded
+# LADR-05: Session-scoped checksum cache of forwarded messages
 
 **Status:** Draft
 
 ## Context
 
-- Claude Code and Codex keep their own history and resend the original messages every turn; they never see the proxy's rewritten request.
-- An in-text "optimized" marker would therefore never return to the proxy, would cost ~15 tokens per optimized message on every later turn, could be echoed by the end LLM and could be forged.
-- Once a turn has gone upstream in one form, forwarding it in another form later breaks the cache prefix.
+- No Messages or Chat Completions response carries the request's messages, so Claude Code and Codex resend their own original history every turn and never see the proxy's rewrite.
+- An in-text "optimized" marker would never return, would cost ~15 tokens per message every turn, and could be echoed or forged.
+- A message forwarded in one form and later in another breaks the cache prefix.
+- The tool filter already keeps sticky per-session state in memory, scoped by session identity and caller credentials (HLD 014 LADR-09).
 
 ## Decision
 
-**Remember, per session, the exact text forwarded for each human message the stage handled, and replay it.** The key is a hash of the original span text plus the optimizer version (optimizer model and instruction revision). The recorded outcome is what was actually forwarded: the accepted rewrite, or the original — after a negative gate answer, a discarded rewrite, or a failed or open optimizer. A remembered message makes no gate or optimizer call. The first recorded outcome for a key is final: concurrent requests carrying the same new candidate reuse it instead of calling the optimizer again. A message below the length minimum is not recorded, because the check is deterministic.
+**Cache, per session scope, the text forwarded for each original human message, keyed by its checksum, and replace every matching message with it.** The checksum is a SHA-256 of the original human text (harness spans excluded, LADR-03) plus the optimizer version (model and instruction revision). The value is what was forwarded: the accepted rewrite, or the original after a negative gate answer, a discarded rewrite or a failed or open optimizer. A hit makes no model call; the first value for a checksum is final, and concurrent requests reuse it. Messages below the length minimum are not cached.
 
-The memory is in-process and bounded; it evicts whole sessions, least recently used first, so an active session never loses part of its history and an evicted session behaves like a restart (Open item 3). Any human message the memory does not hold is a candidate again (LADR-03). A request without a captured session id (HLD 009) uses one process-wide scope keyed by the content hash alone: identical text always gets the same outcome, and a replay returns only the rewrite of that same text, so no other caller's content is involved. That scope evicts entries oldest-first, so a sessionless conversation can miss the cache once after eviction. No marker is written into forwarded text, and audit comes from logs (hash, outcome, sizes — NFR-04).
+The scope is the tool filter's — captured session identity (HLD 009) plus caller credential headers — without the inbound model, so a side request or `/model` switch does not rewrite history again. Nothing is shared across sessions or callers. A request without a captured session id is not cached: its human messages are optimized on every request.
+
+The cache lives in process memory only — no file or database — with a sliding TTL: a scope unused for `LLM_MESSAGES_CACHE_TTL_HOURS` (optional, default and maximum 120) is dropped, and every hit refreshes it. There is no scope or entry cap. Audit comes from logs (checksum, outcome, sizes — NFR-04), never a marker.
 
 ## Consequences
 
-- No message is compressed twice, and repeat requests in a user turn cost no model calls.
-- The provider cache prefix stays stable while the session is retained (NFR-01).
-- A restart loses the memory: the conversation's history is rewritten again on the next request, possibly with different bytes, so it misses the cache once (Open item 3).
-- Storing the forwarded text keeps user content in process memory for the entry's lifetime.
-
+- No message is compressed twice; repeats cost no model calls, and the cache prefix stays stable while the scope lives (NFR-01).
+- A restart or a scope idle past the TTL loses the cache: history is rewritten on the next request and misses the provider cache once (Open item 3).
+- A sessionless conversation pays a gate call and a rewrite per human message on every request and gets no provider cache benefit.
+- User text stays in memory for up to five days, uncapped.
+- The shared session-scoped memory needs a per-instance lifetime and an uncapped mode; tools keep 30 minutes and 256 scopes.
