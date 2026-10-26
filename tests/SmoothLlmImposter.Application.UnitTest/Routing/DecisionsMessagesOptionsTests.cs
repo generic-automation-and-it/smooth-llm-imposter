@@ -17,6 +17,7 @@ public class DecisionsMessagesOptionsTests
 
         options.Enabled.ShouldBeFalse();
         options.MinProbability.ShouldBe(0.50);
+        options.CircuitBreakSeconds.ShouldBe(180);
     }
 
     [Fact]
@@ -56,6 +57,7 @@ public class DecisionsMessagesOptionsTests
     {
         _ when type == typeof(bool) => (!(bool)current!).ToString(),
         _ when type == typeof(double) => ((double)current! / 2).ToString(CultureInfo.InvariantCulture),
+        _ when type == typeof(int) => ((int)current! + 1).ToString(CultureInfo.InvariantCulture),
         _ => throw new NotSupportedException($"Add an override value for {type.Name} settings.")
     };
 }

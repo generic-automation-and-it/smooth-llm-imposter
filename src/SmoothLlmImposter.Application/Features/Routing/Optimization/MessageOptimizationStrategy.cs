@@ -12,6 +12,8 @@ internal sealed class MessageOptimizationStrategy(
     IMessageGate gate,
     IOptimizerClient optimizer,
     IMessageChecksumCache cache,
+    MessageGateCircuitBreaker gateCircuit,
+    MessageOptimizerCircuitBreaker optimizerCircuit,
     ILogger<MessageOptimizationStrategy> logger) : IOptimizationStrategy
 {
     internal const string InstructionRevision = "1";
@@ -155,30 +157,58 @@ internal sealed class MessageOptimizationStrategy(
 
         if (options.Value.DecisionsMessages.Enabled)
         {
-            try
+            SectionCircuitBreaker.Admission admission = gateCircuit.TryEnter();
+            if (admission == SectionCircuitBreaker.Admission.Skip)
             {
-                if (!await gate.CanOptimizeAsync(original, cancellationToken))
+                logger.LogInformation("Message gate circuit open: skipping the gate and continuing to the optimizer");
+            }
+            else
+            {
+                if (admission == SectionCircuitBreaker.Admission.Trial)
                 {
-                    cache.Store(session, headers, original, version, original);
-                    logger.LogDebug("Message optimization: declined by gate ({Length} chars)", original.Length);
-                    return original;
+                    logger.LogInformation(
+                        "Message gate circuit trial via model {Model} at {Endpoint}",
+                        gate.Model, gate.Endpoint);
                 }
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception failure)
-            {
-                // A failed gate continues to the optimizer (LADR-07), it does not fail the request.
-                logger.LogWarning(failure, "Message gate failed; continuing to optimizer.");
+
+                try
+                {
+                    if (!await gate.CanOptimizeAsync(original, cancellationToken))
+                    {
+                        gateCircuit.RecordSuccess(admission == SectionCircuitBreaker.Admission.Trial, gate.Model, gate.Endpoint);
+                        cache.Store(session, headers, original, version, original);
+                        logger.LogDebug("Message optimization: declined by gate ({Length} chars)", original.Length);
+                        return original;
+                    }
+
+                    gateCircuit.RecordSuccess(admission == SectionCircuitBreaker.Admission.Trial, gate.Model, gate.Endpoint);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    if (admission == SectionCircuitBreaker.Admission.Trial)
+                    {
+                        gateCircuit.AbandonTrial();
+                    }
+                    throw;
+                }
+                catch (Exception failure)
+                {
+                    gateCircuit.RecordFailure(
+                        failure, admission == SectionCircuitBreaker.Admission.Trial, gate.Model, gate.Endpoint);
+                    if (admission == SectionCircuitBreaker.Admission.Trial)
+                    {
+                        gateCircuit.AbandonTrial();
+                    }
+                    // A failed gate continues to the optimizer (LADR-07); it does not fail the request.
+                    logger.LogWarning(failure, "Message gate failed; continuing to optimizer.");
+                }
             }
         }
 
-        string rewrite;
+        string? rewrite;
         try
         {
-            rewrite = await optimizer.OptimizeAsync(Instructions, original, cancellationToken);
+            rewrite = await TryOptimizeAsync(Instructions, original, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -191,10 +221,17 @@ internal sealed class MessageOptimizationStrategy(
             return original;
         }
 
+        if (rewrite is null)
+        {
+            cache.Store(session, headers, original, version, original);
+            return original;
+        }
+
         string forwardedText = await MessageRewriteValidator.ValidateWithRetryAsync(
             original,
             rewrite,
-            (text, failed, token) => optimizer.OptimizeAsync(RetryInstructions(failed), text, token),
+            async (text, failed, token) =>
+                await TryOptimizeAsync(RetryInstructions(failed), text, token) ?? text,
             protectedNames,
             Instructions,
             cancellationToken);
@@ -206,6 +243,51 @@ internal sealed class MessageOptimizationStrategy(
             original.Length,
             forwardedText.Length);
         return forwardedText;
+    }
+
+    private async Task<string?> TryOptimizeAsync(
+        string instructions, string text, CancellationToken cancellationToken)
+    {
+        SectionCircuitBreaker.Admission admission = optimizerCircuit.TryEnter();
+        if (admission == SectionCircuitBreaker.Admission.Skip)
+        {
+            logger.LogInformation("Message optimizer circuit open: skipping the call and forwarding the original");
+            return null;
+        }
+
+        string model = options.Value.LlmMessages.Model;
+        string endpoint = SectionCircuitBreaker.Endpoint(
+            options.Value.LlmMessages.BaseUrl, options.Value.LlmMessages.Path);
+        if (admission == SectionCircuitBreaker.Admission.Trial)
+        {
+            logger.LogInformation(
+                "Message optimizer circuit trial via model {Model} at {Endpoint}", model, endpoint);
+        }
+
+        try
+        {
+            string rewrite = await optimizer.OptimizeAsync(instructions, text, cancellationToken);
+            optimizerCircuit.RecordSuccess(admission == SectionCircuitBreaker.Admission.Trial, model, endpoint);
+            return rewrite;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            if (admission == SectionCircuitBreaker.Admission.Trial)
+            {
+                optimizerCircuit.AbandonTrial();
+            }
+            throw;
+        }
+        catch (Exception failure)
+        {
+            optimizerCircuit.RecordFailure(
+                failure, admission == SectionCircuitBreaker.Admission.Trial, model, endpoint);
+            if (admission == SectionCircuitBreaker.Admission.Trial)
+            {
+                optimizerCircuit.AbandonTrial();
+            }
+            throw;
+        }
     }
 
     private static string RetryInstructions(IReadOnlyList<string> failedElements) =>

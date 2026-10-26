@@ -438,6 +438,30 @@ public class ImposterOptionsValidatorTests
     }
 
     [Theory]
+    [InlineData(0)]
+    [InlineData(3601)]
+    public void Enabled_message_gate_rejects_circuit_break_outside_range(int seconds)
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsMessages.Enabled = true;
+        options.DecisionsMessages.CircuitBreakSeconds = seconds;
+
+        _validator.Validate(null, options).Failed.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3600)]
+    public void Enabled_message_gate_accepts_circuit_break_at_the_boundaries(int seconds)
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsMessages.Enabled = true;
+        options.DecisionsMessages.CircuitBreakSeconds = seconds;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Theory]
     [InlineData(-1)]
     [InlineData(10_001)]
     public void Enabled_optimizer_rejects_min_chars_outside_range(int minChars)

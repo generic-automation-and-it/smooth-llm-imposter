@@ -42,6 +42,8 @@ public static class DependencyInjection
         services.AddSingleton<IOptimizationCoordinator, OptimizationCoordinator>();
         services.AddSingleton<IMessageChecksumCache, MessageChecksumCache>();
         services.AddSingleton<IMessageGate, MessageGate>();
+        services.AddSingleton<MessageGateCircuitBreaker>();
+        services.AddSingleton<MessageOptimizerCircuitBreaker>();
         services.AddSingleton<IOptimizationStrategy, MessageOptimizationStrategy>();
 
         // Shared decision service (HLD 015): consumers opt in independently; the transport profile is mapped

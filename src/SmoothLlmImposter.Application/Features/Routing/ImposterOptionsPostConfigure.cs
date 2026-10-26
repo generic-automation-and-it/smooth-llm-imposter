@@ -315,6 +315,7 @@ internal sealed class ImposterOptionsPostConfigure(
         {
             [nameof(DecisionsMessagesOptions.Enabled)] = "DECISIONS_MESSAGES_ENABLED",
             [nameof(DecisionsMessagesOptions.MinProbability)] = "DECISIONS_MESSAGES_MIN_PROBABILITY",
+            [nameof(DecisionsMessagesOptions.CircuitBreakSeconds)] = "DECISIONS_MESSAGES_CIRCUIT_BREAK_SECONDS",
         };
 
     internal static readonly IReadOnlyDictionary<string, string> LlmMessagesVariables =
@@ -336,6 +337,7 @@ internal sealed class ImposterOptionsPostConfigure(
     {
         ApplyRootBooleanOverride(DecisionsMessagesVariables[nameof(options.Enabled)], nameof(options.Enabled), value => options.Enabled = value);
         ApplyRootProbabilityOverride(DecisionsMessagesVariables[nameof(options.MinProbability)], nameof(options.MinProbability), value => options.MinProbability = value);
+        ApplyRootIntegerOverride(DecisionsMessagesVariables[nameof(options.CircuitBreakSeconds)], nameof(options.CircuitBreakSeconds), value => options.CircuitBreakSeconds = value);
     }
 
     private void ApplyLlmMessagesOverrides(LlmMessagesOptions options)
