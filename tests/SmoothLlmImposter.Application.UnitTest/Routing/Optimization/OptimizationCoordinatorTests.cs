@@ -165,6 +165,92 @@ public class OptimizationCoordinatorTests
     }
 
     [Fact]
+    public async Task Nested_message_edit_preserves_every_other_byte_and_cache_control()
+    {
+        const string body = """
+            { "model":"m",  "messages":[{"role":"user","content":[{"type":"text","text":"Please kindly review this.","cache_control":{"type":"ephemeral"}}]}], "stream" : true }
+            """;
+        var s = new FakeStrategy("a")
+        {
+            Handler = (_, _) => Task.FromResult(new OptimizationEdit(
+                new[] { new OptimizationPatch("/messages/0/content/0/text", JsonValue.Create("Review this.")) }))
+        };
+        var coord = Build(s);
+
+        string result = await coord.OptimizeAsync(Req(body), CancellationToken.None);
+
+        result.ShouldContain("\"model\":\"m\",  ");
+        result.ShouldContain("\"stream\" : true");
+        result.ShouldContain("\"cache_control\":{\"type\":\"ephemeral\"}");
+        JsonNode.Parse(result)!["messages"]![0]!["content"]![0]!["text"]!.GetValue<string>().ShouldBe("Review this.");
+    }
+
+    [Fact]
+    public async Task A_top_level_removal_and_a_nested_edit_merge_without_touching_other_bytes()
+    {
+        const string body = """
+            { "model":"m", "messages":[{"role":"user","content":"Please kindly review this."}], "tools":[ {"type":"function"} ], "tool_choice":{"type":"function"}, "stream" : true }
+            """;
+        var s = new FakeStrategy("a")
+        {
+            Handler = (_, _) => Task.FromResult(new OptimizationEdit(new[]
+            {
+                new OptimizationPatch("/messages/0/content", JsonValue.Create("Review this.")),
+                new OptimizationPatch("/tool_choice", null)
+            }))
+        };
+        var coord = Build(s);
+
+        string result = await coord.OptimizeAsync(Req(body), CancellationToken.None);
+
+        result.ShouldNotContain("tool_choice");
+        result.ShouldContain("\"tools\":[ {\"type\":\"function\"} ]");
+        result.ShouldContain("\"stream\" : true");
+        JsonNode.Parse(result)!["messages"]![0]!["content"]!.GetValue<string>().ShouldBe("Review this.");
+    }
+
+    [Fact]
+    public async Task Enabled_strategies_start_before_either_one_completes()
+    {
+        var bothStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        int started = 0;
+        FakeStrategy Strategy(string name) => new(name)
+        {
+            Handler = async (_, _) =>
+            {
+                if (Interlocked.Increment(ref started) == 2)
+                {
+                    bothStarted.TrySetResult(true);
+                }
+                await bothStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                return OptimizationEdit.None;
+            }
+        };
+
+        var coord = Build(Strategy("a"), Strategy("b"));
+
+        string result = await coord.OptimizeAsync(Req("{\"model\":\"m\"}"), CancellationToken.None);
+
+        result.ShouldBe("{\"model\":\"m\"}");
+    }
+
+    [Fact]
+    public async Task A_missing_nested_pointer_forwards_the_original_body()
+    {
+        const string body = "{\"model\":\"m\",\"messages\":[]}";
+        var s = new FakeStrategy("a")
+        {
+            Handler = (_, _) => Task.FromResult(new OptimizationEdit(
+                new[] { new OptimizationPatch("/messages/0/content", JsonValue.Create("x")) }))
+        };
+        var coord = Build(s);
+
+        string result = await coord.OptimizeAsync(Req(body), CancellationToken.None);
+
+        result.ShouldBe(body);
+    }
+
+    [Fact]
     public async Task Nested_pointer_applies()
     {
         var s = new FakeStrategy("a")

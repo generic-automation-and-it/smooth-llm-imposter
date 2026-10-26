@@ -13,6 +13,7 @@ internal sealed class OptimizationCoordinator(
         IOptimizationStrategy[] enabled = strategies.Where(s => s.Enabled).ToArray();
         if (enabled.Length == 0)
         {
+            logger.LogDebug("No optimization strategy enabled — forwarding without intercept");
             return request.Body;
         }
 
@@ -76,87 +77,51 @@ internal sealed class OptimizationCoordinator(
             }
         }
 
+        List<OptimizationPatch> nested = all.Where(static patch => Segments(patch.Pointer).Length > 1).ToList();
+        List<OptimizationPatch> topLevel = all.Where(static patch => Segments(patch.Pointer).Length == 1).ToList();
+
+        string updated = originalBody;
+        if (nested.Count > 0 &&
+            !JsonPointerPatcher.TryReplace(originalBody, nested, out updated))
+        {
+            return originalBody;
+        }
+
+        if (topLevel.Count == 0)
+        {
+            return updated;
+        }
+
         JsonObject root;
         try
         {
-            root = JsonNodeMaterializer.ParseObject(originalBody);
+            root = JsonNodeMaterializer.ParseObject(updated);
         }
         catch
         {
             return originalBody;
         }
 
-        foreach (OptimizationPatch patch in all)
+        var replacements = new JsonObject();
+        var names = new List<string>();
+        foreach (OptimizationPatch patch in topLevel)
         {
-            if (!TrySet(root, patch.Pointer, patch.Replacement))
+            string name = Unescape(Segments(patch.Pointer)[0]);
+            if (!root.ContainsKey(name))
             {
                 return originalBody;
             }
+            names.Add(name);
+            replacements[name] = patch.Replacement?.DeepClone();
         }
 
-        return root.ToJsonString();
+        return Decisions.DecisionJson.ReplaceTopLevel(updated, replacements, names.ToArray());
     }
 
-    private static bool TrySet(JsonObject root, string pointer, JsonNode? value)
-    {
-        if (string.IsNullOrEmpty(pointer) || !pointer.StartsWith('/'))
-        {
-            return false;
-        }
-
-        string[] segments = pointer.Substring(1).Split('/', StringSplitOptions.None)
-            .Select(Unescape).ToArray();
-
-        JsonNode? current = root;
-        for (int i = 0; i < segments.Length - 1; i++)
-        {
-            current = Navigate(current, segments[i]);
-            if (current is null)
-            {
-                return false;
-            }
-        }
-
-        string last = segments[^1];
-        JsonNode? replacement = value?.DeepClone();
-
-        if (current is JsonObject obj)
-        {
-            if (!obj.ContainsKey(last))
-            {
-                return false;
-            }
-            obj[last] = replacement;
-            return true;
-        }
-
-        if (current is JsonArray arr &&
-            int.TryParse(last, out int index) &&
-            index >= 0 && index < arr.Count)
-        {
-            arr[index] = replacement;
-            return true;
-        }
-
-        return false;
-    }
-
-    private static JsonNode? Navigate(JsonNode? node, string segment)
-    {
-        if (node is JsonObject obj)
-        {
-            return obj[segment];
-        }
-
-        if (node is JsonArray arr &&
-            int.TryParse(segment, out int index) &&
-            index >= 0 && index < arr.Count)
-        {
-            return arr[index];
-        }
-
-        return null;
-    }
+    private static string[] Segments(string pointer) =>
+        pointer.StartsWith('/')
+            ? pointer.Substring(1).Split('/', StringSplitOptions.None)
+            : throw new InvalidOperationException("Optimization pointer must start with '/'.");
 
     private static bool Overlaps(string a, string b)
     {
@@ -164,8 +129,7 @@ internal sealed class OptimizationCoordinator(
         {
             return true;
         }
-        // Compare segment-wise so "/arr/01" and "/arr/1" are recognised as the same slot,
-        // matching the int.TryParse resolution in Navigate/TrySet.
+        // Compare segment-wise so "/arr/01" and "/arr/1" are recognised as the same slot.
         string[] aSegs = a.Split('/', StringSplitOptions.None);
         string[] bSegs = b.Split('/', StringSplitOptions.None);
         int common = Math.Min(aSegs.Length, bSegs.Length);

@@ -8,6 +8,7 @@ Strategy interface + coordinator for HLD 017 message optimization. Read [LADR-08
 
 - **NativeAOT: no assembly scanning.** Strategies registered explicitly in `DependencyInjection.AddApplication`.
 - **Overlap rule:** two edits claiming the same JSON pointer → forward the original body.
+- **Byte-preserving merge:** top-level patches use the raw `DecisionJson.ReplaceTopLevel` writer; nested patches use `JsonPointerPatcher` text spans. Never re-serialise the whole body (NFR-01).
 - **Failure isolation:** a throwing/cancelled/timed-out branch contributes no edit; others still apply. Caller cancellation propagates.
 - **One harness tag source.** `HarnessSpans` is shared by HLD 014 extraction and `HumanSpanExtractor`; never duplicate the tag arrays in a consumer.
 - **Captured sessions only.** `MessageChecksumCache` refuses derived or missing session identities and never includes the inbound model in its scope.
@@ -35,3 +36,4 @@ Strategy interface + coordinator for HLD 017 message optimization. Read [LADR-08
 | 2026-10-25 | Rewrite validation: full protected class set, structure, echo, one-retry policy | #164 |
 | 2026-10-25 | Message strategy + gate + `MIN_CHARS`; shared gate transport caveat | #164 |
 | 2026-10-26 | Per-section gate/optimizer circuits, trial admission, Error/Information log shape | #164 |
+| 2026-10-26 | Host forward-seam coordinator wiring; byte-preserving top-level/nested merge | #164 |
