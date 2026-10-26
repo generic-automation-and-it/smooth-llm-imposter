@@ -83,6 +83,9 @@ internal sealed class SectionCircuitBreaker(
     {
         DecisionGateTimeoutException => false,
         DecisionServiceTimeoutException => true,
+        // HttpClient.Timeout surfaces as TaskCanceledException with the caller's token
+        // NOT cancelled; caller cancellation is filtered by the caller (see
+        // MessageOptimizationStrategy.cs:186 and :273) and must never be passed here.
         TaskCanceledException => true,
         HttpRequestException http => IsFailingStatus(http.StatusCode),
         _ => false
