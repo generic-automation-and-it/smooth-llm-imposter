@@ -37,6 +37,8 @@ public static class DependencyInjection
         // worktasks (NativeAOT: no assembly scanning).
         services.AddSingleton<IOptimizationCoordinator, OptimizationCoordinator>();
         services.AddSingleton<IMessageChecksumCache, MessageChecksumCache>();
+        services.AddSingleton<IMessageGate, MessageGate>();
+        services.AddSingleton<IOptimizationStrategy, MessageOptimizationStrategy>();
 
         // Shared decision service (HLD 015): consumers opt in independently; the transport profile is mapped
         // from the existing tool-filter operator surface and validated only while some consumer is opted in.

@@ -31,7 +31,7 @@ This design narrows the routing transparent-proxy rule: the optimizer becomes an
 
 ### 2. Decide before rewriting
 
-Messages shorter than optional `LLM_MESSAGES_MIN_CHARS` (default set from measurement) skip both models. Otherwise the decision model is asked; only a positive answer reaches the optimizer. Runs at the forward seam, parallel to the tool filter ([LADR-02](ladrs/LADR-02-pipeline-position.md), [LADR-08](ladrs/LADR-08-parallel-strategies.md)).
+Human segments shorter than optional `LLM_MESSAGES_MIN_CHARS` (default set from measurement) skip both models. Otherwise the decision model is asked; only a positive answer reaches the optimizer. Runs at the forward seam, parallel to the tool filter ([LADR-02](ladrs/LADR-02-pipeline-position.md), [LADR-08](ladrs/LADR-08-parallel-strategies.md)).
 
 **Acceptance criteria / DoD**
 
