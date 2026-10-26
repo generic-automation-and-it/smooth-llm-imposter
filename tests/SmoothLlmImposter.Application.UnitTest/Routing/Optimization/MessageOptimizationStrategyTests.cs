@@ -501,6 +501,26 @@ public sealed class MessageOptimizationStrategyTests
     }
 
     [Fact]
+    public async Task A_gate_wait_timeout_does_not_open_the_circuit()
+    {
+        const string body = """
+            {"model":"x","messages":[
+              {"role":"user","content":"Please kindly review `foo()`."},
+              {"role":"user","content":"Please kindly ask @reviewer."}]}
+            """;
+        var gate = new StubGate((_, _) => Task.FromException<bool>(
+            new SmoothLlmImposter.Application.Common.Clients.Decisions.DecisionGateTimeoutException("busy")));
+        var optimizer = new StubOptimizer((_, text, _) =>
+            Task.FromResult(text.Contains("foo", StringComparison.Ordinal) ? "Review `foo()`." : "Ask @reviewer."));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer);
+
+        await strategy.OptimizeAsync(Request("/v1/chat/completions", body), TestContext.Current.CancellationToken);
+
+        gate.Calls.ShouldBe(2, "gate contention must not open the circuit");
+        optimizer.Calls.ShouldBe(2);
+    }
+
+    [Fact]
     public async Task Caller_cancellation_does_not_open_the_gate_circuit()
     {
         const string body = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
