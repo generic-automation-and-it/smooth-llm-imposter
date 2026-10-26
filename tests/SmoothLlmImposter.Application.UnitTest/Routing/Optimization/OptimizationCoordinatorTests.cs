@@ -186,6 +186,25 @@ public class OptimizationCoordinatorTests
     }
 
     [Fact]
+    public async Task Nested_patch_preserves_non_ascii_bytes_before_the_patched_span()
+    {
+        const string body = """
+            { "note":"café 日本語 😀", "messages":[{"role":"user","content":"Please kindly review this."}], "stream" : true }
+            """;
+        var s = new FakeStrategy("a")
+        {
+            Handler = (_, _) => Task.FromResult(new OptimizationEdit(
+                new[] { new OptimizationPatch("/messages/0/content", JsonValue.Create("Review this.")) }))
+        };
+        var coord = Build(s);
+
+        string result = await coord.OptimizeAsync(Req(body), CancellationToken.None);
+
+        result.ShouldContain("\"note\":\"café 日本語 😀\"");
+        JsonNode.Parse(result)!["messages"]![0]!["content"]!.GetValue<string>().ShouldBe("Review this.");
+    }
+
+    [Fact]
     public async Task A_top_level_removal_and_a_nested_edit_merge_without_touching_other_bytes()
     {
         const string body = """

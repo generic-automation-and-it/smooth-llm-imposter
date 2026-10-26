@@ -51,14 +51,30 @@ internal static class JsonPointerPatcher
                 return false;
             }
 
-            var builder = new StringBuilder(body);
-            foreach (OptimizationPatch patch in patches.OrderByDescending(p => spans[p.Pointer].Start))
-            {
-                (int start, int end) = spans[patch.Pointer];
-                builder.Remove(start, end - start).Insert(start, patch.Replacement!.ToJsonString());
-            }
+            List<(int Start, int End, byte[] Replacement)> ordered = patches
+                .Select(patch =>
+                {
+                    (int start, int end) = spans[patch.Pointer];
+                    return (Start: start, End: end, Replacement: Encoding.UTF8.GetBytes(patch.Replacement!.ToJsonString()));
+                })
+                .OrderBy(static item => item.Start)
+                .ToList();
 
-            result = builder.ToString();
+            int total = utf8.Length + ordered.Sum(static item => item.Replacement.Length - (item.End - item.Start));
+            byte[] merged = new byte[total];
+            int source = 0;
+            int destination = 0;
+            foreach ((int start, int end, byte[] replacement) in ordered)
+            {
+                Buffer.BlockCopy(utf8, source, merged, destination, start - source);
+                destination += start - source;
+                Buffer.BlockCopy(replacement, 0, merged, destination, replacement.Length);
+                destination += replacement.Length;
+                source = end;
+            }
+            Buffer.BlockCopy(utf8, source, merged, destination, utf8.Length - source);
+
+            result = Encoding.UTF8.GetString(merged);
             return true;
         }
         catch (Exception)
