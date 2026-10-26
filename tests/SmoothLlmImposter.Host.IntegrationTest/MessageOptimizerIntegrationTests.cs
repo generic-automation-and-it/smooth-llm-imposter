@@ -58,7 +58,56 @@ public sealed class MessageOptimizerIntegrationTests
         forwarded["messages"]![0]!["content"]!.GetValue<string>().ShouldBe("Please kindly review `foo()`.");
     }
 
+    [Fact]
+    public async Task An_enabled_optimizer_rewrites_an_anthropic_text_block()
+    {
+        var gate = new StubDecisionClient();
+        var optimizer = new OptimizerHandler();
+        using var app = new App(gate, optimizer);
+        const string body = """
+            {"model":"anthropic-imposter","max_tokens":100,"messages":[
+              {"role":"user","content":[{"type":"text","text":"Please kindly review `foo()`."}]}]}
+            """;
+
+        using HttpResponseMessage response = await app.Client.PostAsync(
+            "/anthropic/v1/messages", Json(body), Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        gate.Requests.Count.ShouldBe(1);
+        optimizer.Requests.Count.ShouldBe(1);
+        JsonObject forwarded = JsonNode.Parse(app.Upstream.LastRequestBody!)!.AsObject();
+        forwarded["messages"]![0]!["content"]![0]!["text"]!.GetValue<string>().ShouldBe("Review `foo()`.");
+    }
+
+    [Fact]
+    public async Task A_captured_session_replays_a_rewrite_without_new_model_calls()
+    {
+        var gate = new StubDecisionClient();
+        var optimizer = new OptimizerHandler();
+        using var app = new App(gate, optimizer);
+        const string body = """{"model":"chat-imposter","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
+
+        using HttpResponseMessage first = await app.Client.SendAsync(
+            Request("/openai/v1/chat/completions", body, "session-1"), Ct);
+        using HttpResponseMessage second = await app.Client.SendAsync(
+            Request("/openai/v1/chat/completions", body, "session-1"), Ct);
+
+        first.StatusCode.ShouldBe(HttpStatusCode.OK);
+        second.StatusCode.ShouldBe(HttpStatusCode.OK);
+        gate.Requests.Count.ShouldBe(1);
+        optimizer.Requests.Count.ShouldBe(1);
+        JsonObject forwarded = JsonNode.Parse(app.Upstream.LastRequestBody!)!.AsObject();
+        forwarded["messages"]![0]!["content"]!.GetValue<string>().ShouldBe("Review `foo()`.");
+    }
+
     private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
+
+    private static HttpRequestMessage Request(string path, string body, string sessionId)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = Json(body) };
+        request.Headers.Add("session_id", sessionId);
+        return request;
+    }
 
     private sealed class App : IDisposable
     {
@@ -112,6 +161,11 @@ public sealed class MessageOptimizerIntegrationTests
             ["Imposter:Providers:downgrade-mapped:Models:0:From"] = "downgrade-imposter",
             ["Imposter:Providers:downgrade-mapped:Models:0:To"] = "upstream-model",
 
+            ["Imposter:Providers:anthropic-mapped:Dialect"] = "anthropic",
+            ["Imposter:Providers:anthropic-mapped:BaseUrl"] = "https://imposter.test",
+            ["Imposter:Providers:anthropic-mapped:Models:0:From"] = "anthropic-imposter",
+            ["Imposter:Providers:anthropic-mapped:Models:0:To"] = "upstream-model",
+
             ["Imposter:LlmMessages:Enabled"] = "true",
             ["Imposter:LlmMessages:BaseUrl"] = "https://opt.test",
             ["Imposter:LlmMessages:Model"] = "opt-model",
@@ -147,7 +201,7 @@ public sealed class MessageOptimizerIntegrationTests
     private sealed class OptimizerHandler : HttpMessageHandler
     {
         public ConcurrentQueue<JsonObject> Requests { get; } = new();
-        public List<Uri> Uris { get; } = [];
+        public ConcurrentQueue<Uri> Uris { get; } = new();
 
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
@@ -156,7 +210,7 @@ public sealed class MessageOptimizerIntegrationTests
                 ? string.Empty
                 : await request.Content.ReadAsStringAsync(cancellationToken);
             Requests.Enqueue(JsonNode.Parse(body)!.AsObject());
-            Uris.Add(request.RequestUri!);
+            Uris.Enqueue(request.RequestUri!);
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(

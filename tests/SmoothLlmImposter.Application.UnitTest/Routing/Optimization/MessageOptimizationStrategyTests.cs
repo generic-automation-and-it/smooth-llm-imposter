@@ -178,6 +178,25 @@ public sealed class MessageOptimizationStrategyTests
     }
 
     [Fact]
+    public async Task A_bridged_messages_to_chat_request_still_optimizes_the_chat_message()
+    {
+        // InboundPath says Messages (Anthropic) while the Host has already mapped the body to Chat;
+        // only the Responses shape is out of scope, so a bridged Messages call still optimizes.
+        const string chatBody = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
+        var gate = new StubGate((_, _) => Task.FromResult(true));
+        var optimizer = new StubOptimizer((_, _, _) => Task.FromResult("Review `foo()`."));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            Request("/v1/chat/completions", chatBody, inboundPath: "/v1/messages"),
+            TestContext.Current.CancellationToken);
+
+        edit.Patches.Single().Replacement!.GetValue<string>().ShouldBe("Review `foo()`.");
+        gate.Calls.ShouldBe(1);
+        optimizer.Calls.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task An_anthropic_tool_result_turn_is_skipped()
     {
         const string body = """
@@ -597,6 +616,7 @@ public sealed class MessageOptimizationStrategyTests
 
         logs.Events.ShouldNotBeEmpty();
         logs.Events.ShouldAllBe(entry => !entry.Text.Contains("Please kindly", StringComparison.Ordinal));
+        logs.Events.ShouldAllBe(entry => entry.Error == null);
     }
 
     [Fact]
@@ -613,6 +633,7 @@ public sealed class MessageOptimizationStrategyTests
 
         logs.Events.ShouldNotBeEmpty();
         logs.Events.ShouldAllBe(entry => !entry.Text.Contains("Please kindly", StringComparison.Ordinal));
+        logs.Events.ShouldAllBe(entry => entry.Error == null);
     }
 
     private static MessageOptimizationStrategy Create(
@@ -711,7 +732,7 @@ public sealed class MessageOptimizationStrategyTests
 
     private sealed class CollectingLogger : ILogger<MessageOptimizationStrategy>
     {
-        public List<(LogLevel Level, string Text)> Events { get; } = [];
+        public List<(LogLevel Level, string Text, Exception? Error)> Events { get; } = [];
 
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
@@ -723,6 +744,6 @@ public sealed class MessageOptimizationStrategyTests
             TState state,
             Exception? exception,
             Func<TState, Exception?, string> formatter) =>
-            Events.Add((logLevel, formatter(state, exception)));
+            Events.Add((logLevel, formatter(state, exception), exception));
     }
 }

@@ -352,11 +352,12 @@ public class OptimizationCoordinatorTests
         result.ShouldBe(body);
         logs.Events.ShouldNotBeEmpty();
         logs.Events.ShouldAllBe(entry => !entry.Text.Contains("secret user text", StringComparison.Ordinal));
+        logs.Events.ShouldAllBe(entry => entry.Error == null);
     }
 
     private sealed class CollectingLogger : ILogger<OptimizationCoordinator>
     {
-        public List<(LogLevel Level, string Text)> Events { get; } = [];
+        public List<(LogLevel Level, string Text, Exception? Error)> Events { get; } = [];
 
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
@@ -368,6 +369,6 @@ public class OptimizationCoordinatorTests
             TState state,
             Exception? exception,
             Func<TState, Exception?, string> formatter) =>
-            Events.Add((logLevel, formatter(state, exception)));
+            Events.Add((logLevel, formatter(state, exception), exception));
     }
 }

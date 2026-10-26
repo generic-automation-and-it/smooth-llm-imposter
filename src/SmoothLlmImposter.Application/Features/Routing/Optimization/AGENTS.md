@@ -28,9 +28,9 @@ Strategy interface + coordinator for HLD 017 message optimization. Read [LADR-08
 
 ## Test References
 
-- **L0** `Application.UnitTest/Routing/Optimization` — span extraction (excluded spans, byte reassembly, unclosed openers), checksum cache (first value, version, scope, TTL, sessionless), rewrite validation (accepting/rejecting fixture per protected class, introduced elements, structure, length, echo, one-retry policy), message gate probability, strategy flow (patches, replay, minimum, one gate per multi-segment message, decline/positive/failure/open/bypass, downgraded Responses skip, retry, switch, tool-result, cancellation, type-only failure logs), `LlmMessagesOptionsSetupTests` (structured and conventional `LLM_MESSAGES_*` precedence), and per-section circuits (trip class, cooldown, trial close/reopen, endpoint/log shape, integration with both strategy calls).
+- **L0** `Application.UnitTest/Routing/Optimization` — span extraction (excluded spans, byte reassembly, unclosed openers), checksum cache (first value, version, scope, TTL, sessionless), rewrite validation (accepting/rejecting fixture per protected class, introduced elements, structure, length, echo, one-retry policy), message gate probability, strategy flow (patches, replay, minimum, one gate per multi-segment message, decline/positive/failure/open/bypass, downgraded Responses skip, bridged Messages→Chat, retry, switch, tool-result, cancellation, type-only failure logs), `LlmMessagesOptionsSetupTests` (structured and conventional `LLM_MESSAGES_*` precedence), and per-section circuits (trip class, cooldown, trial close/reopen, endpoint/log shape, integration with both strategy calls).
 - **L0** `Infrastructure.UnitTest/Clients/Optimizer` — request shape, bearer auth, retry status policy, caller cancellation, and the full-response attempt timeout (a stalled body must not outlive `TimeoutSeconds`).
-- **L2** `Host.IntegrationTest/MessageOptimizerIntegrationTests` — the real optimizer client through the coordinator seam rewrites a Chat message with the configured `LLM_MESSAGES_*` destination, and a downgraded `/responses` request makes no gate or optimizer call.
+- **L2** `Host.IntegrationTest/MessageOptimizerIntegrationTests` — the real optimizer client through the coordinator seam rewrites Chat and Anthropic messages with the configured `LLM_MESSAGES_*` destination, a captured session replays without new model calls, and a downgraded `/responses` request makes no gate or optimizer call.
 
 ## Changelog
 
@@ -43,3 +43,4 @@ Strategy interface + coordinator for HLD 017 message optimization. Read [LADR-08
 | 2026-10-26 | Per-section gate/optimizer circuits, trial admission, Error/Information log shape | #164 |
 | 2026-10-26 | Host forward-seam coordinator wiring; byte-preserving top-level/nested merge | #164 |
 | 2026-10-26 | Review fixes: bind `LlmMessagesOptions`; skip downgraded Responses; full-response optimizer timeout; one gate per message; type-only failure logs | #164 |
+| 2026-10-26 | Ralph loop: bridged Messages→Chat + Anthropic/cache-replay L2 coverage; log tests assert no exception argument | #164 |
