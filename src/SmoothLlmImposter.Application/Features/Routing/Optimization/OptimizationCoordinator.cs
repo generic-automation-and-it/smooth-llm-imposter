@@ -65,6 +65,11 @@ internal sealed class OptimizationCoordinator(
             return originalBody;
         }
 
+        if (all.Any(static patch => !patch.Pointer.StartsWith('/')))
+        {
+            return originalBody;
+        }
+
         // Overlap: the same pointer, or an ancestor/descendant of it, claimed by more than one patch.
         for (int i = 0; i < all.Count; i++)
         {

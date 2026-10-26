@@ -17,45 +17,54 @@ internal static class JsonPointerPatcher
         out string result)
     {
         result = body;
-        if (patches.Count == 0)
+        try
         {
+            if (patches.Count == 0)
+            {
+                return true;
+            }
+
+            if (patches.Any(static patch => patch.Replacement is null) ||
+                patches.Any(static patch => string.IsNullOrEmpty(patch.Pointer) || !patch.Pointer.StartsWith('/')))
+            {
+                return false;
+            }
+
+            HashSet<string> targets = patches.Select(static patch => patch.Pointer).ToHashSet(StringComparer.Ordinal);
+            if (targets.Count != patches.Count)
+            {
+                return false;
+            }
+
+            byte[] utf8 = Encoding.UTF8.GetBytes(body);
+            var reader = new Utf8JsonReader(utf8);
+            if (!reader.Read())
+            {
+                return false;
+            }
+
+            var path = new List<string>();
+            var spans = new Dictionary<string, (int Start, int End)>(StringComparer.Ordinal);
+            Scan(ref reader, path, targets, spans);
+            if (spans.Count != patches.Count)
+            {
+                return false;
+            }
+
+            var builder = new StringBuilder(body);
+            foreach (OptimizationPatch patch in patches.OrderByDescending(p => spans[p.Pointer].Start))
+            {
+                (int start, int end) = spans[patch.Pointer];
+                builder.Remove(start, end - start).Insert(start, patch.Replacement!.ToJsonString());
+            }
+
+            result = builder.ToString();
             return true;
         }
-
-        if (patches.Any(static patch => patch.Replacement is null))
+        catch (Exception)
         {
             return false;
         }
-
-        HashSet<string> targets = patches.Select(static patch => patch.Pointer).ToHashSet(StringComparer.Ordinal);
-        if (targets.Count != patches.Count)
-        {
-            return false;
-        }
-        byte[] utf8 = Encoding.UTF8.GetBytes(body);
-        var reader = new Utf8JsonReader(utf8);
-        if (!reader.Read())
-        {
-            return false;
-        }
-
-        var path = new List<string>();
-        var spans = new Dictionary<string, (int Start, int End)>(StringComparer.Ordinal);
-        Scan(ref reader, path, targets, spans);
-        if (spans.Count != patches.Count)
-        {
-            return false;
-        }
-
-        var builder = new StringBuilder(body);
-        foreach (OptimizationPatch patch in patches.OrderByDescending(p => spans[p.Pointer].Start))
-        {
-            (int start, int end) = spans[patch.Pointer];
-            builder.Remove(start, end - start).Insert(start, patch.Replacement!.ToJsonString());
-        }
-
-        result = builder.ToString();
-        return true;
     }
 
     private static void Scan(

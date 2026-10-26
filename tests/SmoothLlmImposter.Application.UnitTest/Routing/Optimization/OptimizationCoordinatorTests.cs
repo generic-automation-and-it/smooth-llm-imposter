@@ -250,6 +250,71 @@ public class OptimizationCoordinatorTests
         result.ShouldBe(body);
     }
 
+    [Theory]
+    [InlineData("{not json")]
+    [InlineData("[]")]
+    public async Task Malformed_or_non_object_body_returns_the_original(string body)
+    {
+        var s = new FakeStrategy("a")
+        {
+            Handler = (_, _) => Task.FromResult(new OptimizationEdit(
+                new[] { new OptimizationPatch("/messages/0/content", JsonValue.Create("x")) }))
+        };
+        var coord = Build(s);
+
+        string result = await coord.OptimizeAsync(Req(body), CancellationToken.None);
+
+        result.ShouldBe(body);
+    }
+
+    [Fact]
+    public async Task An_invalid_pointer_returns_the_original()
+    {
+        const string body = "{\"model\":\"m\"}";
+        var s = new FakeStrategy("a")
+        {
+            Handler = (_, _) => Task.FromResult(new OptimizationEdit(
+                new[] { new OptimizationPatch("messages/0", JsonValue.Create("x")) }))
+        };
+        var coord = Build(s);
+
+        string result = await coord.OptimizeAsync(Req(body), CancellationToken.None);
+
+        result.ShouldBe(body);
+    }
+
+    [Fact]
+    public async Task A_nested_removal_returns_the_original()
+    {
+        const string body = "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":\"x\"}]}";
+        var s = new FakeStrategy("a")
+        {
+            Handler = (_, _) => Task.FromResult(new OptimizationEdit(
+                new[] { new OptimizationPatch("/messages/0/content", null) }))
+        };
+        var coord = Build(s);
+
+        string result = await coord.OptimizeAsync(Req(body), CancellationToken.None);
+
+        result.ShouldBe(body);
+    }
+
+    [Fact]
+    public async Task A_top_level_patch_for_a_missing_key_returns_the_original()
+    {
+        const string body = "{\"model\":\"m\"}";
+        var s = new FakeStrategy("a")
+        {
+            Handler = (_, _) => Task.FromResult(new OptimizationEdit(
+                new[] { new OptimizationPatch("/tools", JsonNode.Parse("[]")) }))
+        };
+        var coord = Build(s);
+
+        string result = await coord.OptimizeAsync(Req(body), CancellationToken.None);
+
+        result.ShouldBe(body);
+    }
+
     [Fact]
     public async Task Nested_pointer_applies()
     {
