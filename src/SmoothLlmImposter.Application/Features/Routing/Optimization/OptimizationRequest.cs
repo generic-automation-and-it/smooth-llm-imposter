@@ -7,4 +7,5 @@ public sealed record OptimizationRequest(
     string Path,
     string Body,
     CallerHeaders CallerHeaders,
-    string InboundBody);
+    string InboundBody,
+    string? InboundPath = null);

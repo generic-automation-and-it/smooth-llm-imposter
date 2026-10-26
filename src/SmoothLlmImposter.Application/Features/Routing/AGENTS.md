@@ -358,7 +358,9 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   `/tool_choice` patches from its byte-preserving `FilterAsync` output, and one DI instance serves both contracts
   so the answer memo and sticky sets are shared. Host invokes `IOptimizationCoordinator` at the forward seam
   (HLD 017 WT-12); the coordinator runs the enabled tool/message strategies concurrently and merges their edits
-  into the original bytes, never re-serialising untouched values. The filter is one consumer of the shared decision service (HLD 015):
+  into the original bytes, never re-serialising untouched values. The request carries both the effective upstream
+  path and the pre-transform `InboundPath`; the message strategy uses the latter to skip Responses inbound
+  requests even when the Host has downgraded them to a Chat body (HLD 017 Open item 4). The filter is one consumer of the shared decision service (HLD 015):
   `DecisionToolsConsumer` opts in through `DecisionsTools.Enabled`, and `DecisionServiceOptionsSetup` maps
   BaseUrl/Path/Model/MaxAttempts/TimeoutSeconds onto `DecisionServiceOptions` after conventional precedence. The routing validator checks only consumer policy
   (`MinProbability`, `MinKeepTools`); transport fields are validated by `DecisionServiceOptionsValidator`. Every
@@ -468,6 +470,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 | Date | Change | Ref |
 |:-----|:-------|:----|
 | 2026-10-25 | Decision tool filter is an optimization strategy returning `/tools`/`/tool_choice` patches; one DI instance shared | #164 |
+| 2026-10-26 | Optimization seam carries the inbound path so the message strategy skips downgraded Responses | #164 |
 | 2026-10-25 | HLD 016 ralph-loop fixes: bridged query-string suppression, bounded stream channel + per-read timer cancellation, in-band 2xx overflow/retry/redaction, choice-level errors, attribution cache-control. 1,267 tests pass; host NativeAOT publish clean. | HLD 016 |
 | 2026-10-24 | Decision classifier outcome logs add model, endpoint (no userinfo or query) and a 12-char session digest; raw session never logged. Identity now resolves on every classified pass (extra inbound-body parse) | — |
 | 2026-10-24 | Tool filter is an HLD 015 consumer: transport settings mapped to the shared profile and validated there; `DecisionsToolsVariables` table + reflection drift guard; absent/blank coverage for all ten variables | #156 |

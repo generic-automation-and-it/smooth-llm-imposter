@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
+using SmoothLlmImposter.Application.Common.Clients.Optimizer;
 using SmoothLlmImposter.Application.Common.Pipelines;
 using SmoothLlmImposter.Application.Features.AuthorizationOverride;
 using SmoothLlmImposter.Application.Features.Credentials;
@@ -40,6 +41,7 @@ public static class DependencyInjection
         // and merges their edits. Concrete strategies are registered explicitly by their
         // worktasks (NativeAOT: no assembly scanning).
         services.AddSingleton<IOptimizationCoordinator, OptimizationCoordinator>();
+        services.AddSingleton<IConfigureOptions<LlmMessagesOptions>, LlmMessagesOptionsSetup>();
         services.AddSingleton<IMessageChecksumCache, MessageChecksumCache>();
         services.AddSingleton<IMessageGate, MessageGate>();
         services.AddSingleton<MessageGateCircuitBreaker>();
