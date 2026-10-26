@@ -1,4 +1,6 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Application.Features.Routing.Optimization;
@@ -335,16 +337,38 @@ public class OptimizationCoordinatorTests
     }
 
     [Fact]
-    public async Task Nested_pointer_applies()
+    public async Task A_failing_strategy_is_logged_without_the_exception_message()
     {
+        const string body = "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":\"secret user text\"}]}";
+        var logs = new CollectingLogger();
         var s = new FakeStrategy("a")
         {
-            Handler = (_, _) => Task.FromResult(new OptimizationEdit(
-                new[] { new OptimizationPatch("/tools/0/name", JsonNode.Parse("\"renamed\"")) }))
+            Handler = (_, _) => Task.FromException<OptimizationEdit>(new JsonException("bad: " + body))
         };
-        var coord = Build(s);
-        const string body = "{\"model\":\"gpt-3.5\",\"tools\":[{\"name\":\"x\"}]}";
+        var coord = new OptimizationCoordinator(new[] { s }, logs);
+
         string result = await coord.OptimizeAsync(Req(body), CancellationToken.None);
-        JsonNode.Parse(result)!["tools"]![0]!["name"]!.GetValue<string>().ShouldBe("renamed");
+
+        result.ShouldBe(body);
+        logs.Events.ShouldNotBeEmpty();
+        logs.Events.ShouldAllBe(entry => !entry.Text.Contains("secret user text", StringComparison.Ordinal));
+        logs.Events.ShouldAllBe(entry => entry.Error == null);
+    }
+
+    private sealed class CollectingLogger : ILogger<OptimizationCoordinator>
+    {
+        public List<(LogLevel Level, string Text, Exception? Error)> Events { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Events.Add((logLevel, formatter(state, exception), exception));
     }
 }

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Common.Clients.Optimizer;
@@ -177,6 +178,25 @@ public sealed class MessageOptimizationStrategyTests
     }
 
     [Fact]
+    public async Task A_bridged_messages_to_chat_request_still_optimizes_the_chat_message()
+    {
+        // InboundPath says Messages (Anthropic) while the Host has already mapped the body to Chat;
+        // only the Responses shape is out of scope, so a bridged Messages call still optimizes.
+        const string chatBody = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
+        var gate = new StubGate((_, _) => Task.FromResult(true));
+        var optimizer = new StubOptimizer((_, _, _) => Task.FromResult("Review `foo()`."));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            Request("/v1/chat/completions", chatBody, inboundPath: "/v1/messages"),
+            TestContext.Current.CancellationToken);
+
+        edit.Patches.Single().Replacement!.GetValue<string>().ShouldBe("Review `foo()`.");
+        gate.Calls.ShouldBe(1);
+        optimizer.Calls.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task An_anthropic_tool_result_turn_is_skipped()
     {
         const string body = """
@@ -229,7 +249,48 @@ public sealed class MessageOptimizationStrategyTests
 
         edit.Patches.Single().Replacement!.GetValue<string>()
             .ShouldBe("Review <system-reminder>hidden</system-reminder> code.");
+        gate.Calls.ShouldBe(1, "the gate asks once about the whole message, not once per human span");
+        gate.Texts.Single().ShouldBe("Please kindly review \n the code.");
         optimizer.Calls.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task A_negative_gate_answer_leaves_every_segment_of_the_message_unchanged()
+    {
+        const string body = """{"model":"x","messages":[{"role":"user","content":"Please kindly review <system-reminder>hidden</system-reminder> the code."}]}""";
+        var cache = new FakeCache();
+        var gate = new StubGate((_, _) => Task.FromResult(false));
+        var optimizer = new StubOptimizer((_, _, _) => Task.FromResult("unused"));
+        MessageOptimizationStrategy strategy = Create(gate: gate, optimizer: optimizer, cache: cache);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            Request("/v1/chat/completions", body), TestContext.Current.CancellationToken);
+
+        edit.IsNoOp.ShouldBeTrue();
+        gate.Calls.ShouldBe(1);
+        optimizer.Calls.ShouldBe(0);
+        cache.Stored.ShouldBe([
+            ("Please kindly review ", "Please kindly review "),
+            (" the code.", " the code.")]);
+    }
+
+    [Fact]
+    public async Task A_downgraded_responses_request_is_untouched()
+    {
+        // The Host rewrites a Responses inbound to Chat before the seam; only InboundPath still says
+        // Responses, so the message strategy must use it to stay out of the Responses API (Open item 4).
+        const string chatBody = """{"model":"x","messages":[{"role":"user","content":"Please kindly review this."}]}""";
+        var gate = new StubGate((_, _) => Task.FromResult(true));
+        var optimizer = new StubOptimizer((_, _, _) => Task.FromResult("Review this."));
+        MessageOptimizationStrategy strategy = Create(gate: gate, optimizer: optimizer);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            Request("/v1/chat/completions", chatBody, inboundPath: "/v1/responses"),
+            TestContext.Current.CancellationToken);
+
+        edit.IsNoOp.ShouldBeTrue();
+        gate.Calls.ShouldBe(0);
+        optimizer.Calls.ShouldBe(0);
     }
 
     [Fact]
@@ -541,13 +602,48 @@ public sealed class MessageOptimizationStrategyTests
         optimizer.Calls.ShouldBe(1);
     }
 
+    [Fact]
+    public async Task A_gate_failure_is_logged_without_the_message_text()
+    {
+        const string body = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
+        var logs = new CollectingLogger();
+        var gate = new StubGate((text, _) => Task.FromException<bool>(
+            new JsonException("bad response: " + text)));
+        var optimizer = new StubOptimizer((_, _, _) => Task.FromResult("Review `foo()`."));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer, logger: logs);
+
+        await strategy.OptimizeAsync(Request("/v1/chat/completions", body), TestContext.Current.CancellationToken);
+
+        logs.Events.ShouldNotBeEmpty();
+        logs.Events.ShouldAllBe(entry => !entry.Text.Contains("Please kindly", StringComparison.Ordinal));
+        logs.Events.ShouldAllBe(entry => entry.Error == null);
+    }
+
+    [Fact]
+    public async Task An_optimizer_failure_is_logged_without_the_message_text()
+    {
+        const string body = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
+        var logs = new CollectingLogger();
+        var gate = new StubGate((_, _) => Task.FromResult(true));
+        var optimizer = new StubOptimizer((_, text, _) => Task.FromException<string>(
+            new JsonException("bad response: " + text)));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer, logger: logs);
+
+        await strategy.OptimizeAsync(Request("/v1/chat/completions", body), TestContext.Current.CancellationToken);
+
+        logs.Events.ShouldNotBeEmpty();
+        logs.Events.ShouldAllBe(entry => !entry.Text.Contains("Please kindly", StringComparison.Ordinal));
+        logs.Events.ShouldAllBe(entry => entry.Error == null);
+    }
+
     private static MessageOptimizationStrategy Create(
         StubGate gate,
         StubOptimizer optimizer,
         IMessageChecksumCache? cache = null,
         int minChars = 0,
         bool gateEnabled = true,
-        bool enabled = true)
+        bool enabled = true,
+        ILogger<MessageOptimizationStrategy>? logger = null)
     {
         var options = new ImposterOptions
         {
@@ -562,14 +658,15 @@ public sealed class MessageOptimizationStrategyTests
             cache ?? new FakeCache(),
             new MessageGateCircuitBreaker(bound, TimeProvider.System, NullLogger<MessageGateCircuitBreaker>.Instance),
             new MessageOptimizerCircuitBreaker(Options.Create(options.LlmMessages), TimeProvider.System, NullLogger<MessageOptimizerCircuitBreaker>.Instance),
-            NullLogger<MessageOptimizationStrategy>.Instance);
+            logger ?? NullLogger<MessageOptimizationStrategy>.Instance);
     }
 
     private static OptimizationRequest Request(
         string path,
         string body,
-        CallerHeaders? headers = null) =>
-        new(path, body, headers ?? CallerHeaders.None, body);
+        CallerHeaders? headers = null,
+        string? inboundPath = null) =>
+        new(path, body, headers ?? CallerHeaders.None, body, inboundPath);
 
     private sealed class StubGate(Func<string, CancellationToken, Task<bool>> decide) : IMessageGate
     {
@@ -631,5 +728,22 @@ public sealed class MessageOptimizationStrategyTests
             Stored.Add((originalText, forwardedText));
             _values[originalText] = forwardedText;
         }
+    }
+
+    private sealed class CollectingLogger : ILogger<MessageOptimizationStrategy>
+    {
+        public List<(LogLevel Level, string Text, Exception? Error)> Events { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Events.Add((logLevel, formatter(state, exception), exception));
     }
 }

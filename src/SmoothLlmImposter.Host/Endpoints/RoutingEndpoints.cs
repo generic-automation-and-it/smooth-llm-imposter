@@ -260,7 +260,8 @@ internal static class RoutingEndpoints
             plan = plan with
             {
                 TransformedBody = await optimizationCoordinator.OptimizeAsync(
-                    new OptimizationRequest(effectiveUpstreamPath, plan.TransformedBody, callerHeaders, requestBody),
+                    new OptimizationRequest(
+                        effectiveUpstreamPath, plan.TransformedBody, callerHeaders, requestBody, upstreamPath),
                     cancellationToken)
             };
             upstream = await forwarder.SendAsync(

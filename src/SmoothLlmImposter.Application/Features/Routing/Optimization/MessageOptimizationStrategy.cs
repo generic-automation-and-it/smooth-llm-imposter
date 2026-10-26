@@ -36,6 +36,13 @@ internal sealed class MessageOptimizationStrategy(
             return OptimizationEdit.None;
         }
 
+        // Responses inbound stays outside HLD 017 even when the Host has downgraded it to a Chat body
+        // (Open item 4); the effective path alone cannot tell the two apart.
+        if (DecisionJson.ShapeFor(request.InboundPath ?? request.Path) == DecisionBodyShape.Responses)
+        {
+            return OptimizationEdit.None;
+        }
+
         DecisionBodyShape shape = DecisionJson.ShapeFor(request.Path);
         if (shape is not (DecisionBodyShape.Chat or DecisionBodyShape.Anthropic))
         {
@@ -80,14 +87,11 @@ internal sealed class MessageOptimizationStrategy(
                 continue;
             }
 
-            foreach ((string pointer, string text) in blocks)
+            IReadOnlyList<(string Pointer, string Text)> rewritten = await RewriteMessageAsync(
+                blocks, session, request.CallerHeaders, version, protectedNames, minChars, cancellationToken);
+            foreach ((string pointer, string text) in rewritten)
             {
-                string? rewritten = await RewriteBlockAsync(
-                    text, session, request.CallerHeaders, version, protectedNames, minChars, cancellationToken);
-                if (rewritten is not null)
-                {
-                    patches.Add(new OptimizationPatch(pointer, JsonValue.Create(rewritten)));
-                }
+                patches.Add(new OptimizationPatch(pointer, JsonValue.Create(text)));
             }
         }
 
@@ -96,8 +100,8 @@ internal sealed class MessageOptimizationStrategy(
             : new OptimizationEdit(patches);
     }
 
-    private async Task<string?> RewriteBlockAsync(
-        string text,
+    private async Task<IReadOnlyList<(string Pointer, string Text)>> RewriteMessageAsync(
+        IReadOnlyList<(string Pointer, string Text)> blocks,
         SessionIdentity session,
         CallerHeaders headers,
         string version,
@@ -105,43 +109,140 @@ internal sealed class MessageOptimizationStrategy(
         int minChars,
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<HumanSpanExtractor.Segment> segments = HumanSpanExtractor.Split(text);
-        var humanRewrites = new List<string>();
-        bool changed = false;
-
-        foreach (HumanSpanExtractor.Segment segment in segments)
+        var blockSegments = new List<(string Pointer, string Text, IReadOnlyList<HumanSpanExtractor.Segment> Segments)>(blocks.Count);
+        var human = new List<(int Block, int Segment, string Text)>();
+        for (int blockIndex = 0; blockIndex < blocks.Count; blockIndex++)
         {
-            if (!segment.IsHuman)
+            IReadOnlyList<HumanSpanExtractor.Segment> segments = HumanSpanExtractor.Split(blocks[blockIndex].Text);
+            blockSegments.Add((blocks[blockIndex].Pointer, blocks[blockIndex].Text, segments));
+            for (int segmentIndex = 0; segmentIndex < segments.Count; segmentIndex++)
             {
-                continue;
+                if (segments[segmentIndex].IsHuman)
+                {
+                    human.Add((blockIndex, segmentIndex, segments[segmentIndex].Text));
+                }
             }
-
-            string original = segment.Text;
-            if (string.IsNullOrWhiteSpace(original))
-            {
-                humanRewrites.Add(original);
-                continue;
-            }
-
-            // MinChars is per human segment, not per whole message (see LlmMessagesOptions.MinChars).
-            if (minChars > 0 && original.Trim().Length < minChars)
-            {
-                humanRewrites.Add(original);
-                continue;
-            }
-
-            string forwarded = await ForwardAsync(
-                original, session, headers, version, protectedNames, cancellationToken);
-            changed |= !string.Equals(forwarded, original, StringComparison.Ordinal);
-            humanRewrites.Add(forwarded);
         }
 
-        return changed
-            ? HumanSpanExtractor.Reassemble(segments, humanRewrites)
-            : null;
+        var rewritten = new Dictionary<(int Block, int Segment), string>(human.Count);
+        var pending = new List<(int Block, int Segment, string Text)>();
+        foreach ((int block, int segment, string text) in human)
+        {
+            if (string.IsNullOrWhiteSpace(text) ||
+                (minChars > 0 && text.Trim().Length < minChars))
+            {
+                rewritten[(block, segment)] = text;
+                continue;
+            }
+
+            if (cache.TryGet(session, headers, text, version, out string cached))
+            {
+                logger.LogDebug("Message optimization: cache hit ({Length} chars)", cached.Length);
+                rewritten[(block, segment)] = cached;
+                continue;
+            }
+
+            pending.Add((block, segment, text));
+        }
+
+        if (pending.Count == 0)
+        {
+            return ReassembleChanged(blockSegments, rewritten);
+        }
+
+        string gateText = string.Join(
+            "\n", human.Where(static item => !string.IsNullOrWhiteSpace(item.Text)).Select(static item => item.Text));
+        if (options.Value.DecisionsMessages.Enabled && !await GateAsync(gateText, cancellationToken))
+        {
+            foreach ((int block, int segment, string text) in pending)
+            {
+                cache.Store(session, headers, text, version, text);
+                rewritten[(block, segment)] = text;
+                logger.LogDebug("Message optimization: declined by gate ({Length} chars)", text.Length);
+            }
+            return ReassembleChanged(blockSegments, rewritten);
+        }
+
+        foreach ((int block, int segment, string text) in pending)
+        {
+            rewritten[(block, segment)] = await OptimizeSegmentAsync(
+                text, session, headers, version, protectedNames, cancellationToken);
+        }
+        return ReassembleChanged(blockSegments, rewritten);
     }
 
-    private async Task<string> ForwardAsync(
+    private static IReadOnlyList<(string Pointer, string Text)> ReassembleChanged(
+        IReadOnlyList<(string Pointer, string Text, IReadOnlyList<HumanSpanExtractor.Segment> Segments)> blocks,
+        IReadOnlyDictionary<(int Block, int Segment), string> rewritten)
+    {
+        var changed = new List<(string Pointer, string Text)>();
+        for (int blockIndex = 0; blockIndex < blocks.Count; blockIndex++)
+        {
+            IReadOnlyList<HumanSpanExtractor.Segment> segments = blocks[blockIndex].Segments;
+            var humanRewrites = new List<string>();
+            for (int segmentIndex = 0; segmentIndex < segments.Count; segmentIndex++)
+            {
+                if (segments[segmentIndex].IsHuman)
+                {
+                    humanRewrites.Add(rewritten[(blockIndex, segmentIndex)]);
+                }
+            }
+
+            string reassembled = HumanSpanExtractor.Reassemble(segments, humanRewrites);
+            if (!string.Equals(reassembled, blocks[blockIndex].Text, StringComparison.Ordinal))
+            {
+                changed.Add((blocks[blockIndex].Pointer, reassembled));
+            }
+        }
+        return changed;
+    }
+
+    private async Task<bool> GateAsync(string humanText, CancellationToken cancellationToken)
+    {
+        SectionCircuitBreaker.Admission admission = gateCircuit.TryEnter();
+        if (admission == SectionCircuitBreaker.Admission.Skip)
+        {
+            logger.LogInformation("Message gate circuit open: skipping the gate and continuing to the optimizer");
+            return true;
+        }
+
+        if (admission == SectionCircuitBreaker.Admission.Trial)
+        {
+            logger.LogInformation(
+                "Message gate circuit trial via model {Model} at {Endpoint}",
+                gate.Model, gate.Endpoint);
+        }
+
+        try
+        {
+            bool allowed = await gate.CanOptimizeAsync(humanText, cancellationToken);
+            gateCircuit.RecordSuccess(admission == SectionCircuitBreaker.Admission.Trial, gate.Model, gate.Endpoint);
+            return allowed;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            if (admission == SectionCircuitBreaker.Admission.Trial)
+            {
+                gateCircuit.AbandonTrial();
+            }
+            throw;
+        }
+        catch (Exception failure)
+        {
+            gateCircuit.RecordFailure(
+                failure, admission == SectionCircuitBreaker.Admission.Trial, gate.Model, gate.Endpoint);
+            if (admission == SectionCircuitBreaker.Admission.Trial)
+            {
+                gateCircuit.AbandonTrial();
+            }
+            // A failed gate continues to the optimizer (LADR-07); it does not fail the request.
+            // Log the type only: exception messages can carry message text (NFR-04).
+            logger.LogWarning("Message gate failed ({Failure}); continuing to optimizer.", failure.GetType().Name);
+            return true;
+        }
+    }
+
+    private async Task<string> OptimizeSegmentAsync(
         string original,
         SessionIdentity session,
         CallerHeaders headers,
@@ -149,62 +250,6 @@ internal sealed class MessageOptimizationStrategy(
         IReadOnlyList<string> protectedNames,
         CancellationToken cancellationToken)
     {
-        if (cache.TryGet(session, headers, original, version, out string cached))
-        {
-            logger.LogDebug("Message optimization: cache hit ({Length} chars)", cached.Length);
-            return cached;
-        }
-
-        if (options.Value.DecisionsMessages.Enabled)
-        {
-            SectionCircuitBreaker.Admission admission = gateCircuit.TryEnter();
-            if (admission == SectionCircuitBreaker.Admission.Skip)
-            {
-                logger.LogInformation("Message gate circuit open: skipping the gate and continuing to the optimizer");
-            }
-            else
-            {
-                if (admission == SectionCircuitBreaker.Admission.Trial)
-                {
-                    logger.LogInformation(
-                        "Message gate circuit trial via model {Model} at {Endpoint}",
-                        gate.Model, gate.Endpoint);
-                }
-
-                try
-                {
-                    if (!await gate.CanOptimizeAsync(original, cancellationToken))
-                    {
-                        gateCircuit.RecordSuccess(admission == SectionCircuitBreaker.Admission.Trial, gate.Model, gate.Endpoint);
-                        cache.Store(session, headers, original, version, original);
-                        logger.LogDebug("Message optimization: declined by gate ({Length} chars)", original.Length);
-                        return original;
-                    }
-
-                    gateCircuit.RecordSuccess(admission == SectionCircuitBreaker.Admission.Trial, gate.Model, gate.Endpoint);
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    if (admission == SectionCircuitBreaker.Admission.Trial)
-                    {
-                        gateCircuit.AbandonTrial();
-                    }
-                    throw;
-                }
-                catch (Exception failure)
-                {
-                    gateCircuit.RecordFailure(
-                        failure, admission == SectionCircuitBreaker.Admission.Trial, gate.Model, gate.Endpoint);
-                    if (admission == SectionCircuitBreaker.Admission.Trial)
-                    {
-                        gateCircuit.AbandonTrial();
-                    }
-                    // A failed gate continues to the optimizer (LADR-07); it does not fail the request.
-                    logger.LogWarning(failure, "Message gate failed; continuing to optimizer.");
-                }
-            }
-        }
-
         string? rewrite;
         try
         {
@@ -217,7 +262,8 @@ internal sealed class MessageOptimizationStrategy(
         catch (Exception failure)
         {
             cache.Store(session, headers, original, version, original);
-            logger.LogWarning(failure, "Message optimizer failed; forwarding the original message.");
+            logger.LogWarning(
+                "Message optimizer failed ({Failure}); forwarding the original message.", failure.GetType().Name);
             return original;
         }
 

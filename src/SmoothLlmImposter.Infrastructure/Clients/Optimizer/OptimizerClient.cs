@@ -48,7 +48,7 @@ string path = raw.StartsWith('/') ? raw : "/" + raw;
                     message.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", settings.ApiKey);
                 }
 
-                using HttpResponseMessage response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                using HttpResponseMessage response = await client.SendAsync(message, HttpCompletionOption.ResponseContentRead, cancellationToken);
                 response.EnsureSuccessStatusCode();
 
                 string responseBody = await response.Content.ReadAsStringAsync(cancellationToken);

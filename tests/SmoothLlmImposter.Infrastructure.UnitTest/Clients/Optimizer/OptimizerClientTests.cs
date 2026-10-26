@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -165,6 +166,28 @@ public class OptimizerClientTests
         handler.Calls.ShouldBe(0);
     }
 
+    [Fact]
+    public async Task A_stalled_body_is_bounded_by_the_attempt_timeout()
+    {
+        // The optimizer is a non-streaming call: TimeoutSeconds must cover the body read, not only
+        // header arrival. ResponseHeadersRead would leave a body stall unbounded (NFR-03).
+        var handler = new CallbackHandler((_, _, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StreamContent(new StallingStream())
+        }));
+        await using ServiceProvider provider = BuildProvider(handler, settings =>
+        {
+            settings.TimeoutSeconds = 1;
+            settings.MaxAttempts = 1;
+        });
+        using var ceiling = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        var failure = await Should.ThrowAsync<OperationCanceledException>(() =>
+            provider.GetRequiredService<IOptimizerClient>().OptimizeAsync("i", "u", ceiling.Token));
+
+        failure.CancellationToken.ShouldNotBe(ceiling.Token);
+    }
+
     private static ServiceProvider BuildProvider(
         HttpMessageHandler handler,
         Action<LlmMessagesOptions>? configure = null)
@@ -200,4 +223,47 @@ public class OptimizerClientTests
     {
         Content = new StringContent("""{"choices":[{"message":{"content":"rewritten"}}]}""", Encoding.UTF8, "application/json")
     };
+
+    private sealed class StallingStream : Stream
+    {
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override async Task<int> ReadAsync(
+            byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return 0;
+        }
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return 0;
+        }
+    }
 }

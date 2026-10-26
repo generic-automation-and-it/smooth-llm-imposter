@@ -48,7 +48,10 @@ internal sealed class OptimizationCoordinator(
         }
         catch (Exception failure)
         {
-            logger.LogWarning(failure, "Optimization strategy {Strategy} failed; contributing no edit", strategy.Name);
+            // Type only: exception messages can carry request text (NFR-04).
+            logger.LogWarning(
+                "Optimization strategy {Strategy} failed ({Failure}); contributing no edit",
+                strategy.Name, failure.GetType().Name);
             return OptimizationEdit.None;
         }
     }
