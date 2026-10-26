@@ -47,6 +47,7 @@
       "Bash(sqlcmd:*)",
       "Bash(where:*)",
       "Bash(yamllint:*)",
+      "Bash(gh stack*)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:www.conventionalcommits.org)"
     ],
