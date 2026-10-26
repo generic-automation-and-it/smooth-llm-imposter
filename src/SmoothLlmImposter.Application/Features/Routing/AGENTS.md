@@ -356,7 +356,9 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   return, and the session identity must come from the inbound body, not the transformed one.
   The filter is also an `IOptimizationStrategy` (HLD 017 WT-10): `OptimizeAsync` derives `/tools` and
   `/tool_choice` patches from its byte-preserving `FilterAsync` output, and one DI instance serves both contracts
-  so the answer memo and sticky sets are shared. The filter is one consumer of the shared decision service (HLD 015):
+  so the answer memo and sticky sets are shared. Host invokes `IOptimizationCoordinator` at the forward seam
+  (HLD 017 WT-12); the coordinator runs the enabled tool/message strategies concurrently and merges their edits
+  into the original bytes, never re-serialising untouched values. The filter is one consumer of the shared decision service (HLD 015):
   `DecisionToolsConsumer` opts in through `DecisionsTools.Enabled`, and `DecisionServiceOptionsSetup` maps
   BaseUrl/Path/Model/MaxAttempts/TimeoutSeconds onto `DecisionServiceOptions` after conventional precedence. The routing validator checks only consumer policy
   (`MinProbability`, `MinKeepTools`); transport fields are validated by `DecisionServiceOptionsValidator`. Every

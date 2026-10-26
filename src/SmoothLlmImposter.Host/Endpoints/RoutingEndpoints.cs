@@ -8,6 +8,7 @@ using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Application.Features.Routing.Bridge;
 using SmoothLlmImposter.Application.Features.Routing.Decisions;
+using SmoothLlmImposter.Application.Features.Routing.Optimization;
 using SmoothLlmImposter.Domain.Routing;
 
 namespace SmoothLlmImposter.Host.Endpoints;
@@ -44,8 +45,8 @@ internal static class RoutingEndpoints
         // disambiguates shared paths like /v1/models that are identical across OpenAI and Anthropic — and the
         // captured tail is forwarded verbatim, so /v1/models, /v1/responses, /v1/messages/count_tokens, etc.
         // all proxy without a per-route mapping.
-        app.Map("/openai/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IDecisionToolsFilter decisionFilter, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, IAnthropicChatBridge bridge, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, whoResponder, decisionFilter, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, bridge, loggerFactory));
+        app.Map("/openai/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IOptimizationCoordinator optimizationCoordinator, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, IAnthropicChatBridge bridge, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, whoResponder, optimizationCoordinator, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, bridge, loggerFactory));
 
         // Anthropic model discovery is answered LOCALLY from the route catalogue (distinct union of configured
         // `to` targets), not forwarded upstream (HLD 005, Anthropic scope). This specific GET route takes
@@ -58,19 +59,19 @@ internal static class RoutingEndpoints
             return Results.Text(responder.BuildModelsResponse(), "application/json");
         });
 
-        app.Map("/anthropic/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IDecisionToolsFilter decisionFilter, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, IAnthropicChatBridge bridge, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.Anthropic, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, whoResponder, decisionFilter, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, bridge, loggerFactory));
+        app.Map("/anthropic/{**upstreamPath}", (string? upstreamPath, HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IOptimizationCoordinator optimizationCoordinator, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, IAnthropicChatBridge bridge, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.Anthropic, NormalizeUpstreamPath(upstreamPath), router, forwarder, responseTransformer, errors, whoResponder, optimizationCoordinator, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, bridge, loggerFactory));
 
         // Legacy unprefixed completion routes (POST only). The inbound path is the upstream path. Unprefixed
         // /v1/models is intentionally NOT mapped here — it is dialect-ambiguous; use the /openai or /anthropic prefix.
-        app.MapPost("/v1/chat/completions", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IDecisionToolsFilter decisionFilter, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, IAnthropicChatBridge bridge, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/chat/completions", router, forwarder, responseTransformer, errors, whoResponder, decisionFilter, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, bridge, loggerFactory));
+        app.MapPost("/v1/chat/completions", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IOptimizationCoordinator optimizationCoordinator, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, IAnthropicChatBridge bridge, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/chat/completions", router, forwarder, responseTransformer, errors, whoResponder, optimizationCoordinator, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, bridge, loggerFactory));
 
-        app.MapPost("/v1/responses", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IDecisionToolsFilter decisionFilter, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, IAnthropicChatBridge bridge, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/responses", router, forwarder, responseTransformer, errors, whoResponder, decisionFilter, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, bridge, loggerFactory));
+        app.MapPost("/v1/responses", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IOptimizationCoordinator optimizationCoordinator, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, IAnthropicChatBridge bridge, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.OpenAi, "/v1/responses", router, forwarder, responseTransformer, errors, whoResponder, optimizationCoordinator, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, bridge, loggerFactory));
 
-        app.MapPost("/v1/messages", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IDecisionToolsFilter decisionFilter, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, IAnthropicChatBridge bridge, ILoggerFactory loggerFactory) =>
-            HandleAsync(ctx, ApiDialect.Anthropic, "/v1/messages", router, forwarder, responseTransformer, errors, whoResponder, decisionFilter, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, bridge, loggerFactory));
+        app.MapPost("/v1/messages", (HttpContext ctx, IImposterRouter router, IUpstreamForwarder forwarder, IChatToResponsesTransformer responseTransformer, IErrorResponseFactory errors, IWhoMessageResponder whoResponder, IOptimizationCoordinator optimizationCoordinator, IToolCatalogOrderer toolOrderer, ISessionTranslationDictionary sessionTranslation, IGithubCopilotConnectionRegistry copilotRegistry, IOptions<ImposterOptions> imposterOptions, IAnthropicChatBridge bridge, ILoggerFactory loggerFactory) =>
+            HandleAsync(ctx, ApiDialect.Anthropic, "/v1/messages", router, forwarder, responseTransformer, errors, whoResponder, optimizationCoordinator, toolOrderer, sessionTranslation, copilotRegistry, imposterOptions.Value, bridge, loggerFactory));
     }
 
     // The {**upstreamPath} catch-all captures the tail WITHOUT a leading slash and excludes the query string.
@@ -87,7 +88,7 @@ internal static class RoutingEndpoints
         IChatToResponsesTransformer responseTransformer,
         IErrorResponseFactory errors,
         IWhoMessageResponder whoResponder,
-        IDecisionToolsFilter decisionFilter,
+        IOptimizationCoordinator optimizationCoordinator,
         IToolCatalogOrderer toolOrderer,
         ISessionTranslationDictionary sessionTranslation,
         IGithubCopilotConnectionRegistry copilotRegistry,
@@ -182,7 +183,7 @@ internal static class RoutingEndpoints
 
         // HLD 016: a matched Anthropic imposter route whose provider opted into
         // AnthropicUpstreamApi=chat_completions is bridged. The mapper runs after planning/model rename and
-        // before the decision filter, so the filter sees the Chat body.
+        // before the optimization coordinator, so strategies see the Chat body.
         bool bridgedProvider = IsBridgedProvider(dialect, plan);
         AnthropicChatCall? bridgedCall = null;
 
@@ -258,8 +259,9 @@ internal static class RoutingEndpoints
         {
             plan = plan with
             {
-                TransformedBody = await decisionFilter.FilterAsync(
-                    effectiveUpstreamPath, plan.TransformedBody, callerHeaders, requestBody, cancellationToken)
+                TransformedBody = await optimizationCoordinator.OptimizeAsync(
+                    new OptimizationRequest(effectiveUpstreamPath, plan.TransformedBody, callerHeaders, requestBody),
+                    cancellationToken)
             };
             upstream = await forwarder.SendAsync(
                 plan.Decision,

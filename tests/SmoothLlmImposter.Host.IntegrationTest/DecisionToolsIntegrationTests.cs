@@ -176,9 +176,9 @@ public sealed class DecisionToolsIntegrationTests
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         app.Upstream.LastRequestBody.ShouldBe(body);
         decisions.Requests.ShouldBeEmpty();
-        app.Logs.Entries.ShouldContain(entry => entry.Category.Contains("DecisionToolsFilter", StringComparison.Ordinal));
+        app.Logs.Entries.ShouldContain(entry => entry.Category.Contains("OptimizationCoordinator", StringComparison.Ordinal));
         app.Logs.Entries.ShouldNotContain(entry =>
-            entry.Category.Contains("DecisionToolsFilter", StringComparison.Ordinal) && entry.Level > LogLevel.Debug);
+            entry.Category.Contains("OptimizationCoordinator", StringComparison.Ordinal) && entry.Level > LogLevel.Debug);
     }
 
     [Theory]
