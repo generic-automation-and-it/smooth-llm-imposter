@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Application.Features.Routing.Decisions;
+using SmoothLlmImposter.Application.Features.Routing.Optimization;
 
 namespace SmoothLlmImposter.Application.UnitTest.Routing.Decisions;
 
@@ -22,6 +23,66 @@ public sealed class DecisionToolsFilterTests
         ReferenceEquals(await filter.FilterAsync("/v1/messages", body, Ct), body).ShouldBeTrue();
         client.Requests.ShouldBeEmpty();
         logs.Events.Single().Level.ShouldBe(LogLevel.Debug);
+    }
+
+    [Fact]
+    public async Task Strategy_returns_only_tools_and_tool_choice_patches()
+    {
+        string body = """
+            {"model":"m","messages":[{"role":"user","content":"Latest"}],
+             "tools":[{"type":"function","function":{"name":"keep"}},{"type":"function","function":{"name":"drop"}}],
+             "tool_choice":{"type":"function","function":{"name":"drop"}},"stream":true}
+            """;
+        var client = new DecisionStub { Answer = request => Answers(request, key => key == "t0" ? 1 : 0) };
+        var strategy = (IOptimizationStrategy)Create(client);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            new OptimizationRequest("/chat/completions", body, CallerHeaders.None, body), Ct);
+
+        edit.Patches.Select(patch => patch.Pointer).ShouldBe(["/tools", "/tool_choice"]);
+        edit.Patches[0].Replacement!.AsArray().Count.ShouldBe(1);
+        edit.Patches[1].Replacement.ShouldBeNull();
+        edit.Patches.ShouldAllBe(patch => patch.Pointer == "/tools" || patch.Pointer == "/tool_choice");
+    }
+
+    [Fact]
+    public async Task Disabled_strategy_returns_no_edit()
+    {
+        string body = Body(2).ToJsonString();
+        var client = new DecisionStub();
+        var strategy = (IOptimizationStrategy)Create(client, enabled: false);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            new OptimizationRequest("/responses", body, CallerHeaders.None, body), Ct);
+
+        edit.IsNoOp.ShouldBeTrue();
+        client.Requests.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task All_skip_strategy_returns_no_edit()
+    {
+        string body = Body(2).ToJsonString();
+        var client = new DecisionStub();
+        var strategy = (IOptimizationStrategy)Create(client);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            new OptimizationRequest("/responses", body, CallerHeaders.None, body), Ct);
+
+        edit.IsNoOp.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Fail_open_strategy_returns_no_edit()
+    {
+        string body = Body(2).ToJsonString();
+        var client = new DecisionStub { FailCall = 1 };
+        var strategy = (IOptimizationStrategy)Create(client);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            new OptimizationRequest("/responses", body, CallerHeaders.None, body), Ct);
+
+        edit.IsNoOp.ShouldBeTrue();
     }
 
     [Theory]
