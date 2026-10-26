@@ -183,7 +183,7 @@ internal static class RoutingEndpoints
 
         // HLD 016: a matched Anthropic imposter route whose provider opted into
         // AnthropicUpstreamApi=chat_completions is bridged. The mapper runs after planning/model rename and
-        // before the decision filter, so the filter sees the Chat body.
+        // before the optimization coordinator, so strategies see the Chat body.
         bool bridgedProvider = IsBridgedProvider(dialect, plan);
         AnthropicChatCall? bridgedCall = null;
 
