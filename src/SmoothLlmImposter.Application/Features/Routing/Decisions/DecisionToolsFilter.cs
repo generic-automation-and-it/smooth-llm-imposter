@@ -18,6 +18,7 @@ internal sealed class DecisionToolsFilter(
     private const int InstructionLimit = 300;
     private const int SessionTokenLength = 12;
     internal const int MaxStickyTools = 1024;
+    private static readonly string[] CapabilityGateways = ["ToolSearch", "Agent"];
     private readonly DecisionAnswerCache _cache = new();
     private readonly SessionScopedMemory<HashSet<string>> _sticky =
         new(timeProvider, () => new HashSet<string>(StringComparer.Ordinal));
@@ -298,7 +299,8 @@ internal sealed class DecisionToolsFilter(
     }
 
     private static HashSet<string> AlwaysKeepNames(DecisionsToolsOptions settings) =>
-        settings.AlwaysKeep.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet();
+        settings.AlwaysKeep.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Concat(CapabilityGateways).ToHashSet();
 
     private static int RestoreMinimum(
         HashSet<int> removed,

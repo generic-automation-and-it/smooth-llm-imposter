@@ -217,7 +217,7 @@ are answered from an in-memory cache and forward the same tools. Catalogs using 
 (`defer_loading` or a `tool_search` tool) are not filtered, and every other top-level value besides `tools`/`tool_choice` is forwarded byte-for-byte. History-referenced and
 unknown tools are kept, and a pass that would leave no tool keeps the whole catalog. Tools in
 `DECISIONS_TOOLS_ALWAYS_KEEP` are never asked about or removed (the defaults are Claude Code's core tool names;
-set your client's own names for other agents), and at least `DECISIONS_TOOLS_MIN_KEEP` tools are always
+set your client's own names for other agents; `ToolSearch` and `Agent` are always kept in addition), and at least `DECISIONS_TOOLS_MIN_KEEP` tools are always
 forwarded — the highest-scoring ones fill the floor — so a vague request cannot shrink the catalog to a handful.
 Catalogs of that size or smaller are not classified at all. With `DECISIONS_TOOLS_STICKY_PER_SESSION=true`, a
 tool the filter forwarded stays forwarded for the rest of that chat while the client still sends it, so the

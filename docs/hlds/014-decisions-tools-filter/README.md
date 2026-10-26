@@ -157,3 +157,4 @@ Per-provider overrides, persistent or distributed decision caching, tool-count s
 | 2026-10-25 | Circuit breaker amendment (design only): one failed classifier call opens a tool-filter circuit for an optional `DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS` cooldown (default 180); open passes skip with `circuit-open`; opening logs at Error (LADR-11, NFR-05). LADR-10 added to the decisions table | #164 |
 | 2026-10-25 | LADR-09 shared memory extension: per-instance lifetime and uncapped mode for HLD 017 checksum cache; tools keep 30 min and 256 scopes | #164 |
 | 2026-10-25 | HLD 017 Accepted by owner decision: LADR-12 Accepted; edit-return contract, overlap forwards original | #164 |
+| 2026-10-26 | LADR-08 amendment: capability gateways `ToolSearch` and `Agent` always kept, whatever `AlwaysKeep` is configured | — |

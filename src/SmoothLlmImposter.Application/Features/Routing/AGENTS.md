@@ -413,7 +413,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   a fresh or mismatched scope makes a no-op assertion pass even when the guard is missing.
 - **L0** `Application.UnitTest/Routing/Decisions` — API golden shapes, history/choice integrity, body identity,
   bounded chunks, fail-open and cancellation, request-first state (reminder, Conductor and local-command wrappers, hook/system and tool-result turns
-  excluded), all-skip fallback, deferred-loading skip, core-tool `AlwaysKeep`, minimum-kept floor, per-question memo (tool-call continuation, invalid-answer retry), byte-preserving output, log-safe removed names, and sticky-per-session retention/non-recording/scoping; root option/env/validator tests remain in `Application.UnitTest/Routing`.
+  excluded), all-skip fallback, deferred-loading skip, core-tool `AlwaysKeep` plus fixed `ToolSearch`/`Agent` gateways, minimum-kept floor, per-question memo (tool-call continuation, invalid-answer retry), byte-preserving output, log-safe removed names, and sticky-per-session retention/non-recording/scoping; root option/env/validator tests remain in `Application.UnitTest/Routing`.
 - **L0** `Infrastructure.UnitTest/Clients/Decisions` — real resilience, full-body timeout, shared gate across scopes and separately constructed clients, retry status policy, non-tool consumer transport while tool filtering is off, default model without request mutation.
 - **L0** `Application.UnitTest/Common/Clients/Decisions` and `Routing/Decisions/DecisionServiceOptionsSetupTests` — any-consumer validation, operator-name messages, mapping and conventional precedence; `DecisionsToolsOptionsTests` drift guard over every setting.
 - **L2** `Host.IntegrationTest/DecisionServiceIntegrationTests` — real client/gate/pipeline end to end, enabled-invalid startup failure, disabled-invalid inert.
@@ -467,6 +467,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-26 | Decision filter always keeps `ToolSearch` and `Agent` on top of the configured `AlwaysKeep` (HLD 014 LADR-08); a probe showed a 12-tool Claude Code catalog losing both | — |
 | 2026-10-25 | Decision tool filter is an optimization strategy returning `/tools`/`/tool_choice` patches; one DI instance shared | #164 |
 | 2026-10-25 | HLD 016 ralph-loop fixes: bridged query-string suppression, bounded stream channel + per-read timer cancellation, in-band 2xx overflow/retry/redaction, choice-level errors, attribution cache-control. 1,267 tests pass; host NativeAOT publish clean. | HLD 016 |
 | 2026-10-24 | Decision classifier outcome logs add model, endpoint (no userinfo or query) and a 12-char session digest; raw session never logged. Identity now resolves on every classified pass (extra inbound-body parse) | — |
