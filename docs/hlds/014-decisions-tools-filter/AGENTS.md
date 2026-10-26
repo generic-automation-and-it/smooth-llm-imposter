@@ -8,6 +8,7 @@ Read [README.md](README.md) first — decision-tool filtering intent, decisions 
 
 | Date | Change | Ref |
 |---|---|---|
+| 2026-10-26 | `ToolSearch`/`Agent` always kept regardless of `AlwaysKeep` (LADR-08). Claude Code ≥2.1.306 tool-search catalogs carry a `DeferredToolPlaceholder`, so those passes skip anyway; the guard covers a catalog without it | — |
 | 2026-10-25 | Circuit breaker designed, not implemented: per-consumer, one failed call opens it, optional `DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS` cooldown (default 180), Error on open (LADR-11, NFR-05) | #164 |
 | 2026-10-25 | LADR-09 shared memory gains per-instance lifetime and uncapped mode for HLD 017 cache | #164 |
 | 2026-10-25 | Draft LADR-12 edit-return contract; overlap forwards original | #164 |

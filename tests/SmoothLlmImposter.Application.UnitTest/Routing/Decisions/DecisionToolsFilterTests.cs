@@ -281,6 +281,29 @@ public sealed class DecisionToolsFilterTests
             .ShouldBe(["Bash", "Read", "other0"]);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("Bash")]
+    public async Task Capability_gateway_tools_are_kept_whatever_always_keep_is_configured(string alwaysKeep)
+    {
+        JsonObject root = Body(0);
+        var tools = new JsonArray();
+        foreach (string name in new[] { "Bash", "ToolSearch", "Agent", "other0", "other1" })
+        {
+            tools.Add((JsonNode)new JsonObject { ["type"] = "function", ["name"] = name });
+        }
+
+        root["tools"] = tools;
+        var client = new DecisionStub { Answer = request => Answers(request, key => key == "t3" ? 1 : 0) };
+
+        JsonObject result = JsonNode.Parse(await Create(client, alwaysKeep: alwaysKeep).FilterAsync("/responses", root.ToJsonString(), Ct))!.AsObject();
+
+        client.Requests.Single()["questions"]!.AsObject().Select(pair => pair.Key)
+            .ShouldNotContain(key => key == "t1" || key == "t2");
+        result["tools"]!.AsArray().Select(tool => tool!["name"]!.GetValue<string>())
+            .ShouldBe(alwaysKeep == "Bash" ? ["Bash", "ToolSearch", "Agent", "other0"] : ["ToolSearch", "Agent", "other0"]);
+    }
+
     [Fact]
     public async Task Always_kept_names_match_case_sensitively_and_also_by_server_label_and_hosted_type()
     {
