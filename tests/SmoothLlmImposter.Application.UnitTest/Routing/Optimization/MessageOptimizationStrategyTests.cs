@@ -1,3 +1,5 @@
+using System.Net;
+using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Common.Clients.Optimizer;
@@ -416,6 +418,129 @@ public sealed class MessageOptimizationStrategyTests
         optimizer.Calls.ShouldBe(0);
     }
 
+    [Fact]
+    public async Task A_gate_service_failure_opens_its_circuit_and_the_next_segment_skips_the_gate()
+    {
+        const string body = """
+            {"model":"x","messages":[
+              {"role":"user","content":"Please kindly review `foo()`."},
+              {"role":"user","content":"Please kindly ask @reviewer."}]}
+            """;
+        var gate = new StubGate((_, _) => Task.FromException<bool>(
+            new HttpRequestException("gate down", null, HttpStatusCode.BadGateway)));
+        var optimizer = new StubOptimizer((_, text, _) =>
+            Task.FromResult(text.Contains("foo", StringComparison.Ordinal) ? "Review `foo()`." : "Ask @reviewer."));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            Request("/v1/chat/completions", body), TestContext.Current.CancellationToken);
+
+        edit.Patches.Count.ShouldBe(2);
+        gate.Calls.ShouldBe(1, "the second segment must skip the open gate circuit");
+        optimizer.Calls.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task A_gate_invalid_answer_does_not_open_the_circuit()
+    {
+        const string body = """
+            {"model":"x","messages":[
+              {"role":"user","content":"Please kindly review `foo()`."},
+              {"role":"user","content":"Please kindly ask @reviewer."}]}
+            """;
+        var gate = new StubGate((_, _) => Task.FromException<bool>(
+            new InvalidOperationException("invalid answer")));
+        var optimizer = new StubOptimizer((_, text, _) =>
+            Task.FromResult(text.Contains("foo", StringComparison.Ordinal) ? "Review `foo()`." : "Ask @reviewer."));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer);
+
+        await strategy.OptimizeAsync(Request("/v1/chat/completions", body), TestContext.Current.CancellationToken);
+
+        gate.Calls.ShouldBe(2);
+        optimizer.Calls.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task An_optimizer_service_failure_opens_its_circuit_and_the_next_segment_is_not_sent()
+    {
+        const string body = """
+            {"model":"x","messages":[
+              {"role":"user","content":"Please kindly review `foo()`."},
+              {"role":"user","content":"Please kindly ask @reviewer."}]}
+            """;
+        var gate = new StubGate((_, _) => Task.FromResult(true));
+        var optimizer = new StubOptimizer((_, _, _) => Task.FromException<string>(
+            new HttpRequestException("optimizer down", null, HttpStatusCode.BadGateway)));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            Request("/v1/chat/completions", body), TestContext.Current.CancellationToken);
+
+        edit.IsNoOp.ShouldBeTrue();
+        optimizer.Calls.ShouldBe(1, "the second segment must not reach the open optimizer circuit");
+    }
+
+    [Fact]
+    public async Task An_optimizer_invalid_output_does_not_open_the_circuit()
+    {
+        const string body = """
+            {"model":"x","messages":[
+              {"role":"user","content":"Please kindly review `foo()`."},
+              {"role":"user","content":"Please kindly ask @reviewer."}]}
+            """;
+        var gate = new StubGate((_, _) => Task.FromResult(true));
+        var optimizer = new StubOptimizer((_, _, _) =>
+            Task.FromException<string>(new JsonException("invalid envelope")));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            Request("/v1/chat/completions", body), TestContext.Current.CancellationToken);
+
+        edit.IsNoOp.ShouldBeTrue();
+        optimizer.Calls.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task A_gate_wait_timeout_does_not_open_the_circuit()
+    {
+        const string body = """
+            {"model":"x","messages":[
+              {"role":"user","content":"Please kindly review `foo()`."},
+              {"role":"user","content":"Please kindly ask @reviewer."}]}
+            """;
+        var gate = new StubGate((_, _) => Task.FromException<bool>(
+            new SmoothLlmImposter.Application.Common.Clients.Decisions.DecisionGateTimeoutException("busy")));
+        var optimizer = new StubOptimizer((_, text, _) =>
+            Task.FromResult(text.Contains("foo", StringComparison.Ordinal) ? "Review `foo()`." : "Ask @reviewer."));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer);
+
+        await strategy.OptimizeAsync(Request("/v1/chat/completions", body), TestContext.Current.CancellationToken);
+
+        gate.Calls.ShouldBe(2, "gate contention must not open the circuit");
+        optimizer.Calls.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Caller_cancellation_does_not_open_the_gate_circuit()
+    {
+        const string body = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var gate = new StubGate((_, token) => token.IsCancellationRequested
+            ? Task.FromCanceled<bool>(token)
+            : Task.FromResult(true));
+        var optimizer = new StubOptimizer((_, _, _) => Task.FromResult("Review `foo()`."));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer);
+
+        await Should.ThrowAsync<OperationCanceledException>(() =>
+            strategy.OptimizeAsync(Request("/v1/chat/completions", body), cts.Token));
+
+        await strategy.OptimizeAsync(Request("/v1/chat/completions", body), TestContext.Current.CancellationToken);
+
+        gate.Calls.ShouldBe(2);
+        optimizer.Calls.ShouldBe(1);
+    }
+
     private static MessageOptimizationStrategy Create(
         StubGate gate,
         StubOptimizer optimizer,
@@ -429,11 +554,14 @@ public sealed class MessageOptimizationStrategyTests
             LlmMessages = new LlmMessagesOptions { Enabled = enabled, Model = "opt-model", MinChars = minChars },
             DecisionsMessages = new DecisionsMessagesOptions { Enabled = gateEnabled, MinProbability = 0.5 }
         };
+        IOptions<ImposterOptions> bound = Options.Create(options);
         return new MessageOptimizationStrategy(
-            Options.Create(options),
+            bound,
             gate,
             optimizer,
             cache ?? new FakeCache(),
+            new MessageGateCircuitBreaker(bound, TimeProvider.System, NullLogger<MessageGateCircuitBreaker>.Instance),
+            new MessageOptimizerCircuitBreaker(Options.Create(options.LlmMessages), TimeProvider.System, NullLogger<MessageOptimizerCircuitBreaker>.Instance),
             NullLogger<MessageOptimizationStrategy>.Instance);
     }
 
@@ -445,6 +573,10 @@ public sealed class MessageOptimizationStrategyTests
 
     private sealed class StubGate(Func<string, CancellationToken, Task<bool>> decide) : IMessageGate
     {
+        public string Model => "gate-model";
+
+        public string Endpoint => "http://gate";
+
         public int Calls { get; private set; }
         public List<string> Texts { get; } = [];
 

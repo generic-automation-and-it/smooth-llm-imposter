@@ -211,6 +211,11 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         {
             failures.Add($"{prefix}:MinProbability must be a finite number between 0 and 1.");
         }
+
+        if (options.CircuitBreakSeconds is < 1 or > 3600)
+        {
+            failures.Add($"{prefix}:CircuitBreakSeconds must be between 1 and 3600 seconds.");
+        }
     }
 
     private static void AddLlmMessagesFailures(LlmMessagesOptions options, List<string> failures)

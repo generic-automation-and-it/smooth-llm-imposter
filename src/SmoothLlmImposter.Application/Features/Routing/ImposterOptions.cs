@@ -58,6 +58,11 @@ public sealed class DecisionsMessagesOptions
     /// Minimum probability (inclusive) for a positive "can be optimized" answer.
     /// </summary>
     public double MinProbability { get; set; } = 0.50;
+
+    /// <summary>
+    /// Cooldown for the message-gate circuit (HLD 017 LADR-07), in seconds.
+    /// </summary>
+    public int CircuitBreakSeconds { get; set; } = DecisionsToolsOptions.DefaultCircuitBreakSeconds;
 }
 
 public sealed class ToolOrderingOptions

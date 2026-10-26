@@ -6,5 +6,11 @@ namespace SmoothLlmImposter.Application.Features.Routing.Optimization;
 /// </summary>
 public interface IMessageGate
 {
+    /// <summary>Configured model name, for the circuit log only.</summary>
+    string Model { get; }
+
+    /// <summary>Configured endpoint without userinfo or query, for the circuit log only.</summary>
+    string Endpoint { get; }
+
     Task<bool> CanOptimizeAsync(string humanText, CancellationToken cancellationToken);
 }

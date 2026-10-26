@@ -7,9 +7,14 @@ namespace SmoothLlmImposter.Application.Features.Routing.Optimization;
 
 internal sealed class MessageGate(
     IDecisionModelClient client,
-    IOptions<ImposterOptions> options) : IMessageGate
+    IOptions<ImposterOptions> options,
+    IOptions<DecisionServiceOptions> decision) : IMessageGate
 {
     private const string QuestionKey = "optimize";
+
+    public string Model => decision.Value.Model;
+
+    public string Endpoint => SectionCircuitBreaker.Endpoint(decision.Value.BaseUrl, decision.Value.Path);
 
     public async Task<bool> CanOptimizeAsync(string humanText, CancellationToken cancellationToken)
     {

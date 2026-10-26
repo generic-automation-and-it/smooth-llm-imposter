@@ -68,10 +68,17 @@ public sealed class MessageGateTests
         }));
 
     private static MessageGate Build(IDecisionModelClient client) =>
-        new(client, Options.Create(new ImposterOptions
-        {
-            DecisionsMessages = new DecisionsMessagesOptions { Enabled = true, MinProbability = 0.5 }
-        }));
+        new(client,
+            Options.Create(new ImposterOptions
+            {
+                DecisionsMessages = new DecisionsMessagesOptions { Enabled = true, MinProbability = 0.5 }
+            }),
+            Options.Create(new DecisionServiceOptions
+            {
+                BaseUrl = "http://localhost:1234",
+                Path = "/v1/systemone",
+                Model = "gate-model"
+            }));
 
     private static JsonObject Answers(double probability) => new()
     {
