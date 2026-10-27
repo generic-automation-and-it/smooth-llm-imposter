@@ -195,6 +195,15 @@ public sealed class ProviderOptions
     public bool? StripEncryptedContent { get; set; }
 
     /// <summary>
+    /// Per-route opt-out for the HLD 017 message optimizer. <c>null</c> (default) and <c>true</c> both
+    /// leave message optimization on; only <c>false</c> skips it for this provider's routes. Request-billed
+    /// upstreams (for example GitHub Copilot routes) gain nothing from smaller messages and pay the gate
+    /// and optimizer latency. The tool-filter strategy is unaffected. Conventional env
+    /// <c>&lt;PROVIDER&gt;_OPTIMIZE_MESSAGES</c>.
+    /// </summary>
+    public bool? OptimizeMessages { get; set; }
+
+    /// <summary>
     /// Per-provider base upstream header timeout in seconds (HLD 012). <c>null</c> (default) uses the
     /// global 300 s base. The forwarder relays it to the resilience handler, which scales it across the
     /// three attempts — base ×1, ×2, ×3 (default 300/600/900 s) — so a slow upstream can be given more

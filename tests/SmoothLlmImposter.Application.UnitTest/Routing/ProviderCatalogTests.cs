@@ -57,6 +57,23 @@ public class ProviderCatalogTests
     }
 
     [Fact]
+    public void Optimize_messages_flows_through_the_seeded_registry_to_the_route()
+    {
+        // HLD 017: same hop HLD 011 missed — the registry seed clones every ProviderOptions before the catalog reads it.
+        ProviderCatalog catalog = ProviderCatalogTestFactory.SeededCatalog(new Dictionary<string, ProviderOptions>(StringComparer.Ordinal)
+        {
+            ["out"] = new() { Dialect = "openai", BaseUrl = "https://s.example", OptimizeMessages = false },
+            ["in"] = new() { Dialect = "openai", BaseUrl = "https://o.example", OptimizeMessages = true },
+            ["unset"] = new() { Dialect = "openai", BaseUrl = "https://u.example" }
+        });
+
+        IReadOnlyList<ProviderRoute> routes = catalog.ProvidersFor(ApiDialect.OpenAi);
+        routes.Single(r => r.Name == "out").OptimizeMessages.ShouldBe(false);
+        routes.Single(r => r.Name == "in").OptimizeMessages.ShouldBe(true);
+        routes.Single(r => r.Name == "unset").OptimizeMessages.ShouldBeNull();
+    }
+
+    [Fact]
     public void Timeout_seconds_is_materialized_onto_the_route()
     {
         // HLD 012: the value has to survive the registry seed's clone and the catalog projection, or the

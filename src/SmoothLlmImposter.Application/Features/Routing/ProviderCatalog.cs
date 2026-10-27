@@ -58,7 +58,8 @@ internal sealed class ProviderCatalog : IProviderCatalog
                     provider.SendResponseFormat ?? false,
                     AnthropicChatDocumentModeParser.Parse(provider.DocumentMode),
                     provider.ThinkMarkupExtraction ?? false,
-                    AnthropicChatMidturnSystemParser.Parse(provider.MidturnSystem)));
+                    AnthropicChatMidturnSystemParser.Parse(provider.MidturnSystem)),
+                provider.OptimizeMessages);
 
             if (!_byDialect.TryGetValue(dialect, out List<ProviderRoute>? routes))
             {

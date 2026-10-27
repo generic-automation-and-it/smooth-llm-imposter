@@ -28,6 +28,7 @@ public class ProviderOptionsClonerTests
             RequestNormalization = "codex_to_openai_sdk",
             SessionForwarding = "opencode-go",
             StripEncryptedContent = true,
+            OptimizeMessages = false,
             TimeoutSeconds = 450,
             AnthropicUpstreamApi = "chat_completions",
             CompatProfile = "deepseek",

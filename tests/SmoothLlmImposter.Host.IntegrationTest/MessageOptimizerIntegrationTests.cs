@@ -42,6 +42,26 @@ public sealed class MessageOptimizerIntegrationTests
     }
 
     [Fact]
+    public async Task An_opted_out_route_forwards_the_message_without_gate_or_optimizer_calls()
+    {
+        var gate = new StubDecisionClient();
+        var optimizer = new OptimizerHandler();
+        using var app = new App(gate, optimizer);
+        const string body = """
+            {"model":"optout-imposter","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}
+            """;
+
+        using HttpResponseMessage response = await app.Client.PostAsync(
+            "/openai/v1/chat/completions", Json(body), Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        gate.Requests.ShouldBeEmpty();
+        optimizer.Requests.ShouldBeEmpty();
+        JsonObject forwarded = JsonNode.Parse(app.Upstream.LastRequestBody!)!.AsObject();
+        forwarded["messages"]![0]!["content"]!.GetValue<string>().ShouldBe("Please kindly review `foo()`.");
+    }
+
+    [Fact]
     public async Task A_downgraded_responses_request_is_not_optimized()
     {
         var gate = new StubDecisionClient();
@@ -154,6 +174,12 @@ public sealed class MessageOptimizerIntegrationTests
             ["Imposter:Providers:chat-mapped:BaseUrl"] = "https://imposter.test",
             ["Imposter:Providers:chat-mapped:Models:0:From"] = "chat-imposter",
             ["Imposter:Providers:chat-mapped:Models:0:To"] = "upstream-model",
+
+            ["Imposter:Providers:chat-optout:Dialect"] = "openai",
+            ["Imposter:Providers:chat-optout:BaseUrl"] = "https://imposter.test",
+            ["Imposter:Providers:chat-optout:OptimizeMessages"] = "false",
+            ["Imposter:Providers:chat-optout:Models:0:From"] = "optout-imposter",
+            ["Imposter:Providers:chat-optout:Models:0:To"] = "upstream-model",
 
             ["Imposter:Providers:downgrade-mapped:Dialect"] = "openai",
             ["Imposter:Providers:downgrade-mapped:BaseUrl"] = "https://imposter.test",
