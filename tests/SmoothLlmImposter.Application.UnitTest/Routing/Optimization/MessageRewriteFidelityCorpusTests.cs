@@ -1,3 +1,4 @@
+using System.Text;
 using SmoothLlmImposter.Application.Features.Routing.Optimization;
 
 namespace SmoothLlmImposter.Application.UnitTest.Routing.Optimization;
@@ -26,6 +27,10 @@ public sealed class MessageRewriteFidelityCorpusTests
         new("clean: negations",
             "Please do not touch the Dockerfile, and never push to main without asking me first, thanks so much!",
             "Do not touch the Dockerfile and never push to main without asking me first.",
+            RejectedAs: null),
+        new("clean: repeated negations kept",
+            "Please kindly do not delete the cache and do not touch the Dockerfile, thanks so much.",
+            "Do not delete the cache and do not touch the Dockerfile.",
             RejectedAs: null),
         new("clean: mention and slash command",
             "Hey @reviewer, when you get a chance could you run /review on this branch and let me know what you find? Appreciate it.",
@@ -64,6 +69,10 @@ public sealed class MessageRewriteFidelityCorpusTests
         new("altered: negation dropped",
             "Please do not touch the Dockerfile, and never push to main without asking me first, thanks so much!",
             "Touch the Dockerfile and never push to main without asking me first.",
+            RejectedAs: "negation"),
+        new("altered: one of two negations dropped",
+            "Please kindly do not delete the cache and do not touch the Dockerfile, thanks so much.",
+            "Do not delete the cache and touch the Dockerfile.",
             RejectedAs: "negation"),
         new("altered: never dropped",
             "Please do not touch the Dockerfile, and never push to main without asking me first, thanks so much!",
@@ -166,33 +175,31 @@ public sealed class MessageRewriteFidelityCorpusTests
     [Fact]
     public void No_accepted_rewrite_alters_a_protected_element()
     {
-        var accepted = new List<Sample>();
-        var rejected = new List<Sample>();
-        foreach (Sample sample in Corpus)
-        {
-            bool valid = MessageRewriteValidator.Validate(sample.Original, sample.Rewrite, Catalog).IsValid;
-            (valid ? accepted : rejected).Add(sample);
-        }
+        (Sample Sample, MessageRewriteValidator.Result Result)[] results = Corpus
+            .Select(static sample => (sample, MessageRewriteValidator.Validate(sample.Original, sample.Rewrite, Catalog)))
+            .ToArray();
+        var accepted = results.Where(static item => item.Result.IsValid).ToArray();
+        var rejected = results.Where(static item => !item.Result.IsValid).ToArray();
 
         TestContext.Current.SendDiagnosticMessage(
-            $"NFR-02 corpus: {Corpus.Length} rewrites, {accepted.Count} accepted, {rejected.Count} rejected " +
-            $"({(double)rejected.Count / Corpus.Length:P0} rejected).");
+            $"NFR-02 corpus: {Corpus.Length} rewrites, {accepted.Length} accepted, {rejected.Length} rejected " +
+            $"({(double)rejected.Length / Corpus.Length:P0} rejected).");
 
         // The second, independent check must not flag anything the validator accepted.
-        accepted.Where(sample => IndependentCheck.Altered(sample.Original, sample.Rewrite, Catalog))
-            .Select(sample => sample.Name)
+        accepted.Where(item => IndependentCheck.Altered(item.Sample.Original, item.Sample.Rewrite, Catalog))
+            .Select(static item => item.Sample.Name)
             .ShouldBeEmpty("accepted rewrites that changed a protected element");
 
         // Every rewrite built to alter an element must be rejected, and only those.
-        rejected.Where(static sample => !sample.Alters).Select(static sample => sample.Name)
+        rejected.Where(static item => !item.Sample.Alters).Select(static item => item.Sample.Name)
             .ShouldBeEmpty("clean rewrites that were rejected");
-        accepted.Where(static sample => sample.Alters).Select(static sample => sample.Name)
+        accepted.Where(static item => item.Sample.Alters).Select(static item => item.Sample.Name)
             .ShouldBeEmpty("altering rewrites that were accepted");
 
         // And rejected for the reason it was built to trip, not an incidental one.
-        rejected.Where(sample => !MessageRewriteValidator.Validate(sample.Original, sample.Rewrite, Catalog)
-                .FailedElements.Any(element => element.StartsWith(sample.RejectedAs + ":", StringComparison.Ordinal)))
-            .Select(static sample => sample.Name)
+        rejected.Where(item => !item.Result.FailedElements.Any(
+                element => element.StartsWith(item.Sample.RejectedAs + ":", StringComparison.Ordinal)))
+            .Select(static item => item.Sample.Name)
             .ShouldBeEmpty("rewrites rejected for a different reason than intended");
     }
 
@@ -236,20 +243,22 @@ public sealed class MessageRewriteFidelityCorpusTests
                 !Structure(original).SequenceEqual(Structure(rewrite));
         }
 
-        private static IEnumerable<string> Words(string text) => text
-            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
-            .Select(static word => word.Trim('.', ',', ';', ':', '!', '?', '(', ')', '[', ']', '"', '\''));
+        private static readonly char[] Punctuation = ['.', ',', ';', ':', '!', '?', '(', ')', '[', ']', '"', '\''];
+
+        private static string[] Split(string text) => text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+
+        private static IEnumerable<string> Words(string text) => Split(text).Select(static word => word.Trim(Punctuation));
 
         private static HashSet<string> Protected(string text, string[] catalog)
         {
             var found = new HashSet<string>(StringComparer.Ordinal);
             string[] parts = text.Split("```");
-            var prose = new System.Text.StringBuilder();
+            var prose = new StringBuilder();
             for (int index = 0; index < parts.Length; index++)
             {
                 if (index % 2 == 1)
                 {
-                    found.Add("fence:" + string.Join(' ', parts[index].Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)));
+                    found.Add("fence:" + string.Join(' ', Split(parts[index])));
                 }
                 else
                 {
@@ -258,7 +267,7 @@ public sealed class MessageRewriteFidelityCorpusTests
             }
 
             string[] spans = prose.ToString().Split('`');
-            var plain = new System.Text.StringBuilder();
+            var plain = new StringBuilder();
             for (int index = 0; index < spans.Length; index++)
             {
                 if (index % 2 == 1)
@@ -271,7 +280,8 @@ public sealed class MessageRewriteFidelityCorpusTests
                 }
             }
 
-            foreach (string raw in plain.ToString().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+            var negationCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (string raw in Split(plain.ToString()))
             {
                 string token = raw;
                 int link = token.IndexOf("](", StringComparison.Ordinal);
@@ -281,7 +291,7 @@ public sealed class MessageRewriteFidelityCorpusTests
                     continue;
                 }
 
-                token = token.Trim('.', ',', ';', ':', '!', '?', '(', ')', '[', ']', '"', '\'');
+                token = token.Trim(Punctuation);
                 if (token.Length == 0)
                 {
                     continue;
@@ -289,7 +299,10 @@ public sealed class MessageRewriteFidelityCorpusTests
 
                 if (Negations.Contains(token))
                 {
-                    found.Add("neg:" + token.ToLowerInvariant());
+                    // Counted, so dropping one of several occurrences changes the set.
+                    string word = token.ToLowerInvariant();
+                    negationCounts[word] = negationCounts.GetValueOrDefault(word) + 1;
+                    found.Add($"neg:{word}#{negationCounts[word]}");
                 }
                 else if (IsProtectedShape(token) || catalog.Contains(token, StringComparer.Ordinal))
                 {

@@ -83,6 +83,25 @@ public sealed class MessageRewriteValidatorTests
     }
 
     [Fact]
+    public void Rejects_a_rewrite_that_drops_one_of_several_negations()
+    {
+        MessageRewriteValidator.Result result = MessageRewriteValidator.Validate(
+            "Please kindly do not delete the cache and do not touch the Dockerfile, thanks.",
+            "Do not delete the cache and touch the Dockerfile.");
+
+        result.IsValid.ShouldBeFalse();
+        result.FailedElements.ShouldContain(element => element.StartsWith("negation:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Accepts_a_rewrite_that_keeps_every_negation_occurrence()
+    {
+        MessageRewriteValidator.Validate(
+            "Please kindly do not delete the cache and do not touch the Dockerfile, thanks.",
+            "Do not delete the cache and do not touch the Dockerfile.").IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
     public void Accepts_a_rewrite_that_preserves_markdown_structure()
     {
         const string structure = "# Title\n- one\n  - two\n```\ncode\n```\n";
