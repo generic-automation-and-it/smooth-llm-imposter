@@ -121,15 +121,17 @@ public sealed class MessageOptimizerFailureCostTests
     }
 
     [Theory]
-    [InlineData(Section.Gate, "message-gate", "gate-model", "https://gate.test/v1/systemone")]
-    [InlineData(Section.Optimizer, "message-optimizer", "opt-model", "https://opt.test/v1/chat/completions")]
+    [InlineData(Section.Gate, "message-gate", "gate-model", "https://gate.test/v1/systemone", Behavior.Down, "HTTP 500")]
+    [InlineData(Section.Gate, "message-gate", "gate-model", "https://gate.test/v1/systemone", Behavior.Unreachable, "HttpRequestException")]
+    [InlineData(Section.Optimizer, "message-optimizer", "opt-model", "https://opt.test/v1/chat/completions", Behavior.Down, "HTTP 500")]
+    [InlineData(Section.Optimizer, "message-optimizer", "opt-model", "https://opt.test/v1/chat/completions", Behavior.Unreachable, "HttpRequestException")]
     public async Task Opening_a_circuit_logs_one_error_with_its_context_and_never_the_message_text(
-        Section failing, string section, string model, string endpoint)
+        Section failing, string section, string model, string endpoint, Behavior failure, string cause)
     {
         using var app = new App();
-        app.Endpoint(failing).Mode = Behavior.Down;
+        app.Endpoint(failing).Mode = failure;
 
-        // The message text and an extra human-looking marker both carry a distinctive word.
+        // Each message text carries a distinctive word that must never reach a log line.
         await app.ForwardedTextAsync("zebrafish");
         await app.ForwardedTextAsync("narwhal");
         await app.ForwardedTextAsync("axolotl");
@@ -140,17 +142,18 @@ public sealed class MessageOptimizerFailureCostTests
         text.ShouldContain(section);
         text.ShouldContain(model);
         text.ShouldContain(endpoint);
-        text.ShouldContain("HTTP 500");
+        text.ShouldContain(cause);
         text.ShouldContain("no call until");
-        errors[0].HasException.ShouldBeFalse();
 
-        // Nothing at any level carries message text, and no log line carries an exception object that could.
+        // No line carries message text, and no routing line passes an exception object that could.
         foreach (LogLine line in app.Logs.Lines)
         {
             line.Text.ShouldNotContain("zebrafish");
             line.Text.ShouldNotContain("narwhal");
             line.Text.ShouldNotContain("axolotl");
         }
+
+        app.Logs.RoutingLines().ShouldAllBe(line => !line.HasException);
 
         // A repeat request through the open circuit adds no error and no call.
         int calls = app.Endpoint(failing).Calls;
@@ -361,10 +364,11 @@ public sealed class MessageOptimizerFailureCostTests
             }
         }
 
-        public LogLine[] RoutingErrors() => Lines
-            .Where(line => line.Level >= LogLevel.Error &&
-                line.Category.StartsWith("SmoothLlmImposter.Application", StringComparison.Ordinal))
+        public LogLine[] RoutingLines() => Lines
+            .Where(line => line.Category.StartsWith("SmoothLlmImposter.Application", StringComparison.Ordinal))
             .ToArray();
+
+        public LogLine[] RoutingErrors() => RoutingLines().Where(line => line.Level >= LogLevel.Error).ToArray();
 
         public ILogger CreateLogger(string categoryName) => new Collecting(categoryName, _lines);
 
