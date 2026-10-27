@@ -5,6 +5,7 @@ using SmoothLlmImposter.Application.Common.Clients.Decisions;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Application.Features.Routing.Decisions;
 using SmoothLlmImposter.Application.Features.Routing.Optimization;
+using SmoothLlmImposter.Domain.Routing;
 
 namespace SmoothLlmImposter.Application.UnitTest.Routing.Decisions;
 
@@ -43,6 +44,26 @@ public sealed class DecisionToolsFilterTests
         edit.Patches[0].Replacement!.AsArray().Count.ShouldBe(1);
         edit.Patches[1].Replacement.ShouldBeNull();
         edit.Patches.ShouldAllBe(patch => patch.Pointer == "/tools" || patch.Pointer == "/tool_choice");
+    }
+
+    [Fact]
+    public async Task Strategy_still_prunes_tools_on_a_route_that_opted_out_of_message_optimization()
+    {
+        // HLD 017 Open item 6: OptimizeMessages is the message strategy's switch only.
+        string body = """
+            {"model":"m","messages":[{"role":"user","content":"Latest"}],
+             "tools":[{"type":"function","function":{"name":"keep"}},{"type":"function","function":{"name":"drop"}}]}
+            """;
+        var client = new DecisionStub { Answer = request => Answers(request, key => key == "t0" ? 1 : 0) };
+        var strategy = (IOptimizationStrategy)Create(client);
+        var optedOut = new ProviderRoute(
+            "billed", ApiDialect.OpenAi, new Uri("https://billed.example"), null, false, null, [], OptimizeMessages: false);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            new OptimizationRequest("/chat/completions", body, CallerHeaders.None, body, null, optedOut), Ct);
+
+        edit.Patches.Select(patch => patch.Pointer).ShouldContain("/tools");
+        edit.Patches.Single(patch => patch.Pointer == "/tools").Replacement!.AsArray().Count.ShouldBe(1);
     }
 
     [Fact]

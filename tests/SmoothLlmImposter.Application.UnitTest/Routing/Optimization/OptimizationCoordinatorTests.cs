@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Application.Features.Routing.Optimization;
-using SmoothLlmImposter.Domain.Routing;
 
 namespace SmoothLlmImposter.Application.UnitTest.Routing.Optimization;
 
@@ -68,28 +67,6 @@ public class OptimizationCoordinatorTests
         JsonNode root = JsonNode.Parse(result)!;
         root["model"]!.GetValue<string>().ShouldBe("gpt-4");
         root["tools"]![0]!["name"]!.GetValue<string>().ShouldBe("x");
-    }
-
-    [Fact]
-    public async Task An_opted_out_route_does_not_stop_the_other_strategies()
-    {
-        // The per-route opt-out is the message strategy's own decision (HLD 017 Open item 6); the coordinator
-        // stays route-agnostic, so a tool-style strategy still contributes its edit on an opted-out route.
-        var tools = new FakeStrategy("tools")
-        {
-            Handler = (_, _) => Task.FromResult(new OptimizationEdit(
-                new[] { new OptimizationPatch("/tools", JsonNode.Parse("[{\"name\":\"x\"}]")) }))
-        };
-        var coord = Build(tools);
-        var optedOut = new ProviderRoute(
-            "billed", ApiDialect.OpenAi, new Uri("https://billed.example"), null, false, null, [], OptimizeMessages: false);
-        const string body = "{\"model\":\"m\",\"tools\":[]}";
-
-        string result = await coord.OptimizeAsync(
-            new OptimizationRequest("/v1/chat/completions", body, CallerHeaders.None, body, null, optedOut),
-            CancellationToken.None);
-
-        JsonNode.Parse(result)!["tools"]![0]!["name"]!.GetValue<string>().ShouldBe("x");
     }
 
     [Fact]
