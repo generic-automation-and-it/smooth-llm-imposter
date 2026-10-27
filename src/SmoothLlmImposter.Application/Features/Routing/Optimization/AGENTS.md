@@ -55,4 +55,4 @@ Strategy interface + coordinator for HLD 017 message optimization. Read [LADR-08
 | 2026-10-27 | NFR-01 cache-prefix stability proven by an L2 replay, sliding-TTL and non-captured-session cases | #209 |
 | 2026-10-27 | NFR-02 per-class fixtures + corpus; hyphenated dollar commands protected like slash commands; repeated negations counted | #212 |
 | 2026-10-27 | NFR-03 failure cost proven by an L2 file over the real clients; no production change | #214 |
-| 2026-10-27 | NFR-04 message egress proven by an L2 request/log capture; two wording gaps recorded in NFR-04 | #216 |
+| 2026-10-27 | NFR-04 message egress proven by an L2 request/log capture; wording now excludes the opt-in Debug request dump, span hash tracked as WT-20 | #216 |

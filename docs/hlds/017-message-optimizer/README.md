@@ -151,3 +151,4 @@ The HLD 015 amendment is Accepted as LADR-05; the HLD 014 edit-return amendment 
 | 2026-10-27 | NFR-02 verified by per-class fixtures and a deterministic corpus (WT-15); hyphenated dollar commands and repeated negations now protected | #212 |
 | 2026-10-27 | NFR-03 failure cost proven by an L2 file over the real clients and pipelines, plus a host-platform native smoke; no production change | #214 |
 | 2026-10-27 | NFR-04 message egress proven by an L2 request/log capture and a native smoke; two wording gaps recorded (Debug inbound dump, span hash not logged); no production change | #216 |
+| 2026-10-27 | NFR-04 wording amended to exclude the opt-in Debug request dump; span hash on the Debug outcome line tracked as follow-up WT-20 | #216 |
