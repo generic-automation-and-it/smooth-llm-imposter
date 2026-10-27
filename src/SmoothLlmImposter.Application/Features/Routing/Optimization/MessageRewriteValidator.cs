@@ -80,6 +80,7 @@ public static class MessageRewriteValidator
         {
             RequireTokens(original, rewrite, pattern, kind, failed, ignoreCase);
         }
+        RequireNegationCounts(original, rewrite, failed);
         RequireMarkdownTargets(original, rewrite, failed);
 
         if (protectedNames is not null)
@@ -183,6 +184,24 @@ public static class MessageRewriteValidator
             if (!ContainsToken(rewrite, token, ignoreCase))
             {
                 failed.Add($"{kind}:{token}");
+            }
+        }
+    }
+
+    // Presence is not enough for a negation: dropping one of "do not A and do not B" leaves a "not" behind and
+    // inverts the second instruction, so each negation word must occur at least as often as it did.
+    private static void RequireNegationCounts(string original, string rewrite, List<string> failed)
+    {
+        Dictionary<string, int> after = Negation.Matches(rewrite)
+            .GroupBy(static match => match.Value, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(static group => group.Key, static group => group.Count(), StringComparer.OrdinalIgnoreCase);
+
+        foreach (IGrouping<string, Match> group in Negation.Matches(original)
+                     .GroupBy(static match => match.Value, StringComparer.OrdinalIgnoreCase))
+        {
+            if (after.GetValueOrDefault(group.Key) < group.Count())
+            {
+                failed.Add($"negation:{group.Key}");
             }
         }
     }
