@@ -19,3 +19,5 @@ Read [README.md](README.md) first — intent, goals, decisions and quality requi
 | 2026-10-27 | NFR-01 L2 replay added (`MessageOptimizerCachePrefixStabilityTests`); Linux native runners still open | #209 |
 | 2026-10-27 | NFR-02 fixtures and corpus added; validator now protects hyphenated dollar commands and counts repeated negations | #212 |
 | 2026-10-27 | NFR-03 failure cost proven by an L2 file over the real clients and pipelines, plus a host-platform native smoke; no production change | #214 |
+| 2026-10-27 | NFR-04 message egress proven by an L2 request/log capture and a native smoke; two wording gaps recorded (Debug inbound dump, span hash not logged); no production change | #216 |
+| 2026-10-27 | NFR-04 wording amended to exclude the opt-in Debug request dump; span hash on the Debug outcome line tracked as follow-up WT-20 | #216 |
