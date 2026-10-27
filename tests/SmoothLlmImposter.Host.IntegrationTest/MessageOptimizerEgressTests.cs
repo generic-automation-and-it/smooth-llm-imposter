@@ -143,7 +143,11 @@ public sealed class MessageOptimizerEgressTests
         app.Logs.Lines.ShouldContain(line =>
             line.Category.EndsWith("MessageOptimizationStrategy", StringComparison.Ordinal) &&
             line.Text.StartsWith("Message optimization: rewritten (", StringComparison.Ordinal));
-        app.Logs.Lines.ShouldAllBe(line => !line.HasException || !messageText.Any(text => line.Text.Contains(text, StringComparison.Ordinal)));
+
+        // A logged exception object could carry message text in its own message, so the stage passes none.
+        app.Logs.Lines
+            .Where(line => line.Category.StartsWith("SmoothLlmImposter.Application", StringComparison.Ordinal))
+            .ShouldAllBe(line => !line.HasException);
     }
 
     [Fact]
@@ -257,13 +261,14 @@ public sealed class MessageOptimizerEgressTests
         public ModelRequest[] Of(ModelKind kind) => Requests.Where(request => request.Kind == kind).ToArray();
 
         /// <summary>Records the request (headers and body) and holds it in flight across a few yields so overlap shows.</summary>
-        public async Task RecordAsync(ModelKind kind, HttpRequestMessage request, CancellationToken cancellationToken)
+        public async Task<ModelRequest> RecordAsync(ModelKind kind, HttpRequestMessage request, CancellationToken cancellationToken)
         {
             string body = await request.Content!.ReadAsStringAsync(cancellationToken);
             string headers = string.Join('\n', request.Headers.Select(header => $"{header.Key}: {string.Join(',', header.Value)}"));
+            var captured = new ModelRequest(kind, headers + "\n" + body, JsonNode.Parse(body)!);
             lock (_requests)
             {
-                _requests.Add(new ModelRequest(kind, headers + "\n" + body, JsonNode.Parse(body)!));
+                _requests.Add(captured);
             }
 
             int now = Interlocked.Increment(ref _inFlight);
@@ -279,6 +284,7 @@ public sealed class MessageOptimizerEgressTests
             }
 
             Interlocked.Decrement(ref _inFlight);
+            return captured;
         }
     }
 
@@ -308,8 +314,8 @@ public sealed class MessageOptimizerEgressTests
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            await traffic.RecordAsync(ModelKind.Optimizer, request, cancellationToken);
-            string userText = traffic.Of(ModelKind.Optimizer)[^1].Json["messages"]![1]!["content"]!.GetValue<string>();
+            ModelRequest captured = await traffic.RecordAsync(ModelKind.Optimizer, request, cancellationToken);
+            string userText = captured.Json["messages"]![1]!["content"]!.GetValue<string>();
             return Json(new JsonObject
             {
                 ["choices"] = new JsonArray(new JsonObject
