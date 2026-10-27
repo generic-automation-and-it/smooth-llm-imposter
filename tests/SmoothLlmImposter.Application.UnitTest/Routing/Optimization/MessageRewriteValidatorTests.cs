@@ -94,6 +94,17 @@ public sealed class MessageRewriteValidatorTests
     }
 
     [Fact]
+    public void Rejects_a_rewrite_that_adds_another_occurrence_of_a_negation()
+    {
+        MessageRewriteValidator.Result result = MessageRewriteValidator.Validate(
+            "Please kindly do not delete the cache for this entire project, thanks.",
+            "Do not delete the cache, not this project.");
+
+        result.IsValid.ShouldBeFalse();
+        result.FailedElements.ShouldContain(element => element.StartsWith("negation:", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Accepts_a_rewrite_that_keeps_every_negation_occurrence()
     {
         MessageRewriteValidator.Validate(
