@@ -237,7 +237,7 @@ public sealed class MessageRewriteFidelityCorpusTests
         {
             "not", "no", "never", "without", "cannot", "can't", "don't", "doesn't", "didn't", "isn't", "aren't",
             "wasn't", "weren't", "won't", "wouldn't", "shouldn't", "couldn't", "mustn't", "nor", "neither", "none",
-            "nothing", "nowhere", "nobody", "unless", "except"
+            "nothing", "nowhere", "nobody", "hardly", "barely", "scarcely", "unless", "except", "excluding"
         };
 
         public static bool Altered(string original, string rewrite, string[] catalog)
