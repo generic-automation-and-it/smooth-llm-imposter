@@ -60,44 +60,54 @@ public sealed class MessageOptimizerCachePrefixStabilityTests
         previous = AssertStable(previous, await app.SendAsync(conversation, Session));
         Calls(gate, optimizer).ShouldBe((3, 2));
 
-        // Turn 5: the gate fails mid-way (its circuit opens) and the optimizer still handles the message.
+        // Turn 5: the optimizer's rewrite loses a protected code span, twice (the first answer and the one targeted
+        // retry), so validation discards it and the original is what gets remembered.
+        conversation.AddHuman("kappa");
+        gate.Script(Step.Succeed);
+        optimizer.Script(Step.BadRewrite);
+        optimizer.Script(Step.BadRewrite);
+        previous = AssertStable(previous, await app.SendAsync(conversation, Session));
+        Calls(gate, optimizer).ShouldBe((4, 4));
+
+        // Turn 6: the gate fails mid-way (its circuit opens) and the optimizer still handles the message.
         conversation.AddHuman("gamma");
         gate.Script(Step.Fail);
         optimizer.Script(Step.Succeed);
         previous = AssertStable(previous, await app.SendAsync(conversation, Session));
-        Calls(gate, optimizer).ShouldBe((4, 3));
+        Calls(gate, optimizer).ShouldBe((5, 5));
 
-        // Turn 6: the gate circuit is open (no call) and the optimizer fails, which opens its circuit.
+        // Turn 7: the gate circuit is open (no call) and the optimizer fails, which opens its circuit.
         conversation.AddHuman("delta");
         optimizer.Script(Step.Fail);
         previous = AssertStable(previous, await app.SendAsync(conversation, Session));
-        Calls(gate, optimizer).ShouldBe((4, 4));
+        Calls(gate, optimizer).ShouldBe((5, 6));
 
-        // Turn 7: both circuits are open, so neither model is called and the original is remembered.
+        // Turn 8: both circuits are open, so neither model is called and the original is remembered.
         conversation.AddHuman("epsilon");
         previous = AssertStable(previous, await app.SendAsync(conversation, Session));
-        Calls(gate, optimizer).ShouldBe((4, 4));
+        Calls(gate, optimizer).ShouldBe((5, 6));
 
-        // Turn 8: past the cooldown one trial call per section succeeds and both circuits close.
+        // Turn 9: past the cooldown one trial call per section succeeds and both circuits close.
         app.Clock.Advance(TimeSpan.FromSeconds(61));
         conversation.AddHuman("zeta");
         gate.Script(Step.Succeed);
         optimizer.Script(Step.Succeed);
         previous = AssertStable(previous, await app.SendAsync(conversation, Session));
-        Calls(gate, optimizer).ShouldBe((5, 5));
+        Calls(gate, optimizer).ShouldBe((6, 7));
 
-        // Turn 9: fully healthy again; the closed circuits must not rewrite anything handled while they were open.
+        // Turn 10: fully healthy again; the closed circuits must not rewrite anything handled while they were open.
         conversation.AddHuman("eta");
         gate.Script(Step.Succeed);
         optimizer.Script(Step.Succeed);
         previous = AssertStable(previous, await app.SendAsync(conversation, Session));
-        Calls(gate, optimizer).ShouldBe((6, 6));
+        Calls(gate, optimizer).ShouldBe((7, 8));
 
         conversation.ForwardedHumanTexts(previous).ShouldBe(
         [
             Rewritten("alpha"),
             Original("beta"),
             Original("theta"),
+            Original("kappa"),
             Rewritten("gamma"),
             Original("delta"),
             Original("epsilon"),
@@ -179,7 +189,10 @@ public sealed class MessageOptimizerCachePrefixStabilityTests
         Fail,
 
         /// <summary>Optimizer only: a 200 whose envelope is unusable, a failure that never opens the circuit.</summary>
-        Invalid
+        Invalid,
+
+        /// <summary>Optimizer only: a usable answer that drops the message's code span, so validation rejects it.</summary>
+        BadRewrite
     }
 
     /// <summary>A Claude Code-shaped Anthropic history: a harness block plus the human text, tool rounds in between.</summary>
@@ -327,24 +340,33 @@ public sealed class MessageOptimizerCachePrefixStabilityTests
         };
     }
 
-    private sealed class ScriptedGate : IDecisionModelClient
+    /// <summary>The scripted outcomes of one stub, consumed per call; an unscripted call succeeds.</summary>
+    private sealed class StepScript
     {
         private readonly Queue<Step> _steps = new();
 
         public int Calls { get; private set; }
 
-        public void Script(params Step[] steps)
+        public void Add(Step step) => _steps.Enqueue(step);
+
+        public Step Next()
         {
-            foreach (Step step in steps)
-            {
-                _steps.Enqueue(step);
-            }
+            Calls++;
+            return _steps.Count > 0 ? _steps.Dequeue() : Step.Succeed;
         }
+    }
+
+    private sealed class ScriptedGate : IDecisionModelClient
+    {
+        private readonly StepScript _script = new();
+
+        public int Calls => _script.Calls;
+
+        public void Script(Step step) => _script.Add(step);
 
         public Task<JsonObject> DecideAsync(JsonObject request, CancellationToken cancellationToken)
         {
-            Calls++;
-            Step step = _steps.Count > 0 ? _steps.Dequeue() : Step.Succeed;
+            Step step = _script.Next();
             if (step == Step.Fail)
             {
                 throw new HttpRequestException("gate down", inner: null, HttpStatusCode.InternalServerError);
@@ -368,23 +390,16 @@ public sealed class MessageOptimizerCachePrefixStabilityTests
     {
         private static readonly Regex CodeSpan = new("`([a-z]+)\\(\\)`", RegexOptions.CultureInvariant);
 
-        private readonly Queue<Step> _steps = new();
+        private readonly StepScript _script = new();
 
-        public int Calls { get; private set; }
+        public int Calls => _script.Calls;
 
-        public void Script(params Step[] steps)
-        {
-            foreach (Step step in steps)
-            {
-                _steps.Enqueue(step);
-            }
-        }
+        public void Script(Step step) => _script.Add(step);
 
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            Calls++;
-            Step step = _steps.Count > 0 ? _steps.Dequeue() : Step.Succeed;
+            Step step = _script.Next();
             if (step == Step.Fail)
             {
                 return new HttpResponseMessage(HttpStatusCode.InternalServerError);
@@ -392,28 +407,25 @@ public sealed class MessageOptimizerCachePrefixStabilityTests
 
             if (step == Step.Invalid)
             {
-                return new HttpResponseMessage(HttpStatusCode.OK)
-                {
-                    Content = new StringContent("""{"choices":[]}""", Encoding.UTF8, "application/json")
-                };
+                return Answer("""{"choices":[]}""");
             }
 
             string body = await request.Content!.ReadAsStringAsync(cancellationToken);
             string userText = JsonNode.Parse(body)!["messages"]![1]!["content"]!.GetValue<string>();
             string code = CodeSpan.Match(userText).Groups[1].Value;
-            return new HttpResponseMessage(HttpStatusCode.OK)
+            string content = step == Step.BadRewrite ? "Review it." : Rewritten(code);
+            return Answer(new JsonObject
             {
-                Content = new StringContent(
-                    new JsonObject
-                    {
-                        ["choices"] = new JsonArray(new JsonObject
-                        {
-                            ["message"] = new JsonObject { ["content"] = Rewritten(code) }
-                        })
-                    }.ToJsonString(),
-                    Encoding.UTF8,
-                    "application/json")
-            };
+                ["choices"] = new JsonArray(new JsonObject
+                {
+                    ["message"] = new JsonObject { ["content"] = content }
+                })
+            }.ToJsonString());
         }
+
+        private static HttpResponseMessage Answer(string json) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        };
     }
 }
