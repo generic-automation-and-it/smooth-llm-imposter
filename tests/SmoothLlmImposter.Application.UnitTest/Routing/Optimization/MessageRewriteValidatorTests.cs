@@ -1,3 +1,4 @@
+using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Application.Features.Routing.Optimization;
 
 namespace SmoothLlmImposter.Application.UnitTest.Routing.Optimization;
@@ -30,6 +31,7 @@ public sealed class MessageRewriteValidatorTests
     [InlineData("Please do not delete this.", "Please delete this.", "negation")]
     [InlineData("Please run /model now.", "Run it now.", "slash")]
     [InlineData("Please invoke $skill now.", "Invoke it now.", "dollar")]
+    [InlineData("Please invoke $imposter-who now.", "Invoke $imposter now.", "dollar")]
     [InlineData("Please ask @reviewer now.", "Ask them now.", "mention")]
     [InlineData("Please call config.value now.", "Call it now.", "identifier")]
     [InlineData("Please check user_id now.", "Check it now.", "identifier")]
@@ -70,6 +72,7 @@ public sealed class MessageRewriteValidatorTests
     [InlineData("Please kindly do not delete this.", "Do not delete this.")]
     [InlineData("Please kindly run /model now.", "Run /model.")]
     [InlineData("Please kindly invoke $skill now.", "Invoke $skill.")]
+    [InlineData("Please kindly invoke $imposter-who now.", "Invoke $imposter-who.")]
     [InlineData("Please kindly ask @reviewer now.", "Ask @reviewer.")]
     [InlineData("Please kindly call config.value now.", "Call config.value.")]
     [InlineData("Please kindly check user_id now.", "Check user_id.")]
@@ -77,6 +80,36 @@ public sealed class MessageRewriteValidatorTests
     public void Accepts_a_rewrite_that_preserves_one_protected_class(string original, string rewrite)
     {
         MessageRewriteValidator.Validate(original, rewrite).IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Rejects_a_rewrite_that_drops_one_of_several_negations()
+    {
+        MessageRewriteValidator.Result result = MessageRewriteValidator.Validate(
+            "Please kindly do not delete the cache and do not touch the Dockerfile, thanks.",
+            "Do not delete the cache and touch the Dockerfile.");
+
+        result.IsValid.ShouldBeFalse();
+        result.FailedElements.ShouldContain(element => element.StartsWith("negation:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Rejects_a_rewrite_that_adds_another_occurrence_of_a_negation()
+    {
+        MessageRewriteValidator.Result result = MessageRewriteValidator.Validate(
+            "Please kindly do not delete the cache for this entire project, thanks.",
+            "Do not delete the cache, not this project.");
+
+        result.IsValid.ShouldBeFalse();
+        result.FailedElements.ShouldContain(element => element.StartsWith("negation:", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Accepts_a_rewrite_that_keeps_every_negation_occurrence()
+    {
+        MessageRewriteValidator.Validate(
+            "Please kindly do not delete the cache and do not touch the Dockerfile, thanks.",
+            "Do not delete the cache and do not touch the Dockerfile.").IsValid.ShouldBeTrue();
     }
 
     [Fact]
@@ -119,6 +152,83 @@ public sealed class MessageRewriteValidatorTests
 
         result.IsValid.ShouldBeFalse();
         result.FailedElements.ShouldContain(element => element.StartsWith(expectedPrefix + ":", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("Review `x`.", "introduced-code")]
+    [InlineData("Review https://example.com/a.", "introduced-url")]
+    [InlineData("Review [docs](https://example.com/a).", "introduced-link")]
+    [InlineData("Review 9.9.9.", "introduced-version")]
+    [InlineData("Review MAX_DEPTH.", "introduced-env")]
+    [InlineData("Do not review this.", "introduced-negation")]
+    [InlineData("Review /deploy.", "introduced-slash")]
+    [InlineData("Review $deploy-now.", "introduced-dollar")]
+    [InlineData("Review @someone.", "introduced-mention")]
+    [InlineData("Review config.value.", "introduced-identifier")]
+    [InlineData("Review user_id.", "introduced-identifier")]
+    [InlineData("Review getUser.", "introduced-identifier")]
+    public void Rejects_a_rewrite_that_adds_a_protected_element(string rewrite, string expectedPrefix)
+    {
+        MessageRewriteValidator.Result result =
+            MessageRewriteValidator.Validate("Please kindly review this entire paragraph.", rewrite);
+
+        result.IsValid.ShouldBeFalse();
+        result.FailedElements.ShouldContain(element => element.StartsWith(expectedPrefix + ":", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("Please use the mcp__github__create_issue tool now.", "Please use the tool now.")]
+    [InlineData("Please use Bash then Read the file now.", "Use Bash.")]
+    public void Rejects_a_rewrite_that_drops_a_catalog_tool_or_mcp_name(string original, string rewrite)
+    {
+        MessageRewriteValidator.Result result = MessageRewriteValidator.Validate(
+            original, rewrite, ["Bash", "Read", "mcp__github__create_issue"]);
+
+        result.IsValid.ShouldBeFalse();
+        result.FailedElements.ShouldContain(element => element.StartsWith("name:", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("Please kindly use the mcp__github__create_issue tool now.", "Use mcp__github__create_issue.")]
+    [InlineData("Please kindly use Bash then Read the file now.", "Use Bash then Read the file.")]
+    public void Accepts_a_rewrite_that_keeps_a_catalog_tool_or_mcp_name(string original, string rewrite)
+    {
+        MessageRewriteValidator.Validate(original, rewrite, ["Bash", "Read", "mcp__github__create_issue"])
+            .IsValid.ShouldBeTrue();
+    }
+
+    public static TheoryData<string> HarnessTagNames =>
+        new(HarnessSpans.HarnessTags.Concat(HarnessSpans.CommandTags));
+
+    [Theory]
+    [MemberData(nameof(HarnessTagNames))]
+    public void Rejects_an_echo_of_every_harness_tag_as_an_added_element(string tag)
+    {
+        MessageRewriteValidator.Result result = MessageRewriteValidator.Validate(
+            "Please kindly review this entire paragraph.", $"Review <{tag}>x</{tag}>.");
+
+        result.FailedElements.ShouldContain(element => element.StartsWith("added-harness:", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [MemberData(nameof(HarnessTagNames))]
+    public void Accepts_a_rewrite_that_keeps_a_harness_tag_the_original_already_carried(string tag)
+    {
+        MessageRewriteValidator.Validate(
+            $"Please kindly review <{tag}>ctx</{tag}> this.", $"Review <{tag}>ctx</{tag}> this.")
+            .IsValid.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Rejects_a_changed_word_inside_a_fenced_block()
+    {
+        // Fenced content is protected only because the code-span pattern matches between fence backticks. This pins
+        // that behaviour so tidying the pattern cannot silently expose commands inside a fence.
+        MessageRewriteValidator.Result result = MessageRewriteValidator.Validate(
+            "Please kindly run:\n```\ncd build\n```\n", "Run:\n```\ncd out\n```\n");
+
+        result.IsValid.ShouldBeFalse();
+        result.FailedElements.ShouldContain(element => element.StartsWith("code:", StringComparison.Ordinal));
     }
 
     [Fact]
