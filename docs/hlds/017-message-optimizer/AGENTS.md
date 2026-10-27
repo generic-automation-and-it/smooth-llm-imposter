@@ -18,3 +18,4 @@ Read [README.md](README.md) first — intent, goals, decisions and quality requi
 | 2026-10-27 | Open item 6 resolved: per-provider `OptimizeMessages` opt-out (message strategy only) | #207 |
 | 2026-10-27 | NFR-01 L2 replay added (`MessageOptimizerCachePrefixStabilityTests`); Linux native runners still open | #209 |
 | 2026-10-27 | NFR-02 fixtures and corpus added; validator now protects hyphenated dollar commands and counts repeated negations | #212 |
+| 2026-10-27 | NFR-03 failure cost proven by an L2 file over the real clients and pipelines, plus a host-platform native smoke; no production change | #214 |
