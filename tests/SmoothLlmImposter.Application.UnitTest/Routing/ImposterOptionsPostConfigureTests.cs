@@ -204,6 +204,7 @@ public class ImposterOptionsPostConfigureTests
             bool isBool = field.PropertyName is nameof(ProviderOptions.IsDefault)
                 or nameof(ProviderOptions.Enabled)
                 or nameof(ProviderOptions.StripEncryptedContent)
+                or nameof(ProviderOptions.OptimizeMessages)
                 or nameof(ProviderOptions.SendReasoningEffort)
                 or nameof(ProviderOptions.ForwardCacheControl)
                 or nameof(ProviderOptions.SendResponseFormat)
@@ -223,6 +224,31 @@ public class ImposterOptionsPostConfigureTests
 
             actual.ShouldBe(expected, $"suffix {field.Suffix} should set {field.PropertyName}");
         }
+    }
+
+    [Theory]
+    [InlineData("false", false)]
+    [InlineData("true", true)]
+    public void Optimize_messages_env_sets_the_opt_out_flag(string value, bool expected)
+    {
+        var (options, _) = Resolve(
+            new Dictionary<string, string?> { ["COPILOT_OPTIMIZE_MESSAGES"] = value },
+            "copilot",
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://c.example" });
+
+        options.Providers["copilot"].OptimizeMessages.ShouldBe(expected);
+    }
+
+    [Fact]
+    public void Unparseable_optimize_messages_env_warns_and_keeps_the_bound_value()
+    {
+        var (options, logger) = Resolve(
+            new Dictionary<string, string?> { ["COPILOT_OPTIMIZE_MESSAGES"] = "nope" },
+            "copilot",
+            new ProviderOptions { Dialect = "anthropic", BaseUrl = "https://c.example", OptimizeMessages = false });
+
+        options.Providers["copilot"].OptimizeMessages.ShouldBe(false);
+        logger.Entries.ShouldContain(entry => entry.Contains("COPILOT_OPTIMIZE_MESSAGES") && entry.Contains("not a recognized boolean"));
     }
 
     [Fact]

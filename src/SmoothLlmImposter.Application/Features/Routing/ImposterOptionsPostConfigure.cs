@@ -87,6 +87,8 @@ internal sealed class ImposterOptionsPostConfigure(
         new("_SESSION_FORWARDING", nameof(ProviderOptions.SessionForwarding), static (p, v) => p.SessionForwarding = v),
         new("_ANTHROPIC_VERSION", nameof(ProviderOptions.AnthropicVersion), static (p, v) => p.AnthropicVersion = v),
         new("_STRIP_ENCRYPTED_CONTENT", nameof(ProviderOptions.StripEncryptedContent), static (_, _) => { }),
+        // HLD 017 per-route opt-out of message optimization; boolean, applied inline like the others.
+        new("_OPTIMIZE_MESSAGES", nameof(ProviderOptions.OptimizeMessages), static (_, _) => { }),
         // Integer field: applied inline for the same reason as the booleans — parsing plus a Warning on an
         // unparseable value needs the logger the Apply delegate does not have.
         new("_TIMEOUT_SECONDS", nameof(ProviderOptions.TimeoutSeconds), static (_, _) => { }),
@@ -212,6 +214,7 @@ internal sealed class ImposterOptionsPostConfigure(
                 if (field.PropertyName is nameof(ProviderOptions.IsDefault)
                     or nameof(ProviderOptions.Enabled)
                     or nameof(ProviderOptions.StripEncryptedContent)
+                    or nameof(ProviderOptions.OptimizeMessages)
                     or nameof(ProviderOptions.SendReasoningEffort)
                     or nameof(ProviderOptions.ForwardCacheControl)
                     or nameof(ProviderOptions.SendResponseFormat)
@@ -239,6 +242,9 @@ internal sealed class ImposterOptionsPostConfigure(
                             break;
                         case nameof(ProviderOptions.StripEncryptedContent):
                             provider.StripEncryptedContent = booleanValue;
+                            break;
+                        case nameof(ProviderOptions.OptimizeMessages):
+                            provider.OptimizeMessages = booleanValue;
                             break;
                         case nameof(ProviderOptions.SendReasoningEffort):
                             provider.SendReasoningEffort = booleanValue;

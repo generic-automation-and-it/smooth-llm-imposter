@@ -28,7 +28,8 @@ public sealed record ProviderConfigurationResponse(
     bool? SendResponseFormat = null,
     string? DocumentMode = null,
     bool? ThinkMarkupExtraction = null,
-    string? MidturnSystem = null)
+    string? MidturnSystem = null,
+    bool? OptimizeMessages = null)
 {
     internal static ProviderConfigurationResponse From(string key, ProviderOptions provider) => new(
         key,
@@ -56,7 +57,8 @@ public sealed record ProviderConfigurationResponse(
         provider.SendResponseFormat,
         provider.DocumentMode,
         provider.ThinkMarkupExtraction,
-        provider.MidturnSystem);
+        provider.MidturnSystem,
+        provider.OptimizeMessages);
 }
 
 public sealed record ProviderConfigurationBody(
@@ -84,7 +86,8 @@ public sealed record ProviderConfigurationBody(
     bool? SendResponseFormat = null,
     string? DocumentMode = null,
     bool? ThinkMarkupExtraction = null,
-    string? MidturnSystem = null)
+    string? MidturnSystem = null,
+    bool? OptimizeMessages = null)
 {
     internal ProviderOptions ToProviderOptions(string? secret = null) => new()
     {
@@ -113,6 +116,7 @@ public sealed record ProviderConfigurationBody(
         DocumentMode = DocumentMode,
         ThinkMarkupExtraction = ThinkMarkupExtraction,
         MidturnSystem = MidturnSystem,
+        OptimizeMessages = OptimizeMessages,
         Models = Models?.Select(static model => new ModelMappingOptions
         {
             From = model.From,

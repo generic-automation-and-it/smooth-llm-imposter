@@ -469,6 +469,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-27 | `ProviderOptions.OptimizeMessages` per-route message-optimizer opt-out (HLD 017 Open item 6); follows the HLD 011 plumbing rule end to end | #207 |
 | 2026-10-26 | Decision filter always keeps `ToolSearch` and `Agent` on top of the configured `AlwaysKeep` (HLD 014 LADR-08); a probe showed a 12-tool Claude Code catalog losing both | — |
 | 2026-10-25 | Decision tool filter is an optimization strategy returning `/tools`/`/tool_choice` patches; one DI instance shared | #164 |
 | 2026-10-26 | Optimization seam carries the inbound path so the message strategy skips downgraded Responses | #164 |

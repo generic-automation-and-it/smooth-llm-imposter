@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Common.Clients.Optimizer;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Application.Features.Routing.Optimization;
+using SmoothLlmImposter.Domain.Routing;
 
 namespace SmoothLlmImposter.Application.UnitTest.Routing.Optimization;
 
@@ -55,6 +56,44 @@ public sealed class MessageOptimizationStrategyTests
         gate.Calls.ShouldBe(0);
         optimizer.Calls.ShouldBe(0);
         cache.Stored.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task An_opted_out_route_makes_no_gate_or_optimizer_call_and_contributes_no_edit()
+    {
+        const string body = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
+        var cache = new FakeCache();
+        var gate = new StubGate((_, _) => Task.FromResult(true));
+        var optimizer = new StubOptimizer((_, _, _) => Task.FromResult("Review `foo()`."));
+        MessageOptimizationStrategy strategy = Create(gate: gate, optimizer: optimizer, cache: cache);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            Request("/v1/chat/completions", body, provider: Route(optimizeMessages: false)),
+            TestContext.Current.CancellationToken);
+
+        edit.Patches.ShouldBeEmpty();
+        gate.Calls.ShouldBe(0);
+        optimizer.Calls.ShouldBe(0);
+        cache.Stored.ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(true)]
+    public async Task A_route_that_is_unset_or_opted_in_still_optimizes(bool? optimizeMessages)
+    {
+        const string body = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
+        var gate = new StubGate((_, _) => Task.FromResult(true));
+        var optimizer = new StubOptimizer((_, _, _) => Task.FromResult("Review `foo()`."));
+        MessageOptimizationStrategy strategy = Create(gate: gate, optimizer: optimizer);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            Request("/v1/chat/completions", body, provider: Route(optimizeMessages)),
+            TestContext.Current.CancellationToken);
+
+        edit.Patches.Single().Replacement!.GetValue<string>().ShouldBe("Review `foo()`.");
+        gate.Calls.ShouldBe(1);
+        optimizer.Calls.ShouldBe(1);
     }
 
     [Fact]
@@ -665,8 +704,13 @@ public sealed class MessageOptimizationStrategyTests
         string path,
         string body,
         CallerHeaders? headers = null,
-        string? inboundPath = null) =>
-        new(path, body, headers ?? CallerHeaders.None, body, inboundPath);
+        string? inboundPath = null,
+        ProviderRoute? provider = null) =>
+        new(path, body, headers ?? CallerHeaders.None, body, inboundPath, provider);
+
+    private static ProviderRoute Route(bool? optimizeMessages) =>
+        new("p", ApiDialect.OpenAi, new Uri("https://p.example"), null, false, null, [],
+            OptimizeMessages: optimizeMessages);
 
     private sealed class StubGate(Func<string, CancellationToken, Task<bool>> decide) : IMessageGate
     {

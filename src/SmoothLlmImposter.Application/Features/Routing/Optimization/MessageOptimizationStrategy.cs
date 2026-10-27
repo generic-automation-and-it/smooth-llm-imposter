@@ -36,6 +36,14 @@ internal sealed class MessageOptimizationStrategy(
             return OptimizationEdit.None;
         }
 
+        // Per-route opt-out (HLD 017 Open item 6): only an explicit false skips; null and true optimize.
+        if (request.Provider?.OptimizeMessages is false)
+        {
+            logger.LogDebug(
+                "Message optimization skipped: provider {Provider} opted out", request.Provider.Name);
+            return OptimizationEdit.None;
+        }
+
         // Responses inbound stays outside HLD 017 even when the Host has downgraded it to a Chat body
         // (Open item 4); the effective path alone cannot tell the two apart.
         if (DecisionJson.ShapeFor(request.InboundPath ?? request.Path) == DecisionBodyShape.Responses)

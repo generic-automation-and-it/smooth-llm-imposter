@@ -17,6 +17,7 @@ internal static class ProviderOptionsCloner
         RequestNormalization = source.RequestNormalization,
         SessionForwarding = source.SessionForwarding,
         StripEncryptedContent = source.StripEncryptedContent,
+        OptimizeMessages = source.OptimizeMessages,
         TimeoutSeconds = source.TimeoutSeconds,
         AnthropicUpstreamApi = source.AnthropicUpstreamApi,
         CompatProfile = source.CompatProfile,

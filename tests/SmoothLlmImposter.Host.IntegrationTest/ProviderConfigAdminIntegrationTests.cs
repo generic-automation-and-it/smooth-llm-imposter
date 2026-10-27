@@ -285,6 +285,33 @@ public sealed class ProviderConfigAdminIntegrationTests
         after.MidturnSystem.ShouldBe("merge_into_user");
     }
 
+    [Fact]
+    public async Task Admin_round_trip_preserves_the_message_optimizer_opt_out()
+    {
+        // HLD 017 option plumbing: an omission from the admin DTOs or the registry clone would clear the
+        // opt-out on upsert, silently turning message optimization back on for a request-billed route.
+        using var fixture = new ProviderConfigAppFixture(new Dictionary<string, string?>
+        {
+            ["Imposter:Providers:billed:Dialect"] = "anthropic",
+            ["Imposter:Providers:billed:BaseUrl"] = "https://billed.test",
+            ["Imposter:Providers:billed:OptimizeMessages"] = "false",
+            ["Imposter:Providers:billed:Models:0:From"] = "claude-*",
+            ["Imposter:Providers:billed:Models:0:To"] = "billed-model"
+        });
+        HttpClient client = AuthenticatedClient(fixture);
+
+        string getJson = await client.GetStringAsync("/admin/providers/billed", Ct);
+        ProviderConfigurationBody body = JsonNode.Parse(getJson)!.Deserialize<ProviderConfigurationBody>(JsonOptions)!;
+        body.OptimizeMessages.ShouldBe(false);
+
+        using HttpResponseMessage put = await client.PutAsJsonAsync("/admin/providers/billed", body, JsonOptions, Ct);
+        put.StatusCode.ShouldBe(HttpStatusCode.OK, await put.Content.ReadAsStringAsync(Ct));
+
+        string afterJson = await client.GetStringAsync("/admin/providers/billed", Ct);
+        ProviderConfigurationBody after = JsonNode.Parse(afterJson)!.Deserialize<ProviderConfigurationBody>(JsonOptions)!;
+        after.OptimizeMessages.ShouldBe(false);
+    }
+
     private static HttpClient AuthenticatedClient(ProviderConfigAppFixture fixture)
     {
         HttpClient client = fixture.CreateClient();

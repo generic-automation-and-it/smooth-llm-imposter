@@ -20,6 +20,8 @@ namespace SmoothLlmImposter.Domain.Routing;
 /// <c>null</c>/<c>false</c> (default) leaves reasoning items untouched.
 /// <see cref="TimeoutSeconds"/> overrides the base upstream header timeout for this provider (HLD 012);
 /// <c>null</c> (default) uses the global 300 s base.
+/// <see cref="OptimizeMessages"/> is the HLD 017 per-route opt-out: only <c>false</c> skips message
+/// optimization; <c>null</c>/<c>true</c> (default) leave it on.
 /// </summary>
 public sealed record ProviderRoute(
     string Name,
@@ -38,7 +40,8 @@ public sealed record ProviderRoute(
     SessionForwarding SessionForwarding = SessionForwarding.None,
     bool? StripEncryptedContent = null,
     int? TimeoutSeconds = null,
-    AnthropicChatBridgeOptions? AnthropicChatOptions = null)
+    AnthropicChatBridgeOptions? AnthropicChatOptions = null,
+    bool? OptimizeMessages = null)
 {
     /// <summary>
     /// Per-provider Messages-to-Chat bridge tuning (HLD 016). Defaults to the inert native-Messages
