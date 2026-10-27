@@ -148,3 +148,4 @@ The HLD 015 amendment is Accepted as LADR-05; the HLD 014 edit-return amendment 
 | 2026-10-25 | Accepted by owner decision: HLD 015 LADR-05 and HLD 014 LADR-12 Accepted; Phase B implementation ungated | #164 |
 | 2026-10-27 | Open item 6 resolved: per-provider `OptimizeMessages` opt-out implemented | #207 |
 | 2026-10-27 | NFR-01 verified by an L2 replay (WT-14); Linux native runners still open | #209 |
+| 2026-10-27 | NFR-02 verified by per-class fixtures and a deterministic corpus (WT-15); hyphenated dollar commands now protected | #212 |

@@ -17,3 +17,4 @@ Read [README.md](README.md) first — intent, goals, decisions and quality requi
 | 2026-10-25 | Accepted by owner decision: LADR-05 and LADR-12 Accepted; Phase B ungated; own LADR-01..08 and NFR-01..04 remain Draft | #164 |
 | 2026-10-27 | Open item 6 resolved: per-provider `OptimizeMessages` opt-out (message strategy only) | #207 |
 | 2026-10-27 | NFR-01 L2 replay added (`MessageOptimizerCachePrefixStabilityTests`); Linux native runners still open | #209 |
+| 2026-10-27 | NFR-02 fixtures and corpus added; validator now protects hyphenated dollar commands | #212 |
