@@ -27,7 +27,7 @@ public static class MessageRewriteValidator
         @"\b(?:not|no|never|without|cannot|can't|don't|doesn't|didn't|isn't|aren't|wasn't|weren't|won't|wouldn't|shouldn't|couldn't|mustn't|nor|neither|none|nothing|nowhere|nobody|hardly|barely|scarcely|unless|except|excluding)\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex SlashCommand = new(@"(?<![\w:/])/[A-Za-z][A-Za-z0-9_-]*", RegexOptions.Compiled);
-    private static readonly Regex DollarCommand = new(@"(?<![\w$])\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[A-Za-z_][A-Za-z0-9_]*\})", RegexOptions.Compiled);
+    private static readonly Regex DollarCommand = new(@"(?<![\w$])\$(?:[A-Za-z_][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*|\{[A-Za-z_][A-Za-z0-9_]*\})", RegexOptions.Compiled);
     private static readonly Regex Mention = new(@"(?<![\w@])@[A-Za-z0-9_.-]+", RegexOptions.Compiled);
     private static readonly Regex DottedIdentifier = new(@"\b[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+\b", RegexOptions.Compiled);
     private static readonly Regex SnakeIdentifier = new(@"\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b", RegexOptions.Compiled);
