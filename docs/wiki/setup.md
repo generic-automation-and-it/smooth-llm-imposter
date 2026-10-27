@@ -121,7 +121,7 @@ fallbacks, so a single populated var still authenticates). This keeps a personal
 sent as a Bearer token, and vice versa. Other scalar overrides remain provider-specific or
 structured (`_BASE_URL`, `_AUTH_SCHEME`, `_AUTH_HEADER`, `_DIALECT`, `_IS_DEFAULT`, `_ENABLED`,
 `_OPENAI_UPSTREAM_API`, `_REQUEST_NORMALIZATION`, `_SESSION_FORWARDING`, `_STRIP_ENCRYPTED_CONTENT`,
-`_TIMEOUT_SECONDS`, `_ANTHROPIC_VERSION`). Matching is case-insensitive.
+`_TIMEOUT_SECONDS`, `_OPTIMIZE_MESSAGES`, `_ANTHROPIC_VERSION`). Matching is case-insensitive.
 
 `_STRIP_ENCRYPTED_CONTENT=true` drops OpenAI ZDR `encrypted_content` reasoning items from the forwarded
 `input` array, for an upstream that serves `/responses` but cannot decrypt them (LM Studio answers
@@ -138,6 +138,13 @@ Accepted range is 1–3600; anything else fails startup with a message naming th
 the wait for **response headers**: once the upstream starts answering, an SSE stream runs as long as the
 caller stays connected. It is set in no shipped `appsettings*.json`. Full design:
 [HLD 012](../hlds/012-per-provider-upstream-timeout/README.md).
+
+`_OPTIMIZE_MESSAGES=false` opts one provider's routes out of the opt-in message optimizer
+(`LLM_MESSAGES_ENABLED`, [HLD 017](../hlds/017-message-optimizer/README.md)). Leave it unset, or `true`, to
+keep optimization on. Use it for request-billed upstreams such as a GitHub Copilot route, where smaller
+messages save nothing and the gate and optimizer calls only add latency, e.g.
+`GITHUB_ANTHROPIC_OPTIMIZE_MESSAGES=false`. The tool filter is unaffected. Nothing sets it automatically,
+and it is in no shipped `appsettings*.json`.
 
 `_AUTH_SCHEME` picks the value format **and** the default header (`Bearer` → `Authorization: Bearer <token>`,
 `ApiKey` → `x-api-key: <token>`). `_AUTH_HEADER` overrides only the **header name** — the value format still

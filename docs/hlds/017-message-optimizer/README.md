@@ -104,7 +104,7 @@ The HLD 015 amendment is Accepted as LADR-05; the HLD 014 edit-return amendment 
 | 3 | Restart, enablement or a scope idle past its TTL: uncached history is rewritten, missing the cache once. | *Proposed:* accept one cache miss per restart, enablement or expiry unless measurement shows otherwise. |
 | 4 | Responses API in scope? | *Proposed:* out of v1; revisit with a Codex measurement. |
 | 5 | Does the tool filter classify the original or the optimized text? | *Resolved:* original text — the branches run in parallel (LADR-08). |
-| 6 | Route scope? | *Recorded:* per-route opt-out (request-billed upstreams gain nothing, pay latency). *Proposed:* both route kinds otherwise. |
+| 6 | Route scope? | *Resolved (2026-10-27, #207):* per-provider `OptimizeMessages` (`<PROVIDER>_OPTIMIZE_MESSAGES`); only `false` opts a route out, unset/`true` keep it on for passthrough and imposter routes alike. Nothing opts a route out automatically (request-billed upstreams such as Copilot are the operator's call). The tool filter is unaffected. |
 | 7 | Latency ceiling for gate + rewrite? | *Proposed:* measure. First request after restart/enablement pays a gate call and a rewrite per unremembered message, in series; a down or bypassed gate sends each to the optimizer. Measure "time-to-first-byte is the slower branch" (LADR-02, LADR-08) with delayed stubs. |
 | 8 | Memory scope without a captured session id (HLD 009)? | *Resolved (2026-10-25, revised):* not cached — optimized on every request (LADR-05). |
 
@@ -146,3 +146,4 @@ The HLD 015 amendment is Accepted as LADR-05; the HLD 014 edit-return amendment 
 | 2026-10-25 | Dependencies reference HLD 015 LADR-05 Draft amendment for per-section profiles, circuits, gates | #164 |
 | 2026-10-25 | Dependencies reference HLD 014 LADR-12 Draft amendment for edit-return contract | #164 |
 | 2026-10-25 | Accepted by owner decision: HLD 015 LADR-05 and HLD 014 LADR-12 Accepted; Phase B implementation ungated | #164 |
+| 2026-10-27 | Open item 6 resolved: per-provider `OptimizeMessages` opt-out implemented | #207 |
