@@ -10,6 +10,8 @@ While a session's cache scope is retained (LADR-05), every human message the sta
 
 An L2 replay of a multi-turn Claude Code–shaped conversation — tool-call continuations, a gate failure mid-way, an open optimizer circuit and a trial call — compares each forwarded body's messages with the previous forward of the same conversation, byte for byte. Repeated on the NativeAOT executable for `linux/amd64` and `linux/arm64`.
 
+Implemented as `MessageOptimizerCachePrefixStabilityTests` (L2). One replay resends the whole history every turn through a gate decline, an unusable optimizer answer (a failure that does not open its circuit), a gate failure, an optimizer failure, both circuits open, and a trial call that closes them, and compares the raw bytes of every earlier message with the previous forward. Separate cases cover the sliding TTL (kept at 40+40 minutes with a one-hour TTL, dropped after 61 idle minutes) and requests with no session or only a derived one (never cached). Each rule was checked by mutating the production code and watching the intended case fail. The native replay was run on the host-platform NativeAOT executable only; `linux/amd64` and `linux/arm64` remain native-runner gates.
+
 ## Acceptance Criteria
 
 - Every cached message in a retained scope is forwarded with byte-identical text on every later request.
