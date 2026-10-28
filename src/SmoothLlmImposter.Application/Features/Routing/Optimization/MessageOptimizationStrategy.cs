@@ -360,8 +360,14 @@ internal sealed class MessageOptimizationStrategy(
         return trimmed.StartsWith(MessageOpenTag, StringComparison.Ordinal) &&
             trimmed.EndsWith(MessageCloseTag, StringComparison.Ordinal) &&
             trimmed.Length >= MessageOpenTag.Length + MessageCloseTag.Length
-            ? trimmed[MessageOpenTag.Length..^MessageCloseTag.Length].Trim()
+            ? StripDelimiterNewlines(trimmed[MessageOpenTag.Length..^MessageCloseTag.Length])
             : reply;
+    }
+
+    private static string StripDelimiterNewlines(string inner)
+    {
+        string withoutLeading = inner.StartsWith('\n') ? inner[1..] : inner;
+        return withoutLeading.EndsWith('\n') ? withoutLeading[..^1] : withoutLeading;
     }
 
     private static string RetryInstructions(IReadOnlyList<string> failedElements) =>

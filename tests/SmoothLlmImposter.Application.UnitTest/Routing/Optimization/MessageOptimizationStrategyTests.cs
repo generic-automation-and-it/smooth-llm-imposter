@@ -76,6 +76,23 @@ public sealed class MessageOptimizationStrategyTests
     }
 
     [Fact]
+    public async Task An_echoed_rewrite_keeps_the_whitespace_that_joins_it_to_a_harness_span()
+    {
+        const string body = """{"model":"x","messages":[{"role":"user","content":"Please kindly review <system-reminder>hidden</system-reminder> the code."}]}""";
+        var gate = new StubGate((_, _) => Task.FromResult(true));
+        var optimizer = new StubOptimizer((_, text, _) => Task.FromResult(
+            MessageOptimizationStrategy.Delimit(
+                text.Contains("Please kindly review", StringComparison.Ordinal) ? "Review " : " code.")));
+        MessageOptimizationStrategy strategy = Create(gate: gate, optimizer: optimizer);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            Request("/v1/chat/completions", body), TestContext.Current.CancellationToken);
+
+        edit.Patches.Single().Replacement!.GetValue<string>()
+            .ShouldBe("Review <system-reminder>hidden</system-reminder> code.");
+    }
+
+    [Fact]
     public async Task An_answer_instead_of_a_rewrite_is_retried_once_then_the_original_is_forwarded()
     {
         const string original = "Hey, could you quickly tell me what the capital of France is? I always forget it.";
