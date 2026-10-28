@@ -216,6 +216,11 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         {
             failures.Add($"{prefix}:CircuitBreakSeconds must be between 1 and 3600 seconds.");
         }
+
+        if (options.MaxStateChars < 1)
+        {
+            failures.Add($"{prefix}:MaxStateChars must be at least 1.");
+        }
     }
 
     private static void AddLlmMessagesFailures(LlmMessagesOptions options, List<string> failures)
