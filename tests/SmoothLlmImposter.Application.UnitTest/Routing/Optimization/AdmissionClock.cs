@@ -3,9 +3,10 @@ namespace SmoothLlmImposter.Application.UnitTest.Routing.Optimization;
 /// <summary>
 /// Manual clock for admission waits: a timer fires only on <see cref="Advance"/>, and
 /// <see cref="TimerCreated"/> completes when a waiter starts its deadline, so a test knows a call is queued
-/// at the gate without sleeping.
+/// at the gate without sleeping. Given a due time, only timers with that due time signal, so other deadlines
+/// (the strategy's request budget) do not look like a queued caller.
 /// </summary>
-internal sealed class AdmissionClock : TimeProvider
+internal sealed class AdmissionClock(TimeSpan? signalledDueTime = null) : TimeProvider
 {
     private readonly Lock _lock = new();
     private readonly List<ManualTimer> _timers = [];
@@ -51,10 +52,16 @@ internal sealed class AdmissionClock : TimeProvider
             timer.DueAt = dueTime == Timeout.InfiniteTimeSpan ? DateTimeOffset.MaxValue : _now + dueTime;
             _timers.Add(timer);
             created = _timerCreated;
-            _timerCreated = NewSignal();
+            if (signalledDueTime is null || signalledDueTime == dueTime)
+            {
+                _timerCreated = NewSignal();
+            }
         }
 
-        created.TrySetResult();
+        if (signalledDueTime is null || signalledDueTime == dueTime)
+        {
+            created.TrySetResult();
+        }
         return timer;
     }
 

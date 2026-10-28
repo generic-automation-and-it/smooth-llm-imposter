@@ -778,7 +778,7 @@ public sealed class MessageOptimizationStrategyTests
     {
         const string busy = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
         const string later = """{"model":"x","messages":[{"role":"user","content":"Please kindly ask @reviewer."}]}""";
-        var clock = new AdmissionClock();
+        var clock = new AdmissionClock(AdmissionWait);
         using var admissionGate = new OptimizerAdmissionGate(clock);
         var cache = new FakeCache();
         var logs = new CollectingLogger();
@@ -813,7 +813,7 @@ public sealed class MessageOptimizationStrategyTests
     public async Task Caller_cancellation_while_waiting_for_admission_makes_no_call_and_caches_nothing()
     {
         const string body = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
-        var clock = new AdmissionClock();
+        var clock = new AdmissionClock(AdmissionWait);
         using var admissionGate = new OptimizerAdmissionGate(clock);
         var cache = new FakeCache();
         var gate = new StubGate((_, _) => Task.FromResult(true));
@@ -843,7 +843,7 @@ public sealed class MessageOptimizationStrategyTests
         const string failing = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
         const string trial = """{"model":"x","messages":[{"role":"user","content":"Please kindly ask @reviewer."}]}""";
         const string next = """{"model":"x","messages":[{"role":"user","content":"Please kindly check `bar()`."}]}""";
-        var clock = new AdmissionClock();
+        var clock = new AdmissionClock(AdmissionWait);
         using var admissionGate = new OptimizerAdmissionGate(clock);
         var gate = new StubGate((_, _) => Task.FromResult(true));
         int calls = 0;
@@ -868,6 +868,155 @@ public sealed class MessageOptimizationStrategyTests
         edit.Patches.Single().Replacement!.GetValue<string>().ShouldBe("Check `bar()`.");
     }
 
+    [Fact]
+    public async Task A_budget_spent_mid_optimizer_call_keeps_finished_rewrites_and_forwards_and_caches_the_rest()
+    {
+        const string body = """
+            {"model":"x","messages":[
+              {"role":"user","content":"Please kindly review `foo()`."},
+              {"role":"assistant","content":"ok"},
+              {"role":"user","content":"Please kindly ask @reviewer."},
+              {"role":"assistant","content":"ok"},
+              {"role":"user","content":"Please kindly check `bar()`."}
+            ]}
+            """;
+        const string later = """{"model":"x","messages":[{"role":"user","content":"Please kindly check `baz()`."}]}""";
+        var clock = new AdmissionClock();
+        var cache = new FakeCache();
+        var logs = new CollectingLogger();
+        var gate = new StubGate((_, _) => Task.FromResult(true));
+        var stalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var optimizer = new StubOptimizer(async (_, text, token) =>
+        {
+            if (text.Contains("@reviewer", StringComparison.Ordinal))
+            {
+                stalled.TrySetResult();
+                await Task.Delay(Timeout.Infinite, token);
+            }
+
+            return text.Contains("foo", StringComparison.Ordinal) ? "Review `foo()`." : "Check `baz()`.";
+        });
+        MessageOptimizationStrategy strategy = Create(
+            gate, optimizer, cache, logger: logs, clock: clock, budgetSeconds: BudgetSeconds);
+
+        Task<OptimizationEdit> running = strategy.OptimizeAsync(Request("/v1/chat/completions", body), Token);
+        await stalled.Task.WaitAsync(QueueBound, Token);
+        clock.Advance(TimeSpan.FromSeconds(BudgetSeconds));
+        OptimizationEdit edit = await running.WaitAsync(QueueBound, Token);
+
+        edit.Patches.Single().Pointer.ShouldBe("/messages/0/content");
+        edit.Patches.Single().Replacement!.GetValue<string>().ShouldBe("Review `foo()`.");
+        gate.Calls.ShouldBe(2, "the message after the expiry must not reach the gate");
+        optimizer.Calls.ShouldBe(2);
+        cache.Stored.ShouldBe([
+            ("Please kindly review `foo()`.", "Review `foo()`."),
+            ("Please kindly ask @reviewer.", "Please kindly ask @reviewer."),
+            ("Please kindly check `bar()`.", "Please kindly check `bar()`.")]);
+        logs.Events.Where(entry => entry.Level == LogLevel.Information).Select(entry => entry.Text).ShouldBe([
+            $"Message optimization budget of {BudgetSeconds} s exhausted: 2 of 3 candidate segments forwarded as the original"]);
+        logs.Events.ShouldAllBe(entry => entry.Level < LogLevel.Warning, "budget expiry is not a failure");
+        logs.Events.ShouldAllBe(entry => !entry.Text.Contains("Please kindly", StringComparison.Ordinal));
+
+        OptimizationEdit replay = await strategy.OptimizeAsync(Request("/v1/chat/completions", body), Token);
+        OptimizationEdit next = await strategy.OptimizeAsync(Request("/v1/chat/completions", later), Token);
+
+        replay.Patches.Single().Replacement!.GetValue<string>().ShouldBe("Review `foo()`.");
+        next.Patches.Single().Replacement!.GetValue<string>().ShouldBe("Check `baz()`.");
+        gate.Calls.ShouldBe(3, "the gate circuit must still be closed");
+        optimizer.Calls.ShouldBe(3, "the optimizer circuit must still be closed");
+    }
+
+    [Fact]
+    public async Task A_budget_spent_mid_gate_call_forwards_and_caches_the_original_without_opening_the_gate_circuit()
+    {
+        const string body = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
+        const string later = """{"model":"x","messages":[{"role":"user","content":"Please kindly check `baz()`."}]}""";
+        var clock = new AdmissionClock();
+        var cache = new FakeCache();
+        var stalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int gateCalls = 0;
+        var gate = new StubGate(async (_, token) =>
+        {
+            if (Interlocked.Increment(ref gateCalls) == 1)
+            {
+                stalled.TrySetResult();
+                await Task.Delay(Timeout.Infinite, token);
+            }
+
+            return true;
+        });
+        var optimizer = new StubOptimizer((_, _, _) => Task.FromResult("Check `baz()`."));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer, cache, clock: clock, budgetSeconds: BudgetSeconds);
+
+        Task<OptimizationEdit> running = strategy.OptimizeAsync(Request("/v1/chat/completions", body), Token);
+        await stalled.Task.WaitAsync(QueueBound, Token);
+        clock.Advance(TimeSpan.FromSeconds(BudgetSeconds));
+        OptimizationEdit edit = await running.WaitAsync(QueueBound, Token);
+
+        edit.IsNoOp.ShouldBeTrue();
+        optimizer.Calls.ShouldBe(0);
+        cache.Stored.ShouldBe([("Please kindly review `foo()`.", "Please kindly review `foo()`.")]);
+
+        OptimizationEdit next = await strategy.OptimizeAsync(Request("/v1/chat/completions", later), Token);
+
+        gate.Calls.ShouldBe(2, "an open gate circuit would skip the gate");
+        next.Patches.Single().Replacement!.GetValue<string>().ShouldBe("Check `baz()`.");
+    }
+
+    [Fact]
+    public async Task A_budget_spent_waiting_for_admission_forwards_and_caches_the_original_as_budget_not_contention()
+    {
+        const string body = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
+        var clock = new AdmissionClock(AdmissionWait);
+        using var admissionGate = new OptimizerAdmissionGate(clock);
+        var cache = new FakeCache();
+        var logs = new CollectingLogger();
+        var gate = new StubGate((_, _) => Task.FromResult(true));
+        var optimizer = new StubOptimizer((_, text, _) => Task.FromResult(
+            text.Contains("qux", StringComparison.Ordinal) ? "Review `qux()`." : "Review `foo()`."));
+        MessageOptimizationStrategy strategy = Create(
+            gate, optimizer, cache, logger: logs, clock: clock, admissionGate: admissionGate, budgetSeconds: BudgetSeconds);
+        OptimizerAdmissionGate.Admission otherRequest =
+            await admissionGate.EnterAsync(OptimizerEndpoint, OptimizerModel, AdmissionWait, Token);
+        Task queued = clock.TimerCreated;
+
+        Task<OptimizationEdit> waiting = strategy.OptimizeAsync(Request("/v1/chat/completions", body), Token);
+        await queued.WaitAsync(QueueBound, Token);
+        clock.Advance(TimeSpan.FromSeconds(BudgetSeconds));
+        OptimizationEdit edit = await waiting.WaitAsync(QueueBound, Token);
+
+        edit.IsNoOp.ShouldBeTrue();
+        optimizer.Calls.ShouldBe(0);
+        cache.Stored.ShouldBe([("Please kindly review `foo()`.", "Please kindly review `foo()`.")]);
+        logs.Events.ShouldContain(entry => entry.Level == LogLevel.Information && entry.Text.Contains("budget", StringComparison.Ordinal));
+        logs.Events.ShouldAllBe(entry => entry.Level < LogLevel.Warning, "budget expiry is neither contention nor a failure");
+
+        otherRequest.Dispose();
+        OptimizationEdit next = await strategy.OptimizeAsync(
+            Request("/v1/chat/completions", """{"model":"x","messages":[{"role":"user","content":"Please kindly review `qux()`."}]}"""), Token);
+        optimizer.Calls.ShouldBe(1, "the optimizer circuit must still be closed");
+        next.Patches.Single().Replacement!.GetValue<string>().ShouldBe("Review `qux()`.");
+    }
+
+    [Fact]
+    public async Task A_request_that_only_replays_cached_messages_starts_no_budget_timer()
+    {
+        const string body = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
+        var clock = new AdmissionClock();
+        var cache = new FakeCache();
+        cache.Seed("Please kindly review `foo()`.", "Review `foo()`.");
+        var gate = new StubGate((_, _) => Task.FromResult(true));
+        var optimizer = new StubOptimizer((_, _, _) => Task.FromResult("unused"));
+        MessageOptimizationStrategy strategy = Create(gate, optimizer, cache, clock: clock);
+        Task timer = clock.TimerCreated;
+
+        await strategy.OptimizeAsync(Request("/v1/chat/completions", body), Token);
+
+        timer.IsCompleted.ShouldBeFalse();
+    }
+
+    private const int BudgetSeconds = 20;
+
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
     private static MessageOptimizationStrategy Create(
@@ -879,7 +1028,8 @@ public sealed class MessageOptimizationStrategyTests
         bool enabled = true,
         ILogger<MessageOptimizationStrategy>? logger = null,
         TimeProvider? clock = null,
-        OptimizerAdmissionGate? admissionGate = null)
+        OptimizerAdmissionGate? admissionGate = null,
+        int budgetSeconds = 600)
     {
         clock ??= TimeProvider.System;
         var options = new ImposterOptions
@@ -890,7 +1040,8 @@ public sealed class MessageOptimizationStrategyTests
                 BaseUrl = "http://optimizer.test",
                 Model = OptimizerModel,
                 MinChars = minChars,
-                TimeoutSeconds = (int)AdmissionWait.TotalSeconds
+                TimeoutSeconds = (int)AdmissionWait.TotalSeconds,
+                BudgetSeconds = budgetSeconds
             },
             DecisionsMessages = new DecisionsMessagesOptions { Enabled = gateEnabled, MinProbability = 0.5 }
         };
@@ -903,6 +1054,7 @@ public sealed class MessageOptimizationStrategyTests
             new MessageGateCircuitBreaker(bound, clock, NullLogger<MessageGateCircuitBreaker>.Instance),
             new MessageOptimizerCircuitBreaker(Options.Create(options.LlmMessages), clock, NullLogger<MessageOptimizerCircuitBreaker>.Instance),
             admissionGate ?? new OptimizerAdmissionGate(clock),
+            clock,
             logger ?? NullLogger<MessageOptimizationStrategy>.Instance);
     }
 

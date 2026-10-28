@@ -15,6 +15,7 @@ internal sealed class MessageOptimizationStrategy(
     MessageGateCircuitBreaker gateCircuit,
     MessageOptimizerCircuitBreaker optimizerCircuit,
     OptimizerAdmissionGate admissionGate,
+    TimeProvider timeProvider,
     ILogger<MessageOptimizationStrategy> logger) : IOptimizationStrategy
 {
     internal const string InstructionRevision = "2";
@@ -86,6 +87,7 @@ internal sealed class MessageOptimizationStrategy(
         IReadOnlyList<string> protectedNames = ToolNames(root);
         int minChars = options.Value.LlmMessages.MinChars;
         var patches = new List<OptimizationPatch>();
+        using var budget = new OptimizationBudget(BudgetLimit(), timeProvider, cancellationToken);
 
         for (int index = 0; index < messages.Count; index++)
         {
@@ -105,11 +107,18 @@ internal sealed class MessageOptimizationStrategy(
             }
 
             IReadOnlyList<(string Pointer, string Text)> rewritten = await RewriteMessageAsync(
-                blocks, session, request.CallerHeaders, version, protectedNames, minChars, cancellationToken);
+                blocks, session, request.CallerHeaders, version, protectedNames, minChars, budget);
             foreach ((string pointer, string text) in rewritten)
             {
                 patches.Add(new OptimizationPatch(pointer, JsonValue.Create(text)));
             }
+        }
+
+        if (budget.Unprocessed > 0)
+        {
+            logger.LogInformation(
+                "Message optimization budget of {BudgetSeconds} s exhausted: {Unprocessed} of {Candidates} candidate segments forwarded as the original",
+                budget.Limit.TotalSeconds, budget.Unprocessed, budget.Candidates);
         }
 
         return patches.Count == 0
@@ -124,7 +133,7 @@ internal sealed class MessageOptimizationStrategy(
         string version,
         IReadOnlyList<string> protectedNames,
         int minChars,
-        CancellationToken cancellationToken)
+        OptimizationBudget budget)
     {
         var blockSegments = new List<(string Pointer, string Text, IReadOnlyList<HumanSpanExtractor.Segment> Segments)>(blocks.Count);
         var human = new List<(int Block, int Segment, string Text)>();
@@ -167,25 +176,90 @@ internal sealed class MessageOptimizationStrategy(
             return ReassembleChanged(blockSegments, rewritten);
         }
 
-        string gateText = string.Join(
-            "\n", human.Where(static item => !string.IsNullOrWhiteSpace(item.Text)).Select(static item => item.Text));
-        if (options.Value.DecisionsMessages.Enabled && !await GateAsync(gateText, cancellationToken))
+        budget.CountCandidates(pending.Count);
+        if (budget.IsExhausted)
         {
-            foreach ((int block, int segment, string text) in pending)
-            {
-                cache.Store(session, headers, text, version, text);
-                rewritten[(block, segment)] = text;
-                logger.LogDebug("Message optimization: declined by gate ({Length} chars)", text.Length);
-            }
+            KeepOriginals(pending, session, headers, version, rewritten);
+            budget.CountUnprocessed(pending.Count);
             return ReassembleChanged(blockSegments, rewritten);
         }
 
-        foreach ((int block, int segment, string text) in pending)
+        CancellationToken cancellationToken = budget.Start();
+        string gateText = string.Join(
+            "\n", human.Where(static item => !string.IsNullOrWhiteSpace(item.Text)).Select(static item => item.Text));
+        bool allowed;
+        try
         {
-            rewritten[(block, segment)] = await OptimizeSegmentAsync(
-                text, session, headers, version, protectedNames, cancellationToken);
+            allowed = !options.Value.DecisionsMessages.Enabled || await GateAsync(gateText, cancellationToken);
+        }
+        catch (OperationCanceledException) when (budget.IsExhausted)
+        {
+            KeepOriginals(pending, session, headers, version, rewritten);
+            budget.CountUnprocessed(pending.Count);
+            return ReassembleChanged(blockSegments, rewritten);
+        }
+
+        if (!allowed)
+        {
+            KeepOriginals(pending, session, headers, version, rewritten);
+            logger.LogDebug("Message optimization: declined by gate ({Segments} segments)", pending.Count);
+            return ReassembleChanged(blockSegments, rewritten);
+        }
+
+        for (int index = 0; index < pending.Count; index++)
+        {
+            (int block, int segment, string text) = pending[index];
+            string? forwarded = await OptimizeWithinBudgetAsync(
+                text, session, headers, version, protectedNames, budget, cancellationToken);
+            if (forwarded is null)
+            {
+                // Budget spent (Open item 7): this and every later segment is forwarded and remembered as written.
+                KeepOriginals(pending.Skip(index), session, headers, version, rewritten);
+                budget.CountUnprocessed(pending.Count - index);
+                break;
+            }
+
+            rewritten[(block, segment)] = forwarded;
         }
         return ReassembleChanged(blockSegments, rewritten);
+    }
+
+    private async Task<string?> OptimizeWithinBudgetAsync(
+        string original,
+        SessionIdentity session,
+        CallerHeaders headers,
+        string version,
+        IReadOnlyList<string> protectedNames,
+        OptimizationBudget budget,
+        CancellationToken cancellationToken)
+    {
+        if (budget.IsExhausted)
+        {
+            return null;
+        }
+
+        try
+        {
+            return await OptimizeSegmentAsync(original, session, headers, version, protectedNames, cancellationToken);
+        }
+        catch (OperationCanceledException) when (budget.IsExhausted)
+        {
+            return null;
+        }
+    }
+
+    private void KeepOriginals(
+        IEnumerable<(int Block, int Segment, string Text)> segments,
+        SessionIdentity session,
+        CallerHeaders headers,
+        string version,
+        Dictionary<(int Block, int Segment), string> rewritten)
+    {
+        foreach ((int block, int segment, string text) in segments)
+        {
+            cache.Store(session, headers, text, version, text);
+            rewritten[(block, segment)] = text;
+        }
     }
 
     private static IReadOnlyList<(string Pointer, string Text)> ReassembleChanged(
@@ -378,6 +452,12 @@ internal sealed class MessageOptimizationStrategy(
             }
             throw;
         }
+    }
+
+    private TimeSpan BudgetLimit()
+    {
+        int seconds = options.Value.LlmMessages.BudgetSeconds;
+        return TimeSpan.FromSeconds(seconds > 0 ? seconds : 30);
     }
 
     // The admission wait is bounded by the optimizer's own timeout setting (LLM_MESSAGES_TIMEOUT).

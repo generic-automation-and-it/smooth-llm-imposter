@@ -247,6 +247,11 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
             failures.Add($"{prefix}:MinChars must be between 0 and 10000.");
         }
 
+        if (options.BudgetSeconds is < 1 or > 600)
+        {
+            failures.Add($"{prefix}:BudgetSeconds must be between 1 and 600 seconds.");
+        }
+
         if (string.IsNullOrWhiteSpace(options.BaseUrl) ||
             !Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out var uri) ||
             (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
