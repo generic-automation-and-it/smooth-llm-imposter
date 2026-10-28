@@ -28,7 +28,7 @@ Strategy interface + coordinator for HLD 017 message optimization. Read [LADR-08
 - **Inbound scope:** the strategy skips Responses inbound requests even when the Host has downgraded them to a Chat body (Open item 4). `OptimizationRequest.InboundPath` carries the pre-transform path; the effective `Path` alone cannot distinguish a downgraded Responses request from a real Chat request.
 - **Transport resolution:** `LlmMessagesOptions` is resolved from the post-configured `ImposterOptions.LlmMessages` by `LlmMessagesOptionsSetup`. That setup is load-bearing: without it the client sees an empty `BaseUrl`/`Model`/`ApiKey` and the cache and optimizer circuit ignore the operator's TTL and cooldown.
 - **Log hygiene:** the strategy and coordinator log exception types (with section/model/endpoint), never the exception object, because a `JsonException` can carry message or reply text (NFR-04).
-- **Gate transport:** `MessageGate` posts one choice question through the shared decision client. It currently inherits the shared tool-section transport/model because per-section `DECISIONS_MESSAGES_*` profiles are not implemented; do not assume `DECISIONS_MESSAGES_*` transport settings apply yet.
+- **Gate transport:** `MessageGate` posts one choice question through the shared decision client, which still uses the tool-section transport/model. `DecisionsMessages.BaseUrl`/`Path`/`Model`/`MaxAttempts`/`TimeoutSeconds` (`DECISIONS_MESSAGES_*`, falling back to shared `DECISIONS_*`, then the built-in default) are resolved and validated while the gate is on, but nothing calls them until per-section profiles land (WT-23). They never inherit `DECISIONS_TOOLS_*` (HLD 015 LADR-05), so a deployment that sets only `DECISIONS_TOOLS_*` will move its gate to the built-in default endpoint when WT-23 switches the transport unless it sets `DECISIONS_*` or `DECISIONS_MESSAGES_*`.
 
 ## Test References
 
@@ -59,3 +59,4 @@ Strategy interface + coordinator for HLD 017 message optimization. Read [LADR-08
 | 2026-10-27 | NFR-03 failure cost proven by an L2 file over the real clients; no production change | #214 |
 | 2026-10-27 | NFR-04 message egress proven by an L2 request/log capture; wording now excludes the opt-in Debug request dump, span hash tracked as WT-20 | #216 |
 | 2026-10-28 | Optimizer gets the message as delimited data; content-retention check (60%) rejects answers, refusals, obeyed injections and translations; `InstructionRevision` 2 (WT-21) | #223 |
+| 2026-10-28 | `DECISIONS_MESSAGES_*` transport settings resolved through the shared `DECISIONS_*` layer and validated while the gate is on; not used by the gate until WT-23 | #225 |

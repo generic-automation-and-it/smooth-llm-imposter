@@ -207,6 +207,33 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
 
         const string prefix = "Imposter:DecisionsMessages";
 
+        if (string.IsNullOrWhiteSpace(options.BaseUrl) ||
+            !Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out Uri? baseUrl) ||
+            (baseUrl.Scheme != Uri.UriSchemeHttp && baseUrl.Scheme != Uri.UriSchemeHttps))
+        {
+            failures.Add($"{prefix}:BaseUrl must be an absolute HTTP(S) URL.");
+        }
+
+        if (string.IsNullOrEmpty(options.Path) || !options.Path.StartsWith('/'))
+        {
+            failures.Add($"{prefix}:Path must start with '/'.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.Model))
+        {
+            failures.Add($"{prefix}:Model must be non-empty.");
+        }
+
+        if (options.MaxAttempts is < 1 or > 10)
+        {
+            failures.Add($"{prefix}:MaxAttempts must be between 1 and 10.");
+        }
+
+        if (options.TimeoutSeconds is < MinTimeoutSeconds or > MaxTimeoutSeconds)
+        {
+            failures.Add($"{prefix}:TimeoutSeconds must be between {MinTimeoutSeconds} and {MaxTimeoutSeconds} seconds.");
+        }
+
         if (!double.IsFinite(options.MinProbability) || options.MinProbability is < 0 or > 1)
         {
             failures.Add($"{prefix}:MinProbability must be a finite number between 0 and 1.");

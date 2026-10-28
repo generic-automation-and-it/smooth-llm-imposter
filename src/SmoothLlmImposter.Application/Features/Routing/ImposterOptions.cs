@@ -31,19 +31,53 @@ public sealed class ImposterOptions
     /// </summary>
     public WhoMessageOptions WhoMessage { get; init; } = new();
 
+    /// <summary>
+    /// Shared decision-model defaults (HLD 017 LADR-06, HLD 015 LADR-05): every value fills a decision
+    /// section field the section itself leaves unset. Unset here means the section keeps its built-in default.
+    /// </summary>
+    public DecisionsOptions Decisions { get; init; } = new();
+
     public DecisionsToolsOptions DecisionsTools { get; init; } = new();
 
     /// <summary>
-    /// Message optimization as a decision-service consumer (HLD 017): opts into the shared
-    /// decision transport. Its own enable flag gates the message-optimization stage; transport
-    /// fields are resolved through the shared profile until per-section profiles (HLD 015 LADR-05)
-    /// are in place.
+    /// Message optimization as a decision-service consumer (HLD 017). Its own enable flag gates the
+    /// message-optimization stage. Its transport fields are resolved settings only: the gate still calls
+    /// the shared tool-section transport until per-section profiles (HLD 015 LADR-05) are in place.
     /// </summary>
     public DecisionsMessagesOptions DecisionsMessages { get; init; } = new();
 
     public LlmMessagesOptions LlmMessages { get; init; } = new();
 
     public ToolOrderingOptions ToolOrdering { get; init; } = new();
+}
+
+/// <summary>
+/// The shared <c>DECISIONS_*</c> layer. Every property is nullable because only a set value may fill a
+/// section; <c>MinKeepTools</c>, <c>AlwaysKeep</c> and <c>StickyPerSession</c> exist only on the tool section,
+/// so they default that section alone. There is deliberately no <c>Enabled</c>: one variable must never
+/// switch on two features.
+/// </summary>
+public sealed class DecisionsOptions
+{
+    public string? BaseUrl { get; set; }
+
+    public string? Path { get; set; }
+
+    public string? Model { get; set; }
+
+    public double? MinProbability { get; set; }
+
+    public int? MaxAttempts { get; set; }
+
+    public int? TimeoutSeconds { get; set; }
+
+    public int? CircuitBreakSeconds { get; set; }
+
+    public int? MinKeepTools { get; set; }
+
+    public string? AlwaysKeep { get; set; }
+
+    public bool? StickyPerSession { get; set; }
 }
 
 public sealed class DecisionsMessagesOptions
@@ -53,6 +87,16 @@ public sealed class DecisionsMessagesOptions
     /// <c>LLM_MESSAGES_ENABLED</c> (LADR-06); defaults to <c>false</c>.
     /// </summary>
     public bool Enabled { get; set; }
+
+    public string BaseUrl { get; set; } = DecisionServiceOptions.DefaultBaseUrl;
+
+    public string Path { get; set; } = DecisionServiceOptions.DefaultPath;
+
+    public string Model { get; set; } = DecisionServiceOptions.DefaultModel;
+
+    public int MaxAttempts { get; set; } = DecisionServiceOptions.DefaultMaxAttempts;
+
+    public int TimeoutSeconds { get; set; } = DecisionServiceOptions.DefaultTimeoutSeconds;
 
     /// <summary>
     /// Minimum probability (inclusive) for a positive "can be optimized" answer.

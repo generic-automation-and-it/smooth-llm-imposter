@@ -22,3 +22,4 @@ Read [README.md](README.md) first — intent, goals, decisions and quality requi
 | 2026-10-27 | NFR-04 message egress proven by an L2 request/log capture and a native smoke; two wording gaps recorded (Debug inbound dump, span hash not logged); no production change | #216 |
 | 2026-10-27 | NFR-04 wording amended to exclude the opt-in Debug request dump; span hash on the Debug outcome line tracked as follow-up WT-20 | #216 |
 | 2026-10-28 | LADR-04: optimizer gets the message as delimited data; validator rejects a rewrite keeping < 60% of content words; instruction revision 2 (WT-21) | #223 |
+| 2026-10-28 | LADR-06 settings implemented: shared `DECISIONS_*` layer, `DECISIONS_MESSAGES_*` transport settings, effective-state validation; the gate uses them from WT-23 | #225 |

@@ -366,6 +366,17 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   (`MinProbability`, `MinKeepTools`); transport fields are validated by `DecisionServiceOptionsValidator`. Every
   `DecisionsToolsOptions` property needs an entry in `ImposterOptionsPostConfigure.DecisionsToolsVariables` — the
   reflection drift guard fails otherwise.
+  **Layered decision settings (HLD 017 LADR-06).** Every decision section field resolves section value
+  (`DECISIONS_TOOLS_*`/`DECISIONS_MESSAGES_*` over `Imposter:DecisionsTools`/`Imposter:DecisionsMessages`) →
+  shared `DECISIONS_*` (over `Imposter:Decisions`) → built-in default, through the one `Layer` rule in
+  `ImposterOptionsPostConfigure`. `DecisionsOptions` is all-nullable because only a set value may fill a section,
+  and "section set" means a valid conventional override or a non-blank structured key read from `IConfiguration`
+  — so tests must build options through the binder and the same configuration, not by assigning properties.
+  `MinKeepTools`/`AlwaysKeep`/`StickyPerSession` exist only on the tool section, so their shared values default
+  that section alone; there is no `DECISIONS_ENABLED`, and a section value never fills the other section (HLD 015
+  LADR-05). A new shared property needs a `DecisionsVariables` entry and a `Layer*` call in every section that
+  has it; `DecisionsSharedLayerTests` fails otherwise. The message section's transport fields are validated only
+  while the gate is effectively on, but the gate still calls the tool-section transport until WT-23.
   The filter owns a consumer-local circuit breaker (LADR-11): one failed call opens it for
   `CircuitBreakSeconds`, passes then skip with reason `circuit-open` and never call the client (so they never
   reach the gate), and after the cooldown one trial admission decides close-or-reopen. Only service faults count
@@ -417,6 +428,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   bounded chunks, fail-open and cancellation, request-first state (reminder, Conductor and local-command wrappers, hook/system and tool-result turns
   excluded), all-skip fallback, deferred-loading skip, core-tool `AlwaysKeep` plus fixed `ToolSearch`/`Agent` gateways, minimum-kept floor, per-question memo (tool-call continuation, invalid-answer retry), byte-preserving output, log-safe removed names, and sticky-per-session retention/non-recording/scoping; root option/env/validator tests remain in `Application.UnitTest/Routing`.
 - **L0** `Infrastructure.UnitTest/Clients/Decisions` — real resilience, full-body timeout, shared gate across scopes and separately constructed clients, retry status policy, non-tool consumer transport while tool filtering is off, default model without request mutation.
+- **L0** `Application.UnitTest/Routing/DecisionsSharedLayerTests` — precedence matrix (section/shared/default × structured/conventional for every section field), blank and invalid values, cross-section isolation, no `DECISIONS_ENABLED`, `DECISIONS_TOOLS_*`-only regression table (values as on `0784ee3`, including the shared transport profile), shared-layer drift guard, and effective-state validation of the message transport.
 - **L0** `Application.UnitTest/Common/Clients/Decisions` and `Routing/Decisions/DecisionServiceOptionsSetupTests` — any-consumer validation, operator-name messages, mapping and conventional precedence; `DecisionsToolsOptionsTests` drift guard over every setting.
 - **L2** `Host.IntegrationTest/DecisionServiceIntegrationTests` — real client/gate/pipeline end to end, enabled-invalid startup failure, disabled-invalid inert.
 - **L2** `Host.IntegrationTest/DecisionToolsIntegrationTests` — prefixed/legacy paths, passthrough, downgrade,
@@ -469,6 +481,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-28 | Shared `DECISIONS_*` layer and `DECISIONS_MESSAGES_*` transport settings: section → shared → default for structured and conventional configuration, tool-only shared settings, effective-state validation, drift guard (HLD 017 LADR-06, WT-22) | #225 |
 | 2026-10-27 | `ProviderOptions.OptimizeMessages` per-route message-optimizer opt-out (HLD 017 Open item 6); follows the HLD 011 plumbing rule end to end | #207 |
 | 2026-10-26 | Decision filter always keeps `ToolSearch` and `Agent` on top of the configured `AlwaysKeep` (HLD 014 LADR-08); a probe showed a 12-tool Claude Code catalog losing both | — |
 | 2026-10-25 | Decision tool filter is an optimization strategy returning `/tools`/`/tool_choice` patches; one DI instance shared | #164 |

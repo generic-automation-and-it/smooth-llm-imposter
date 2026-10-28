@@ -51,12 +51,13 @@ and `SessionScope` keys; do not add another unbounded or unhashed session map �
 fails on any new singleton collection until it uses that type or is reviewed. Resolve the session identity from
 the **inbound** body and caller headers, never the transformed body: OpenAI transforms inject
 `prompt_cache_key` = inbound model, which turns every chat of a model into one "session".
-Shared ownership ([HLD 015](../../docs/hlds/015-shared-decision-model-integration/README.md)) is the runtime contract: `Common/Clients/Decisions` holds the consumer-neutral `DecisionServiceOptions`, the `IDecisionServiceConsumer` opt-in and the `DecisionServiceDemand` any-consumer predicate. A new consumer registers its own `IDecisionServiceConsumer`; it must never reuse or toggle the tool filter's `Enabled`. The tool filter maps its legacy `Imposter:DecisionsTools`/`DECISIONS_TOOLS_*` surface onto the shared profile in `Features/Routing/Decisions`.
+Shared ownership ([HLD 015](../../docs/hlds/015-shared-decision-model-integration/README.md)) is the runtime contract: `Common/Clients/Decisions` holds the consumer-neutral `DecisionServiceOptions`, the `IDecisionServiceConsumer` opt-in and the `DecisionServiceDemand` any-consumer predicate. A new consumer registers its own `IDecisionServiceConsumer`; it must never reuse or toggle the tool filter's `Enabled`. The tool filter maps its `Imposter:DecisionsTools`/`DECISIONS_TOOLS_*` surface — already layered over the shared `Imposter:Decisions`/`DECISIONS_*` defaults by `ImposterOptionsPostConfigure` (HLD 017 LADR-06) — onto the shared profile in `Features/Routing/Decisions`.
 
 ## Changelog
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-28 | Shared `DECISIONS_*` layer feeds the tool section before it maps onto `DecisionServiceOptions`; message section settings resolved but not yet a transport profile (WT-22) | #225 |
 | 2026-10-24 | HLD 015 implemented: consumer-neutral decision contract and opt-in predicate in `Common/Clients/Decisions`; transport validation moved out of the routing validator | #156 |
 | 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery); in-file links updated. No behavior change. | #152 |
 | 2026-10-24 | Per-session identity from inbound body; singleton-memory drift guard | — |
