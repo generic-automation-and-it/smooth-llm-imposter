@@ -15,7 +15,8 @@ removed from this repository; these code blocks are the maintained setup instruc
    checked-out repository, then reads `OPENCODE_API_KEY` and `OPENROUTER_API_KEY` from the workspace
    environment, creates the configured container from the already-pulled image, and waits for the router
    health endpoint — printing a full daemon-and-container diagnostic to the terminal if it never gets one.
-   It also forwards optional `DECISIONS_TOOLS_*` workspace settings; filtering remains disabled unless
+   It also forwards optional `DECISIONS_TOOLS_*`, shared `DECISIONS_*`, `DECISIONS_MESSAGES_*` and
+   `LLM_MESSAGES_*` workspace settings; tool filtering and message optimization remain disabled unless
    explicitly enabled. See [Keeping Conductor scripts current](#keeping-conductor-scripts-current).
 
 The setup works from any repository because it uses the published multi-platform image:
@@ -378,9 +379,16 @@ The script forwards all ten settings from the [decision settings table](../setup
 `DECISIONS_TOOLS_ENABLED`, `DECISIONS_TOOLS_BASE_URL`, `DECISIONS_TOOLS_PATH`, `DECISIONS_TOOLS_MODEL`,
 `DECISIONS_TOOLS_MIN_PROBABILITY`, `DECISIONS_TOOLS_MIN_KEEP`, `DECISIONS_TOOLS_ALWAYS_KEEP`, `DECISIONS_TOOLS_STICKY_PER_SESSION`,
 `DECISIONS_TOOLS_MAX_ATTEMPTS`, `DECISIONS_TOOLS_TIMEOUT` and `DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS`.
-Unset settings retain the application's defaults; the installer does not enable filtering automatically.
-A workspace script pasted before `DECISIONS_TOOLS_STICKY_PER_SESSION` existed does not forward it: replace the
-lifecycle script with the one below and re-run it.
+It also forwards the shared [decision settings](../setup.md#shared-decision-settings) that default both decision
+sections — `DECISIONS_BASE_URL`, `DECISIONS_PATH`, `DECISIONS_MODEL`, `DECISIONS_MIN_PROBABILITY`,
+`DECISIONS_MAX_ATTEMPTS`, `DECISIONS_TIMEOUT`, `DECISIONS_CIRCUIT_BREAK_SECONDS`, `DECISIONS_MIN_KEEP`,
+`DECISIONS_ALWAYS_KEEP` and `DECISIONS_STICKY_PER_SESSION` — the message gate's `DECISIONS_MESSAGES_ENABLED`,
+`_BASE_URL`, `_PATH`, `_MODEL`, `_MIN_PROBABILITY`, `_MAX_ATTEMPTS`, `_TIMEOUT` and `_CIRCUIT_BREAK_SECONDS`, and the
+message optimizer's `LLM_MESSAGES_ENABLED`, `_BASE_URL`, `_PATH`, `_MODEL`, `_MAX_ATTEMPTS`, `_TIMEOUT`,
+`_CIRCUIT_BREAK_SECONDS`, `_CACHE_TTL_HOURS`, `_MIN_CHARS` and `_API_KEY`. There is no `DECISIONS_ENABLED`.
+Unset settings retain the application's defaults; the installer does not enable filtering or optimization automatically.
+A workspace script pasted before these variables existed does not forward them, and Docker then silently starts the
+container without them: replace the lifecycle script in the Conductor UI with the one below and re-run it.
 
 For example, supply these workspace environment entries:
 
@@ -512,7 +520,7 @@ export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in the w
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
 elif sudo -n docker info >/dev/null 2>&1; then
-  DOCKER=(sudo -n --preserve-env=OPENCODE_GO_API_KEY,OPENROUTER_API_KEY,DECISIONS_TOOLS_ENABLED,DECISIONS_TOOLS_BASE_URL,DECISIONS_TOOLS_PATH,DECISIONS_TOOLS_MODEL,DECISIONS_TOOLS_MIN_PROBABILITY,DECISIONS_TOOLS_MIN_KEEP,DECISIONS_TOOLS_ALWAYS_KEEP,DECISIONS_TOOLS_STICKY_PER_SESSION,DECISIONS_TOOLS_MAX_ATTEMPTS,DECISIONS_TOOLS_TIMEOUT,DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS docker)
+  DOCKER=(sudo -n --preserve-env=OPENCODE_GO_API_KEY,OPENROUTER_API_KEY,DECISIONS_TOOLS_ENABLED,DECISIONS_TOOLS_BASE_URL,DECISIONS_TOOLS_PATH,DECISIONS_TOOLS_MODEL,DECISIONS_TOOLS_MIN_PROBABILITY,DECISIONS_TOOLS_MIN_KEEP,DECISIONS_TOOLS_ALWAYS_KEEP,DECISIONS_TOOLS_STICKY_PER_SESSION,DECISIONS_TOOLS_MAX_ATTEMPTS,DECISIONS_TOOLS_TIMEOUT,DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS,DECISIONS_BASE_URL,DECISIONS_PATH,DECISIONS_MODEL,DECISIONS_MIN_PROBABILITY,DECISIONS_MAX_ATTEMPTS,DECISIONS_TIMEOUT,DECISIONS_CIRCUIT_BREAK_SECONDS,DECISIONS_MIN_KEEP,DECISIONS_ALWAYS_KEEP,DECISIONS_STICKY_PER_SESSION,DECISIONS_MESSAGES_ENABLED,DECISIONS_MESSAGES_BASE_URL,DECISIONS_MESSAGES_PATH,DECISIONS_MESSAGES_MODEL,DECISIONS_MESSAGES_MIN_PROBABILITY,DECISIONS_MESSAGES_MAX_ATTEMPTS,DECISIONS_MESSAGES_TIMEOUT,DECISIONS_MESSAGES_CIRCUIT_BREAK_SECONDS,LLM_MESSAGES_ENABLED,LLM_MESSAGES_BASE_URL,LLM_MESSAGES_PATH,LLM_MESSAGES_MODEL,LLM_MESSAGES_MAX_ATTEMPTS,LLM_MESSAGES_TIMEOUT,LLM_MESSAGES_CIRCUIT_BREAK_SECONDS,LLM_MESSAGES_CACHE_TTL_HOURS,LLM_MESSAGES_MIN_CHARS,LLM_MESSAGES_API_KEY docker)
 else
   echo "Docker is not reachable; on Linux the daemon is down, on macOS start Docker Desktop." >&2
   exit 1
@@ -663,6 +671,34 @@ fi
   -e DECISIONS_TOOLS_MAX_ATTEMPTS \
   -e DECISIONS_TOOLS_TIMEOUT \
   -e DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS \
+  -e DECISIONS_BASE_URL \
+  -e DECISIONS_PATH \
+  -e DECISIONS_MODEL \
+  -e DECISIONS_MIN_PROBABILITY \
+  -e DECISIONS_MAX_ATTEMPTS \
+  -e DECISIONS_TIMEOUT \
+  -e DECISIONS_CIRCUIT_BREAK_SECONDS \
+  -e DECISIONS_MIN_KEEP \
+  -e DECISIONS_ALWAYS_KEEP \
+  -e DECISIONS_STICKY_PER_SESSION \
+  -e DECISIONS_MESSAGES_ENABLED \
+  -e DECISIONS_MESSAGES_BASE_URL \
+  -e DECISIONS_MESSAGES_PATH \
+  -e DECISIONS_MESSAGES_MODEL \
+  -e DECISIONS_MESSAGES_MIN_PROBABILITY \
+  -e DECISIONS_MESSAGES_MAX_ATTEMPTS \
+  -e DECISIONS_MESSAGES_TIMEOUT \
+  -e DECISIONS_MESSAGES_CIRCUIT_BREAK_SECONDS \
+  -e LLM_MESSAGES_ENABLED \
+  -e LLM_MESSAGES_BASE_URL \
+  -e LLM_MESSAGES_PATH \
+  -e LLM_MESSAGES_MODEL \
+  -e LLM_MESSAGES_MAX_ATTEMPTS \
+  -e LLM_MESSAGES_TIMEOUT \
+  -e LLM_MESSAGES_CIRCUIT_BREAK_SECONDS \
+  -e LLM_MESSAGES_CACHE_TTL_HOURS \
+  -e LLM_MESSAGES_MIN_CHARS \
+  -e LLM_MESSAGES_API_KEY \
   "$IMAGE" >/dev/null
 
 # Wait for health, tolerating a daemon that goes away mid-wait. `--restart
