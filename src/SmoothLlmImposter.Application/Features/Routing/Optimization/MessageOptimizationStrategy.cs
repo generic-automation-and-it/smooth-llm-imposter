@@ -14,6 +14,7 @@ internal sealed class MessageOptimizationStrategy(
     IMessageChecksumCache cache,
     MessageGateCircuitBreaker gateCircuit,
     MessageOptimizerCircuitBreaker optimizerCircuit,
+    OptimizerAdmissionGate admissionGate,
     ILogger<MessageOptimizationStrategy> logger) : IOptimizationStrategy
 {
     internal const string InstructionRevision = "2";
@@ -326,6 +327,33 @@ internal sealed class MessageOptimizationStrategy(
                 "Message optimizer circuit trial via model {Model} at {Endpoint}", model, endpoint);
         }
 
+        OptimizerAdmissionGate.Admission turn;
+        try
+        {
+            turn = await admissionGate.EnterAsync(endpoint, model, AdmissionWait(), cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            if (admission == SectionCircuitBreaker.Admission.Trial)
+            {
+                optimizerCircuit.AbandonTrial();
+            }
+            throw;
+        }
+        catch (OptimizerAdmissionTimeoutException)
+        {
+            // Contention, not a service fault: no call was made, so the circuit records nothing (LADR-07, NFR-03).
+            if (admission == SectionCircuitBreaker.Admission.Trial)
+            {
+                optimizerCircuit.AbandonTrial();
+            }
+            logger.LogWarning(
+                "Message optimizer busy: no admission via model {Model} at {Endpoint} within {Seconds} s; forwarding the original message",
+                model, endpoint, AdmissionWait().TotalSeconds);
+            return null;
+        }
+
+        using OptimizerAdmissionGate.Admission held = turn;
         try
         {
             string rewrite = await optimizer.OptimizeAsync(instructions, Delimit(text), cancellationToken);
@@ -350,6 +378,13 @@ internal sealed class MessageOptimizationStrategy(
             }
             throw;
         }
+    }
+
+    // The admission wait is bounded by the optimizer's own timeout setting (LLM_MESSAGES_TIMEOUT).
+    private TimeSpan AdmissionWait()
+    {
+        int seconds = options.Value.LlmMessages.TimeoutSeconds;
+        return TimeSpan.FromSeconds(seconds > 0 ? seconds : 60);
     }
 
     internal static string Delimit(string text) => MessageOpenTag + "\n" + text + "\n" + MessageCloseTag;

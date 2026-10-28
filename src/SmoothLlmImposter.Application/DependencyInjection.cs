@@ -46,6 +46,7 @@ public static class DependencyInjection
         services.AddSingleton<IMessageGate, MessageGate>();
         services.AddSingleton<MessageGateCircuitBreaker>();
         services.AddSingleton<MessageOptimizerCircuitBreaker>();
+        services.AddSingleton<OptimizerAdmissionGate>();
         services.AddSingleton<IOptimizationStrategy, MessageOptimizationStrategy>();
 
         // Shared decision service (HLD 015): consumers opt in independently; each declares its section, whose
