@@ -299,6 +299,15 @@ section's. Each decision call waits for the admission gate of its resolved endpo
 resolve to the same pair they take turns (one call at a time), and on different endpoints or models they run in
 parallel.
 
+**Message optimizer time budget.** `LLM_MESSAGES_BUDGET_SECONDS` (`Imposter:LlmMessages:BudgetSeconds`, optional,
+default `30`, validated 1–600 while `LLM_MESSAGES_ENABLED=true`) bounds the time one request spends on gate and
+optimizer calls, admission waits included, before it is forwarded. When it runs out the call in flight is cancelled,
+rewrites finished earlier in the request still apply, and every remaining message is forwarded and remembered as
+written, so later turns replay it unchanged; no circuit opens. One Information line per such request reports the
+counts (`... budget of 30 s exhausted: 2 of 3 candidate segments forwarded as the original`). Raise it when a slow
+local optimizer leaves too much of a new conversation unoptimized; lower it to cap the first request's latency after
+a restart or enablement ([HLD 017 Open item 7](../hlds/017-message-optimizer/README.md#open-items)).
+
 **Upgrade note:** the message section never copies `DECISIONS_TOOLS_*`. Before per-section profiles the gate used
 the tool section's transport, so a deployment that points only `DECISIONS_TOOLS_*` at a non-default classifier now
 sends the gate to the built-in default (`http://host.docker.internal:1234/v1/systemone`, model `openjev`). Startup

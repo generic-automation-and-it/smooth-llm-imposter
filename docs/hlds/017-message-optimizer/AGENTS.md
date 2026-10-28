@@ -24,3 +24,4 @@ Read [README.md](README.md) first — intent, goals, decisions and quality requi
 | 2026-10-28 | LADR-04: optimizer gets the message as delimited data; validator rejects a rewrite keeping < 60% of content words; instruction revision 2 (WT-21) | #223 |
 | 2026-10-28 | LADR-06 settings implemented: shared `DECISIONS_*` layer, `DECISIONS_MESSAGES_*` transport settings, effective-state validation; the gate uses them from WT-23 | #225 |
 | 2026-10-28 | Dependencies: message gate calls its own decision profile; gate per endpoint+model (HLD 015 LADR-05) | #228 |
+| 2026-10-28 | Open item 7 resolved: per-request optimization budget (`LLM_MESSAGES_BUDGET_SECONDS`) | #234 |

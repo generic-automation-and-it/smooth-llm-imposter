@@ -15,7 +15,7 @@ Implemented as an L2 file, `MessageOptimizerFailureCostTests`, that runs the rea
 ## Acceptance Criteria
 
 - Gate down → optimizer still called; optimizer down → original forwarded; both down → original forwarded.
-- Caller cancellation, gate-wait timeouts and optimizer admission timeouts open no circuit.
+- Caller cancellation, gate-wait timeouts, optimizer admission timeouts and per-request budget expiry open no circuit.
 - The Error line carries section, model, endpoint, cause and retry time, and no message content.
 
 ## Applies To

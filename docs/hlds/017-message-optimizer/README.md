@@ -107,7 +107,7 @@ The HLD 015 amendment is Accepted as LADR-05; the HLD 014 edit-return amendment 
 | 4 | Responses API in scope? | *Proposed:* out of v1; revisit with a Codex measurement. |
 | 5 | Does the tool filter classify the original or the optimized text? | *Resolved:* original text — the branches run in parallel (LADR-08). |
 | 6 | Route scope? | *Resolved (2026-10-27, #207):* per-provider `OptimizeMessages` (`<PROVIDER>_OPTIMIZE_MESSAGES`); only `false` opts a route out, unset/`true` keep it on for passthrough and imposter routes alike. Nothing opts a route out automatically (request-billed upstreams such as Copilot are the operator's call). The tool filter is unaffected. |
-| 7 | Latency ceiling for gate + rewrite? | *Proposed:* measure. First request after restart/enablement pays a gate call and a rewrite per unremembered message, in series; a down or bypassed gate sends each to the optimizer. Measure "time-to-first-byte is the slower branch" (LADR-02, LADR-08) with delayed stubs. |
+| 7 | Latency ceiling for gate + rewrite? | *Resolved (2026-10-28, #234):* optional `LLM_MESSAGES_BUDGET_SECONDS` (default 30, 1–600) bounds the message strategy per request, admission waits included. On expiry the in-flight call is cancelled without opening a circuit, finished rewrites apply, and every remaining candidate is forwarded and cached as the original, so later turns replay it (NFR-01); one Information line carries the counts. Time-to-first-byte under delayed stubs is still unmeasured. |
 | 8 | Memory scope without a captured session id (HLD 009)? | *Resolved (2026-10-25, revised):* not cached — optimized on every request (LADR-05). |
 
 ## Diagrams
@@ -155,3 +155,4 @@ The HLD 015 amendment is Accepted as LADR-05; the HLD 014 edit-return amendment 
 | 2026-10-27 | NFR-04 message egress proven by an L2 request/log capture and a native smoke; two wording gaps recorded (Debug inbound dump, span hash not logged); no production change | #216 |
 | 2026-10-27 | NFR-04 wording amended to exclude the opt-in Debug request dump; span hash on the Debug outcome line tracked as follow-up WT-20 | #216 |
 | 2026-10-28 | LADR-04: optimizer gets the message as delimited data; validator rejects a rewrite keeping < 60% of content words; instruction revision 2 (WT-21) | #223 |
+| 2026-10-28 | Open item 7 resolved: per-request `LLM_MESSAGES_BUDGET_SECONDS`; expiry forwards and caches the rest as written (WT-25) | #234 |

@@ -18,7 +18,7 @@ Candidates are handled sequentially and synchronously — the next message waits
 
 - Harness context, including large CLAUDE.md reminders, never reaches the optimizer (NFR-04).
 - A turn that is mostly harness text yields a short candidate, which the length check may skip.
-- The first request after a restart or enablement pays one gate call and one rewrite per unremembered message, in series (Open item 7).
+- The first request after a restart or enablement pays one gate call and one rewrite per unremembered message, in series, up to the per-request budget `LLM_MESSAGES_BUDGET_SECONDS` (default 30). Candidates left when it runs out are forwarded and remembered as written, like an admission timeout, so they are never rewritten later (Open item 7).
 - Concurrent requests queue for the optimizer; under sustained contention a message waits up to `LLM_MESSAGES_TIMEOUT` and is then forwarded and remembered unoptimized, so it is never rewritten later (LADR-05's first value is final). Admission is a separate registry from the decision service's gates (HLD 015 LADR-05), so the gate and the optimizer never take turns with each other.
 - Recognition must track harness tag changes in the same place HLD 014 does, or the two stages disagree.
 
