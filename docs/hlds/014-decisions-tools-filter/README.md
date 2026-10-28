@@ -6,7 +6,7 @@
 | **Initiative** | Decisions |
 | **Owner** | SmoothLlmImposter maintainers |
 | **Tracker** | [GitHub #138](https://github.com/generic-automation-and-it/smooth-llm-imposter/issues/138) |
-| **Last updated** | 2026-10-25 |
+| **Last updated** | 2026-10-28 |
 
 ## Intent
 
@@ -26,7 +26,7 @@ The stage applies to imposter and passthrough routes, across OpenAI Chat, OpenAI
 
 ### 2. Conservative tool selection
 
-Each positively understood, unprotected tool receives an independent use/skip question. The use probability is compared inclusively with the configured threshold (default 0.50: more likely needed than not). A missing or invalid answer keeps the tool. Two settings bound the damage of a poorly calibrated classifier: tools named in `AlwaysKeep` (default `Bash,Read,Edit,Write,Skill`, matched exactly against tool name, MCP server label or hosted type) are never asked about and never removed, and a minimum-kept floor (`MinKeepTools`, default 20) restores the highest-scoring removed tools until at least that many tools remain, counting always-kept and history-protected ones; a catalog that does not exceed the floor makes no classifier call. A pass that would leave no tool at all keeps the catalog unchanged. With `StickyPerSession` (default off) a tool forwarded after a completed pass stays forwarded for the rest of that captured session while the harness still supplies it — it is treated like `AlwaysKeep` — so the filter stops changing the cached tool prefix between user turns ([LADR-09](ladrs/LADR-09-sticky-per-session.md)). A catalog using deferred loading — any `defer_loading: true` tool (including inside a namespace) or a `tool_search` tool — is skipped entirely: client-side deferral already keeps those tools out of the prompt, and removing the search gateway or Claude Code's "never call" placeholder would break it. The catalog remains in its original order; only `tools` and `tool_choice` are rewritten, and every other top-level value is forwarded byte-for-byte.
+Each positively understood, unprotected tool receives an independent use/skip question. The use probability is compared inclusively with the configured threshold (default 0.50: more likely needed than not). A missing or invalid answer keeps the tool. Two settings bound the damage of a poorly calibrated classifier: tools named in `AlwaysKeep` (default `Bash,Read,Edit,Write,Skill`, matched exactly against tool name, MCP server label or hosted type) are never asked about and never removed, and a minimum-kept floor (`MinKeepTools`, default 20) restores the highest-scoring removed tools until at least that many tools remain, counting always-kept and history-protected ones; a catalog that does not exceed the floor makes no classifier call. A pass that would leave no tool at all keeps the catalog unchanged. With `StickyPerSession` (default off) a tool forwarded after a completed pass stays forwarded for the rest of that captured session while the harness still supplies it — it is treated like `AlwaysKeep` — so the filter stops changing the cached tool prefix between user turns ([LADR-09](ladrs/LADR-09-sticky-per-session.md)). Sticky selection requires HLD 001 LADR-008 first-seen ordering (`Imposter:ToolOrdering:Enabled`): membership keeps the tool set, but only ordering keeps the array order a reordering harness would otherwise change, so the Host refuses to start when the filter and `StickyPerSession` are on and ordering is off ([LADR-13](ladrs/LADR-13-sticky-selection-requires-ordering.md)). A catalog using deferred loading — any `defer_loading: true` tool (including inside a namespace) or a `tool_search` tool — is skipped entirely: client-side deferral already keeps those tools out of the prompt, and removing the search gateway or Claude Code's "never call" placeholder would break it. The catalog remains in its original order; only `tools` and `tool_choice` are rewritten, and every other top-level value is forwarded byte-for-byte.
 
 | Concern | OpenAI Chat | OpenAI Responses | Anthropic Messages |
 |---|---|---|---|
@@ -51,7 +51,7 @@ Unknown catalog or choice shapes are kept. History is never rewritten. Understoo
 - A pruned body keeps every top-level value other than `tools`/`tool_choice` byte-identical, including message escapes.
 - A pass removing nothing returns the original string instance.
 - Deprecated fields, unknown entries and protected history survive unchanged.
-- With `StickyPerSession`, a tool forwarded on an earlier completed pass of the same captured session is neither asked about nor removed; fail-open, all-skip and small-catalog passes record nothing; derived/absent identities and other sessions or callers share nothing.
+- With `StickyPerSession`, a tool forwarded on an earlier completed pass of the same captured session is neither asked about nor removed; fail-open, all-skip and small-catalog passes record nothing; derived/absent identities and other sessions or callers share nothing; and the configuration requires `Imposter:ToolOrdering:Enabled` — startup fails otherwise ([LADR-13](ladrs/LADR-13-sticky-selection-requires-ordering.md)).
 
 ### 3. Bounded classifier work
 
@@ -118,8 +118,9 @@ Per-provider overrides, persistent or distributed decision caching, tool-count s
 | [08](ladrs/LADR-08-core-tools-and-minimum-floor.md) | Always-kept core tools and a minimum-kept floor instead of a lower threshold | Accepted |
 | [09](ladrs/LADR-09-sticky-per-session.md) | Opt-in sticky tool selection per captured session | Accepted |
 | [10](ladrs/LADR-10-codex-additional-tools-not-filtered.md) | Codex `additional_tools` requests are not filtered | Accepted |
-| [11](ladrs/LADR-11-circuit-breaker.md) | Per-consumer circuit breaker: one failed call skips the filter for a cooldown (default 180 s) | Accepted — not yet implemented |
+| [11](ladrs/LADR-11-circuit-breaker.md) | Per-consumer circuit breaker: one failed call skips the filter for a cooldown (default 180 s) | Accepted |
 | [12](ladrs/LADR-12-tool-filter-returns-edit.md) | Tool filter returns an edit to `tools`/`tool_choice`, not a body; overlap forwards original | Accepted |
+| [13](ladrs/LADR-13-sticky-selection-requires-ordering.md) | Sticky selection requires `ToolOrdering.Enabled`; startup fails otherwise | Accepted |
 
 ## Non-Functional Requirements
 
@@ -158,3 +159,4 @@ Per-provider overrides, persistent or distributed decision caching, tool-count s
 | 2026-10-25 | LADR-09 shared memory extension: per-instance lifetime and uncapped mode for HLD 017 checksum cache; tools keep 30 min and 256 scopes | #164 |
 | 2026-10-25 | HLD 017 Accepted by owner decision: LADR-12 Accepted; edit-return contract, overlap forwards original | #164 |
 | 2026-10-26 | LADR-08 amendment: capability gateways `ToolSearch` and `Agent` always kept, whatever `AlwaysKeep` is configured | — |
+| 2026-10-28 | LADR-13: sticky selection requires `ToolOrdering.Enabled`, startup fails otherwise; LADR-09 amended; LADR-11 status reflects the shipped circuit breaker | #232 |
