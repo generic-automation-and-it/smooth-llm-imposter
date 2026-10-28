@@ -141,8 +141,9 @@ caller stays connected. It is set in no shipped `appsettings*.json`. Full design
 
 `_OPTIMIZE_MESSAGES=false` opts one provider's routes out of the opt-in message optimizer
 (`LLM_MESSAGES_ENABLED`, [HLD 017](../hlds/017-message-optimizer/README.md)). Leave it unset, or `true`, to
-keep optimization on. Use it for request-billed upstreams such as a GitHub Copilot route, where smaller
-messages save nothing and the gate and optimizer calls only add latency. The prefix is the provider key, so
+keep optimization on. Use it for a route where the gate and optimizer latency outweighs the token saving,
+or for an upstream still billed per request (for example a GitHub Copilot seat on a legacy annual plan; current
+Copilot plans bill tokens through AI credits, so smaller messages do save there). The prefix is the provider key, so
 the unprefixed pair uses `GITHUB_ANTHROPIC_OPTIMIZE_MESSAGES=false` and a prefixed one such as
 `company1-github-anthropic` uses `COMPANY1_GITHUB_ANTHROPIC_OPTIMIZE_MESSAGES=false`. The tool filter is unaffected. Nothing sets it automatically,
 and it is in no shipped `appsettings*.json`.

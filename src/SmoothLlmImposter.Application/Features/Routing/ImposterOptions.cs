@@ -196,9 +196,8 @@ public sealed class ProviderOptions
 
     /// <summary>
     /// Per-route opt-out for the HLD 017 message optimizer. <c>null</c> (default) and <c>true</c> both
-    /// leave message optimization on; only <c>false</c> skips it for this provider's routes. Request-billed
-    /// upstreams (for example GitHub Copilot routes) gain nothing from smaller messages and pay the gate
-    /// and optimizer latency. The tool-filter strategy is unaffected. Conventional env
+    /// leave message optimization on; only <c>false</c> skips it for this provider's routes. Use it where the
+    /// gate and optimizer latency outweighs the token saving, or for an upstream still billed per request. The tool-filter strategy is unaffected. Conventional env
     /// <c>&lt;PROVIDER&gt;_OPTIMIZE_MESSAGES</c>.
     /// </summary>
     public bool? OptimizeMessages { get; set; }
