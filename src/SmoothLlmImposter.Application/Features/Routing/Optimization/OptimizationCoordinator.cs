@@ -31,7 +31,16 @@ internal sealed class OptimizationCoordinator(
             throw;
         }
 
-        return Merge(request.Body, results);
+        string optimized = Merge(request.Body, results);
+
+        // Rough token estimate (chars / 4) for operator visibility; not a tokenizer result.
+        int savedChars = request.Body.Length - optimized.Length;
+        int savedTokens = savedChars > 0 ? savedChars / 4 : 0;
+        logger.LogInformation(
+            "LLM optimization complete: {OriginalChars} -> {OptimizedChars} chars (~{SavedTokens} tokens saved)",
+            request.Body.Length, optimized.Length, savedTokens);
+
+        return optimized;
     }
 
     private async Task<OptimizationEdit> RunOneAsync(
