@@ -160,7 +160,13 @@ internal sealed class MessageOptimizationStrategy(
 
         string gateText = string.Join(
             "\n", human.Where(static item => !string.IsNullOrWhiteSpace(item.Text)).Select(static item => item.Text));
-        if (options.Value.DecisionsMessages.Enabled && !await GateAsync(gateText, cancellationToken))
+        bool gateEnabled = options.Value.DecisionsMessages.Enabled;
+        if (gateEnabled && gateText.Length > options.Value.DecisionsMessages.MaxStateChars)
+        {
+            logger.LogDebug("Message optimization: gate skipped (human text {Length} chars exceeds MaxStateChars {Limit})", gateText.Length, options.Value.DecisionsMessages.MaxStateChars);
+            gateEnabled = false;
+        }
+        if (gateEnabled && !await GateAsync(gateText, cancellationToken))
         {
             foreach ((int block, int segment, string text) in pending)
             {
