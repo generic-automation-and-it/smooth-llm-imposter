@@ -3,24 +3,24 @@ using Microsoft.Extensions.Options;
 namespace SmoothLlmImposter.Application.Common.Clients.Decisions;
 
 /// <summary>
-/// Validates the transport profile only while a consumer requires the integration; with every consumer
-/// disabled, invalid unused settings stay ignored (HLD 015 LADR-02). Messages name the operator keys.
+/// Validates a section's transport profile only while that section's consumer is opted in; a disabled
+/// section's invalid, unused settings stay ignored (HLD 015 LADR-02, LADR-05). Messages name the operator keys.
 /// </summary>
-internal sealed class DecisionServiceOptionsValidator(DecisionServiceDemand demand)
+internal sealed class DecisionServiceOptionsValidator(IEnumerable<IDecisionServiceConsumer> consumers)
     : IValidateOptions<DecisionServiceOptions>
 {
     private const int MinTimeoutSeconds = 1;
     private const int MaxTimeoutSeconds = 3600;
-    private const string Prefix = DecisionServiceOptions.OperatorSection;
 
     public ValidateOptionsResult Validate(string? name, DecisionServiceOptions options)
     {
-        if (!demand.IsRequired)
+        if (name is null || !consumers.Any(consumer =>
+                consumer.IsOptedIn && string.Equals(consumer.Section, name, StringComparison.Ordinal)))
         {
             return ValidateOptionsResult.Success;
         }
 
-        List<string> failures = TransportFailures(Prefix, options);
+        List<string> failures = TransportFailures(name, options);
 
         return failures.Count > 0
             ? ValidateOptionsResult.Fail(failures)
@@ -51,9 +51,9 @@ internal sealed class DecisionServiceOptionsValidator(DecisionServiceDemand dema
             failures.Add($"{prefix}:Model must be non-empty.");
         }
 
-        if (options.MaxAttempts is < 1 or > 10)
+        if (options.MaxAttempts is < 1 or > DecisionServiceOptions.MaxAttemptsLimit)
         {
-            failures.Add($"{prefix}:MaxAttempts must be between 1 and 10.");
+            failures.Add($"{prefix}:MaxAttempts must be between 1 and {DecisionServiceOptions.MaxAttemptsLimit}.");
         }
 
         if (options.TimeoutSeconds is < MinTimeoutSeconds or > MaxTimeoutSeconds)

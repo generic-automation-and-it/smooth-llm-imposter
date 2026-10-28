@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
 using SmoothLlmImposter.Application.Features.Routing;
@@ -331,7 +332,7 @@ public class DecisionsSharedLayerTests
         tools.CircuitBreakSeconds.ShouldBe(configured ? 45 : 180, deployment);
 
         var transport = new DecisionServiceOptions();
-        new DecisionServiceOptionsSetup(Microsoft.Extensions.Options.Options.Create(options)).Configure(transport);
+        new DecisionServiceOptionsSetup(Microsoft.Extensions.Options.Options.Create(options)).Configure("Imposter:DecisionsTools", transport);
         transport.BaseUrl.ShouldBe(tools.BaseUrl);
         transport.Path.ShouldBe(tools.Path);
         transport.Model.ShouldBe(tools.Model);
@@ -360,10 +361,43 @@ public class DecisionsSharedLayerTests
         });
 
         var transport = new DecisionServiceOptions();
-        new DecisionServiceOptionsSetup(Microsoft.Extensions.Options.Options.Create(options)).Configure(transport);
+        new DecisionServiceOptionsSetup(Microsoft.Extensions.Options.Options.Create(options)).Configure("Imposter:DecisionsTools", transport);
 
         transport.BaseUrl.ShouldBe("http://shared.example:9000");
         transport.Model.ShouldBe("tool-model");
+    }
+
+    [Fact]
+    public void Each_section_resolves_its_own_transport_profile_and_never_inherits_the_other()
+    {
+        // HLD 015 LADR-05: section, then shared DECISIONS_*, then default — never another section's value.
+        ImposterOptions options = Build(new Dictionary<string, string?>
+        {
+            ["DECISIONS_TIMEOUT"] = "45",
+            ["DECISIONS_TOOLS_BASE_URL"] = "http://tools.example",
+            ["DECISIONS_TOOLS_MODEL"] = "tool-model",
+            ["DECISIONS_TOOLS_MAX_ATTEMPTS"] = "5",
+            ["DECISIONS_MESSAGES_PATH"] = "/v1/gate",
+            ["DECISIONS_MESSAGES_MODEL"] = "gate-model",
+        });
+        var setup = new DecisionServiceOptionsSetup(Microsoft.Extensions.Options.Options.Create(options));
+        var tools = new DecisionServiceOptions();
+        var messages = new DecisionServiceOptions();
+        var unnamed = new DecisionServiceOptions();
+
+        setup.Configure("Imposter:DecisionsTools", tools);
+        setup.Configure("Imposter:DecisionsMessages", messages);
+        setup.Configure(unnamed);
+
+        tools.Endpoint.ShouldBe("http://tools.example/v1/systemone");
+        tools.Model.ShouldBe("tool-model");
+        tools.MaxAttempts.ShouldBe(5);
+        tools.TimeoutSeconds.ShouldBe(45);
+        messages.Endpoint.ShouldBe(DecisionServiceOptions.DefaultBaseUrl + "/v1/gate");
+        messages.Model.ShouldBe("gate-model");
+        messages.MaxAttempts.ShouldBe(DecisionServiceOptions.DefaultMaxAttempts);
+        messages.TimeoutSeconds.ShouldBe(45);
+        unnamed.Endpoint.ShouldBe(DecisionServiceOptions.DefaultBaseUrl + DecisionServiceOptions.DefaultPath);
     }
 
     [Theory]
@@ -436,9 +470,9 @@ public class DecisionsSharedLayerTests
 
         new ImposterOptionsValidator().Validate(null, WithProvider(options)).Succeeded.ShouldBeTrue();
         var transport = new DecisionServiceOptions();
-        new DecisionServiceOptionsSetup(Microsoft.Extensions.Options.Options.Create(options)).Configure(transport);
-        new DecisionServiceOptionsValidator(new DecisionServiceDemand([new DecisionToolsConsumer(Microsoft.Extensions.Options.Options.Create(options))]))
-            .Validate(null, transport).Succeeded.ShouldBeTrue();
+        new DecisionServiceOptionsSetup(Microsoft.Extensions.Options.Options.Create(options)).Configure("Imposter:DecisionsTools", transport);
+        new DecisionServiceOptionsValidator([new DecisionToolsConsumer(Microsoft.Extensions.Options.Options.Create(options))])
+            .Validate("Imposter:DecisionsTools", transport).Succeeded.ShouldBeTrue();
     }
 
     [Fact]
@@ -454,9 +488,9 @@ public class DecisionsSharedLayerTests
 
         ValidateOptionsResult policy = new ImposterOptionsValidator().Validate(null, WithProvider(options));
         var transport = new DecisionServiceOptions();
-        new DecisionServiceOptionsSetup(Microsoft.Extensions.Options.Options.Create(options)).Configure(transport);
+        new DecisionServiceOptionsSetup(Microsoft.Extensions.Options.Options.Create(options)).Configure("Imposter:DecisionsTools", transport);
         ValidateOptionsResult shared = new DecisionServiceOptionsValidator(
-            new DecisionServiceDemand([new DecisionToolsConsumer(Microsoft.Extensions.Options.Options.Create(options))])).Validate(null, transport);
+            [new DecisionToolsConsumer(Microsoft.Extensions.Options.Options.Create(options))]).Validate("Imposter:DecisionsTools", transport);
 
         policy.FailureMessage!.ShouldContain("Imposter:DecisionsTools:MinProbability");
         policy.FailureMessage!.ShouldContain("Imposter:DecisionsTools:MinKeepTools");
@@ -546,6 +580,78 @@ public class DecisionsSharedLayerTests
     {
         object target = SectionOf(Build(values), section);
         return target.GetType().GetProperty(property)!.GetValue(target);
+    }
+
+    [Theory]
+    [InlineData("DECISIONS_TOOLS_BASE_URL", "http://user:secret@tools.example:4321?key=hidden", null, null, true)]
+    [InlineData("Imposter:DecisionsTools:Model", "tool-model", null, null, true)]
+    [InlineData("DECISIONS_TOOLS_PATH", "/classify", null, null, true)]
+    [InlineData("DECISIONS_TOOLS_MODEL", "tool-model", "DECISIONS_MODEL", "shared-model", false)]
+    [InlineData("DECISIONS_TOOLS_MODEL", "tool-model", "DECISIONS_BASE_URL", "http://shared.example", false)]
+    [InlineData("DECISIONS_TOOLS_MODEL", "tool-model", "DECISIONS_MESSAGES_MODEL", "gate-model", false)]
+    [InlineData("DECISIONS_TOOLS_MODEL", "tool-model", "Imposter:DecisionsMessages:BaseUrl", "http://gate.example", false)]
+    [InlineData("DECISIONS_TOOLS_MODEL", "tool-model", "LLM_MESSAGES_ENABLED", "false", false)]
+    [InlineData("DECISIONS_TOOLS_MODEL", "tool-model", "DECISIONS_MESSAGES_ENABLED", "false", false)]
+    [InlineData("DECISIONS_TOOLS_MODEL", DecisionServiceOptions.DefaultModel, null, null, false)]
+    [InlineData("DECISIONS_TOOLS_TIMEOUT", "30", null, null, false)]
+    public async Task Warns_once_when_only_tool_transport_moves_the_message_gate_to_the_default_classifier(
+        string toolKey, string toolValue, string? otherKey, string? otherValue, bool warns)
+    {
+        // WT-23: the specified precedence sends the message gate to the default classifier when only
+        // DECISIONS_TOOLS_* transport is set; the deployment learns that from one startup warning.
+        Dictionary<string, string?> values = new()
+        {
+            ["LLM_MESSAGES_ENABLED"] = "true",
+            [toolKey] = toolValue,
+        };
+        if (otherKey is not null)
+        {
+            values[otherKey] = otherValue;
+        }
+
+        var logger = new WarningLogger();
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+        await using ServiceProvider services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton(configuration)
+            .Configure<ImposterOptions>(configuration.GetSection(ImposterOptions.SectionName))
+            .AddSingleton<IPostConfigureOptions<ImposterOptions>, ImposterOptionsPostConfigure>()
+            .BuildServiceProvider();
+        IOptions<ImposterOptions> options = services.GetRequiredService<IOptions<ImposterOptions>>();
+        _ = services.GetRequiredService<IOptionsMonitor<ImposterOptions>>().CurrentValue;
+
+        await new MessageGateTransportWarning(options, configuration, logger).StartAsync(TestContext.Current.CancellationToken);
+
+        string[] warnings = logger.Warnings.Where(warning => warning.Contains("message gate", StringComparison.Ordinal)).ToArray();
+        if (!warns)
+        {
+            warnings.ShouldBeEmpty();
+            return;
+        }
+
+        warnings.Length.ShouldBe(1);
+        warnings[0].ShouldContain("DECISIONS_TOOLS_*");
+        warnings[0].ShouldContain(DecisionServiceOptions.DefaultBaseUrl + DecisionServiceOptions.DefaultPath);
+        warnings[0].ShouldNotContain("secret");
+        warnings[0].ShouldNotContain("hidden");
+    }
+
+    private sealed class WarningLogger : ILogger<MessageGateTransportWarning>
+    {
+        public List<string> Warnings { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning)
+            {
+                Warnings.Add(formatter(state, exception));
+            }
+        }
     }
 
     private static ImposterOptions Build(Dictionary<string, string?> values)

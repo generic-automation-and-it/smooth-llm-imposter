@@ -44,6 +44,8 @@ public sealed class DecisionToolsFilterTests
         edit.Patches[0].Replacement!.AsArray().Count.ShouldBe(1);
         edit.Patches[1].Replacement.ShouldBeNull();
         edit.Patches.ShouldAllBe(patch => patch.Pointer == "/tools" || patch.Pointer == "/tool_choice");
+        client.Sections.ShouldAllBe(section => section == "Imposter:DecisionsTools");
+        client.Sections.ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -999,13 +1001,15 @@ public sealed class DecisionToolsFilterTests
     private sealed class DecisionStub : IDecisionModelClient
     {
         public List<JsonObject> Requests { get; } = [];
+        public List<string> Sections { get; } = [];
         public Func<JsonObject, JsonObject> Answer { get; init; } = request => Answers(request, _ => 0);
         public int FailCall { get; init; }
         public Exception? Failure { get; init; }
 
-        public Task<JsonObject> DecideAsync(JsonObject request, CancellationToken cancellationToken)
+        public Task<JsonObject> DecideAsync(string section, JsonObject request, CancellationToken cancellationToken)
         {
             Requests.Add(request);
+            Sections.Add(section);
             if (Requests.Count == FailCall)
             {
                 throw Failure ?? new HttpRequestException("secret error payload", null, System.Net.HttpStatusCode.BadRequest);

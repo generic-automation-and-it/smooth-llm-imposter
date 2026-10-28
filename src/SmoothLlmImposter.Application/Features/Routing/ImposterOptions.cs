@@ -41,8 +41,8 @@ public sealed class ImposterOptions
 
     /// <summary>
     /// Message optimization as a decision-service consumer (HLD 017). Its own enable flag gates the
-    /// message-optimization stage. Its transport fields are resolved settings only: the gate still calls
-    /// the shared tool-section transport until per-section profiles (HLD 015 LADR-05) are in place.
+    /// message-optimization stage. Its transport fields are the message gate's own decision profile
+    /// (HLD 015 LADR-05); they never inherit the tool section's values.
     /// </summary>
     public DecisionsMessagesOptions DecisionsMessages { get; init; } = new();
 

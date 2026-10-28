@@ -358,7 +358,7 @@ public sealed class DecisionToolsIntegrationTests
                 return Task.FromResult(new JsonObject { ["answers"] = answers });
             };
 
-        public Task<JsonObject> DecideAsync(JsonObject request, CancellationToken cancellationToken)
+        public Task<JsonObject> DecideAsync(string section, JsonObject request, CancellationToken cancellationToken)
         {
             Requests.Enqueue(request.DeepClone().AsObject());
             return Decide(request, cancellationToken);

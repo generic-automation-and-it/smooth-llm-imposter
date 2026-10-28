@@ -205,7 +205,7 @@ public sealed class MessageOptimizerIntegrationTests
     {
         public ConcurrentQueue<JsonObject> Requests { get; } = new();
 
-        public Task<JsonObject> DecideAsync(JsonObject request, CancellationToken cancellationToken)
+        public Task<JsonObject> DecideAsync(string section, JsonObject request, CancellationToken cancellationToken)
         {
             Requests.Enqueue(request.DeepClone().AsObject());
             return Task.FromResult(new JsonObject

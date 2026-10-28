@@ -358,7 +358,7 @@ internal sealed class DecisionToolsFilter(
             questions[tool.Key] = Question(tool);
         }
 
-        JsonObject envelope = await client.DecideAsync(new JsonObject
+        JsonObject envelope = await client.DecideAsync(DecisionToolsConsumer.SectionName, new JsonObject
         {
             ["model"] = options.Value.DecisionsTools.Model,
             ["state"] = state,

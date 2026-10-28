@@ -4,19 +4,37 @@ using SmoothLlmImposter.Application.Common.Clients.Decisions;
 namespace SmoothLlmImposter.Application.Features.Routing.Decisions;
 
 /// <summary>
-/// Resolves the shared transport profile from the existing tool-filter operator surface, after its
-/// conventional-over-structured precedence has applied, so no settings migration is needed (HLD 015 LADR-02).
+/// Resolves each decision section's transport profile from its operator section, after the section → shared
+/// <c>DECISIONS_*</c> → default precedence has applied (HLD 015 LADR-02, LADR-05; HLD 017 LADR-06). A section
+/// never inherits another section's value, so no settings migration is needed for the tool section.
 /// </summary>
 internal sealed class DecisionServiceOptionsSetup(IOptions<ImposterOptions> imposter)
-    : IConfigureOptions<DecisionServiceOptions>
+    : IConfigureNamedOptions<DecisionServiceOptions>
 {
-    public void Configure(DecisionServiceOptions options)
+    public void Configure(string? name, DecisionServiceOptions options)
     {
-        DecisionsToolsOptions source = imposter.Value.DecisionsTools;
-        options.BaseUrl = source.BaseUrl;
-        options.Path = source.Path;
-        options.Model = source.Model;
-        options.MaxAttempts = source.MaxAttempts;
-        options.TimeoutSeconds = source.TimeoutSeconds;
+        switch (name)
+        {
+            case DecisionToolsConsumer.SectionName:
+                DecisionsToolsOptions tools = imposter.Value.DecisionsTools;
+                Apply(options, tools.BaseUrl, tools.Path, tools.Model, tools.MaxAttempts, tools.TimeoutSeconds);
+                break;
+            case MessagesConsumer.SectionName:
+                DecisionsMessagesOptions messages = imposter.Value.DecisionsMessages;
+                Apply(options, messages.BaseUrl, messages.Path, messages.Model, messages.MaxAttempts, messages.TimeoutSeconds);
+                break;
+        }
+    }
+
+    public void Configure(DecisionServiceOptions options) => Configure(Options.DefaultName, options);
+
+    private static void Apply(
+        DecisionServiceOptions options, string baseUrl, string path, string model, int maxAttempts, int timeoutSeconds)
+    {
+        options.BaseUrl = baseUrl;
+        options.Path = path;
+        options.Model = model;
+        options.MaxAttempts = maxAttempts;
+        options.TimeoutSeconds = timeoutSeconds;
     }
 }

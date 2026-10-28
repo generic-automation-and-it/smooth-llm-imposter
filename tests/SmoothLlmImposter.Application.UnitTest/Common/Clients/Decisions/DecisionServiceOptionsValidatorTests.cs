@@ -5,10 +5,12 @@ namespace SmoothLlmImposter.Application.UnitTest.Common.Clients.Decisions;
 
 public class DecisionServiceOptionsValidatorTests
 {
+    private const string Section = "Imposter:DecisionsTools";
+
     private static ValidateOptionsResult Validate(DecisionServiceOptions options, params bool[] consumersOptedIn) =>
-        new DecisionServiceOptionsValidator(new DecisionServiceDemand(
-            consumersOptedIn.Select(static optedIn => new FixtureConsumer(optedIn)).ToArray()))
-            .Validate(null, options);
+        new DecisionServiceOptionsValidator(
+            consumersOptedIn.Select(static optedIn => new FixtureConsumer(optedIn, Section)).ToArray())
+            .Validate(Section, options);
 
     private static DecisionServiceOptions Invalid() => new()
     {
@@ -28,7 +30,19 @@ public class DecisionServiceOptionsValidatorTests
         Validate(Invalid(), false, false).Succeeded.ShouldBeTrue();
 
     [Fact]
-    public void Any_opted_in_consumer_requires_valid_settings()
+    public void Another_sections_opted_in_consumer_leaves_this_sections_invalid_settings_ignored()
+    {
+        // HLD 015 LADR-05: validation follows each section's own enablement.
+        var validator = new DecisionServiceOptionsValidator(
+            [new FixtureConsumer(false, Section), new FixtureConsumer(true, "Imposter:DecisionsMessages")]);
+
+        validator.Validate(Section, Invalid()).Succeeded.ShouldBeTrue();
+        validator.Validate("Imposter:DecisionsMessages", Invalid()).Failed.ShouldBeTrue();
+        validator.Validate(null, Invalid()).Succeeded.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void The_sections_opted_in_consumer_requires_valid_settings()
     {
         ValidateOptionsResult result = Validate(Invalid(), false, true);
 
@@ -100,8 +114,10 @@ public class DecisionServiceOptionsValidatorTests
         result.FailureMessage.ShouldContain($"Imposter:DecisionsTools:{field}");
     }
 
-    private sealed class FixtureConsumer(bool optedIn) : IDecisionServiceConsumer
+    private sealed class FixtureConsumer(bool optedIn, string section) : IDecisionServiceConsumer
     {
+        public string Section => section;
+
         public bool IsOptedIn => optedIn;
     }
 }

@@ -445,11 +445,11 @@ public sealed class MessageOptimizerEgressTests
             ["Imposter:LlmMessages:MaxAttempts"] = "1",
             ["Imposter:LlmMessages:TimeoutSeconds"] = "10",
 
-            ["Imposter:DecisionsTools:BaseUrl"] = "https://gate.test",
-            ["Imposter:DecisionsTools:Path"] = "/v1/systemone",
-            ["Imposter:DecisionsTools:Model"] = "gate-model",
-            ["Imposter:DecisionsTools:MaxAttempts"] = "1",
-            ["Imposter:DecisionsTools:TimeoutSeconds"] = "10"
+            ["Imposter:Decisions:BaseUrl"] = "https://gate.test",
+            ["Imposter:Decisions:Path"] = "/v1/systemone",
+            ["Imposter:Decisions:Model"] = "gate-model",
+            ["Imposter:Decisions:MaxAttempts"] = "1",
+            ["Imposter:Decisions:TimeoutSeconds"] = "10"
         };
     }
 }
