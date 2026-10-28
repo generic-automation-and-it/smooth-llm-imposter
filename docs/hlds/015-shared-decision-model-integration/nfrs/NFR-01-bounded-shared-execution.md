@@ -12,7 +12,7 @@ Drive separate consumer fixtures and DI scopes against a capturing service, incl
 
 ## Acceptance Criteria
 
-- Maximum admitted concurrency is one; no path bypasses the gate.
+- Maximum admitted concurrency is one per gate key; every call passes through its key's gate.
 - Admission and body stalls fail within the configured budgets, with an explicit test tolerance.
 - 504 and malformed-envelope cases make exactly one attempt.
 - Cancellation releases local resources without retry and permits the next call.

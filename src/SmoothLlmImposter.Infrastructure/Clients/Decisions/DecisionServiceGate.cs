@@ -16,7 +16,7 @@ internal sealed class DecisionServiceGate : IDisposable
     public async Task<Admission> EnterAsync(
         DecisionServiceOptions profile, TimeSpan timeout, CancellationToken cancellationToken)
     {
-        SemaphoreSlim semaphore = GateFor((profile.Endpoint, profile.Model));
+        SemaphoreSlim semaphore = GateFor((SanitizedEndpoint(profile.BaseUrl, profile.Path), profile.Model));
         if (!await semaphore.WaitAsync(timeout, cancellationToken))
         {
             throw new DecisionGateTimeoutException("The decision service concurrency gate timed out.");
@@ -36,6 +36,28 @@ internal sealed class DecisionServiceGate : IDisposable
 
             _gates.Clear();
         }
+    }
+
+    private static string SanitizedEndpoint(string baseUrl, string path)
+    {
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out Uri? root))
+        {
+            return "unparsed";
+        }
+
+        string relative = string.IsNullOrWhiteSpace(path) ? "/" : path;
+        int query = relative.IndexOf('?');
+        if (query >= 0)
+        {
+            relative = relative[..query];
+        }
+        if (!relative.StartsWith('/'))
+        {
+            relative = "/" + relative;
+        }
+
+        string port = root.IsDefaultPort ? string.Empty : ":" + root.Port;
+        return $"{root.Scheme}://{root.Host}{port}{root.AbsolutePath.TrimEnd('/')}{relative}";
     }
 
     private SemaphoreSlim GateFor((string Endpoint, string Model) key)

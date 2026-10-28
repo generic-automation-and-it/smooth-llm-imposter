@@ -21,8 +21,9 @@ internal sealed class DecisionModelClient(
     public async Task<JsonObject> DecideAsync(string section, JsonObject request, CancellationToken cancellationToken)
     {
         DecisionServiceOptions settings = profiles.Resolve(section);
+        int gateSeconds = settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : DecisionServiceOptions.DefaultTimeoutSeconds;
         using DecisionServiceGate.Admission admission =
-            await gate.EnterAsync(settings, TimeSpan.FromSeconds(settings.TimeoutSeconds), cancellationToken);
+            await gate.EnterAsync(settings, TimeSpan.FromSeconds(gateSeconds), cancellationToken);
 
         using HttpClient client = httpClientFactory.CreateClient(HttpClientName);
         using var message = new HttpRequestMessage(HttpMethod.Post, settings.Endpoint)

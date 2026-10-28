@@ -190,7 +190,7 @@ public static class DependencyInjection
     internal static int GetDecisionTimeoutSeconds(ResilienceContext context) =>
         context.GetRequestMessage() is { } request &&
         request.Options.TryGetValue(DecisionModelClient.TimeoutSecondsKey, out int seconds) &&
-        seconds > 0
+        seconds is >= 1 and <= 3600
             ? seconds
             : DecisionServiceOptions.DefaultTimeoutSeconds;
 

@@ -27,13 +27,13 @@ A consumer supplies state and independently keyed choice questions. The integrat
 
 ### 2. Share the operational boundary
 
-Consumers use one configured OpenJEV destination and one process-wide concurrency budget. Address, path, default model, attempt count and timeout are integration concerns; opt-in, question composition, state limits, batching and action thresholds are consumer concerns. Enabling one consumer must not enable another.
+Consumers that resolve to the same endpoint and model share one gate and concurrency budget; different pairs run independently (HLD 015 LADR-05). Address, path, default model, attempt count and timeout are integration concerns; opt-in, question composition, state limits, batching and action thresholds are consumer concerns. Enabling one consumer must not enable another.
 
 Preserve the proven service contract: model, state and keyed choice questions produce a keyed answers envelope. The shared integration reports transport, status, malformed-envelope and gate failures rather than silently inventing decisions. Caller cancellation remains distinguishable from service failure.
 
 **Acceptance criteria / DoD**
 
-- Calls from different consumers and DI scopes share the same gate, including retries.
+- Calls that resolve to the same endpoint and model share one gate, including retries; calls on different keys run in parallel.
 - The whole successful response is timeout-bounded, not just header arrival.
 - Retry eligibility remains transport errors, attempt timeouts, 502 and 503; never 504 or malformed envelopes.
 - Tool filtering being disabled does not prevent an independently opted-in internal consumer from using the integration.
