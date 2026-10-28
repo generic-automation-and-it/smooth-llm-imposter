@@ -8,6 +8,7 @@ Read [README.md](README.md) first — decision-tool filtering intent, decisions 
 
 | Date | Change | Ref |
 |---|---|---|
+| 2026-10-28 | Sticky selection requires `ToolOrdering.Enabled`; startup fails otherwise (LADR-13, LADR-09 amendment) | #232 |
 | 2026-10-26 | `ToolSearch`/`Agent` always kept regardless of `AlwaysKeep` (LADR-08). Claude Code ≥2.1.306 tool-search catalogs carry a `DeferredToolPlaceholder`, so those passes skip anyway; the guard covers a catalog without it | — |
 | 2026-10-25 | Circuit breaker designed, not implemented: per-consumer, one failed call opens it, optional `DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS` cooldown (default 180), Error on open (LADR-11, NFR-05) | #164 |
 | 2026-10-25 | LADR-09 shared memory gains per-instance lifetime and uncapped mode for HLD 017 cache | #164 |
@@ -24,4 +25,3 @@ Read [README.md](README.md) first — decision-tool filtering intent, decisions 
 | 2026-10-23 | Classifier success logs use canonical request shape instead of caller-controlled paths | #140 |
 | 2026-10-23 | Conductor paste-in installer forwards decision settings; existing UI scripts require replacement/re-run | #138 |
 | 2026-10-22 | HLD 014 accepted; HTTP(S)/hosted-choice caveats; HLD 015 proposed, not superseding; AMD64/cache gates pending | #138 |
-| 2026-10-28 | Sticky selection requires `ToolOrdering.Enabled`; startup fails otherwise (LADR-13, LADR-09 amendment) | #232 |

@@ -130,7 +130,7 @@ Per-provider overrides, persistent or distributed decision caching, tool-count s
 | [02](nfrs/NFR-02-classifier-data-egress.md) | Deliberate classifier egress; no sensitive classifier logging | Accepted |
 | [03](nfrs/NFR-03-serialized-service-budget.md) | Serialized load and complete-response timeout | Accepted |
 | [04](nfrs/NFR-04-native-runtime-parity.md) | Native/container classifier parity | Accepted |
-| [05](nfrs/NFR-05-classifier-outage-cost.md) | At most one failed classifier call per cooldown | Accepted — not yet implemented |
+| [05](nfrs/NFR-05-classifier-outage-cost.md) | At most one failed classifier call per cooldown | Accepted |
 
 ## Verification evidence
 
