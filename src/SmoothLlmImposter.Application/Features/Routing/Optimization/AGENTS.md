@@ -59,3 +59,4 @@ Strategy interface + coordinator for HLD 017 message optimization. Read [LADR-08
 | 2026-10-28 | Opt-out guidance: Copilot now bills tokens via AI credits, so it is no longer the example of a route to opt out | NO-TICKET |
 | 2026-10-28 | Coordinator logs estimated token savings per request (chars/4 approximation) at Information after optimization | — |
 | 2026-10-28 | Coordinator log now includes elapsed milliseconds for the optimization pass | — |
+| 2026-10-28 | Message classifier gate is bypassed (not truncated) for payloads above `DecisionsMessages.MaxStateChars` (default 6000); optimizer still receives the full text | — |
