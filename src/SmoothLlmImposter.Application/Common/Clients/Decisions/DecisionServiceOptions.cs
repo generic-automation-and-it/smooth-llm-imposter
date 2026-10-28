@@ -3,7 +3,8 @@ namespace SmoothLlmImposter.Application.Common.Clients.Decisions;
 /// <summary>
 /// Consumer-neutral transport profile of the shared decision service (HLD 015 LADR-02). It carries no
 /// consumer's enable flag or policy. Operators still set it through the <see cref="OperatorSection"/>
-/// surface and the <c>DECISIONS_TOOLS_*</c> variables, kept for compatibility.
+/// surface and the <c>DECISIONS_TOOLS_*</c> variables, kept for compatibility, which fall back to the shared
+/// <c>Imposter:Decisions</c>/<c>DECISIONS_*</c> layer (HLD 017 LADR-06).
 /// </summary>
 public sealed class DecisionServiceOptions
 {

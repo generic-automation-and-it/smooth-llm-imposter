@@ -20,37 +20,47 @@ internal sealed class DecisionServiceOptionsValidator(DecisionServiceDemand dema
             return ValidateOptionsResult.Success;
         }
 
+        List<string> failures = TransportFailures(Prefix, options);
+
+        return failures.Count > 0
+            ? ValidateOptionsResult.Fail(failures)
+            : ValidateOptionsResult.Success;
+    }
+
+    /// <summary>
+    /// The transport rules every decision section shares, reported under the operator section that set them.
+    /// </summary>
+    internal static List<string> TransportFailures(string prefix, DecisionServiceOptions options)
+    {
         List<string> failures = [];
 
         if (string.IsNullOrWhiteSpace(options.BaseUrl) ||
             !Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out Uri? baseUrl) ||
             (baseUrl.Scheme != Uri.UriSchemeHttp && baseUrl.Scheme != Uri.UriSchemeHttps))
         {
-            failures.Add($"{Prefix}:BaseUrl must be an absolute HTTP(S) URL.");
+            failures.Add($"{prefix}:BaseUrl must be an absolute HTTP(S) URL.");
         }
 
         if (string.IsNullOrEmpty(options.Path) || !options.Path.StartsWith('/'))
         {
-            failures.Add($"{Prefix}:Path must start with '/'.");
+            failures.Add($"{prefix}:Path must start with '/'.");
         }
 
         if (string.IsNullOrWhiteSpace(options.Model))
         {
-            failures.Add($"{Prefix}:Model must be non-empty.");
+            failures.Add($"{prefix}:Model must be non-empty.");
         }
 
         if (options.MaxAttempts is < 1 or > 10)
         {
-            failures.Add($"{Prefix}:MaxAttempts must be between 1 and 10.");
+            failures.Add($"{prefix}:MaxAttempts must be between 1 and 10.");
         }
 
         if (options.TimeoutSeconds is < MinTimeoutSeconds or > MaxTimeoutSeconds)
         {
-            failures.Add($"{Prefix}:TimeoutSeconds must be between {MinTimeoutSeconds} and {MaxTimeoutSeconds} seconds.");
+            failures.Add($"{prefix}:TimeoutSeconds must be between {MinTimeoutSeconds} and {MaxTimeoutSeconds} seconds.");
         }
 
-        return failures.Count > 0
-            ? ValidateOptionsResult.Fail(failures)
-            : ValidateOptionsResult.Success;
+        return failures;
     }
 }

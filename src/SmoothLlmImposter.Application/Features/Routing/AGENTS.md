@@ -376,7 +376,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   that section alone; there is no `DECISIONS_ENABLED`, and a section value never fills the other section (HLD 015
   LADR-05). A new shared property needs a `DecisionsVariables` entry and a `Layer*` call in every section that
   has it; `DecisionsSharedLayerTests` fails otherwise. The message section's transport fields are validated only
-  while the gate is effectively on, but the gate still calls the tool-section transport until WT-23.
+  while the gate is effectively on (same rules as the shared profile via `DecisionServiceOptionsValidator.TransportFailures`), but the gate still calls the tool-section transport until WT-23.
   The filter owns a consumer-local circuit breaker (LADR-11): one failed call opens it for
   `CircuitBreakSeconds`, passes then skip with reason `circuit-open` and never call the client (so they never
   reach the gate), and after the cooldown one trial admission decides close-or-reopen. Only service faults count
@@ -430,7 +430,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 - **L0** `Infrastructure.UnitTest/Clients/Decisions` — real resilience, full-body timeout, shared gate across scopes and separately constructed clients, retry status policy, non-tool consumer transport while tool filtering is off, default model without request mutation.
 - **L0** `Application.UnitTest/Routing/DecisionsSharedLayerTests` — precedence matrix (section/shared/default × structured/conventional for every section field), blank and invalid values, cross-section isolation, no `DECISIONS_ENABLED`, `DECISIONS_TOOLS_*`-only regression table (values as on `0784ee3`, including the shared transport profile), shared-layer drift guard, and effective-state validation of the message transport.
 - **L0** `Application.UnitTest/Common/Clients/Decisions` and `Routing/Decisions/DecisionServiceOptionsSetupTests` — any-consumer validation, operator-name messages, mapping and conventional precedence; `DecisionsToolsOptionsTests` drift guard over every setting.
-- **L2** `Host.IntegrationTest/DecisionServiceIntegrationTests` — real client/gate/pipeline end to end, enabled-invalid startup failure, disabled-invalid inert.
+- **L2** `Host.IntegrationTest/DecisionServiceIntegrationTests` — real client/gate/pipeline end to end, enabled-invalid startup failure, disabled-invalid inert, shared `DECISIONS_*`/`Imposter:Decisions` values reaching the real client with a tool-section value winning, and invalid shared values failing startup.
 - **L2** `Host.IntegrationTest/DecisionToolsIntegrationTests` — prefixed/legacy paths, passthrough, downgrade,
   who-probe bypass, disabled bytes, decision-stage caller abort, Claude Code reminder-shaped state with
   verbatim forwarded messages, and sticky retention while session-less chats on a caching route share nothing.

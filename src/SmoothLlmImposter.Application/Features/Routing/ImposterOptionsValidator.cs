@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Domain.Credentials;
 using SmoothLlmImposter.Domain.GithubCopilot;
 using SmoothLlmImposter.Domain.Routing;
+using SmoothLlmImposter.Application.Common.Clients.Decisions;
 using SmoothLlmImposter.Application.Common.Clients.Optimizer;
 
 namespace SmoothLlmImposter.Application.Features.Routing;
@@ -207,32 +208,14 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
 
         const string prefix = "Imposter:DecisionsMessages";
 
-        if (string.IsNullOrWhiteSpace(options.BaseUrl) ||
-            !Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out Uri? baseUrl) ||
-            (baseUrl.Scheme != Uri.UriSchemeHttp && baseUrl.Scheme != Uri.UriSchemeHttps))
+        failures.AddRange(DecisionServiceOptionsValidator.TransportFailures(prefix, new DecisionServiceOptions
         {
-            failures.Add($"{prefix}:BaseUrl must be an absolute HTTP(S) URL.");
-        }
-
-        if (string.IsNullOrEmpty(options.Path) || !options.Path.StartsWith('/'))
-        {
-            failures.Add($"{prefix}:Path must start with '/'.");
-        }
-
-        if (string.IsNullOrWhiteSpace(options.Model))
-        {
-            failures.Add($"{prefix}:Model must be non-empty.");
-        }
-
-        if (options.MaxAttempts is < 1 or > 10)
-        {
-            failures.Add($"{prefix}:MaxAttempts must be between 1 and 10.");
-        }
-
-        if (options.TimeoutSeconds is < MinTimeoutSeconds or > MaxTimeoutSeconds)
-        {
-            failures.Add($"{prefix}:TimeoutSeconds must be between {MinTimeoutSeconds} and {MaxTimeoutSeconds} seconds.");
-        }
+            BaseUrl = options.BaseUrl,
+            Path = options.Path,
+            Model = options.Model,
+            MaxAttempts = options.MaxAttempts,
+            TimeoutSeconds = options.TimeoutSeconds,
+        }));
 
         if (!double.IsFinite(options.MinProbability) || options.MinProbability is < 0 or > 1)
         {

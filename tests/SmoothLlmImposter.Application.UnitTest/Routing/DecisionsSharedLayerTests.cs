@@ -181,15 +181,10 @@ public class DecisionsSharedLayerTests
     }
 
     [Theory]
-    [MemberData(nameof(SectionFields))]
-    public void Invalid_section_variable_warns_and_falls_through_to_shared(string section, string property)
+    [MemberData(nameof(ParsedSectionFields))]
+    public void Unparseable_section_variable_falls_through_to_shared(string section, string property)
     {
         Type type = PropertyType(section, property);
-        if (type == typeof(string))
-        {
-            return;
-        }
-
         object? defaultValue = DefaultOf(section, property);
         string shared = type == typeof(bool) ? "true" : DistinctValue(type, Layer.SharedConventional, defaultValue);
 
@@ -480,6 +475,17 @@ public class DecisionsSharedLayerTests
     }
 
     public static TheoryData<string> BothSectionFields() => new(BothSections);
+
+    public static TheoryData<string, string> ParsedSectionFields()
+    {
+        var data = new TheoryData<string, string>();
+        foreach ((string section, string property) in SectionFieldPairs().Where(static pair => PropertyType(pair.Section, pair.Property) != typeof(string)))
+        {
+            data.Add(section, property);
+        }
+
+        return data;
+    }
 
     private static IEnumerable<(string Section, string Property)> SectionFieldPairs() =>
         BothSections.SelectMany(static property => new[] { (Tools, property), (Messages, property) })
