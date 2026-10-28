@@ -148,7 +148,7 @@ internal sealed class DecisionToolsFilter(
                     if (admission == DecisionCircuitBreaker.Admission.Trial)
                     {
                         logger.LogInformation("Decisions filter {Shape} via model {Model} at {Endpoint}, session {Session}: circuit trial call",
-                            shape, LogSafe(settings.Model), Endpoint(settings), session);
+                            shape, LogLabel.Safe(settings.Model), Endpoint(settings), session);
                     }
 
                     foreach (DecisionTool[] chunk in pending.Chunk(ChunkSize))
@@ -164,7 +164,7 @@ internal sealed class DecisionToolsFilter(
                         }
                         catch (Exception failure)
                         {
-                            circuitBreaker.RecordFailure(failure, admission == DecisionCircuitBreaker.Admission.Trial, LogSafe(settings.Model), Endpoint(settings));
+                            circuitBreaker.RecordFailure(failure, admission == DecisionCircuitBreaker.Admission.Trial, LogLabel.Safe(settings.Model), Endpoint(settings));
                             LogFailOpen(shape, session, failure);
                             failedOpen = true;
                             break;
@@ -174,7 +174,7 @@ internal sealed class DecisionToolsFilter(
                     if (!failedOpen)
                     {
                         circuitBreaker.RecordSuccess(
-                            admission == DecisionCircuitBreaker.Admission.Trial, LogSafe(settings.Model), Endpoint(settings));
+                            admission == DecisionCircuitBreaker.Admission.Trial, LogLabel.Safe(settings.Model), Endpoint(settings));
                         succeeded = true;
                     }
                 }
@@ -197,7 +197,7 @@ internal sealed class DecisionToolsFilter(
             if (removed.Count > 0 && removed.Count == tools.Count)
             {
                 logger.LogInformation("Decisions filter {Shape} via model {Model} at {Endpoint}, session {Session}: every tool scored below the threshold, kept all {Total}",
-                    shape, LogSafe(settings.Model), Endpoint(settings), session, tools.Count);
+                    shape, LogLabel.Safe(settings.Model), Endpoint(settings), session, tools.Count);
                 return body;
             }
 
@@ -220,14 +220,14 @@ internal sealed class DecisionToolsFilter(
                 if (!failedOpen)
                 {
                     logger.LogInformation("Decisions filter {Shape} via model {Model} at {Endpoint}, session {Session}: forwarded unfiltered, no tool scored below the threshold",
-                        shape, LogSafe(settings.Model), Endpoint(settings), session);
+                        shape, LogLabel.Safe(settings.Model), Endpoint(settings), session);
                 }
 
                 return body;
             }
 
             string[] removedLabels = candidates.Where(tool => removed.Contains(tool.Index))
-                .Select(tool => LogSafe(tool.Label)).ToArray();
+                .Select(tool => LogLabel.Safe(tool.Label)).ToArray();
             DecisionTool.PruneChoice(root, tools, removed, shape);
             foreach (int index in removed.OrderDescending())
             {
@@ -235,7 +235,7 @@ internal sealed class DecisionToolsFilter(
             }
 
             logger.LogInformation("Decisions filter {Shape} via model {Model} at {Endpoint}, session {Session}: kept {Kept}/{Total} tools in {ElapsedMs} ms, removed {Removed}",
-                shape, LogSafe(settings.Model), Endpoint(settings), session, tools.Count, tools.Count + removed.Count,
+                shape, LogLabel.Safe(settings.Model), Endpoint(settings), session, tools.Count, tools.Count + removed.Count,
                 Stopwatch.GetElapsedTime(started).TotalMilliseconds, string.Join(",", removedLabels));
             return DecisionJson.ReplaceTopLevel(body, root, "tools", "tool_choice");
         }
@@ -247,7 +247,7 @@ internal sealed class DecisionToolsFilter(
         {
             DecisionsToolsOptions outerSettings = options.Value.DecisionsTools;
             logger.LogWarning("Decisions filter {Shape} via model {Model} at {Endpoint} failed open: {Reason}",
-                shape, LogSafe(outerSettings.Model), Endpoint(outerSettings), failure.GetType().Name);
+                shape, LogLabel.Safe(outerSettings.Model), Endpoint(outerSettings), failure.GetType().Name);
             return body;
         }
     }
@@ -378,14 +378,11 @@ internal sealed class DecisionToolsFilter(
                 continue;
             }
 
-            logger.LogDebug("Decisions tool {Name}: P(use)={Probability}", LogSafe(tool.Label), probability);
+            logger.LogDebug("Decisions tool {Name}: P(use)={Probability}", LogLabel.Safe(tool.Label), probability);
             probabilities[tool.Key] = probability;
             _cache.Add(CacheKey(state, tool), probability);
         }
     }
-
-    private static string LogSafe(string label) =>
-        new(label.Select(character => char.IsControl(character) ? '?' : character).ToArray());
 
     private void LogSkipped(DecisionBodyShape shape, string reason) =>
         logger.LogInformation("Decisions filter {Shape}: forwarded unfiltered, {Reason}", shape, reason);
@@ -394,12 +391,12 @@ internal sealed class DecisionToolsFilter(
     {
         DecisionsToolsOptions settings = options.Value.DecisionsTools;
         logger.LogWarning("Decisions filter {Shape} via model {Model} at {Endpoint}, session {Session} failed open: {Reason} (status {StatusCode})",
-            shape, LogSafe(settings.Model), Endpoint(settings), session, failure.GetType().Name,
+            shape, LogLabel.Safe(settings.Model), Endpoint(settings), session, failure.GetType().Name,
             (int?)(failure as HttpRequestException)?.StatusCode);
     }
 
     private static string Endpoint(DecisionsToolsOptions settings) =>
         Uri.TryCreate(settings.BaseUrl.TrimEnd('/') + settings.Path, UriKind.Absolute, out Uri? endpoint)
-            ? LogSafe(endpoint.GetComponents(UriComponents.SchemeAndServer | UriComponents.Path, UriFormat.UriEscaped))
+            ? LogLabel.Safe(endpoint.GetComponents(UriComponents.SchemeAndServer | UriComponents.Path, UriFormat.UriEscaped))
             : "unparsed";
 }

@@ -33,8 +33,8 @@ internal sealed class MessageGateTransportWarning(
             logger.LogWarning(
                 "The message gate calls {Endpoint} with model {Model}, not the tool section's {ToolsEndpoint} with model {ToolsModel}: " +
                 "DECISIONS_TOOLS_* settings apply to the tool filter only. Set DECISIONS_* (both sections) or DECISIONS_MESSAGES_* to choose the message gate's classifier.",
-                SectionCircuitBreaker.Endpoint(messages.BaseUrl, messages.Path), LogSafe(messages.Model),
-                SectionCircuitBreaker.Endpoint(tools.BaseUrl, tools.Path), LogSafe(tools.Model));
+                SectionCircuitBreaker.Endpoint(messages.BaseUrl, messages.Path), LogLabel.Safe(messages.Model),
+                SectionCircuitBreaker.Endpoint(tools.BaseUrl, tools.Path), LogLabel.Safe(tools.Model));
         }
 
         return Task.CompletedTask;
@@ -55,7 +55,4 @@ internal sealed class MessageGateTransportWarning(
         EndpointAndModelFields.Any(field =>
             !string.IsNullOrWhiteSpace(configuration[variables[field]]) ||
             !string.IsNullOrWhiteSpace(configuration[$"{section}:{field}"]));
-
-    private static string LogSafe(string label) =>
-        new(label.Select(static character => char.IsControl(character) ? '?' : character).ToArray());
 }
