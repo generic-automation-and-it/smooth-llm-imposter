@@ -19,4 +19,10 @@ public interface IMessageChecksumCache
         string originalText,
         string optimizerVersion,
         string forwardedText);
+
+    /// <summary>
+    /// Returns the checksum key used to identify an original message in the cache (SHA-256 over the
+    /// original text plus the optimizer version). Exposed for logging/diagnostics only.
+    /// </summary>
+    string Checksum(string originalText, string optimizerVersion);
 }

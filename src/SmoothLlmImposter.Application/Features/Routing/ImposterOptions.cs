@@ -71,6 +71,15 @@ public sealed class DecisionsMessagesOptions
     /// Cooldown for the message-gate circuit (HLD 017 LADR-07), in seconds.
     /// </summary>
     public int CircuitBreakSeconds { get; set; } = DecisionsToolsOptions.DefaultCircuitBreakSeconds;
+
+    /// <summary>
+    /// Maximum size (in chars) of the combined human text sent to the message classifier gate.
+    /// Messages whose combined human text exceeds this are not classified (the gate is bypassed
+    /// and optimization proceeds directly), because the classifier model cannot handle the payload
+    /// and would only return HTTP 413. The optimizer still receives the full, untruncated text.
+    /// Default 6000.
+    /// </summary>
+    public int MaxStateChars { get; set; } = 6000;
 }
 
 public sealed class ToolOrderingOptions

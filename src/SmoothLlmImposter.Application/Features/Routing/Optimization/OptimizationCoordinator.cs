@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using SmoothLlmImposter.Application.Features.Routing;
@@ -16,6 +17,8 @@ internal sealed class OptimizationCoordinator(
             logger.LogDebug("No optimization strategy enabled — forwarding without intercept");
             return request.Body;
         }
+
+        Stopwatch stopwatch = Stopwatch.StartNew();
 
         Task<OptimizationEdit>[] tasks = enabled
             .Select(strategy => RunOneAsync(strategy, request, cancellationToken))
@@ -36,9 +39,10 @@ internal sealed class OptimizationCoordinator(
         // Rough token estimate (chars / 4) for operator visibility; not a tokenizer result.
         int savedChars = request.Body.Length - optimized.Length;
         int savedTokens = savedChars > 0 ? savedChars / 4 : 0;
+        stopwatch.Stop();
         logger.LogInformation(
-            "LLM optimization complete: {OriginalChars} -> {OptimizedChars} chars (~{SavedTokens} tokens saved)",
-            request.Body.Length, optimized.Length, savedTokens);
+            "LLM optimization complete in {ElapsedMs} ms: {OriginalChars} -> {OptimizedChars} chars (~{SavedTokens} tokens saved)",
+            stopwatch.ElapsedMilliseconds, request.Body.Length, optimized.Length, savedTokens);
 
         return optimized;
     }
