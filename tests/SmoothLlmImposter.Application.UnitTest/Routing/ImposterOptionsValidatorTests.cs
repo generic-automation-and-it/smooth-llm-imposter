@@ -561,6 +561,7 @@ public class ImposterOptionsValidatorTests
 
     [Theory]
     [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
     [InlineData(false, true, false)]
     [InlineData(false, true, true)]
     [InlineData(true, false, false)]

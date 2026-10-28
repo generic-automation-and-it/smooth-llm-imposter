@@ -121,6 +121,7 @@ public sealed class NamedProviderConfigIntegrationTests
 
             var exception = Should.Throw<OptionsValidationException>(() => factory.CreateClient());
             exception.Failures.ShouldContain(f => f.Contains("DECISIONS_TOOLS_STICKY_PER_SESSION"));
+            exception.Failures.ShouldContain(f => f.Contains("Imposter__ToolOrdering__Enabled"));
         }
         finally
         {
