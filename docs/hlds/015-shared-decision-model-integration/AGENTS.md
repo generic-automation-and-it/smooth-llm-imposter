@@ -14,3 +14,4 @@ Read [README.md](README.md) first — the shared-integration design, LADRs and N
 | 2026-10-25 | Draft LADR-05 per-section profiles, circuits, gates; LADR-03 retained as single-consumer case | #164 |
 | 2026-10-25 | HLD 017 Accepted: LADR-05 Accepted | #164 |
 | 2026-10-28 | LADR-05 item 1 settings half: each section resolves its profile fields section → shared `DECISIONS_*` → default; the client still uses one profile until WT-23 | #225 |
+| 2026-10-28 | LADR-05 items 1 and 3 implemented: section-named calls, named profile per section, gate per endpoint+model; LADR-03 and NFR-01 read per gate key | #228 |

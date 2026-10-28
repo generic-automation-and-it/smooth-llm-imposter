@@ -45,21 +45,29 @@ Implements the contracts defined in Application — EF Core + PostgreSQL persist
 
 - The `decision-service` client is auxiliary classification, not `imposter-upstream`: its full response body
   must remain inside the attempt timeout. Reusing inference header-only resilience would leave body stalls unbounded.
-- The process-wide gate is `DecisionServiceGate`, its own singleton that every client instance receives — never a
-  field on the client, or a second client registration would create a second budget ([HLD 015 LADR-03](../../docs/hlds/015-shared-decision-model-integration/ladrs/LADR-03-shared-uncached-resource-budget.md)).
+- Admission is `DecisionServiceGate`, its own singleton that every client instance receives — never a field on the
+  client, or a second client registration would create a second budget ([HLD 015 LADR-03](../../docs/hlds/015-shared-decision-model-integration/ladrs/LADR-03-shared-uncached-resource-budget.md)).
+  It holds one semaphore per resolved `(endpoint, model)` ([LADR-05](../../docs/hlds/015-shared-decision-model-integration/ladrs/LADR-05-per-section-profiles-circuits-gates.md)):
+  sections on the same pair take turns, different pairs run in parallel. Keys come only from registered sections'
+  profiles, so the set stays bounded; the endpoint key is `BaseUrl` without trailing `/` plus `Path`.
   The uncached exception and retry-status contract live in [HLD 014 LADR-04](../../docs/hlds/014-decisions-tools-filter/ladrs/LADR-04-singleton-gate.md).
   Do not turn the gate into per-scope state or introduce a cache during a transport refactor.
 - The gate throws `DecisionGateTimeoutException` (Application contract), and the client translates the resilience
   library's timeout rejection into `DecisionServiceTimeoutException`; callers classify by these types, never by
   exception text.
-- The client reads `DecisionServiceOptions`, never the routing options. The resilience profile follows
-  `DecisionServiceDemand` (any consumer opted in), not a consumer's enable flag; with no consumer it uses defaults
-  so unvalidated settings never reach Polly.
+- The client resolves the called section's profile through `DecisionServiceProfiles`, never the routing options.
+  One named `decision-service` client serves every section, so the section's `MaxAttempts` and `TimeoutSeconds`
+  travel on the request (`DecisionModelClient.MaxAttemptsKey`/`TimeoutSecondsKey`) and the resilience pipeline
+  reads them back (`GetDecisionMaxAttempts`/`GetDecisionTimeoutSeconds`), the same pattern as HLD 012. The retry
+  strategy is built for the 10-attempt maximum and stops at the stamped count; an unstamped or out-of-range value
+  falls back to the defaults, so an unvalidated setting never reaches Polly. A section that is off resolves to
+  defaults.
 
 ## Changelog
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-28 | Gate per endpoint+model; per-section attempts/timeout stamped on the request instead of one profile baked into the pipeline (HLD 015 LADR-05, WT-23) | #228 |
 | 2026-10-25 | Decision exceptions: gate timeout and attempt timeout have Application contract types (LADR-11) | — |
 | 2026-10-24 | Decision transport made consumer-neutral (HLD 015): `DecisionServiceGate` singleton, client reads `DecisionServiceOptions`, profile follows the any-consumer predicate; named client `decisions-tools` → `decision-service` | #156 |
 | 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery); in-file links updated. No behavior change. | #152 |

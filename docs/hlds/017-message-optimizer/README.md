@@ -93,6 +93,8 @@ No tool-output compression/masking (tracked with tool-decision work); no history
 
 HLD 015 supplies one transport, resilience profile and process-wide gate. This design needs a resolved profile per section, a circuit per section (HLD 014 LADR-11 pattern) and one admission gate per distinct endpoint+model, amending HLD 015 LADR-03's single process-wide gate — see HLD 015 [LADR-05](../015-shared-decision-model-integration/ladrs/LADR-05-per-section-profiles-circuits-gates.md) (Accepted). HLD 014 LADR-05 and LADR-07 must also be amended: the tool filter returns an edit instead of a whole body (LADR-08), and the shared session-scoped memory (HLD 014 LADR-09) gains a per-instance lifetime and an uncapped mode.
 
+The per-section profiles and per endpoint+model gates are implemented (#228): the message gate calls its own `DECISIONS_MESSAGES_*` → `DECISIONS_*` → default profile, never the tool section's.
+
 The HLD 015 amendment is Accepted as LADR-05; the HLD 014 edit-return amendment is Accepted as [LADR-12](../014-decisions-tools-filter/ladrs/LADR-12-tool-filter-returns-edit.md).
 
 ## Open items

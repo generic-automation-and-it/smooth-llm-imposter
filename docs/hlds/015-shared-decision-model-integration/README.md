@@ -68,6 +68,8 @@ Public decision APIs, ai-review integration, cross-repository packages, new prod
 
 The goals and ownership thesis were approved on 2026-10-22 and the extraction was implemented on 2026-10-24. Application owns a consumer-neutral transport profile (destination, path, default model, maximum attempts, timeout) and a consumer opt-in contract; the integration is required — and its settings validated, its resilience profile built from them — while any registered consumer is opted in. Tool filtering is the only production consumer and opts in through its existing enable flag. Infrastructure owns the HTTP client and a process-wide admission gate registered as its own singleton component. HLD 014's accepted records remain authoritative for tool-selection policy. This HLD neither supersedes them nor authorizes additional prompt inspection.
 
+Since 2026-10-28 ([LADR-05](ladrs/LADR-05-per-section-profiles-circuits-gates.md)) every call names its decision section and runs under that section's resolved profile, and admission is one gate per distinct endpoint plus model: the process-wide gate of LADR-03 is the case where every section resolves to the same pair. A section that is off resolves to defaults and is not validated.
+
 Existing operator names remain compatible; the legacy tool prefix does not imply that the tool filter controls all consumers. No additional configuration surface is required for the first-consumer extraction ([LADR-02](ladrs/LADR-02-compatible-service-configuration.md)).
 
 ## Diagrams
@@ -104,3 +106,4 @@ NativeAOT remains the repository deployment baseline. The extraction's macOS ARM
 | 2026-10-24 | Settings count retired for a count-free compatibility condition; transport deviations recorded in LADR-02; gate ownership stated in LADR-03; runtime unchanged | #156 |
 | 2026-10-24 | Extraction implemented; HLD, LADR-01..04 and NFR-01..03 Accepted. Consumer-neutral transport profile mapped from the unchanged operator surface; any-consumer opt-in predicate drives validation and the resilience profile; dedicated singleton gate; default model supplied when a consumer omits one. macOS ARM64 NativeAOT verified; Linux AMD64/ARM64 native runners remain open | #156 |
 | 2026-10-25 | HLD 017 Accepted by owner decision: LADR-05 Accepted; single process-wide gate retained as single-consumer case | #164 |
+| 2026-10-28 | LADR-05 items 1 and 3 implemented: section-named calls, named profile per section, per-section validation, gate per endpoint+model; per-section attempts/timeout stamped on the request. macOS ARM64 NativeAOT smoke: different endpoints overlap, a shared endpoint+model serializes | #228 |

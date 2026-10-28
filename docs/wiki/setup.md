@@ -294,11 +294,16 @@ The message gate's section (`Imposter:DecisionsMessages`):
 | `DECISIONS_MESSAGES_CIRCUIT_BREAK_SECONDS` | `CircuitBreakSeconds` | `180` | 1–3600 seconds |
 
 The gate is on only while `LLM_MESSAGES_ENABLED=true` and `DECISIONS_MESSAGES_ENABLED` is unset or `true`.
-**Current limit:** the gate still calls the tool section's endpoint, path, model, attempts and timeout. The message
-section's `BASE_URL`, `PATH`, `MODEL`, `MAX_ATTEMPTS` and `TIMEOUT` are resolved and validated now, and take effect
-when per-section decision profiles ship. Because they never copy `DECISIONS_TOOLS_*`, a deployment that points the
-tool section at a non-default classifier should also set the shared `DECISIONS_*` value (or the
-`DECISIONS_MESSAGES_*` one) so the gate keeps that classifier when that happens.
+The gate calls its own section's endpoint, path, model, attempts and timeout; the tool filter calls the tool
+section's. Each decision call waits for the admission gate of its resolved endpoint and model: when both sections
+resolve to the same pair they take turns (one call at a time), and on different endpoints or models they run in
+parallel.
+
+**Upgrade note:** the message section never copies `DECISIONS_TOOLS_*`. Before per-section profiles the gate used
+the tool section's transport, so a deployment that points only `DECISIONS_TOOLS_*` at a non-default classifier now
+sends the gate to the built-in default (`http://host.docker.internal:1234/v1/systemone`, model `openjev`). Startup
+logs one Warning naming both endpoints when that happens. Set the shared `DECISIONS_*` value (both sections) or the
+`DECISIONS_MESSAGES_*` one to keep the gate on your classifier.
 
 ### Local debugging — .NET user secrets
 

@@ -23,3 +23,4 @@ Read [README.md](README.md) first — intent, goals, decisions and quality requi
 | 2026-10-27 | NFR-04 wording amended to exclude the opt-in Debug request dump; span hash on the Debug outcome line tracked as follow-up WT-20 | #216 |
 | 2026-10-28 | LADR-04: optimizer gets the message as delimited data; validator rejects a rewrite keeping < 60% of content words; instruction revision 2 (WT-21) | #223 |
 | 2026-10-28 | LADR-06 settings implemented: shared `DECISIONS_*` layer, `DECISIONS_MESSAGES_*` transport settings, effective-state validation; the gate uses them from WT-23 | #225 |
+| 2026-10-28 | Dependencies: message gate calls its own decision profile; gate per endpoint+model (HLD 015 LADR-05) | #228 |

@@ -376,7 +376,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   that section alone; there is no `DECISIONS_ENABLED`, and a section value never fills the other section (HLD 015
   LADR-05). A new shared property needs a `DecisionsVariables` entry and a `Layer*` call in every section that
   has it; `DecisionsSharedLayerTests` fails otherwise. The message section's transport fields are validated only
-  while the gate is effectively on (same rules as the shared profile via `DecisionServiceOptionsValidator.TransportFailures`), but the gate still calls the tool-section transport until WT-23.
+  while the gate is effectively on (same rules as the shared profile via `DecisionServiceOptionsValidator.TransportFailures`). Each section maps onto its own named `DecisionServiceOptions` profile (`DecisionServiceOptionsSetup`, named by the consumer's `Section`), and every decision call names its section (HLD 015 LADR-05).
   The filter owns a consumer-local circuit breaker (LADR-11): one failed call opens it for
   `CircuitBreakSeconds`, passes then skip with reason `circuit-open` and never call the client (so they never
   reach the gate), and after the cooldown one trial admission decides close-or-reopen. Only service faults count
@@ -481,6 +481,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-28 | Per-section decision profiles: tool filter and message gate call their own named profile; gate per endpoint+model in Infrastructure (HLD 015 LADR-05, WT-23) | #228 |
 | 2026-10-28 | Shared `DECISIONS_*` layer and `DECISIONS_MESSAGES_*` transport settings: section → shared → default for structured and conventional configuration, tool-only shared settings, effective-state validation, drift guard (HLD 017 LADR-06, WT-22) | #225 |
 | 2026-10-27 | `ProviderOptions.OptimizeMessages` per-route message-optimizer opt-out (HLD 017 Open item 6); follows the HLD 011 plumbing rule end to end | #207 |
 | 2026-10-26 | Decision filter always keeps `ToolSearch` and `Agent` on top of the configured `AlwaysKeep` (HLD 014 LADR-08); a probe showed a 12-tool Claude Code catalog losing both | — |
