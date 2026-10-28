@@ -35,6 +35,25 @@ public static class MessageRewriteValidator
     private static readonly Regex HarnessTag = new(
         "</?(?:" + string.Join("|", HarnessSpans.HarnessTags.Concat(HarnessSpans.CommandTags).Select(Regex.Escape)) + ")>",
         RegexOptions.Compiled);
+    private static readonly Regex ContentWord = new(@"[\p{L}\p{N}]+", RegexOptions.Compiled);
+
+    internal const double MinContentRetention = 0.6;
+
+    private static readonly HashSet<string> StopWords = new(StringComparer.Ordinal)
+    {
+        "a", "an", "the", "and", "or", "but", "if", "then", "else", "so", "than", "that", "this", "these", "those",
+        "there", "here", "it", "its", "i", "me", "my", "mine", "we", "us", "our", "you", "your", "yours", "he", "she",
+        "him", "her", "his", "they", "them", "their", "what", "which", "who", "whom", "whose", "when", "where", "why",
+        "how", "is", "am", "are", "was", "were", "be", "been", "being", "do", "does", "did", "doing", "have", "has",
+        "had", "having", "will", "would", "shall", "should", "can", "could", "may", "might", "must", "of", "in", "on",
+        "at", "to", "for", "from", "by", "with", "about", "as", "into", "onto", "over", "under", "up", "down", "out",
+        "off", "again", "also", "too", "very", "just", "only", "both", "each", "every", "all", "any", "some", "such",
+        "own", "same", "other", "more", "most", "few", "s", "t", "d", "ll", "re", "ve", "m", "o", "y",
+        "please", "kindly", "thanks", "thank", "hey", "hi", "hello", "really", "maybe", "perhaps", "probably",
+        "actually", "basically", "honestly", "think", "guess", "lot", "much", "appreciate", "appreciated", "great",
+        "okay", "ok", "sure", "quick", "quickly", "possible", "chance", "let", "know",
+    };
+
     private static readonly Regex Heading = new(@"(?m)^(#{1,6})\s", RegexOptions.Compiled);
     private static readonly Regex ListItem = new(@"(?m)^([ \t]*)(?:[-*+]|\d+\.)\s", RegexOptions.Compiled);
 
@@ -82,6 +101,7 @@ public static class MessageRewriteValidator
         }
         RequireNegationCounts(original, rewrite, failed);
         RequireMarkdownTargets(original, rewrite, failed);
+        RequireContentRetention(original, rewrite, failed);
 
         if (protectedNames is not null)
         {
@@ -107,6 +127,14 @@ public static class MessageRewriteValidator
             if (!original.Contains(tag.Value, StringComparison.Ordinal))
             {
                 failed.Add($"added-harness:{tag.Value}");
+            }
+        }
+
+        foreach (string delimiter in new[] { MessageOptimizationStrategy.MessageOpenTag, MessageOptimizationStrategy.MessageCloseTag })
+        {
+            if (rewrite.Contains(delimiter, StringComparison.Ordinal) && !original.Contains(delimiter, StringComparison.Ordinal))
+            {
+                failed.Add($"added-delimiter:{delimiter}");
             }
         }
 
@@ -206,6 +234,39 @@ public static class MessageRewriteValidator
             }
         }
     }
+
+    private static void RequireContentRetention(string original, string rewrite, List<string> failed)
+    {
+        HashSet<string> before = ContentWords(original);
+        if (before.Count == 0)
+        {
+            return;
+        }
+
+        HashSet<string> after = ContentWords(rewrite);
+        int kept = before.Count(after.Contains);
+        if ((double)kept / before.Count < MinContentRetention)
+        {
+            failed.Add($"content:kept {kept} of {before.Count} content words");
+        }
+    }
+
+    private static HashSet<string> ContentWords(string text)
+    {
+        var words = new HashSet<string>(StringComparer.Ordinal);
+        foreach (Match match in ContentWord.Matches(text))
+        {
+            string word = match.Value.ToLowerInvariant();
+            if (!StopWords.Contains(word))
+            {
+                words.Add(Singular(word));
+            }
+        }
+        return words;
+    }
+
+    private static string Singular(string word) =>
+        word.Length > 3 && word[^1] == 's' && word[^2] != 's' ? word[..^1] : word;
 
     private static void RequireMarkdownTargets(string original, string rewrite, List<string> failed)
     {

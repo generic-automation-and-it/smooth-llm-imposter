@@ -35,7 +35,8 @@ public sealed class MessageOptimizerIntegrationTests
         optimizer.Uris.Single().ShouldBe(new Uri("https://opt.test/v1/chat/completions"));
         JsonObject optimizerRequest = optimizer.Requests.Single();
         optimizerRequest["model"]!.GetValue<string>().ShouldBe("opt-model");
-        optimizerRequest["messages"]![1]!["content"]!.GetValue<string>().ShouldBe("Please kindly review `foo()`.");
+        optimizerRequest["messages"]![1]!["content"]!.GetValue<string>()
+            .ShouldBe("<message_to_rewrite>\nPlease kindly review `foo()`.\n</message_to_rewrite>");
 
         JsonObject forwarded = JsonNode.Parse(app.Upstream.LastRequestBody!)!.AsObject();
         forwarded["messages"]![0]!["content"]!.GetValue<string>().ShouldBe("Review `foo()`.");
