@@ -289,7 +289,7 @@ public sealed class ProviderConfigAdminIntegrationTests
     public async Task Admin_round_trip_preserves_the_message_optimizer_opt_out()
     {
         // HLD 017 option plumbing: an omission from the admin DTOs or the registry clone would clear the
-        // opt-out on upsert, silently turning message optimization back on for a request-billed route.
+        // opt-out on upsert, silently turning message optimization back on for an opted-out route.
         using var fixture = new ProviderConfigAppFixture(new Dictionary<string, string?>
         {
             ["Imposter:Providers:billed:Dialect"] = "anthropic",
