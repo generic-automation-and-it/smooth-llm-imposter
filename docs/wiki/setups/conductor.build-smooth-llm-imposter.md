@@ -375,12 +375,13 @@ provider mappings, secrets and optional decision settings while creating the con
 ### Optional decision-tool filter
 
 Set `DECISIONS_TOOLS_ENABLED=true` in the **workspace environment**, not the snapshot environment, to opt in.
-The script forwards all ten settings from the [decision settings table](../setup.md#optional-decision-model-tool-pre-filter):
+The script forwards all eleven settings from the [decision settings table](../setup.md#optional-decision-model-tool-pre-filter):
 `DECISIONS_TOOLS_ENABLED`, `DECISIONS_TOOLS_BASE_URL`, `DECISIONS_TOOLS_PATH`, `DECISIONS_TOOLS_MODEL`,
 `DECISIONS_TOOLS_MIN_PROBABILITY`, `DECISIONS_TOOLS_MIN_KEEP`, `DECISIONS_TOOLS_ALWAYS_KEEP`, `DECISIONS_TOOLS_STICKY_PER_SESSION`,
 `DECISIONS_TOOLS_MAX_ATTEMPTS`, `DECISIONS_TOOLS_TIMEOUT` and `DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS`.
-It also forwards the shared [decision settings](../setup.md#shared-decision-settings) that default both decision
-sections — `DECISIONS_BASE_URL`, `DECISIONS_PATH`, `DECISIONS_MODEL`, `DECISIONS_MIN_PROBABILITY`,
+It also forwards the shared [decision settings](../setup.md#shared-decision-settings) — the first seven default both decision
+sections and `DECISIONS_MIN_KEEP`, `DECISIONS_ALWAYS_KEEP` and `DECISIONS_STICKY_PER_SESSION` default the tool section only —
+`DECISIONS_BASE_URL`, `DECISIONS_PATH`, `DECISIONS_MODEL`, `DECISIONS_MIN_PROBABILITY`,
 `DECISIONS_MAX_ATTEMPTS`, `DECISIONS_TIMEOUT`, `DECISIONS_CIRCUIT_BREAK_SECONDS`, `DECISIONS_MIN_KEEP`,
 `DECISIONS_ALWAYS_KEEP` and `DECISIONS_STICKY_PER_SESSION` — the message gate's `DECISIONS_MESSAGES_ENABLED`,
 `_BASE_URL`, `_PATH`, `_MODEL`, `_MIN_PROBABILITY`, `_MAX_ATTEMPTS`, `_TIMEOUT` and `_CIRCUIT_BREAK_SECONDS`, and the
