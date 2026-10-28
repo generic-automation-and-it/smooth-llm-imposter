@@ -177,29 +177,17 @@ internal sealed class MessageOptimizationStrategy(
         }
 
         budget.CountCandidates(pending.Count);
-        if (budget.IsExhausted)
-        {
-            KeepOriginals(pending, session, headers, version, rewritten);
-            budget.CountUnprocessed(pending.Count);
-            return ReassembleChanged(blockSegments, rewritten);
-        }
-
-        CancellationToken cancellationToken = budget.Start();
         string gateText = string.Join(
             "\n", human.Where(static item => !string.IsNullOrWhiteSpace(item.Text)).Select(static item => item.Text));
-        bool allowed;
-        try
-        {
-            allowed = !options.Value.DecisionsMessages.Enabled || await GateAsync(gateText, cancellationToken);
-        }
-        catch (OperationCanceledException) when (budget.IsExhausted)
+        bool? allowed = await GateWithinBudgetAsync(gateText, budget);
+        if (allowed is null)
         {
             KeepOriginals(pending, session, headers, version, rewritten);
             budget.CountUnprocessed(pending.Count);
             return ReassembleChanged(blockSegments, rewritten);
         }
 
-        if (!allowed)
+        if (allowed is false)
         {
             KeepOriginals(pending, session, headers, version, rewritten);
             logger.LogDebug("Message optimization: declined by gate ({Segments} segments)", pending.Count);
@@ -210,7 +198,7 @@ internal sealed class MessageOptimizationStrategy(
         {
             (int block, int segment, string text) = pending[index];
             string? forwarded = await OptimizeWithinBudgetAsync(
-                text, session, headers, version, protectedNames, budget, cancellationToken);
+                text, session, headers, version, protectedNames, budget);
             if (forwarded is null)
             {
                 // Budget spent (Open item 7): this and every later segment is forwarded and remembered as written.
@@ -224,14 +212,35 @@ internal sealed class MessageOptimizationStrategy(
         return ReassembleChanged(blockSegments, rewritten);
     }
 
+    private async Task<bool?> GateWithinBudgetAsync(string humanText, OptimizationBudget budget)
+    {
+        if (budget.IsExhausted)
+        {
+            return null;
+        }
+
+        if (!options.Value.DecisionsMessages.Enabled)
+        {
+            return true;
+        }
+
+        try
+        {
+            return await GateAsync(humanText, budget.Start());
+        }
+        catch (OperationCanceledException) when (budget.IsExhausted)
+        {
+            return null;
+        }
+    }
+
     private async Task<string?> OptimizeWithinBudgetAsync(
         string original,
         SessionIdentity session,
         CallerHeaders headers,
         string version,
         IReadOnlyList<string> protectedNames,
-        OptimizationBudget budget,
-        CancellationToken cancellationToken)
+        OptimizationBudget budget)
     {
         if (budget.IsExhausted)
         {
@@ -240,7 +249,7 @@ internal sealed class MessageOptimizationStrategy(
 
         try
         {
-            return await OptimizeSegmentAsync(original, session, headers, version, protectedNames, cancellationToken);
+            return await OptimizeSegmentAsync(original, session, headers, version, protectedNames, budget.Start());
         }
         catch (OperationCanceledException) when (budget.IsExhausted)
         {

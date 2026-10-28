@@ -14,6 +14,7 @@ public sealed class MessageOptimizationStrategyTests
 {
     private const string OptimizerEndpoint = "http://optimizer.test/v1/chat/completions";
     private const string OptimizerModel = "opt-model";
+    private const int BudgetSeconds = 20;
     private static readonly TimeSpan AdmissionWait = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan QueueBound = TimeSpan.FromSeconds(10);
 
@@ -1014,8 +1015,6 @@ public sealed class MessageOptimizationStrategyTests
 
         timer.IsCompleted.ShouldBeFalse();
     }
-
-    private const int BudgetSeconds = 20;
 
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
