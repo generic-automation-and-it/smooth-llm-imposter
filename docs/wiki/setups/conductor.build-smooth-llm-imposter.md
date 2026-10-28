@@ -374,13 +374,16 @@ provider mappings, secrets and optional decision settings while creating the con
 ### Optional decision-tool filter
 
 Set `DECISIONS_TOOLS_ENABLED=true` in the **workspace environment**, not the snapshot environment, to opt in.
-The script forwards all ten settings from the [decision settings table](../setup.md#optional-decision-model-tool-pre-filter):
+The script forwards all eleven settings from the [decision settings table](../setup.md#optional-decision-model-tool-pre-filter):
 `DECISIONS_TOOLS_ENABLED`, `DECISIONS_TOOLS_BASE_URL`, `DECISIONS_TOOLS_PATH`, `DECISIONS_TOOLS_MODEL`,
 `DECISIONS_TOOLS_MIN_PROBABILITY`, `DECISIONS_TOOLS_MIN_KEEP`, `DECISIONS_TOOLS_ALWAYS_KEEP`, `DECISIONS_TOOLS_STICKY_PER_SESSION`,
-`DECISIONS_TOOLS_MAX_ATTEMPTS`, `DECISIONS_TOOLS_TIMEOUT` and `DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS`.
+`DECISIONS_TOOLS_MAX_ATTEMPTS`, `DECISIONS_TOOLS_TIMEOUT` and `DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS`, plus the
+ordering flag `Imposter__ToolOrdering__Enabled`.
 Unset settings retain the application's defaults; the installer does not enable filtering automatically.
-A workspace script pasted before `DECISIONS_TOOLS_STICKY_PER_SESSION` existed does not forward it: replace the
-lifecycle script with the one below and re-run it.
+**Sticky selection requires ordering.** `DECISIONS_TOOLS_STICKY_PER_SESSION=true` refuses to boot unless
+`Imposter__ToolOrdering__Enabled=true` is set too, so supply both or neither. A workspace script pasted before
+`DECISIONS_TOOLS_STICKY_PER_SESSION` or `Imposter__ToolOrdering__Enabled` existed does not forward one or both:
+replace the lifecycle script with the one below and re-run it.
 
 For example, supply these workspace environment entries:
 
@@ -512,7 +515,7 @@ export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in the w
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
 elif sudo -n docker info >/dev/null 2>&1; then
-  DOCKER=(sudo -n --preserve-env=OPENCODE_GO_API_KEY,OPENROUTER_API_KEY,DECISIONS_TOOLS_ENABLED,DECISIONS_TOOLS_BASE_URL,DECISIONS_TOOLS_PATH,DECISIONS_TOOLS_MODEL,DECISIONS_TOOLS_MIN_PROBABILITY,DECISIONS_TOOLS_MIN_KEEP,DECISIONS_TOOLS_ALWAYS_KEEP,DECISIONS_TOOLS_STICKY_PER_SESSION,DECISIONS_TOOLS_MAX_ATTEMPTS,DECISIONS_TOOLS_TIMEOUT,DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS docker)
+  DOCKER=(sudo -n --preserve-env=OPENCODE_GO_API_KEY,OPENROUTER_API_KEY,DECISIONS_TOOLS_ENABLED,DECISIONS_TOOLS_BASE_URL,DECISIONS_TOOLS_PATH,DECISIONS_TOOLS_MODEL,DECISIONS_TOOLS_MIN_PROBABILITY,DECISIONS_TOOLS_MIN_KEEP,DECISIONS_TOOLS_ALWAYS_KEEP,DECISIONS_TOOLS_STICKY_PER_SESSION,DECISIONS_TOOLS_MAX_ATTEMPTS,DECISIONS_TOOLS_TIMEOUT,DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS,Imposter__ToolOrdering__Enabled docker)
 else
   echo "Docker is not reachable; on Linux the daemon is down, on macOS start Docker Desktop." >&2
   exit 1
@@ -663,6 +666,7 @@ fi
   -e DECISIONS_TOOLS_MAX_ATTEMPTS \
   -e DECISIONS_TOOLS_TIMEOUT \
   -e DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS \
+  -e Imposter__ToolOrdering__Enabled \
   "$IMAGE" >/dev/null
 
 # Wait for health, tolerating a daemon that goes away mid-wait. `--restart

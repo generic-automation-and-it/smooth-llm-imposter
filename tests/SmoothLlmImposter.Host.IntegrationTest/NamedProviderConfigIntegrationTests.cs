@@ -78,6 +78,77 @@ public sealed class NamedProviderConfigIntegrationTests
         }
     }
 
+    [Fact]
+    public void Host_fails_to_start_when_sticky_selection_has_no_tool_ordering()
+    {
+        // HLD 014 LADR-13: sticky selection keeps the forwarded tool set but not its order, so the
+        // combination without first-seen ordering must refuse to boot and name both settings.
+        var config = new Dictionary<string, string?>
+        {
+            ["Imposter:Providers:a:Dialect"] = "openai",
+            ["Imposter:Providers:a:BaseUrl"] = "https://a.test",
+            ["Imposter:Providers:a:IsDefault"] = "true",
+            ["Imposter:DecisionsTools:Enabled"] = "true",
+            ["Imposter:DecisionsTools:StickyPerSession"] = "true",
+        };
+
+        using var factory = new ConfigFixture(config);
+
+        var exception = Should.Throw<OptionsValidationException>(() => factory.CreateClient());
+        exception.Failures.ShouldContain(f => f.Contains("Imposter__ToolOrdering__Enabled"));
+        exception.Failures.ShouldContain(f => f.Contains("DECISIONS_TOOLS_STICKY_PER_SESSION"));
+    }
+
+    [Fact]
+    public void Host_fails_to_start_when_conventional_sticky_key_has_no_tool_ordering()
+    {
+        // The rule reads the post-configured options, so a conventional env value must trip it too.
+        const string envKey = "DECISIONS_TOOLS_STICKY_PER_SESSION";
+        string? original = Environment.GetEnvironmentVariable(envKey);
+        Environment.SetEnvironmentVariable(envKey, "true");
+
+        var config = new Dictionary<string, string?>
+        {
+            ["Imposter:Providers:a:Dialect"] = "openai",
+            ["Imposter:Providers:a:BaseUrl"] = "https://a.test",
+            ["Imposter:Providers:a:IsDefault"] = "true",
+            ["Imposter:DecisionsTools:Enabled"] = "true",
+        };
+
+        try
+        {
+            using var factory = new ConfigFixture(config, includeEnvironmentVariables: true);
+
+            var exception = Should.Throw<OptionsValidationException>(() => factory.CreateClient());
+            exception.Failures.ShouldContain(f => f.Contains("DECISIONS_TOOLS_STICKY_PER_SESSION"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(envKey, original);
+        }
+    }
+
+    [Fact]
+    public void Host_starts_when_sticky_selection_has_tool_ordering()
+    {
+        var config = new Dictionary<string, string?>
+        {
+            ["Imposter:Providers:a:Dialect"] = "openai",
+            ["Imposter:Providers:a:BaseUrl"] = "https://a.test",
+            ["Imposter:Providers:a:IsDefault"] = "true",
+            ["Imposter:DecisionsTools:Enabled"] = "true",
+            ["Imposter:DecisionsTools:StickyPerSession"] = "true",
+            ["Imposter:ToolOrdering:Enabled"] = "true",
+        };
+
+        using var factory = new ConfigFixture(config);
+
+        using HttpClient client = factory.CreateClient();
+
+        client.BaseAddress.ShouldNotBeNull();
+        factory.Upstream.RequestCount.ShouldBe(0);
+    }
+
     private sealed class ConfigFixture(
         Dictionary<string, string?> config,
         bool includeEnvironmentVariables = false) : WebApplicationFactory<HostApp::Program>

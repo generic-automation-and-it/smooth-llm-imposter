@@ -408,6 +408,12 @@ public sealed class DecisionToolsIntegrationTests
         private static Dictionary<string, string?> Config(bool? enabled, bool defaultSelection, bool sticky)
         {
             var config = new Dictionary<string, string?> { ["Imposter:DecisionsTools:StickyPerSession"] = sticky.ToString() };
+            if (sticky)
+            {
+                // Sticky selection requires ordering (HLD 014 LADR-13), or the Host refuses to start.
+                config["Imposter:ToolOrdering:Enabled"] = "true";
+            }
+
             if (enabled.HasValue)
             {
                 config["Imposter:DecisionsTools:Enabled"] = enabled.Value.ToString();

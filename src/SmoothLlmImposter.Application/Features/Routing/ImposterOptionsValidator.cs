@@ -21,7 +21,7 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
     {
         List<string> failures = [];
 
-        AddDecisionsToolsFailures(options.DecisionsTools, failures);
+        AddDecisionsToolsFailures(options.DecisionsTools, options.ToolOrdering, failures);
         AddDecisionsMessagesFailures(options.DecisionsMessages, failures);
         AddLlmMessagesFailures(options.LlmMessages, failures);
 
@@ -171,7 +171,7 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
             : ValidateOptionsResult.Success;
     }
 
-    private static void AddDecisionsToolsFailures(DecisionsToolsOptions options, List<string> failures)
+    private static void AddDecisionsToolsFailures(DecisionsToolsOptions options, ToolOrderingOptions toolOrdering, List<string> failures)
     {
         if (!options.Enabled)
         {
@@ -181,6 +181,17 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         // Destination, path, model, attempts and timeout are the shared transport profile, validated by
         // DecisionServiceOptionsValidator whenever any consumer opts in (HLD 015 LADR-02).
         const string prefix = "Imposter:DecisionsTools";
+
+        // LADR-13: sticky selection keeps the forwarded tool set but not its order, so without first-seen
+        // ordering the tool prefix still changes whenever the client reorders its catalog.
+        if (options.StickyPerSession && !toolOrdering.Enabled)
+        {
+            failures.Add(
+                $"{prefix}:StickyPerSession (DECISIONS_TOOLS_STICKY_PER_SESSION) requires Imposter:ToolOrdering:Enabled " +
+                "(Imposter__ToolOrdering__Enabled=true): sticky selection keeps the forwarded tool set but not its " +
+                "order, so the tool prefix still changes when the client reorders its catalog. Set " +
+                "Imposter__ToolOrdering__Enabled=true, or turn sticky selection off.");
+        }
 
         if (!double.IsFinite(options.MinProbability) || options.MinProbability is < 0 or > 1)
         {

@@ -210,7 +210,7 @@ or recreate the container after changing it.
 | `DECISIONS_TOOLS_MIN_PROBABILITY` | `MinProbability` | `0.50` | 0–1 inclusive |
 | `DECISIONS_TOOLS_MIN_KEEP` | `MinKeepTools` | `20` | 0–1000 (`0` disables the floor) |
 | `DECISIONS_TOOLS_ALWAYS_KEEP` | `AlwaysKeep` | `Bash,Read,Edit,Write,Skill` | — (comma-separated tool names) |
-| `DECISIONS_TOOLS_STICKY_PER_SESSION` | `StickyPerSession` | `false` | — |
+| `DECISIONS_TOOLS_STICKY_PER_SESSION` | `StickyPerSession` | `false` | Requires `Imposter__ToolOrdering__Enabled=true` |
 | `DECISIONS_TOOLS_MAX_ATTEMPTS` | `MaxAttempts` | `3` | 1–10 inclusive |
 | `DECISIONS_TOOLS_TIMEOUT` | `TimeoutSeconds` | `60` | 1–3600 seconds |
 
@@ -231,7 +231,9 @@ forwarded — the highest-scoring ones fill the floor — so a vague request can
 Catalogs of that size or smaller are not classified at all. With `DECISIONS_TOOLS_STICKY_PER_SESSION=true`, a
 tool the filter forwarded stays forwarded for the rest of that chat while the client still sends it, so the
 upstream prompt cache is not invalidated by the filter between turns; it needs an explicit per-chat session id
-(see the [caching guide](prompt-caching.md)) and trades growing tool tokens for a stable prefix. Each classified pass logs its model, endpoint, a session digest (`session none` without a captured session id)
+(see the [caching guide](prompt-caching.md)) and trades growing tool tokens for a stable prefix. Sticky selection
+also requires `Imposter__ToolOrdering__Enabled=true`: membership keeps the tool set but not its order, so the Host
+refuses to start when the filter and sticky selection are on and ordering is off. Each classified pass logs its model, endpoint, a session digest (`session none` without a captured session id)
 and the removed tool names at Information level. Service failure keeps unresolved tools and continues inference;
 the warning names the HTTP status, model and endpoint. A `400` on
 every request usually means the model is not a decision model — LM Studio must list it with `"type": "decision"`
