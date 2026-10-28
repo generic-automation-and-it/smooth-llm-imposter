@@ -772,6 +772,9 @@ public sealed class MessageOptimizationStrategyTests
             Stored.Add((originalText, forwardedText));
             _values[originalText] = forwardedText;
         }
+
+        public string Checksum(string originalText, string optimizerVersion) =>
+            SessionScope.Hash(new System.Text.Json.Nodes.JsonArray(originalText, optimizerVersion).ToJsonString());
     }
 
     private sealed class CollectingLogger : ILogger<MessageOptimizationStrategy>

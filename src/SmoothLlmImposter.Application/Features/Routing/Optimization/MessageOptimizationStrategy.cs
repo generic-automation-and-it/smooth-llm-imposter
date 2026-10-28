@@ -145,7 +145,9 @@ internal sealed class MessageOptimizationStrategy(
 
             if (cache.TryGet(session, headers, text, version, out string cached))
             {
-                logger.LogDebug("Message optimization: cache hit ({Length} chars)", cached.Length);
+                logger.LogInformation(
+                    "Message optimization: cache hit ({Length} chars, checksum {Checksum})",
+                    cached.Length, cache.Checksum(text, version));
                 rewritten[(block, segment)] = cached;
                 continue;
             }
@@ -172,7 +174,9 @@ internal sealed class MessageOptimizationStrategy(
             {
                 cache.Store(session, headers, text, version, text);
                 rewritten[(block, segment)] = text;
-                logger.LogDebug("Message optimization: declined by gate ({Length} chars)", text.Length);
+                logger.LogInformation(
+                    "Message optimization: declined by gate ({Length} chars, checksum {Checksum})",
+                    text.Length, cache.Checksum(text, version));
             }
             return ReassembleChanged(blockSegments, rewritten);
         }
@@ -297,11 +301,12 @@ internal sealed class MessageOptimizationStrategy(
             cancellationToken);
 
         cache.Store(session, headers, original, version, forwardedText);
-        logger.LogDebug(
-            "Message optimization: {Outcome} ({OriginalLength}->{ForwardedLength} chars)",
+        logger.LogInformation(
+            "Message optimization: {Outcome} ({OriginalLength}->{ForwardedLength} chars, checksum {Checksum})",
             forwardedText == original ? "original" : "rewritten",
             original.Length,
-            forwardedText.Length);
+            forwardedText.Length,
+            cache.Checksum(original, version));
         return forwardedText;
     }
 

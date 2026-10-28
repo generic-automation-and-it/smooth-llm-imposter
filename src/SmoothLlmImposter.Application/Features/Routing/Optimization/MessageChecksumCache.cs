@@ -70,6 +70,6 @@ internal sealed class MessageChecksumCache : IMessageChecksumCache
     private static string ScopeKey(SessionIdentity session, CallerHeaders headers) =>
         SessionScope.Key(ScopeKind, session.Value!, headers);
 
-    private static string Checksum(string originalText, string optimizerVersion) =>
+    public string Checksum(string originalText, string optimizerVersion) =>
         SessionScope.Hash(new JsonArray(originalText, optimizerVersion).ToJsonString());
 }
