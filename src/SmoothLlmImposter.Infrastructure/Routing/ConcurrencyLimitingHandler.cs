@@ -16,9 +16,11 @@ internal sealed class ConcurrencyLimitingHandler(SemaphoreSlim semaphore, ILogge
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
+        _logger.LogDebug("Waiting for outbound slot: {Method} {Uri}", request.Method, request.RequestUri);
         await _semaphore.WaitAsync(cancellationToken);
         try
         {
+            _logger.LogInformation("Acquired outbound slot: {Method} {Uri}", request.Method, request.RequestUri);
             HttpResponseMessage response = await base.SendAsync(request, cancellationToken);
             return new ReleasingResponse(response, _semaphore);
         }
