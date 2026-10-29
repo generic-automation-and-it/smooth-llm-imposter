@@ -90,4 +90,117 @@ public sealed class HumanSpanExtractorTests
 
         Should.Throw<ArgumentException>(() => HumanSpanExtractor.Reassemble(segments, ["only one"]));
     }
+
+    [Fact]
+    public void Pasted_signed_json_array_is_excluded_and_prose_around_it_stays_human()
+    {
+        const string signed = """[{"type":"thinking","thinking":"","signature":"CAQSlmwKEAgT"}]""";
+        string text = $"what is this? {signed} explain";
+
+        HumanSpanExtractor.Segment[] segments = HumanSpanExtractor.Split(text).ToArray();
+
+        HumanSpanExtractor.ExtractHumanText(text).ShouldBe("what is this? \n explain");
+        HumanSpanExtractor.Reassemble(segments, ["WHAT IS THIS? ", " EXPLAIN"])
+            .ShouldBe($"WHAT IS THIS? {signed} EXPLAIN");
+    }
+
+    [Fact]
+    public void Signed_object_nested_below_other_json_is_excluded_as_one_span()
+    {
+        const string signed = """{"content":[{"type":"thinking","signature":"sig"}],"id":1}""";
+
+        HumanSpanExtractor.Split($"see {signed}").ShouldContain(segment =>
+            segment.Text == signed && !segment.IsHuman);
+    }
+
+    [Fact]
+    public void Json_without_a_signature_key_stays_human()
+    {
+        const string text = """config {"name":"alpha","items":[1,2]} end""";
+
+        HumanSpanExtractor.ExtractHumanText(text).ShouldBe(text);
+    }
+
+    [Fact]
+    public void Signature_key_with_a_non_string_value_stays_human()
+    {
+        const string text = """data [{"signature": 42}] end""";
+
+        HumanSpanExtractor.ExtractHumanText(text).ShouldBe(text);
+    }
+
+    [Fact]
+    public void Truncated_signed_json_is_excluded_to_the_end_of_the_message()
+    {
+        const string text = "what are these signature things?\n[{\"signature\":\"CAQSlmwKEAgT0XMaSSwH";
+
+        HumanSpanExtractor.ExtractHumanText(text).ShouldBe("what are these signature things?\n");
+    }
+
+    [Fact]
+    public void Stray_prose_bracket_before_a_balanced_signed_blob_keeps_the_prose_after_it()
+    {
+        const string text = "Note [see below\n[{\"signature\":\"abc\"}] explain this";
+
+        HumanSpanExtractor.ExtractHumanText(text).ShouldBe("Note [see below\n\n explain this");
+    }
+
+    [Fact]
+    public void Stray_prose_bracket_before_a_truncated_signed_blob_stays_human()
+    {
+        const string text = "Note [x\n[{\"signature\":\"CAQS";
+
+        HumanSpanExtractor.ExtractHumanText(text).ShouldBe("Note [x\n");
+    }
+
+    [Fact]
+    public void Quoted_signature_key_in_prose_does_not_hide_a_later_truncated_blob()
+    {
+        const string text = "Why does \"signature\": \"abc\" fail?\n[{\"signature\":\"CAQS";
+
+        HumanSpanExtractor.ExtractHumanText(text).ShouldBe("Why does \"signature\": \"abc\" fail?\n");
+    }
+
+    [Fact]
+    public void Disjoint_signed_blobs_are_each_excluded()
+    {
+        const string text = """a [{"signature":"x"}] b [{"signature":"y"}] c""";
+
+        HumanSpanExtractor.ExtractHumanText(text).ShouldBe("a \n b \n c");
+    }
+
+    [Fact]
+    public void Unclosed_json_without_a_string_signature_stays_human()
+    {
+        const string text = """see [{"signature": 42""";
+
+        HumanSpanExtractor.ExtractHumanText(text).ShouldBe(text);
+    }
+
+    [Fact]
+    public void Signature_word_in_prose_with_an_unclosed_bracket_stays_human()
+    {
+        const string text = "a [ signature here";
+
+        HumanSpanExtractor.ExtractHumanText(text).ShouldBe(text);
+    }
+
+    [Fact]
+    public void Brackets_inside_json_strings_do_not_end_the_span_early()
+    {
+        const string signed = """[{"signature":"a]b}c","thinking":"}"}]""";
+
+        HumanSpanExtractor.Split($"x {signed} y").ShouldContain(segment =>
+            segment.Text == signed && !segment.IsHuman);
+    }
+
+    [Fact]
+    public void Stray_quote_in_prose_does_not_hide_a_signed_array_on_a_later_line()
+    {
+        const string signed = """[{"signature":"sig"}]""";
+        string text = $"it's a \"quote\n{signed}";
+
+        HumanSpanExtractor.Split(text).ShouldContain(segment =>
+            segment.Text == signed && !segment.IsHuman);
+    }
 }
