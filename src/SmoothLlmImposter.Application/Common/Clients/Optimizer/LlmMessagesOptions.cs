@@ -16,11 +16,9 @@ public sealed class LlmMessagesOptions
 
     public string Model { get; set; } = string.Empty;
 
-    public int MaxAttempts { get; set; } = 2;
+    public int MaxAttempts { get; set; } = 3;
 
     public int TimeoutSeconds { get; set; } = 60;
-
-    public int RetryDelaySeconds { get; set; } = 5;
 
     public int CircuitBreakSeconds { get; set; } = 180;
 
@@ -28,6 +26,12 @@ public sealed class LlmMessagesOptions
 
     /// <summary>Human segments shorter than this skip both models; 0 disables the minimum.</summary>
     public int MinChars { get; set; }
+
+    /// <summary>
+    /// Time the message strategy may spend on gate and optimizer calls for one request; candidates left when it
+    /// runs out are forwarded and cached as the original (HLD 017 Open item 7).
+    /// </summary>
+    public int BudgetSeconds { get; set; } = 30;
 
     public string? ApiKey { get; set; }
 }

@@ -438,22 +438,6 @@ public class ImposterOptionsValidatorTests
     }
 
     [Theory]
-    [InlineData(-1, false)]
-    [InlineData(0, true)]
-    [InlineData(60, true)]
-    [InlineData(61, false)]
-    public void Enabled_optimizer_bounds_the_retry_delay_to_zero_to_sixty_seconds(int seconds, bool valid)
-    {
-        var options = Options(Valid("a"));
-        options.LlmMessages.Enabled = true;
-        options.LlmMessages.BaseUrl = "https://opt.example";
-        options.LlmMessages.Model = "opt-model";
-        options.LlmMessages.RetryDelaySeconds = seconds;
-
-        _validator.Validate(null, options).Failed.ShouldBe(!valid);
-    }
-
-    [Theory]
     [InlineData(0)]
     [InlineData(3601)]
     public void Enabled_message_gate_rejects_circuit_break_outside_range(int seconds)
@@ -501,6 +485,46 @@ public class ImposterOptionsValidatorTests
         options.LlmMessages.BaseUrl = "https://opt.example";
         options.LlmMessages.Model = "opt-model";
         options.LlmMessages.MinChars = minChars;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(601)]
+    public void Enabled_optimizer_rejects_budget_outside_one_to_600_seconds(int seconds)
+    {
+        var options = Options(Valid("a"));
+        options.LlmMessages.Enabled = true;
+        options.LlmMessages.BaseUrl = "https://opt.example";
+        options.LlmMessages.Model = "opt-model";
+        options.LlmMessages.BudgetSeconds = seconds;
+
+        var result = _validator.Validate(null, options);
+
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("Imposter:LlmMessages:BudgetSeconds must be between 1 and 600 seconds.");
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(600)]
+    public void Enabled_optimizer_accepts_budget_at_the_boundaries(int seconds)
+    {
+        var options = Options(Valid("a"));
+        options.LlmMessages.Enabled = true;
+        options.LlmMessages.BaseUrl = "https://opt.example";
+        options.LlmMessages.Model = "opt-model";
+        options.LlmMessages.BudgetSeconds = seconds;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Disabled_optimizer_ignores_an_invalid_budget()
+    {
+        var options = Options(Valid("a"));
+        options.LlmMessages.BudgetSeconds = 0;
 
         _validator.Validate(null, options).Succeeded.ShouldBeTrue();
     }
@@ -556,5 +580,43 @@ public class ImposterOptionsValidatorTests
         options.LlmMessages.Model = " ";
 
         _validator.Validate(null, options).Failed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Sticky_selection_without_tool_ordering_fails_naming_both_settings()
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.Enabled = true;
+        options.DecisionsTools.StickyPerSession = true;
+
+        ValidateOptionsResult result = _validator.Validate(null, options);
+
+        result.Failed.ShouldBeTrue();
+        result.Failures.Count().ShouldBe(1);
+        result.FailureMessage.ShouldContain("Imposter:DecisionsTools:StickyPerSession");
+        result.FailureMessage.ShouldContain("DECISIONS_TOOLS_STICKY_PER_SESSION");
+        result.FailureMessage.ShouldContain("Imposter:ToolOrdering:Enabled");
+        result.FailureMessage.ShouldContain("Imposter__ToolOrdering__Enabled");
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, true)]
+    public void Sticky_and_ordering_combinations_without_the_invalid_one_are_valid(
+        bool enabled,
+        bool sticky,
+        bool ordering)
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.Enabled = enabled;
+        options.DecisionsTools.StickyPerSession = sticky;
+        options.ToolOrdering.Enabled = ordering;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
     }
 }

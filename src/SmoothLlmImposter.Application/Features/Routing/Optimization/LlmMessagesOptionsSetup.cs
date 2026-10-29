@@ -21,10 +21,10 @@ internal sealed class LlmMessagesOptionsSetup(IOptions<ImposterOptions> imposter
         options.Model = source.Model;
         options.MaxAttempts = source.MaxAttempts;
         options.TimeoutSeconds = source.TimeoutSeconds;
-        options.RetryDelaySeconds = source.RetryDelaySeconds;
         options.CircuitBreakSeconds = source.CircuitBreakSeconds;
         options.CacheTtlHours = source.CacheTtlHours;
         options.MinChars = source.MinChars;
+        options.BudgetSeconds = source.BudgetSeconds;
         options.ApiKey = source.ApiKey;
     }
 }

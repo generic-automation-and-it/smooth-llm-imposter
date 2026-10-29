@@ -1,7 +1,6 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Microsoft.Extensions.Options;
 using Polly.Timeout;
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
 
@@ -9,24 +8,31 @@ namespace SmoothLlmImposter.Infrastructure.Clients.Decisions;
 
 internal sealed class DecisionModelClient(
     IHttpClientFactory httpClientFactory,
-    IOptions<DecisionServiceOptions> options,
-    LocalLlmGate gate) : IDecisionModelClient
+    DecisionServiceProfiles profiles,
+    DecisionServiceGate gate) : IDecisionModelClient
 {
     internal const string HttpClientName = "decision-service";
 
-    public async Task<JsonObject> DecideAsync(JsonObject request, CancellationToken cancellationToken)
+    // The section's attempt budget travels on the request: one named client serves every section, so the
+    // resilience pipeline reads these back instead of baking one profile in (HLD 015 LADR-05).
+    internal static readonly HttpRequestOptionsKey<int> MaxAttemptsKey = new("smoothllmimposter-decision-max-attempts");
+    internal static readonly HttpRequestOptionsKey<int> TimeoutSecondsKey = new("smoothllmimposter-decision-timeout-seconds");
+
+    public async Task<JsonObject> DecideAsync(string section, JsonObject request, CancellationToken cancellationToken)
     {
-        DecisionServiceOptions settings = options.Value;
-        using LocalLlmGate.Admission admission = await gate.EnterAsync(cancellationToken);
+        DecisionServiceOptions settings = profiles.Resolve(section);
+        int gateSeconds = settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : DecisionServiceOptions.DefaultTimeoutSeconds;
+        using DecisionServiceGate.Admission admission =
+            await gate.EnterAsync(settings, TimeSpan.FromSeconds(gateSeconds), cancellationToken);
 
         using HttpClient client = httpClientFactory.CreateClient(HttpClientName);
-        using var message = new HttpRequestMessage(
-            HttpMethod.Post,
-            settings.BaseUrl.TrimEnd('/') + settings.Path)
+        using var message = new HttpRequestMessage(HttpMethod.Post, settings.Endpoint)
         {
             Content = new StringContent(
                 WithDefaultModel(request, settings.Model).ToJsonString(), Encoding.UTF8, "application/json")
         };
+        message.Options.Set(MaxAttemptsKey, settings.MaxAttempts);
+        message.Options.Set(TimeoutSecondsKey, settings.TimeoutSeconds);
         HttpResponseMessage response;
         try
         {

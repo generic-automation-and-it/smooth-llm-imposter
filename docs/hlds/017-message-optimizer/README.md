@@ -91,7 +91,9 @@ No tool-output compression/masking (tracked with tool-decision work); no history
 
 ## Dependencies
 
-HLD 015 supplies one transport, resilience profile and process-wide gate. This design needs a resolved profile per section, a circuit per section (HLD 014 LADR-11 pattern) and admission through one process-wide local-LLM gate shared with the optimizer (amended 2026-10-29; originally one gate per distinct endpoint+model), amending HLD 015 LADR-03's decision-only gate — see HLD 015 [LADR-05](../015-shared-decision-model-integration/ladrs/LADR-05-per-section-profiles-circuits-gates.md) (Accepted). HLD 014 LADR-05 and LADR-07 must also be amended: the tool filter returns an edit instead of a whole body (LADR-08), and the shared session-scoped memory (HLD 014 LADR-09) gains a per-instance lifetime and an uncapped mode.
+HLD 015 supplies one transport client, one resolved profile per section, one gate per endpoint+model. This design needs a resolved profile per section, a circuit per section (HLD 014 LADR-11 pattern) and one admission gate per distinct endpoint+model, amending HLD 015 LADR-03's single process-wide gate — see HLD 015 [LADR-05](../015-shared-decision-model-integration/ladrs/LADR-05-per-section-profiles-circuits-gates.md) (Accepted). HLD 014 LADR-05 and LADR-07 must also be amended: the tool filter returns an edit instead of a whole body (LADR-08), and the shared session-scoped memory (HLD 014 LADR-09) gains a per-instance lifetime and an uncapped mode.
+
+The per-section profiles and per endpoint+model gates are implemented (#228): the message gate calls its own `DECISIONS_MESSAGES_*` → `DECISIONS_*` → default profile, never the tool section's.
 
 The HLD 015 amendment is Accepted as LADR-05; the HLD 014 edit-return amendment is Accepted as [LADR-12](../014-decisions-tools-filter/ladrs/LADR-12-tool-filter-returns-edit.md).
 
@@ -105,7 +107,7 @@ The HLD 015 amendment is Accepted as LADR-05; the HLD 014 edit-return amendment 
 | 4 | Responses API in scope? | *Proposed:* out of v1; revisit with a Codex measurement. |
 | 5 | Does the tool filter classify the original or the optimized text? | *Resolved:* original text — the branches run in parallel (LADR-08). |
 | 6 | Route scope? | *Resolved (2026-10-27, #207):* per-provider `OptimizeMessages` (`<PROVIDER>_OPTIMIZE_MESSAGES`); only `false` opts a route out, unset/`true` keep it on for passthrough and imposter routes alike. Nothing opts a route out automatically; opting out is the operator's call for routes where latency outweighs the token saving or the upstream still bills per request (GitHub Copilot bills tokens through AI credits since 2026-06-01, except legacy annual plans). The tool filter is unaffected. |
-| 7 | Latency ceiling for gate + rewrite? | *Proposed:* measure. First request after restart/enablement pays a gate call and a rewrite per unremembered message, in series; a down or bypassed gate sends each to the optimizer. Measure "time-to-first-byte is the slower branch" (LADR-02, LADR-08) with delayed stubs. |
+| 7 | Latency ceiling for gate + rewrite? | *Resolved (2026-10-28, #234):* optional `LLM_MESSAGES_BUDGET_SECONDS` (default 30, 1–600) bounds the message strategy per request, admission waits included. On expiry the in-flight call is cancelled without opening a circuit, finished rewrites apply, and every remaining candidate is forwarded and cached as the original, so later turns replay it (NFR-01); one Information line carries the counts. Time-to-first-byte under delayed stubs is still unmeasured. |
 | 8 | Memory scope without a captured session id (HLD 009)? | *Resolved (2026-10-25, revised):* not cached — optimized on every request (LADR-05). |
 
 ## Diagrams
@@ -152,3 +154,5 @@ The HLD 015 amendment is Accepted as LADR-05; the HLD 014 edit-return amendment 
 | 2026-10-27 | NFR-03 failure cost proven by an L2 file over the real clients and pipelines, plus a host-platform native smoke; no production change | #214 |
 | 2026-10-27 | NFR-04 message egress proven by an L2 request/log capture and a native smoke; two wording gaps recorded (Debug inbound dump, span hash not logged); no production change | #216 |
 | 2026-10-27 | NFR-04 wording amended to exclude the opt-in Debug request dump; span hash on the Debug outcome line tracked as follow-up WT-20 | #216 |
+| 2026-10-28 | LADR-04: optimizer gets the message as delimited data; validator rejects a rewrite keeping < 60% of content words; instruction revision 2 (WT-21) | #223 |
+| 2026-10-28 | Open item 7 resolved: per-request `LLM_MESSAGES_BUDGET_SECONDS`; expiry forwards and caches the rest as written (WT-25) | #234 |

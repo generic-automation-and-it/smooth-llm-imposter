@@ -2,7 +2,6 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
-using SmoothLlmImposter.Application.Common.Clients.LocalLlm;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Application.Features.Routing.Decisions;
 using SmoothLlmImposter.Application.Features.Routing.Optimization;
@@ -45,6 +44,8 @@ public sealed class DecisionToolsFilterTests
         edit.Patches[0].Replacement!.AsArray().Count.ShouldBe(1);
         edit.Patches[1].Replacement.ShouldBeNull();
         edit.Patches.ShouldAllBe(patch => patch.Pointer == "/tools" || patch.Pointer == "/tool_choice");
+        client.Sections.ShouldAllBe(section => section == "Imposter:DecisionsTools");
+        client.Sections.ShouldNotBeEmpty();
     }
 
     [Fact]
@@ -754,7 +755,7 @@ public sealed class DecisionToolsFilterTests
     [Fact]
     public async Task Gate_contention_is_fail_open_without_opening_the_circuit()
     {
-        var client = new DecisionStub { FailCall = 1, Failure = new LocalLlmGateTimeoutException("gate") };
+        var client = new DecisionStub { FailCall = 1, Failure = new DecisionGateTimeoutException("gate") };
         IOptions<ImposterOptions> options = DecisionOptions();
         var breaker = new DecisionCircuitBreaker(options, TimeProvider.System, new BreakerLogger());
         DecisionToolsFilter filter = Create(options, client, new FilterLogger(), breaker);
@@ -1000,13 +1001,15 @@ public sealed class DecisionToolsFilterTests
     private sealed class DecisionStub : IDecisionModelClient
     {
         public List<JsonObject> Requests { get; } = [];
+        public List<string> Sections { get; } = [];
         public Func<JsonObject, JsonObject> Answer { get; init; } = request => Answers(request, _ => 0);
         public int FailCall { get; init; }
         public Exception? Failure { get; init; }
 
-        public Task<JsonObject> DecideAsync(JsonObject request, CancellationToken cancellationToken)
+        public Task<JsonObject> DecideAsync(string section, JsonObject request, CancellationToken cancellationToken)
         {
             Requests.Add(request);
+            Sections.Add(section);
             if (Requests.Count == FailCall)
             {
                 throw Failure ?? new HttpRequestException("secret error payload", null, System.Net.HttpStatusCode.BadRequest);

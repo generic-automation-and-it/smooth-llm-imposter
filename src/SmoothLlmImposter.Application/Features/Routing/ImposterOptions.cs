@@ -1,5 +1,4 @@
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
-using SmoothLlmImposter.Application.Common.Clients.LocalLlm;
 using SmoothLlmImposter.Application.Common.Clients.Optimizer;
 
 namespace SmoothLlmImposter.Application.Features.Routing;
@@ -32,13 +31,18 @@ public sealed class ImposterOptions
     /// </summary>
     public WhoMessageOptions WhoMessage { get; init; } = new();
 
+    /// <summary>
+    /// Shared decision-model defaults (HLD 017 LADR-06, HLD 015 LADR-05): every value fills a decision
+    /// section field the section itself leaves unset. Unset here means the section keeps its built-in default.
+    /// </summary>
+    public DecisionsOptions Decisions { get; init; } = new();
+
     public DecisionsToolsOptions DecisionsTools { get; init; } = new();
 
     /// <summary>
-    /// Message optimization as a decision-service consumer (HLD 017): opts into the shared
-    /// decision transport. Its own enable flag gates the message-optimization stage; transport
-    /// fields are resolved through the shared profile until per-section profiles (HLD 015 LADR-05)
-    /// are in place.
+    /// Message optimization as a decision-service consumer (HLD 017). Its own enable flag gates the
+    /// message-optimization stage. Its transport fields are the message gate's own decision profile
+    /// (HLD 015 LADR-05); they never inherit the tool section's values.
     /// </summary>
     public DecisionsMessagesOptions DecisionsMessages { get; init; } = new();
 
@@ -49,18 +53,39 @@ public sealed class ImposterOptions
     /// <summary>
     /// Maximum number of upstream and GitHub HTTP requests that may be in flight at once across the whole
     /// process (HLD 017 follow-up). <c>1</c> (default) serializes them so a slow backend cannot be hit
-    /// concurrently; higher values allow overlap. Decision and optimizer calls use the separate
-    /// <see cref="LocalLlmGateWaitSeconds"/> slot instead. Conventional env override
+    /// concurrently; higher values allow overlap. Conventional env override
     /// <c>IMPOSTER_MAX_CONCURRENT_REQUESTS</c>.
     /// </summary>
     public int MaxConcurrentRequests { get; set; } = 1;
+}
 
-    /// <summary>
-    /// How long a decision or optimizer call waits for the single local-LLM slot before it gives up and the
-    /// request continues without it (HLD 015 LADR-05). Conventional env override
-    /// <c>LOCAL_LLM_GATE_WAIT_SECONDS</c>.
-    /// </summary>
-    public int LocalLlmGateWaitSeconds { get; set; } = LocalLlmGateOptions.DefaultWaitSeconds;
+/// <summary>
+/// The shared <c>DECISIONS_*</c> layer. Every property is nullable because only a set value may fill a
+/// section; <c>MinKeepTools</c>, <c>AlwaysKeep</c> and <c>StickyPerSession</c> exist only on the tool section,
+/// so they default that section alone. There is deliberately no <c>Enabled</c>: one variable must never
+/// switch on two features.
+/// </summary>
+public sealed class DecisionsOptions
+{
+    public string? BaseUrl { get; set; }
+
+    public string? Path { get; set; }
+
+    public string? Model { get; set; }
+
+    public double? MinProbability { get; set; }
+
+    public int? MaxAttempts { get; set; }
+
+    public int? TimeoutSeconds { get; set; }
+
+    public int? CircuitBreakSeconds { get; set; }
+
+    public int? MinKeepTools { get; set; }
+
+    public string? AlwaysKeep { get; set; }
+
+    public bool? StickyPerSession { get; set; }
 }
 
 public sealed class DecisionsMessagesOptions
@@ -70,6 +95,16 @@ public sealed class DecisionsMessagesOptions
     /// <c>LLM_MESSAGES_ENABLED</c> (LADR-06); defaults to <c>false</c>.
     /// </summary>
     public bool Enabled { get; set; }
+
+    public string BaseUrl { get; set; } = DecisionServiceOptions.DefaultBaseUrl;
+
+    public string Path { get; set; } = DecisionServiceOptions.DefaultPath;
+
+    public string Model { get; set; } = DecisionServiceOptions.DefaultModel;
+
+    public int MaxAttempts { get; set; } = DecisionServiceOptions.DefaultMaxAttempts;
+
+    public int TimeoutSeconds { get; set; } = DecisionServiceOptions.DefaultTimeoutSeconds;
 
     /// <summary>
     /// Minimum probability (inclusive) for a positive "can be optimized" answer.
@@ -117,8 +152,6 @@ public sealed class DecisionsToolsOptions
     public int MaxAttempts { get; set; } = DecisionServiceOptions.DefaultMaxAttempts;
 
     public int TimeoutSeconds { get; set; } = DecisionServiceOptions.DefaultTimeoutSeconds;
-
-    public int RetryDelaySeconds { get; set; } = DecisionServiceOptions.DefaultRetryDelaySeconds;
 
     /// <summary>
     /// Cooldown after one failed classifier call opens the tool-filter circuit (HLD 014 LADR-11, NFR-05).

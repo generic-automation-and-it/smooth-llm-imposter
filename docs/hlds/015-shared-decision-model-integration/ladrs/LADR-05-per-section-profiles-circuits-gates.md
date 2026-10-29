@@ -25,6 +25,11 @@
 - A shared `DECISIONS_*` variable configures both sections unless overridden per section; no `DECISIONS_ENABLED` exists, so one variable cannot enable two features.
 - Validation follows effective enablement: transport settings for a section are validated only when that section is effectively on.
 
+## Implementation
+
+- 2026-10-28 (#228): items 1 and 3. `IDecisionModelClient.DecideAsync` takes the section; `DecisionServiceProfiles` resolves a registered section's named `DecisionServiceOptions` (defaults while the section is off; an unregistered section throws, so gate keys stay bounded by the registered sections). `DecisionServiceGate` keys its semaphores by `(BaseUrl without trailing '/' + Path, Model)`. One named HTTP client serves every section, so the section's attempts and timeout travel on the request and the resilience pipeline reads them back. The message gate's circuit log fields report its own profile. A deployment that set only `DECISIONS_TOOLS_*` transport moves the gate to the built-in default; startup logs one Warning for that case.
+- Item 2 (circuit per section) shipped with HLD 017 (`DecisionCircuitBreaker`, `MessageGateCircuitBreaker`).
+
 ## Related
 
 - **HLD 014 LADR-11** — breaker trip rule reused per section.

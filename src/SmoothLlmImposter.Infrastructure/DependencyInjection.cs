@@ -12,7 +12,6 @@ using SmoothLlmImposter.Application.Common.Clients.Optimizer;
 using SmoothLlmImposter.Application.Common.Persistence;
 using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Application.Features.Routing;
-using SmoothLlmImposter.Infrastructure.Clients;
 using SmoothLlmImposter.Infrastructure.Clients.GithubCopilot;
 using SmoothLlmImposter.Infrastructure.Clients.Decisions;
 using SmoothLlmImposter.Infrastructure.Clients.Optimizer;
@@ -55,8 +54,8 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        // Global outbound concurrency gate for upstream and GitHub traffic. Decision and optimizer calls are
-        // serialized by LocalLlmGate instead, so an open upstream stream never blocks them.
+        // Global outbound concurrency gate. A single SemaphoreSlim shared by every HttpClient so a slow
+        // local LLM (decision/optimizer) or a stalled upstream cannot be hit by several requests at once.
         // Size comes from Imposter:MaxConcurrentRequests (default 1), with the conventional env var
         // IMPOSTER_MAX_CONCURRENT_REQUESTS taking precedence. Values < 1 are clamped to 1.
         int maxConcurrent = 1;
@@ -78,42 +77,39 @@ public static class DependencyInjection
         services.AddTransient<ConcurrencyLimitingHandler>();
         IHttpClientBuilder decisionsClient = services.AddHttpClient(DecisionModelClient.HttpClientName, client =>
             client.Timeout = Timeout.InfiniteTimeSpan);
+        decisionsClient.AddHttpMessageHandler<ConcurrencyLimitingHandler>();
         decisionsClient.AddResilienceHandler("decision-service-retry", (builder, context) =>
             {
-                DecisionServiceOptions settings = ResolveDecisionTransport(context.ServiceProvider);
-                int maxAttempts = settings.MaxAttempts;
-                int timeoutSeconds = settings.TimeoutSeconds;
-
-                if (maxAttempts > 1)
+                builder.AddRetry(new HttpRetryStrategyOptions
                 {
-                    builder.AddRetry(new HttpRetryStrategyOptions
+                    MaxRetryAttempts = DecisionServiceOptions.MaxAttemptsLimit - 1,
+                    Delay = TimeSpan.Zero,
+                    ShouldRetryAfterHeader = false,
+                    ShouldHandle = args => new ValueTask<bool>(
+                        args.AttemptNumber + 1 < GetDecisionMaxAttempts(args.Context) &&
+                        (args.Outcome.Exception is HttpRequestException or TimeoutRejectedException ||
+                         args.Outcome.Result?.StatusCode is
+                             System.Net.HttpStatusCode.BadGateway or System.Net.HttpStatusCode.ServiceUnavailable)),
+                    OnRetry = args =>
                     {
-                        MaxRetryAttempts = maxAttempts - 1,
-                        Delay = TimeSpan.FromSeconds(settings.RetryDelaySeconds),
-                        BackoffType = DelayBackoffType.Constant,
-                        UseJitter = false,
-                        ShouldRetryAfterHeader = false,
-                        ShouldHandle = args => new ValueTask<bool>(
-                            args.Outcome.Exception is HttpRequestException or TimeoutRejectedException ||
-                            args.Outcome.Result?.StatusCode is
-                                System.Net.HttpStatusCode.BadGateway or System.Net.HttpStatusCode.ServiceUnavailable),
-                        OnRetry = args =>
-                        {
-                            args.Outcome.Result?.Dispose();
-                            return default;
-                        }
-                    });
-                }
-
-                builder.AddTimeout(TimeSpan.FromSeconds(timeoutSeconds));
+                        args.Outcome.Result?.Dispose();
+                        return default;
+                    }
+                });
+                builder.AddTimeout(new HttpTimeoutStrategyOptions
+                {
+                    TimeoutGenerator = args => new ValueTask<TimeSpan>(
+                        TimeSpan.FromSeconds(GetDecisionTimeoutSeconds(args.Context)))
+                });
             });
         decisionsClient.AddHttpMessageHandler(static () => new DecisionResponseBufferingHandler());
-        services.TryAddSingleton<DecisionServiceDemand>();
-        services.AddSingleton<LocalLlmGate>();
+        services.TryAddSingleton<DecisionServiceProfiles>();
+        services.AddSingleton<DecisionServiceGate>();
         services.AddSingleton<IDecisionModelClient, DecisionModelClient>();
 
         services.AddHttpClient(OptimizerClient.HttpClientName, client =>
-            client.Timeout = Timeout.InfiniteTimeSpan);
+            client.Timeout = Timeout.InfiniteTimeSpan)
+            .AddHttpMessageHandler<ConcurrencyLimitingHandler>();
         services.AddSingleton<IOptimizerClient, OptimizerClient>();
 
         services.AddHttpClient(UpstreamForwarder.HttpClientName, client =>
@@ -206,13 +202,24 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// The decision transport profile (HLD 015 LADR-02). Its settings are validated only while a consumer is
-    /// opted in, so with none the profile is built from defaults and unused, possibly invalid settings stay inert.
+    /// The section's attempt count the decision client stamped on the request (HLD 015 LADR-05). Falls back to
+    /// the default when the request carries none or an out-of-range value, so an unvalidated value never
+    /// reaches Polly.
     /// </summary>
-    internal static DecisionServiceOptions ResolveDecisionTransport(IServiceProvider services) =>
-        services.GetRequiredService<DecisionServiceDemand>().IsRequired
-            ? services.GetRequiredService<IOptions<DecisionServiceOptions>>().Value
-            : new DecisionServiceOptions();
+    internal static int GetDecisionMaxAttempts(ResilienceContext context) =>
+        context.GetRequestMessage() is { } request &&
+        request.Options.TryGetValue(DecisionModelClient.MaxAttemptsKey, out int attempts) &&
+        attempts is >= 1 and <= DecisionServiceOptions.MaxAttemptsLimit
+            ? attempts
+            : DecisionServiceOptions.DefaultMaxAttempts;
+
+    /// <summary>The section's per-attempt timeout stamped on the request; a non-positive value falls back.</summary>
+    internal static int GetDecisionTimeoutSeconds(ResilienceContext context) =>
+        context.GetRequestMessage() is { } request &&
+        request.Options.TryGetValue(DecisionModelClient.TimeoutSecondsKey, out int seconds) &&
+        seconds is >= 1 and <= 3600
+            ? seconds
+            : DecisionServiceOptions.DefaultTimeoutSeconds;
 
     internal static HttpRetryStrategyOptions CreateUpstreamRetryOptions() =>
         new()

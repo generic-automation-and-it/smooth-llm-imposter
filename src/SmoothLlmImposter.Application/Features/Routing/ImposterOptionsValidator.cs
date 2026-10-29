@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Domain.Credentials;
 using SmoothLlmImposter.Domain.GithubCopilot;
 using SmoothLlmImposter.Domain.Routing;
+using SmoothLlmImposter.Application.Common.Clients.Decisions;
 using SmoothLlmImposter.Application.Common.Clients.Optimizer;
 
 namespace SmoothLlmImposter.Application.Features.Routing;
@@ -21,12 +22,7 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
     {
         List<string> failures = [];
 
-        if (options.LocalLlmGateWaitSeconds is < MinTimeoutSeconds or > MaxTimeoutSeconds)
-        {
-            failures.Add($"Imposter:LocalLlmGateWaitSeconds must be between {MinTimeoutSeconds} and {MaxTimeoutSeconds} seconds.");
-        }
-
-        AddDecisionsToolsFailures(options.DecisionsTools, failures);
+        AddDecisionsToolsFailures(options.DecisionsTools, options.ToolOrdering, failures);
         AddDecisionsMessagesFailures(options.DecisionsMessages, failures);
         AddLlmMessagesFailures(options.LlmMessages, failures);
 
@@ -176,7 +172,7 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
             : ValidateOptionsResult.Success;
     }
 
-    private static void AddDecisionsToolsFailures(DecisionsToolsOptions options, List<string> failures)
+    private static void AddDecisionsToolsFailures(DecisionsToolsOptions options, ToolOrderingOptions toolOrdering, List<string> failures)
     {
         if (!options.Enabled)
         {
@@ -186,6 +182,17 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         // Destination, path, model, attempts and timeout are the shared transport profile, validated by
         // DecisionServiceOptionsValidator whenever any consumer opts in (HLD 015 LADR-02).
         const string prefix = "Imposter:DecisionsTools";
+
+        // LADR-13: sticky selection keeps the forwarded tool set but not its order, so without first-seen
+        // ordering the tool prefix still changes whenever the client reorders its catalog.
+        if (options.StickyPerSession && !toolOrdering.Enabled)
+        {
+            failures.Add(
+                $"{prefix}:StickyPerSession (DECISIONS_TOOLS_STICKY_PER_SESSION) requires Imposter:ToolOrdering:Enabled " +
+                "(Imposter__ToolOrdering__Enabled=true): sticky selection keeps the forwarded tool set but not its " +
+                "order, so the tool prefix still changes when the client reorders its catalog. Set " +
+                "Imposter__ToolOrdering__Enabled=true, or turn sticky selection off.");
+        }
 
         if (!double.IsFinite(options.MinProbability) || options.MinProbability is < 0 or > 1)
         {
@@ -211,6 +218,15 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         }
 
         const string prefix = "Imposter:DecisionsMessages";
+
+        failures.AddRange(DecisionServiceOptionsValidator.TransportFailures(prefix, new DecisionServiceOptions
+        {
+            BaseUrl = options.BaseUrl,
+            Path = options.Path,
+            Model = options.Model,
+            MaxAttempts = options.MaxAttempts,
+            TimeoutSeconds = options.TimeoutSeconds,
+        }));
 
         if (!double.IsFinite(options.MinProbability) || options.MinProbability is < 0 or > 1)
         {
@@ -247,6 +263,11 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
             failures.Add($"{prefix}:MinChars must be between 0 and 10000.");
         }
 
+        if (options.BudgetSeconds is < 1 or > 600)
+        {
+            failures.Add($"{prefix}:BudgetSeconds must be between 1 and 600 seconds.");
+        }
+
         if (string.IsNullOrWhiteSpace(options.BaseUrl) ||
             !Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out var uri) ||
             (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
@@ -261,10 +282,6 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         if (options.TimeoutSeconds is < 1 or > 3600)
         {
             failures.Add($"{prefix}:TimeoutSeconds must be between 1 and 3600 seconds.");
-        }
-        if (options.RetryDelaySeconds is < 0 or > 60)
-        {
-            failures.Add($"{prefix}:RetryDelaySeconds must be between 0 and 60 seconds.");
         }
         if (options.CircuitBreakSeconds is < 1 or > 3600)
         {

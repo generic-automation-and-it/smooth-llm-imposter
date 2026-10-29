@@ -3,7 +3,6 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
-using SmoothLlmImposter.Application.Common.Clients.LocalLlm;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Application.Features.Routing.Decisions;
 
@@ -30,7 +29,7 @@ public sealed class DecisionCircuitBreakerTests
     {
         DecisionCircuitBreaker.IsServiceFailure(new HttpRequestException("transport")).ShouldBeTrue();
         DecisionCircuitBreaker.IsServiceFailure(new DecisionServiceTimeoutException("timeout")).ShouldBeTrue();
-        DecisionCircuitBreaker.IsServiceFailure(new LocalLlmGateTimeoutException("gate")).ShouldBeFalse();
+        DecisionCircuitBreaker.IsServiceFailure(new DecisionGateTimeoutException("gate")).ShouldBeFalse();
         DecisionCircuitBreaker.IsServiceFailure(new OperationCanceledException()).ShouldBeFalse();
         DecisionCircuitBreaker.IsServiceFailure(new JsonException("envelope")).ShouldBeFalse();
     }
@@ -116,7 +115,7 @@ public sealed class DecisionCircuitBreakerTests
         clock.Advance(TimeSpan.FromSeconds(30));
         breaker.TryEnter().ShouldBe(DecisionCircuitBreaker.Admission.Trial);
 
-        breaker.RecordFailure(new LocalLlmGateTimeoutException("gate"), false, "model", "endpoint");
+        breaker.RecordFailure(new DecisionGateTimeoutException("gate"), false, "model", "endpoint");
 
         breaker.TryEnter().ShouldBe(DecisionCircuitBreaker.Admission.Skip);
     }
@@ -126,11 +125,11 @@ public sealed class DecisionCircuitBreakerTests
     {
         var clock = new ManualClock();
         DecisionCircuitBreaker breaker = Create(clock, new BreakerLogger(), cooldownSeconds: 30);
-        breaker.RecordFailure(new LocalLlmGateTimeoutException("gate"), false, "model", "endpoint");
+        breaker.RecordFailure(new DecisionGateTimeoutException("gate"), false, "model", "endpoint");
         breaker.TryEnter().ShouldBe(DecisionCircuitBreaker.Admission.Closed);
 
         breaker.RecordFailure(new HttpRequestException("down"), false, "model", "endpoint");
-        breaker.RecordFailure(new LocalLlmGateTimeoutException("gate"), false, "model", "endpoint");
+        breaker.RecordFailure(new DecisionGateTimeoutException("gate"), false, "model", "endpoint");
         breaker.TryEnter().ShouldBe(DecisionCircuitBreaker.Admission.Skip);
     }
 

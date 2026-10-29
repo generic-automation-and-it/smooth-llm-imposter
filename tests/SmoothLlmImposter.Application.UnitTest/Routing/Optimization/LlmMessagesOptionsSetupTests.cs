@@ -24,7 +24,8 @@ public sealed class LlmMessagesOptionsSetupTests
             ["LLM_MESSAGES_CIRCUIT_BREAK_SECONDS"] = "30",
             ["LLM_MESSAGES_MAX_ATTEMPTS"] = "2",
             ["LLM_MESSAGES_TIMEOUT"] = "15",
-            ["LLM_MESSAGES_RETRY_DELAY_SECONDS"] = "1"
+            ["Imposter:LlmMessages:BudgetSeconds"] = "45",
+            ["LLM_MESSAGES_BUDGET_SECONDS"] = "90"
         });
 
         LlmMessagesOptions resolved = services.GetRequiredService<IOptions<LlmMessagesOptions>>().Value;
@@ -37,7 +38,18 @@ public sealed class LlmMessagesOptionsSetupTests
         resolved.CircuitBreakSeconds.ShouldBe(30);
         resolved.MaxAttempts.ShouldBe(2);
         resolved.TimeoutSeconds.ShouldBe(15);
-        resolved.RetryDelaySeconds.ShouldBe(1);
+        resolved.BudgetSeconds.ShouldBe(90);
+    }
+
+    [Fact]
+    public void Structured_budget_binds_without_a_conventional_variable()
+    {
+        using ServiceProvider services = Build(new Dictionary<string, string?>
+        {
+            ["Imposter:LlmMessages:BudgetSeconds"] = "45"
+        });
+
+        services.GetRequiredService<IOptions<LlmMessagesOptions>>().Value.BudgetSeconds.ShouldBe(45);
     }
 
     [Fact]
@@ -51,12 +63,12 @@ public sealed class LlmMessagesOptionsSetupTests
         resolved.BaseUrl.ShouldBe(string.Empty);
         resolved.Path.ShouldBe("/v1/chat/completions");
         resolved.Model.ShouldBe(string.Empty);
-        resolved.MaxAttempts.ShouldBe(2);
+        resolved.MaxAttempts.ShouldBe(3);
         resolved.TimeoutSeconds.ShouldBe(60);
-        resolved.RetryDelaySeconds.ShouldBe(5);
         resolved.CircuitBreakSeconds.ShouldBe(180);
         resolved.CacheTtlHours.ShouldBe(120);
         resolved.MinChars.ShouldBe(0);
+        resolved.BudgetSeconds.ShouldBe(30);
         resolved.ApiKey.ShouldBeNull();
     }
 

@@ -130,14 +130,11 @@ internal sealed class ImposterOptionsPostConfigure(
             options.WhoMessage.Enabled = value;
         });
 
-        ApplyRootIntegerOverride(LocalLlmGateWaitVariable, nameof(options.LocalLlmGateWaitSeconds), value =>
-        {
-            options.LocalLlmGateWaitSeconds = value;
-        });
+        ApplyDecisionsOverrides(options.Decisions);
 
-        ApplyDecisionsToolsOverrides(options.DecisionsTools);
+        ApplyDecisionsToolsOverrides(options.DecisionsTools, options.Decisions);
 
-        ApplyDecisionsMessagesOverrides(options.DecisionsMessages);
+        ApplyDecisionsMessagesOverrides(options.DecisionsMessages, options.Decisions);
 
         ApplyLlmMessagesOverrides(options.LlmMessages);
 
@@ -287,8 +284,6 @@ internal sealed class ImposterOptionsPostConfigure(
     /// Conventional variable per <see cref="DecisionsToolsOptions"/> property. The overrides below read their
     /// names from here, so the drift guard that reflects over the options type covers the applied surface.
     /// </summary>
-    internal const string LocalLlmGateWaitVariable = "LOCAL_LLM_GATE_WAIT_SECONDS";
-
     internal static readonly IReadOnlyDictionary<string, string> DecisionsToolsVariables =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -302,24 +297,114 @@ internal sealed class ImposterOptionsPostConfigure(
             [nameof(DecisionsToolsOptions.StickyPerSession)] = "DECISIONS_TOOLS_STICKY_PER_SESSION",
             [nameof(DecisionsToolsOptions.MaxAttempts)] = "DECISIONS_TOOLS_MAX_ATTEMPTS",
             [nameof(DecisionsToolsOptions.TimeoutSeconds)] = "DECISIONS_TOOLS_TIMEOUT",
-            [nameof(DecisionsToolsOptions.RetryDelaySeconds)] = "DECISIONS_TOOLS_RETRY_DELAY_SECONDS",
             [nameof(DecisionsToolsOptions.CircuitBreakSeconds)] = "DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS",
         };
 
-    private void ApplyDecisionsToolsOverrides(DecisionsToolsOptions options)
+    /// <summary>
+    /// Conventional variable per <see cref="DecisionsOptions"/> property: the shared layer under every
+    /// decision section (HLD 017 LADR-06). No <c>DECISIONS_ENABLED</c> exists by design.
+    /// </summary>
+    internal static readonly IReadOnlyDictionary<string, string> DecisionsVariables =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [nameof(DecisionsOptions.BaseUrl)] = "DECISIONS_BASE_URL",
+            [nameof(DecisionsOptions.Path)] = "DECISIONS_PATH",
+            [nameof(DecisionsOptions.Model)] = "DECISIONS_MODEL",
+            [nameof(DecisionsOptions.MinProbability)] = "DECISIONS_MIN_PROBABILITY",
+            [nameof(DecisionsOptions.MaxAttempts)] = "DECISIONS_MAX_ATTEMPTS",
+            [nameof(DecisionsOptions.TimeoutSeconds)] = "DECISIONS_TIMEOUT",
+            [nameof(DecisionsOptions.CircuitBreakSeconds)] = "DECISIONS_CIRCUIT_BREAK_SECONDS",
+            [nameof(DecisionsOptions.MinKeepTools)] = "DECISIONS_MIN_KEEP",
+            [nameof(DecisionsOptions.AlwaysKeep)] = "DECISIONS_ALWAYS_KEEP",
+            [nameof(DecisionsOptions.StickyPerSession)] = "DECISIONS_STICKY_PER_SESSION",
+        };
+
+    private const string DecisionsToolsSection = ImposterOptions.SectionName + ":" + nameof(ImposterOptions.DecisionsTools);
+
+    private const string DecisionsMessagesSection = ImposterOptions.SectionName + ":" + nameof(ImposterOptions.DecisionsMessages);
+
+    private void ApplyDecisionsOverrides(DecisionsOptions options)
     {
-        ApplyRootBooleanOverride(DecisionsToolsVariables[nameof(options.Enabled)], nameof(options.Enabled), value => options.Enabled = value);
-        ApplyRootStringOverride(DecisionsToolsVariables[nameof(options.BaseUrl)], nameof(options.BaseUrl), value => options.BaseUrl = value);
-        ApplyRootStringOverride(DecisionsToolsVariables[nameof(options.Path)], nameof(options.Path), value => options.Path = value);
-        ApplyRootStringOverride(DecisionsToolsVariables[nameof(options.Model)], nameof(options.Model), value => options.Model = value);
-        ApplyRootProbabilityOverride(DecisionsToolsVariables[nameof(options.MinProbability)], nameof(options.MinProbability), value => options.MinProbability = value);
-        ApplyRootIntegerOverride(DecisionsToolsVariables[nameof(options.MinKeepTools)], nameof(options.MinKeepTools), value => options.MinKeepTools = value);
-        ApplyRootStringOverride(DecisionsToolsVariables[nameof(options.AlwaysKeep)], nameof(options.AlwaysKeep), value => options.AlwaysKeep = value);
-        ApplyRootBooleanOverride(DecisionsToolsVariables[nameof(options.StickyPerSession)], nameof(options.StickyPerSession), value => options.StickyPerSession = value);
-        ApplyRootIntegerOverride(DecisionsToolsVariables[nameof(options.MaxAttempts)], nameof(options.MaxAttempts), value => options.MaxAttempts = value);
-        ApplyRootIntegerOverride(DecisionsToolsVariables[nameof(options.TimeoutSeconds)], nameof(options.TimeoutSeconds), value => options.TimeoutSeconds = value);
-        ApplyRootIntegerOverride(DecisionsToolsVariables[nameof(options.RetryDelaySeconds)], nameof(options.RetryDelaySeconds), value => options.RetryDelaySeconds = value);
-        ApplyRootIntegerOverride(DecisionsToolsVariables[nameof(options.CircuitBreakSeconds)], nameof(options.CircuitBreakSeconds), value => options.CircuitBreakSeconds = value);
+        ApplyRootStringOverride(DecisionsVariables[nameof(options.BaseUrl)], nameof(options.BaseUrl), value => options.BaseUrl = value);
+        ApplyRootStringOverride(DecisionsVariables[nameof(options.Path)], nameof(options.Path), value => options.Path = value);
+        ApplyRootStringOverride(DecisionsVariables[nameof(options.Model)], nameof(options.Model), value => options.Model = value);
+        ApplyRootProbabilityOverride(DecisionsVariables[nameof(options.MinProbability)], nameof(options.MinProbability), value => options.MinProbability = value);
+        ApplyRootIntegerOverride(DecisionsVariables[nameof(options.MaxAttempts)], nameof(options.MaxAttempts), value => options.MaxAttempts = value);
+        ApplyRootIntegerOverride(DecisionsVariables[nameof(options.TimeoutSeconds)], nameof(options.TimeoutSeconds), value => options.TimeoutSeconds = value);
+        ApplyRootIntegerOverride(DecisionsVariables[nameof(options.CircuitBreakSeconds)], nameof(options.CircuitBreakSeconds), value => options.CircuitBreakSeconds = value);
+        ApplyRootIntegerOverride(DecisionsVariables[nameof(options.MinKeepTools)], nameof(options.MinKeepTools), value => options.MinKeepTools = value);
+        ApplyRootStringOverride(DecisionsVariables[nameof(options.AlwaysKeep)], nameof(options.AlwaysKeep), value => options.AlwaysKeep = value);
+        ApplyRootBooleanOverride(DecisionsVariables[nameof(options.StickyPerSession)], nameof(options.StickyPerSession), value => options.StickyPerSession = value);
+    }
+
+    private void ApplyDecisionsToolsOverrides(DecisionsToolsOptions options, DecisionsOptions shared)
+    {
+        IReadOnlyDictionary<string, string> variables = DecisionsToolsVariables;
+        const string section = DecisionsToolsSection;
+
+        ApplyRootBooleanOverride(variables[nameof(options.Enabled)], nameof(options.Enabled), value => options.Enabled = value);
+        LayerString(section, variables, nameof(options.BaseUrl), shared.BaseUrl, value => options.BaseUrl = value);
+        LayerString(section, variables, nameof(options.Path), shared.Path, value => options.Path = value);
+        LayerString(section, variables, nameof(options.Model), shared.Model, value => options.Model = value);
+        LayerProbability(section, variables, nameof(options.MinProbability), shared.MinProbability, value => options.MinProbability = value);
+        LayerInteger(section, variables, nameof(options.MinKeepTools), shared.MinKeepTools, value => options.MinKeepTools = value);
+        LayerString(section, variables, nameof(options.AlwaysKeep), shared.AlwaysKeep, value => options.AlwaysKeep = value);
+        LayerBoolean(section, variables, nameof(options.StickyPerSession), shared.StickyPerSession, value => options.StickyPerSession = value);
+        LayerInteger(section, variables, nameof(options.MaxAttempts), shared.MaxAttempts, value => options.MaxAttempts = value);
+        LayerInteger(section, variables, nameof(options.TimeoutSeconds), shared.TimeoutSeconds, value => options.TimeoutSeconds = value);
+        LayerInteger(section, variables, nameof(options.CircuitBreakSeconds), shared.CircuitBreakSeconds, value => options.CircuitBreakSeconds = value);
+    }
+
+    private void LayerString(string section, IReadOnlyDictionary<string, string> variables, string propertyName, string? shared, Action<string> apply)
+    {
+        bool sectionApplied = ApplyRootStringOverride(variables[propertyName], propertyName, apply);
+        if (!string.IsNullOrWhiteSpace(shared))
+        {
+            Layer(section, propertyName, sectionApplied, () => apply(shared));
+        }
+    }
+
+    private void LayerInteger(string section, IReadOnlyDictionary<string, string> variables, string propertyName, int? shared, Action<int> apply)
+    {
+        bool sectionApplied = ApplyRootIntegerOverride(variables[propertyName], propertyName, apply);
+        if (shared is { } value)
+        {
+            Layer(section, propertyName, sectionApplied, () => apply(value));
+        }
+    }
+
+    private void LayerProbability(string section, IReadOnlyDictionary<string, string> variables, string propertyName, double? shared, Action<double> apply)
+    {
+        bool sectionApplied = ApplyRootProbabilityOverride(variables[propertyName], propertyName, apply);
+        if (shared is { } value)
+        {
+            Layer(section, propertyName, sectionApplied, () => apply(value));
+        }
+    }
+
+    private void LayerBoolean(string section, IReadOnlyDictionary<string, string> variables, string propertyName, bool? shared, Action<bool> apply)
+    {
+        bool sectionApplied = ApplyRootBooleanOverride(variables[propertyName], propertyName, apply);
+        if (shared is { } value)
+        {
+            Layer(section, propertyName, sectionApplied, () => apply(value));
+        }
+    }
+
+    /// <summary>
+    /// The one precedence rule for every decision section field (HLD 017 LADR-06): a section value, from
+    /// its conventional variable or its structured key, wins; otherwise a set shared <c>DECISIONS_*</c> value
+    /// fills it; otherwise the field keeps its built-in default. A blank value counts as unset at every layer.
+    /// </summary>
+    private void Layer(string section, string propertyName, bool sectionApplied, Action applyShared)
+    {
+        if (sectionApplied || !string.IsNullOrWhiteSpace(configuration[$"{section}:{propertyName}"]))
+        {
+            return;
+        }
+
+        applyShared();
+        logger.LogDebug("Applied shared decision setting to {Section} field {Field}.", section, propertyName);
     }
 
     /// <summary>
@@ -329,7 +414,12 @@ internal sealed class ImposterOptionsPostConfigure(
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             [nameof(DecisionsMessagesOptions.Enabled)] = "DECISIONS_MESSAGES_ENABLED",
+            [nameof(DecisionsMessagesOptions.BaseUrl)] = "DECISIONS_MESSAGES_BASE_URL",
+            [nameof(DecisionsMessagesOptions.Path)] = "DECISIONS_MESSAGES_PATH",
+            [nameof(DecisionsMessagesOptions.Model)] = "DECISIONS_MESSAGES_MODEL",
             [nameof(DecisionsMessagesOptions.MinProbability)] = "DECISIONS_MESSAGES_MIN_PROBABILITY",
+            [nameof(DecisionsMessagesOptions.MaxAttempts)] = "DECISIONS_MESSAGES_MAX_ATTEMPTS",
+            [nameof(DecisionsMessagesOptions.TimeoutSeconds)] = "DECISIONS_MESSAGES_TIMEOUT",
             [nameof(DecisionsMessagesOptions.CircuitBreakSeconds)] = "DECISIONS_MESSAGES_CIRCUIT_BREAK_SECONDS",
             [nameof(DecisionsMessagesOptions.MaxStateChars)] = "DECISIONS_MESSAGES_MAX_STATE_CHARS",
         };
@@ -343,19 +433,27 @@ internal sealed class ImposterOptionsPostConfigure(
             [nameof(LlmMessagesOptions.Model)] = "LLM_MESSAGES_MODEL",
             [nameof(LlmMessagesOptions.MaxAttempts)] = "LLM_MESSAGES_MAX_ATTEMPTS",
             [nameof(LlmMessagesOptions.TimeoutSeconds)] = "LLM_MESSAGES_TIMEOUT",
-            [nameof(LlmMessagesOptions.RetryDelaySeconds)] = "LLM_MESSAGES_RETRY_DELAY_SECONDS",
             [nameof(LlmMessagesOptions.CircuitBreakSeconds)] = "LLM_MESSAGES_CIRCUIT_BREAK_SECONDS",
             [nameof(LlmMessagesOptions.CacheTtlHours)] = "LLM_MESSAGES_CACHE_TTL_HOURS",
             [nameof(LlmMessagesOptions.MinChars)] = "LLM_MESSAGES_MIN_CHARS",
+            [nameof(LlmMessagesOptions.BudgetSeconds)] = "LLM_MESSAGES_BUDGET_SECONDS",
             [nameof(LlmMessagesOptions.ApiKey)] = "LLM_MESSAGES_API_KEY",
         };
 
-    private void ApplyDecisionsMessagesOverrides(DecisionsMessagesOptions options)
+    private void ApplyDecisionsMessagesOverrides(DecisionsMessagesOptions options, DecisionsOptions shared)
     {
-        ApplyRootBooleanOverride(DecisionsMessagesVariables[nameof(options.Enabled)], nameof(options.Enabled), value => options.Enabled = value);
-        ApplyRootProbabilityOverride(DecisionsMessagesVariables[nameof(options.MinProbability)], nameof(options.MinProbability), value => options.MinProbability = value);
-        ApplyRootIntegerOverride(DecisionsMessagesVariables[nameof(options.CircuitBreakSeconds)], nameof(options.CircuitBreakSeconds), value => options.CircuitBreakSeconds = value);
-        ApplyRootIntegerOverride(DecisionsMessagesVariables[nameof(options.MaxStateChars)], nameof(options.MaxStateChars), value => options.MaxStateChars = value);
+        IReadOnlyDictionary<string, string> variables = DecisionsMessagesVariables;
+        const string section = DecisionsMessagesSection;
+
+        ApplyRootBooleanOverride(variables[nameof(options.Enabled)], nameof(options.Enabled), value => options.Enabled = value);
+        LayerString(section, variables, nameof(options.BaseUrl), shared.BaseUrl, value => options.BaseUrl = value);
+        LayerString(section, variables, nameof(options.Path), shared.Path, value => options.Path = value);
+        LayerString(section, variables, nameof(options.Model), shared.Model, value => options.Model = value);
+        LayerProbability(section, variables, nameof(options.MinProbability), shared.MinProbability, value => options.MinProbability = value);
+        LayerInteger(section, variables, nameof(options.MaxAttempts), shared.MaxAttempts, value => options.MaxAttempts = value);
+        LayerInteger(section, variables, nameof(options.TimeoutSeconds), shared.TimeoutSeconds, value => options.TimeoutSeconds = value);
+        LayerInteger(section, variables, nameof(options.CircuitBreakSeconds), shared.CircuitBreakSeconds, value => options.CircuitBreakSeconds = value);
+        ApplyRootIntegerOverride(variables[nameof(options.MaxStateChars)], nameof(options.MaxStateChars), value => options.MaxStateChars = value);
     }
 
     private void ApplyLlmMessagesOverrides(LlmMessagesOptions options)
@@ -366,60 +464,63 @@ internal sealed class ImposterOptionsPostConfigure(
         ApplyRootStringOverride(LlmMessagesVariables[nameof(options.Model)], nameof(options.Model), value => options.Model = value);
         ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.MaxAttempts)], nameof(options.MaxAttempts), value => options.MaxAttempts = value);
         ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.TimeoutSeconds)], nameof(options.TimeoutSeconds), value => options.TimeoutSeconds = value);
-        ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.RetryDelaySeconds)], nameof(options.RetryDelaySeconds), value => options.RetryDelaySeconds = value);
         ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.CircuitBreakSeconds)], nameof(options.CircuitBreakSeconds), value => options.CircuitBreakSeconds = value);
         ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.CacheTtlHours)], nameof(options.CacheTtlHours), value => options.CacheTtlHours = value);
         ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.MinChars)], nameof(options.MinChars), value => options.MinChars = value);
+        ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.BudgetSeconds)], nameof(options.BudgetSeconds), value => options.BudgetSeconds = value);
         ApplyRootStringOverride(LlmMessagesVariables[nameof(options.ApiKey)], nameof(options.ApiKey), value => options.ApiKey = value);
     }
 
-    private void ApplyRootStringOverride(string variable, string propertyName, Action<string> apply)
+    private bool ApplyRootStringOverride(string variable, string propertyName, Action<string> apply)
     {
         string? value = configuration[variable];
         if (string.IsNullOrWhiteSpace(value))
         {
-            return;
+            return false;
         }
 
         apply(value);
         LogRootOverrideApplied(variable, propertyName);
+        return true;
     }
 
-    private void ApplyRootIntegerOverride(string variable, string propertyName, Action<int> apply)
+    private bool ApplyRootIntegerOverride(string variable, string propertyName, Action<int> apply)
     {
         string? value = configuration[variable];
         if (string.IsNullOrWhiteSpace(value))
         {
-            return;
+            return false;
         }
 
         if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
         {
             LogInvalidRootOverride(variable, propertyName, "an invariant whole number");
-            return;
+            return false;
         }
 
         apply(parsed);
         LogRootOverrideApplied(variable, propertyName);
+        return true;
     }
 
-    private void ApplyRootProbabilityOverride(string variable, string propertyName, Action<double> apply)
+    private bool ApplyRootProbabilityOverride(string variable, string propertyName, Action<double> apply)
     {
         string? value = configuration[variable];
         if (string.IsNullOrWhiteSpace(value))
         {
-            return;
+            return false;
         }
 
         if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed) ||
             !double.IsFinite(parsed))
         {
             LogInvalidRootOverride(variable, propertyName, "a finite invariant number");
-            return;
+            return false;
         }
 
         apply(parsed);
         LogRootOverrideApplied(variable, propertyName);
+        return true;
     }
 
     private void LogInvalidRootOverride(string variable, string propertyName, string expected)
@@ -584,12 +685,12 @@ internal sealed class ImposterOptionsPostConfigure(
     /// Mirrors the per-provider bool pattern: blank/whitespace is absent, unparseable logs a Warning and
     /// leaves the bound value untouched, parseable applies via <paramref name="apply"/>.
     /// </summary>
-    private void ApplyRootBooleanOverride(string variable, string propertyName, Action<bool> apply)
+    private bool ApplyRootBooleanOverride(string variable, string propertyName, Action<bool> apply)
     {
         string? value = configuration[variable];
         if (string.IsNullOrWhiteSpace(value))
         {
-            return;
+            return false;
         }
 
         if (!bool.TryParse(value, out bool parsed))
@@ -597,10 +698,11 @@ internal sealed class ImposterOptionsPostConfigure(
             logger.LogWarning(
                 "Ignoring conventional override {EnvVar} for field {Field}: value '{Value}' is not a recognized boolean.",
                 variable, propertyName, value);
-            return;
+            return false;
         }
 
         apply(parsed);
         LogRootOverrideApplied(variable, propertyName);
+        return true;
     }
 }

@@ -21,7 +21,7 @@ namespace SmoothLlmImposter.Host.IntegrationTest;
 public sealed class MessageOptimizerEgressTests
 {
     private const string FirstHuman = "Please kindly review `alpha()` when you have a moment.";
-    private const string SecondHuman = "Please kindly check `beta()` when you can.";
+    private const string SecondHuman = "Please kindly review `beta()` when you can.";
     private const string CallerKey = "sk-ant-CALLERKEY-SENTINEL";
 
     /// <summary>Content the harness, the assistant or a tool produced; none of it may reach either model.</summary>
@@ -57,7 +57,7 @@ public sealed class MessageOptimizerEgressTests
             .Select(request => request.Json["messages"]![1]!["content"]!.GetValue<string>())
             .ToArray();
         gateStates.ShouldBe([FirstHuman, SecondHuman]);
-        optimizerTexts.ShouldBe([FirstHuman, SecondHuman]);
+        optimizerTexts.ShouldBe([Delimited(FirstHuman), Delimited(SecondHuman)]);
 
         foreach (ModelRequest request in app.Models.Requests)
         {
@@ -326,6 +326,8 @@ public sealed class MessageOptimizerEgressTests
         }
     }
 
+    private static string Delimited(string text) => $"<message_to_rewrite>\n{text}\n</message_to_rewrite>";
+
     private static HttpResponseMessage Json(JsonObject body) => new(HttpStatusCode.OK)
     {
         Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json")
@@ -443,11 +445,11 @@ public sealed class MessageOptimizerEgressTests
             ["Imposter:LlmMessages:MaxAttempts"] = "1",
             ["Imposter:LlmMessages:TimeoutSeconds"] = "10",
 
-            ["Imposter:DecisionsTools:BaseUrl"] = "https://gate.test",
-            ["Imposter:DecisionsTools:Path"] = "/v1/systemone",
-            ["Imposter:DecisionsTools:Model"] = "gate-model",
-            ["Imposter:DecisionsTools:MaxAttempts"] = "1",
-            ["Imposter:DecisionsTools:TimeoutSeconds"] = "10"
+            ["Imposter:Decisions:BaseUrl"] = "https://gate.test",
+            ["Imposter:Decisions:Path"] = "/v1/systemone",
+            ["Imposter:Decisions:Model"] = "gate-model",
+            ["Imposter:Decisions:MaxAttempts"] = "1",
+            ["Imposter:Decisions:TimeoutSeconds"] = "10"
         };
     }
 }

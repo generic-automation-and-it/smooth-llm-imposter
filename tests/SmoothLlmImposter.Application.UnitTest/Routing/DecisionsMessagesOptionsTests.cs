@@ -16,7 +16,12 @@ public class DecisionsMessagesOptionsTests
         DecisionsMessagesOptions options = new ImposterOptions().DecisionsMessages;
 
         options.Enabled.ShouldBeFalse();
+        options.BaseUrl.ShouldBe("http://host.docker.internal:1234");
+        options.Path.ShouldBe("/v1/systemone");
+        options.Model.ShouldBe("openjev");
         options.MinProbability.ShouldBe(0.50);
+        options.MaxAttempts.ShouldBe(3);
+        options.TimeoutSeconds.ShouldBe(60);
         options.CircuitBreakSeconds.ShouldBe(180);
     }
 
@@ -58,6 +63,7 @@ public class DecisionsMessagesOptionsTests
         _ when type == typeof(bool) => (!(bool)current!).ToString(),
         _ when type == typeof(double) => ((double)current! / 2).ToString(CultureInfo.InvariantCulture),
         _ when type == typeof(int) => ((int)current! + 1).ToString(CultureInfo.InvariantCulture),
+        _ when type == typeof(string) => current + "-override",
         _ => throw new NotSupportedException($"Add an override value for {type.Name} settings.")
     };
 }

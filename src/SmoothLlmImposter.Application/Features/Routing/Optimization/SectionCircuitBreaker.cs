@@ -1,7 +1,6 @@
 using System.Net;
 using Microsoft.Extensions.Logging;
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
-using SmoothLlmImposter.Application.Common.Clients.LocalLlm;
 
 namespace SmoothLlmImposter.Application.Features.Routing.Optimization;
 
@@ -82,7 +81,7 @@ internal sealed class SectionCircuitBreaker(
 
     internal static bool IsServiceFailure(Exception failure) => failure switch
     {
-        LocalLlmGateTimeoutException => false,
+        DecisionGateTimeoutException => false,
         DecisionServiceTimeoutException => true,
         // HttpClient.Timeout surfaces as TaskCanceledException with the caller's token
         // NOT cancelled; caller cancellation is filtered by the caller before
