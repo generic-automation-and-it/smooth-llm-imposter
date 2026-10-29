@@ -39,12 +39,16 @@ or guarantee that appending a tool reuses an earlier tools breakpoint.
   neither freezes a session catalog. The per-question decision memo saves classifier work, not upstream
   prompt-cache tokens. Deferred-loading catalogs are not decision-filtered. If stable upstream prefixes
   are the priority, leave `DECISIONS_TOOLS_ENABLED=false` (the default), or also set
-  `DECISIONS_TOOLS_STICKY_PER_SESSION=true`: a tool the filter forwarded then stays forwarded for the rest of
-  that session while the client still sends it, so the filter itself no longer changes the tool prefix between
-  turns. It uses the same captured identities as ordering below (derived fingerprints and the router's own
-  `prompt_cache_key` do not count), records nothing from a failed or all-skip pass, and grows the forwarded
-  catalog over a long session. Combined with ordering, a session's tool prefix changes only when the client
-  adds or drops a tool ([HLD 014 LADR-09](../hlds/014-decisions-tools-filter/ladrs/LADR-09-sticky-per-session.md)).
+  `DECISIONS_TOOLS_STICKY_PER_SESSION=true` with `Imposter__ToolOrdering__Enabled=true`: a tool the filter
+  forwarded then stays forwarded for the rest of that session while the client still sends it, so the filter
+  itself no longer changes the tool prefix between turns. Sticky selection requires ordering — the Host refuses
+  to start when the filter and `DECISIONS_TOOLS_STICKY_PER_SESSION` are on and ordering is off, because
+  membership keeps the tool set but not its array order. It uses the same captured identities as ordering below
+  (derived fingerprints and the router's own `prompt_cache_key` do not count), records nothing from a failed or
+  all-skip pass, and grows the forwarded catalog over a long session. With ordering in place, a session's tool
+  prefix changes only when the client adds or drops a tool
+  ([HLD 014 LADR-09](../hlds/014-decisions-tools-filter/ladrs/LADR-09-sticky-per-session.md),
+  [LADR-13](../hlds/014-decisions-tools-filter/ladrs/LADR-13-sticky-selection-requires-ordering.md)).
 
 ## Optional session-local stable ordering
 

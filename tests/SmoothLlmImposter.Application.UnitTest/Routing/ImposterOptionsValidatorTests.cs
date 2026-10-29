@@ -581,4 +581,42 @@ public class ImposterOptionsValidatorTests
 
         _validator.Validate(null, options).Failed.ShouldBeTrue();
     }
+
+    [Fact]
+    public void Sticky_selection_without_tool_ordering_fails_naming_both_settings()
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.Enabled = true;
+        options.DecisionsTools.StickyPerSession = true;
+
+        ValidateOptionsResult result = _validator.Validate(null, options);
+
+        result.Failed.ShouldBeTrue();
+        result.Failures.Count().ShouldBe(1);
+        result.FailureMessage.ShouldContain("Imposter:DecisionsTools:StickyPerSession");
+        result.FailureMessage.ShouldContain("DECISIONS_TOOLS_STICKY_PER_SESSION");
+        result.FailureMessage.ShouldContain("Imposter:ToolOrdering:Enabled");
+        result.FailureMessage.ShouldContain("Imposter__ToolOrdering__Enabled");
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, true)]
+    public void Sticky_and_ordering_combinations_without_the_invalid_one_are_valid(
+        bool enabled,
+        bool sticky,
+        bool ordering)
+    {
+        var options = Options(Valid("a"));
+        options.DecisionsTools.Enabled = enabled;
+        options.DecisionsTools.StickyPerSession = sticky;
+        options.ToolOrdering.Enabled = ordering;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
 }
