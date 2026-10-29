@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
+using SmoothLlmImposter.Application.Common.Clients.LocalLlm;
 using SmoothLlmImposter.Infrastructure.Clients.Decisions;
 
 namespace SmoothLlmImposter.Infrastructure.UnitTest.Clients.Decisions;
@@ -114,6 +115,25 @@ public class DecisionModelClientTests
             provider.GetRequiredService<IDecisionModelClient>().DecideAsync(new JsonObject(), Ct));
 
         handler.Calls.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Retries_wait_the_configured_delay_between_attempts()
+    {
+        var handler = new CallbackHandler((call, _, _) => Task.FromResult(call < 2
+            ? new HttpResponseMessage(HttpStatusCode.BadGateway)
+            : Success()));
+        await using ServiceProvider provider = BuildProvider(handler, settings =>
+        {
+            settings.MaxAttempts = 2;
+            settings.RetryDelaySeconds = 1;
+        });
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+
+        await provider.GetRequiredService<IDecisionModelClient>().DecideAsync(new JsonObject(), Ct);
+
+        handler.Calls.ShouldBe(2);
+        elapsed.Elapsed.ShouldBeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(900));
     }
 
     [Fact]
@@ -233,7 +253,7 @@ public class DecisionModelClientTests
             await Task.Delay(Timeout.InfiniteTimeSpan, ct);
             return Success();
         });
-        await using ServiceProvider provider = BuildProvider(handler, settings => settings.TimeoutSeconds = 1);
+        await using ServiceProvider provider = BuildProvider(handler, settings => settings.MaxAttempts = 1, gateWaitSeconds: 1);
         var client = provider.GetRequiredService<IDecisionModelClient>();
         using var ceiling = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         ceiling.CancelAfter(TimeSpan.FromSeconds(10));
@@ -241,12 +261,12 @@ public class DecisionModelClientTests
         Task<JsonObject> firstCall = client.DecideAsync(new JsonObject { ["request"] = "first" }, cancelFirst.Token);
         await entered.Task.WaitAsync(ceiling.Token);
 
-        await Should.ThrowAsync<DecisionGateTimeoutException>(() =>
+        await Should.ThrowAsync<LocalLlmGateTimeoutException>(() =>
             client.DecideAsync(new JsonObject { ["request"] = "second" }, ceiling.Token));
 
         await cancelFirst.CancelAsync();
         Exception firstFailure = await Should.ThrowAsync<Exception>(() => firstCall);
-        (firstFailure is OperationCanceledException or DecisionServiceTimeoutException).ShouldBeTrue();
+        firstFailure.ShouldBeAssignableTo<OperationCanceledException>();
         sentRequests.ShouldAllBe(body => body.Contains("first", StringComparison.Ordinal));
     }
 
@@ -400,7 +420,8 @@ public class DecisionModelClientTests
     private static ServiceProvider BuildProvider(
         HttpMessageHandler handler,
         Action<DecisionServiceOptions>? configure = null,
-        IDecisionServiceConsumer[]? consumers = null)
+        IDecisionServiceConsumer[]? consumers = null,
+        int gateWaitSeconds = LocalLlmGateOptions.DefaultWaitSeconds)
     {
         IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection([]).Build();
         var services = new ServiceCollection();
@@ -408,8 +429,11 @@ public class DecisionModelClientTests
         services.Configure<DecisionServiceOptions>(options =>
         {
             options.BaseUrl = "https://decisions.test";
+            options.MaxAttempts = 3;
+            options.RetryDelaySeconds = 0;
             configure?.Invoke(options);
         });
+        services.Configure<LocalLlmGateOptions>(options => options.WaitSeconds = gateWaitSeconds);
         foreach (IDecisionServiceConsumer consumer in consumers ?? [new FixtureConsumer(optedIn: true)])
         {
             services.AddSingleton(consumer);

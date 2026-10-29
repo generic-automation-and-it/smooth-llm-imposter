@@ -11,8 +11,9 @@ public sealed class DecisionServiceOptions
     public const string DefaultBaseUrl = "http://host.docker.internal:1234";
     public const string DefaultPath = "/v1/systemone";
     public const string DefaultModel = "openjev";
-    public const int DefaultMaxAttempts = 3;
+    public const int DefaultMaxAttempts = 2;
     public const int DefaultTimeoutSeconds = 60;
+    public const int DefaultRetryDelaySeconds = 5;
 
     public string BaseUrl { get; set; } = DefaultBaseUrl;
 
@@ -23,4 +24,6 @@ public sealed class DecisionServiceOptions
     public int MaxAttempts { get; set; } = DefaultMaxAttempts;
 
     public int TimeoutSeconds { get; set; } = DefaultTimeoutSeconds;
+
+    public int RetryDelaySeconds { get; set; } = DefaultRetryDelaySeconds;
 }

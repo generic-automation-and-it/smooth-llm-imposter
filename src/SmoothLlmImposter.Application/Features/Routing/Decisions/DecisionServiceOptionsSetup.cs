@@ -18,5 +18,6 @@ internal sealed class DecisionServiceOptionsSetup(IOptions<ImposterOptions> impo
         options.Model = source.Model;
         options.MaxAttempts = source.MaxAttempts;
         options.TimeoutSeconds = source.TimeoutSeconds;
+        options.RetryDelaySeconds = source.RetryDelaySeconds;
     }
 }

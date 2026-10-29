@@ -1,4 +1,5 @@
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
+using SmoothLlmImposter.Application.Common.Clients.LocalLlm;
 using SmoothLlmImposter.Application.Common.Clients.Optimizer;
 
 namespace SmoothLlmImposter.Application.Features.Routing;
@@ -46,12 +47,20 @@ public sealed class ImposterOptions
     public ToolOrderingOptions ToolOrdering { get; init; } = new();
 
     /// <summary>
-    /// Maximum number of outbound HTTP requests that may be in flight at once across the whole process
-    /// (HLD 017 follow-up). <c>1</c> (default) serializes every outbound call — local LLM (decision /
-    /// optimizer) and upstreams alike — so a slow backend cannot be hit concurrently. Higher values
-    /// allow overlap. Conventional env override <c>IMPOSTER_MAX_CONCURRENT_REQUESTS</c>.
+    /// Maximum number of upstream and GitHub HTTP requests that may be in flight at once across the whole
+    /// process (HLD 017 follow-up). <c>1</c> (default) serializes them so a slow backend cannot be hit
+    /// concurrently; higher values allow overlap. Decision and optimizer calls use the separate
+    /// <see cref="LocalLlmGateWaitSeconds"/> slot instead. Conventional env override
+    /// <c>IMPOSTER_MAX_CONCURRENT_REQUESTS</c>.
     /// </summary>
     public int MaxConcurrentRequests { get; set; } = 1;
+
+    /// <summary>
+    /// How long a decision or optimizer call waits for the single local-LLM slot before it gives up and the
+    /// request continues without it (HLD 015 LADR-05). Conventional env override
+    /// <c>LOCAL_LLM_GATE_WAIT_SECONDS</c>.
+    /// </summary>
+    public int LocalLlmGateWaitSeconds { get; set; } = LocalLlmGateOptions.DefaultWaitSeconds;
 }
 
 public sealed class DecisionsMessagesOptions
@@ -108,6 +117,8 @@ public sealed class DecisionsToolsOptions
     public int MaxAttempts { get; set; } = DecisionServiceOptions.DefaultMaxAttempts;
 
     public int TimeoutSeconds { get; set; } = DecisionServiceOptions.DefaultTimeoutSeconds;
+
+    public int RetryDelaySeconds { get; set; } = DecisionServiceOptions.DefaultRetryDelaySeconds;
 
     /// <summary>
     /// Cooldown after one failed classifier call opens the tool-filter circuit (HLD 014 LADR-11, NFR-05).

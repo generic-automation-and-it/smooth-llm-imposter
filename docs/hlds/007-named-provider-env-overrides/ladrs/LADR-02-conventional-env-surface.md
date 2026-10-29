@@ -76,6 +76,11 @@ The structured equivalent is `Imposter:DecisionsTools:<field>`.
 | `DECISIONS_TOOLS_STICKY_PER_SESSION` | `StickyPerSession` |
 | `DECISIONS_TOOLS_MAX_ATTEMPTS` | `MaxAttempts` |
 | `DECISIONS_TOOLS_TIMEOUT` | `TimeoutSeconds` |
+| `DECISIONS_TOOLS_RETRY_DELAY_SECONDS` | `RetryDelaySeconds` |
+| `DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS` | `CircuitBreakSeconds` |
+
+`LOCAL_LLM_GATE_WAIT_SECONDS` is a further root override (`Imposter:LocalLlmGateWaitSeconds`): the wait for
+the single local-LLM slot shared by decision and optimizer calls (HLD 015 LADR-05).
 
 The timeout env spelling deliberately omits `_SECONDS`. Blank values are absent; unparseable
 booleans/numbers warn and preserve the bound value. Numeric parsing uses invariant culture.

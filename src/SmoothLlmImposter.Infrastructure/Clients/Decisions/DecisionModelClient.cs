@@ -10,15 +10,14 @@ namespace SmoothLlmImposter.Infrastructure.Clients.Decisions;
 internal sealed class DecisionModelClient(
     IHttpClientFactory httpClientFactory,
     IOptions<DecisionServiceOptions> options,
-    DecisionServiceGate gate) : IDecisionModelClient
+    LocalLlmGate gate) : IDecisionModelClient
 {
     internal const string HttpClientName = "decision-service";
 
     public async Task<JsonObject> DecideAsync(JsonObject request, CancellationToken cancellationToken)
     {
         DecisionServiceOptions settings = options.Value;
-        using DecisionServiceGate.Admission admission =
-            await gate.EnterAsync(TimeSpan.FromSeconds(settings.TimeoutSeconds), cancellationToken);
+        using LocalLlmGate.Admission admission = await gate.EnterAsync(cancellationToken);
 
         using HttpClient client = httpClientFactory.CreateClient(HttpClientName);
         using var message = new HttpRequestMessage(

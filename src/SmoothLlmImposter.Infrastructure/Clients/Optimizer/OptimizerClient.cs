@@ -8,7 +8,8 @@ namespace SmoothLlmImposter.Infrastructure.Clients.Optimizer;
 
 internal sealed class OptimizerClient(
     IHttpClientFactory httpClientFactory,
-    IOptions<LlmMessagesOptions> options) : IOptimizerClient
+    IOptions<LlmMessagesOptions> options,
+    LocalLlmGate gate) : IOptimizerClient
 {
     internal const string HttpClientName = "llm-messages";
 
@@ -27,6 +28,8 @@ internal sealed class OptimizerClient(
             ["stream"] = false,
         };
 
+        using LocalLlmGate.Admission admission = await gate.EnterAsync(cancellationToken);
+
         using HttpClient client = httpClientFactory.CreateClient(HttpClientName);
         client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : 60);
 
@@ -38,7 +41,7 @@ internal sealed class OptimizerClient(
             try
             {
                 string raw = string.IsNullOrWhiteSpace(settings.Path) ? "/v1/chat/completions" : settings.Path.Trim();
-string path = raw.StartsWith('/') ? raw : "/" + raw;
+                string path = raw.StartsWith('/') ? raw : "/" + raw;
                 using var message = new HttpRequestMessage(HttpMethod.Post, settings.BaseUrl.TrimEnd('/') + path)
                 {
                     Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json")
@@ -73,7 +76,7 @@ string path = raw.StartsWith('/') ? raw : "/" + raw;
                 last = ex;
                 if (attempt < attempts - 1)
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(100 * (attempt + 1)), cancellationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(settings.RetryDelaySeconds), cancellationToken);
                 }
             }
             catch (HttpRequestException ex) when (IsRetryableStatus(ex))
@@ -81,7 +84,7 @@ string path = raw.StartsWith('/') ? raw : "/" + raw;
                 last = ex;
                 if (attempt < attempts - 1)
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(100 * (attempt + 1)), cancellationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(settings.RetryDelaySeconds), cancellationToken);
                 }
             }
             catch (HttpRequestException ex)

@@ -198,7 +198,7 @@ appends new tools and leaves removed tools removed; see the guide's
 `DECISIONS_TOOLS_ENABLED=true` opts **all** supported imposter and passthrough routes into tool pruning
 before forwarding. It is **off by default**; no shipped `appsettings*.json` or default container command
 enables it. The [Conductor workspace installer](setups/conductor.build-smooth-llm-imposter.md#optional-decision-tool-filter)
-forwards the ten variables below without enabling the feature. Configuration is read at startup; restart
+forwards the variables below without enabling the feature. Configuration is read at startup; restart
 or recreate the container after changing it.
 
 | Environment variable | `Imposter:DecisionsTools` field | Default | Enabled-only validation |
@@ -211,8 +211,9 @@ or recreate the container after changing it.
 | `DECISIONS_TOOLS_MIN_KEEP` | `MinKeepTools` | `20` | 0–1000 (`0` disables the floor) |
 | `DECISIONS_TOOLS_ALWAYS_KEEP` | `AlwaysKeep` | `Bash,Read,Edit,Write,Skill` | — (comma-separated tool names) |
 | `DECISIONS_TOOLS_STICKY_PER_SESSION` | `StickyPerSession` | `false` | — |
-| `DECISIONS_TOOLS_MAX_ATTEMPTS` | `MaxAttempts` | `3` | 1–10 inclusive |
+| `DECISIONS_TOOLS_MAX_ATTEMPTS` | `MaxAttempts` | `2` (one retry) | 1–10 inclusive |
 | `DECISIONS_TOOLS_TIMEOUT` | `TimeoutSeconds` | `60` | 1–3600 seconds |
+| `DECISIONS_TOOLS_RETRY_DELAY_SECONDS` | `RetryDelaySeconds` | `5` | 0–60 seconds |
 
 The timeout env name has **no `_SECONDS` suffix**. Decimal overrides use invariant notation (`0.50`, not
 `0,50`). Conventional variables win over structured configuration; blank values are absent and invalid
@@ -243,6 +244,24 @@ In Docker Desktop the default host name resolves natively; Linux Docker/Podman r
 `--add-host=host.docker.internal:host-gateway`. Container `127.0.0.1` points to the container, not the host.
 See [Docker opt-in](setups/docker.run-smooth-llm-imposter.md#optional-decision-tool-filter) and
 [HLD 014](../hlds/014-decisions-tools-filter/README.md).
+
+### Local LLM gate
+
+Every decision call (tool filter and message gate) and every optimizer call takes one process-wide slot, so a
+local machine serving those models handles them strictly one at a time, whatever endpoint or model each uses
+([HLD 015 LADR-05](../hlds/015-shared-decision-model-integration/ladrs/LADR-05-per-section-profiles-circuits-gates.md)).
+A call keeps the slot through its retries and retry delays. Upstream forwarding does not use this slot, so a long
+upstream stream never blocks them; `IMPOSTER_MAX_CONCURRENT_REQUESTS` still limits upstream and GitHub traffic only.
+
+| Environment variable | Structured field | Default | Validation |
+|---|---|---|---|
+| `LOCAL_LLM_GATE_WAIT_SECONDS` | `Imposter:LocalLlmGateWaitSeconds` | `60` | 1–3600 seconds, always |
+| `LLM_MESSAGES_MAX_ATTEMPTS` | `Imposter:LlmMessages:MaxAttempts` | `2` (one retry) | 1–10 when the optimizer is on |
+| `LLM_MESSAGES_RETRY_DELAY_SECONDS` | `Imposter:LlmMessages:RetryDelaySeconds` | `5` | 0–60 seconds when the optimizer is on |
+
+A call that gets no slot within the wait budget is skipped as contention: the tool filter keeps the unresolved
+tools, the message gate continues to the optimizer, and the optimizer forwards the original message. Contention
+never opens a circuit.
 
 ### Local debugging — .NET user secrets
 

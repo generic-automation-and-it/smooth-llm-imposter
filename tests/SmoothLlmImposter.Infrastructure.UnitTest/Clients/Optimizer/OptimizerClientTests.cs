@@ -109,6 +109,26 @@ public class OptimizerClientTests
     }
 
     [Fact]
+    public async Task Retries_wait_the_configured_delay_between_attempts()
+    {
+        var handler = new CallbackHandler((call, _, _) =>
+            Task.FromResult(call < 2
+                ? new HttpResponseMessage(HttpStatusCode.BadGateway)
+                : Success()));
+        await using ServiceProvider provider = BuildProvider(handler, settings =>
+        {
+            settings.MaxAttempts = 2;
+            settings.RetryDelaySeconds = 1;
+        });
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+
+        await provider.GetRequiredService<IOptimizerClient>().OptimizeAsync("i", "u", Ct);
+
+        handler.Calls.ShouldBe(2);
+        elapsed.Elapsed.ShouldBeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(900));
+    }
+
+    [Fact]
     public async Task Does_not_retry_4xx()
     {
         var handler = new CallbackHandler((_, _, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadRequest)));
@@ -199,6 +219,8 @@ public class OptimizerClientTests
         {
             options.BaseUrl = "https://opt.test";
             options.Model = "m";
+            options.MaxAttempts = 3;
+            options.RetryDelaySeconds = 0;
             configure?.Invoke(options);
         });
         services.AddInfrastructure(configuration);

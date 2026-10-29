@@ -25,8 +25,9 @@ public class DecisionsToolsOptionsTests
         options.MinKeepTools.ShouldBe(20);
         options.AlwaysKeep.ShouldBe("Bash,Read,Edit,Write,Skill");
         options.StickyPerSession.ShouldBeFalse();
-        options.MaxAttempts.ShouldBe(3);
+        options.MaxAttempts.ShouldBe(2);
         options.TimeoutSeconds.ShouldBe(60);
+        options.RetryDelaySeconds.ShouldBe(5);
         options.CircuitBreakSeconds.ShouldBe(180);
     }
 
@@ -207,7 +208,8 @@ public class DecisionsToolsOptionsTests
             ["DECISIONS_TOOLS_ENABLED"] = "true",
             ["DECISIONS_TOOLS_MIN_PROBABILITY"] = "1.5",
             ["DECISIONS_TOOLS_MAX_ATTEMPTS"] = "0",
-            ["DECISIONS_TOOLS_TIMEOUT"] = "-5"
+            ["DECISIONS_TOOLS_TIMEOUT"] = "-5",
+            ["DECISIONS_TOOLS_RETRY_DELAY_SECONDS"] = "61"
         });
 
         ValidateOptionsResult policy = new ImposterOptionsValidator().Validate(null, options);
@@ -221,6 +223,7 @@ public class DecisionsToolsOptionsTests
         shared.Failed.ShouldBeTrue();
         shared.FailureMessage.ShouldContain("MaxAttempts");
         shared.FailureMessage.ShouldContain("TimeoutSeconds");
+        shared.FailureMessage.ShouldContain("RetryDelaySeconds");
     }
 
     [Fact]

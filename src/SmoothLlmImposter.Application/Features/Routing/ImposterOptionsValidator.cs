@@ -21,6 +21,11 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
     {
         List<string> failures = [];
 
+        if (options.LocalLlmGateWaitSeconds is < MinTimeoutSeconds or > MaxTimeoutSeconds)
+        {
+            failures.Add($"Imposter:LocalLlmGateWaitSeconds must be between {MinTimeoutSeconds} and {MaxTimeoutSeconds} seconds.");
+        }
+
         AddDecisionsToolsFailures(options.DecisionsTools, failures);
         AddDecisionsMessagesFailures(options.DecisionsMessages, failures);
         AddLlmMessagesFailures(options.LlmMessages, failures);
@@ -256,6 +261,10 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         if (options.TimeoutSeconds is < 1 or > 3600)
         {
             failures.Add($"{prefix}:TimeoutSeconds must be between 1 and 3600 seconds.");
+        }
+        if (options.RetryDelaySeconds is < 0 or > 60)
+        {
+            failures.Add($"{prefix}:RetryDelaySeconds must be between 0 and 60 seconds.");
         }
         if (options.CircuitBreakSeconds is < 1 or > 3600)
         {

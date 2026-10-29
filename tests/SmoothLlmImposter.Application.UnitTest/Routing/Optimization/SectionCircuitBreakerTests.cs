@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.Extensions.Logging;
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
+using SmoothLlmImposter.Application.Common.Clients.LocalLlm;
 using SmoothLlmImposter.Application.Features.Routing.Optimization;
 
 namespace SmoothLlmImposter.Application.UnitTest.Routing.Optimization;
@@ -46,7 +47,7 @@ public sealed class SectionCircuitBreakerTests
     [Theory]
     [InlineData(typeof(InvalidOperationException))]
     [InlineData(typeof(ArgumentException))]
-    [InlineData(typeof(DecisionGateTimeoutException))]
+    [InlineData(typeof(LocalLlmGateTimeoutException))]
     public void A_non_service_failure_does_not_open_the_circuit(Type exceptionType)
     {
         var breaker = new SectionCircuitBreaker("message-gate", new ManualClock(), new CollectingLogger());
@@ -106,7 +107,7 @@ public sealed class SectionCircuitBreakerTests
 
     private static Exception CreateException(Type type) => type switch
     {
-        _ when type == typeof(DecisionGateTimeoutException) => new DecisionGateTimeoutException("gate"),
+        _ when type == typeof(LocalLlmGateTimeoutException) => new LocalLlmGateTimeoutException("gate"),
         _ when type == typeof(DecisionServiceTimeoutException) => new DecisionServiceTimeoutException("timeout"),
         _ => (Exception)Activator.CreateInstance(type)!
     };

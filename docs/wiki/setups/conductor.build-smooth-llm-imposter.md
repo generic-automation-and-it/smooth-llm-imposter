@@ -374,13 +374,16 @@ provider mappings, secrets and optional decision settings while creating the con
 ### Optional decision-tool filter
 
 Set `DECISIONS_TOOLS_ENABLED=true` in the **workspace environment**, not the snapshot environment, to opt in.
-The script forwards all ten settings from the [decision settings table](../setup.md#optional-decision-model-tool-pre-filter):
+The script forwards every setting from the [decision settings table](../setup.md#optional-decision-model-tool-pre-filter)
+plus the [local LLM gate](../setup.md#local-llm-gate) wait budget:
 `DECISIONS_TOOLS_ENABLED`, `DECISIONS_TOOLS_BASE_URL`, `DECISIONS_TOOLS_PATH`, `DECISIONS_TOOLS_MODEL`,
 `DECISIONS_TOOLS_MIN_PROBABILITY`, `DECISIONS_TOOLS_MIN_KEEP`, `DECISIONS_TOOLS_ALWAYS_KEEP`, `DECISIONS_TOOLS_STICKY_PER_SESSION`,
-`DECISIONS_TOOLS_MAX_ATTEMPTS`, `DECISIONS_TOOLS_TIMEOUT` and `DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS`.
+`DECISIONS_TOOLS_MAX_ATTEMPTS`, `DECISIONS_TOOLS_TIMEOUT`, `DECISIONS_TOOLS_RETRY_DELAY_SECONDS`,
+`DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS` and `LOCAL_LLM_GATE_WAIT_SECONDS`.
 Unset settings retain the application's defaults; the installer does not enable filtering automatically.
-A workspace script pasted before `DECISIONS_TOOLS_STICKY_PER_SESSION` existed does not forward it: replace the
-lifecycle script with the one below and re-run it.
+A workspace script pasted before `DECISIONS_TOOLS_STICKY_PER_SESSION`, `DECISIONS_TOOLS_RETRY_DELAY_SECONDS` or
+`LOCAL_LLM_GATE_WAIT_SECONDS` existed does not forward them: replace the lifecycle script with the one below and
+re-run it.
 
 For example, supply these workspace environment entries:
 
@@ -512,7 +515,7 @@ export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in the w
 if docker info >/dev/null 2>&1; then
   DOCKER=(docker)
 elif sudo -n docker info >/dev/null 2>&1; then
-  DOCKER=(sudo -n --preserve-env=OPENCODE_GO_API_KEY,OPENROUTER_API_KEY,DECISIONS_TOOLS_ENABLED,DECISIONS_TOOLS_BASE_URL,DECISIONS_TOOLS_PATH,DECISIONS_TOOLS_MODEL,DECISIONS_TOOLS_MIN_PROBABILITY,DECISIONS_TOOLS_MIN_KEEP,DECISIONS_TOOLS_ALWAYS_KEEP,DECISIONS_TOOLS_STICKY_PER_SESSION,DECISIONS_TOOLS_MAX_ATTEMPTS,DECISIONS_TOOLS_TIMEOUT,DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS docker)
+  DOCKER=(sudo -n --preserve-env=OPENCODE_GO_API_KEY,OPENROUTER_API_KEY,DECISIONS_TOOLS_ENABLED,DECISIONS_TOOLS_BASE_URL,DECISIONS_TOOLS_PATH,DECISIONS_TOOLS_MODEL,DECISIONS_TOOLS_MIN_PROBABILITY,DECISIONS_TOOLS_MIN_KEEP,DECISIONS_TOOLS_ALWAYS_KEEP,DECISIONS_TOOLS_STICKY_PER_SESSION,DECISIONS_TOOLS_MAX_ATTEMPTS,DECISIONS_TOOLS_TIMEOUT,DECISIONS_TOOLS_RETRY_DELAY_SECONDS,DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS,LOCAL_LLM_GATE_WAIT_SECONDS docker)
 else
   echo "Docker is not reachable; on Linux the daemon is down, on macOS start Docker Desktop." >&2
   exit 1
@@ -662,7 +665,9 @@ fi
   -e DECISIONS_TOOLS_STICKY_PER_SESSION \
   -e DECISIONS_TOOLS_MAX_ATTEMPTS \
   -e DECISIONS_TOOLS_TIMEOUT \
+  -e DECISIONS_TOOLS_RETRY_DELAY_SECONDS \
   -e DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS \
+  -e LOCAL_LLM_GATE_WAIT_SECONDS \
   "$IMAGE" >/dev/null
 
 # Wait for health, tolerating a daemon that goes away mid-wait. `--restart

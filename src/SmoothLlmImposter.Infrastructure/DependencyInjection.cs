@@ -12,6 +12,7 @@ using SmoothLlmImposter.Application.Common.Clients.Optimizer;
 using SmoothLlmImposter.Application.Common.Persistence;
 using SmoothLlmImposter.Application.Features.GithubCopilot;
 using SmoothLlmImposter.Application.Features.Routing;
+using SmoothLlmImposter.Infrastructure.Clients;
 using SmoothLlmImposter.Infrastructure.Clients.GithubCopilot;
 using SmoothLlmImposter.Infrastructure.Clients.Decisions;
 using SmoothLlmImposter.Infrastructure.Clients.Optimizer;
@@ -54,8 +55,8 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        // Global outbound concurrency gate. A single SemaphoreSlim shared by every HttpClient so a slow
-        // local LLM (decision/optimizer) or a stalled upstream cannot be hit by several requests at once.
+        // Global outbound concurrency gate for upstream and GitHub traffic. Decision and optimizer calls are
+        // serialized by LocalLlmGate instead, so an open upstream stream never blocks them.
         // Size comes from Imposter:MaxConcurrentRequests (default 1), with the conventional env var
         // IMPOSTER_MAX_CONCURRENT_REQUESTS taking precedence. Values < 1 are clamped to 1.
         int maxConcurrent = 1;
@@ -77,7 +78,6 @@ public static class DependencyInjection
         services.AddTransient<ConcurrencyLimitingHandler>();
         IHttpClientBuilder decisionsClient = services.AddHttpClient(DecisionModelClient.HttpClientName, client =>
             client.Timeout = Timeout.InfiniteTimeSpan);
-        decisionsClient.AddHttpMessageHandler<ConcurrencyLimitingHandler>();
         decisionsClient.AddResilienceHandler("decision-service-retry", (builder, context) =>
             {
                 DecisionServiceOptions settings = ResolveDecisionTransport(context.ServiceProvider);
@@ -89,7 +89,9 @@ public static class DependencyInjection
                     builder.AddRetry(new HttpRetryStrategyOptions
                     {
                         MaxRetryAttempts = maxAttempts - 1,
-                        Delay = TimeSpan.Zero,
+                        Delay = TimeSpan.FromSeconds(settings.RetryDelaySeconds),
+                        BackoffType = DelayBackoffType.Constant,
+                        UseJitter = false,
                         ShouldRetryAfterHeader = false,
                         ShouldHandle = args => new ValueTask<bool>(
                             args.Outcome.Exception is HttpRequestException or TimeoutRejectedException ||
@@ -107,12 +109,11 @@ public static class DependencyInjection
             });
         decisionsClient.AddHttpMessageHandler(static () => new DecisionResponseBufferingHandler());
         services.TryAddSingleton<DecisionServiceDemand>();
-        services.AddSingleton<DecisionServiceGate>();
+        services.AddSingleton<LocalLlmGate>();
         services.AddSingleton<IDecisionModelClient, DecisionModelClient>();
 
         services.AddHttpClient(OptimizerClient.HttpClientName, client =>
-            client.Timeout = Timeout.InfiniteTimeSpan)
-            .AddHttpMessageHandler<ConcurrencyLimitingHandler>();
+            client.Timeout = Timeout.InfiniteTimeSpan);
         services.AddSingleton<IOptimizerClient, OptimizerClient>();
 
         services.AddHttpClient(UpstreamForwarder.HttpClientName, client =>

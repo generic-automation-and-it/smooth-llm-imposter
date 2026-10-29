@@ -13,13 +13,15 @@
 
 1. **Resolve one transport profile per decision section.** Each section resolves `BaseUrl`, `Path`, `Model`, `MaxAttempts`, `TimeoutSeconds`, `MinProbability` (where applicable) and `CircuitBreakSeconds` from its own `DECISIONS_<SECTION>_*` value, falling back to shared `DECISIONS_*`, falling back to the built-in default. Existing `DECISIONS_TOOLS_*` values keep their effective values; a missing section value never inherits another section's value.
 2. **Own one circuit per decision section.** Each section holds its own breaker instance following HLD 014 LADR-11 trip rule: one failed logical call after retries opens that section only; caller cancellation, gate-wait timeouts and invalid answers never open it. An open section makes no call and short-circuits before gate acquisition.
-3. **Gate admission per distinct endpoint plus model.** Sections sharing the same resolved endpoint and model share one admission gate and take turns; sections on different endpoints or models use independent gates and run in parallel. The single process-wide gate from LADR-03 remains the degenerate case: with one consumer, or with all consumers resolved to the same endpoint plus model, behavior is unchanged.
+3. **One process-wide local-LLM gate (amended 2026-10-29).** Every decision section and the HLD 017 optimizer share a single admission slot (`LocalLlmGate`), whatever endpoint or model each resolves to. A call holds the slot across its retries and retry delays. The wait is bounded by `LocalLlmGateWaitSeconds` (`LOCAL_LLM_GATE_WAIT_SECONDS`, default 60, 1–3600); a call not admitted in time throws `LocalLlmGateTimeoutException` and its consumer fails open. *Supersedes the original rule — one gate per distinct endpoint plus model, so sections on different endpoints ran in parallel — because these models usually run on the operator's own machine, where one call at a time is the most efficient order and parallel calls on different models compete for the same hardware.*
 4. **HLD 014 owns the tool section; HLD 017 owns the message section.** This LADR owns only profile resolution, circuit placement and gate keying. Thresholds, questions and fail-open actions stay with the consuming HLDs.
 
 ## Consequences
 
 - A classifier outage stops only its own section for a cooldown; the other section proceeds.
-- Two sections on one endpoint still serialize, preserving NFR-01 head-of-line bound for shared remotes.
+- All decision and optimizer calls serialize, including sections on different endpoints; a remote classifier no longer runs in parallel with a local optimizer. The head-of-line wait is bounded by `LocalLlmGateWaitSeconds`, not by `TimeoutSeconds`.
+- Retry defaults drop to one retry (`MaxAttempts` 2) with a 5-second delay (`RetryDelaySeconds`, 0–60) for both the decision transport and the optimizer, because a held slot blocks every other local-LLM call for the whole retry budget.
+- The outbound upstream gate (`IMPOSTER_MAX_CONCURRENT_REQUESTS`) no longer applies to decision or optimizer clients, so an open upstream stream cannot block them.
 - A shared `DECISIONS_*` variable configures both sections unless overridden per section; no `DECISIONS_ENABLED` exists, so one variable cannot enable two features.
 - Validation follows effective enablement: transport settings for a section are validated only when that section is effectively on.
 

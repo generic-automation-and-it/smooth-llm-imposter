@@ -164,6 +164,30 @@ public sealed class MessageOptimizationStrategyTests
     }
 
     [Fact]
+    public async Task An_optimizer_without_a_local_llm_slot_forwards_the_original_and_keeps_its_circuit_closed()
+    {
+        const string body = """
+            {"model":"x","messages":[
+              {"role":"user","content":"Please kindly review `foo()`."},
+              {"role":"user","content":"Please kindly ask @reviewer."}]}
+            """;
+        var cache = new FakeCache();
+        var gate = new StubGate((_, _) => Task.FromResult(true));
+        var optimizer = new StubOptimizer((_, _, _) => Task.FromException<string>(
+            new SmoothLlmImposter.Application.Common.Clients.LocalLlm.LocalLlmGateTimeoutException("busy")));
+        MessageOptimizationStrategy strategy = Create(gate: gate, optimizer: optimizer, cache: cache);
+
+        OptimizationEdit edit = await strategy.OptimizeAsync(
+            Request("/v1/chat/completions", body), TestContext.Current.CancellationToken);
+
+        edit.IsNoOp.ShouldBeTrue();
+        cache.Stored.ShouldBe([
+            ("Please kindly review `foo()`.", "Please kindly review `foo()`."),
+            ("Please kindly ask @reviewer.", "Please kindly ask @reviewer.")]);
+        optimizer.Calls.ShouldBe(2, "slot contention must not open the optimizer circuit");
+    }
+
+    [Fact]
     public async Task A_failed_rewrite_gets_one_targeted_retry()
     {
         const string body = """{"model":"x","messages":[{"role":"user","content":"Please keep `foo()` intact."}]}""";
@@ -609,7 +633,7 @@ public sealed class MessageOptimizationStrategyTests
               {"role":"user","content":"Please kindly ask @reviewer."}]}
             """;
         var gate = new StubGate((_, _) => Task.FromException<bool>(
-            new SmoothLlmImposter.Application.Common.Clients.Decisions.DecisionGateTimeoutException("busy")));
+            new SmoothLlmImposter.Application.Common.Clients.LocalLlm.LocalLlmGateTimeoutException("busy")));
         var optimizer = new StubOptimizer((_, text, _) =>
             Task.FromResult(text.Contains("foo", StringComparison.Ordinal) ? "Review `foo()`." : "Ask @reviewer."));
         MessageOptimizationStrategy strategy = Create(gate, optimizer);

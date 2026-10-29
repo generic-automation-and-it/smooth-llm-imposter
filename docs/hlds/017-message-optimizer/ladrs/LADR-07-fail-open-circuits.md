@@ -23,4 +23,4 @@
 ## Related
 
 - **HLD 014 LADR-11** — same trip rule for the tool filter.
-- **HLD 015 amendment** — per-section circuits and per-endpoint admission gates.
+- **HLD 015 amendment** — per-section circuits and one process-wide local-LLM admission gate.

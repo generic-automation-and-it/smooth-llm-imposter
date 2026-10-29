@@ -16,8 +16,9 @@ public sealed class LlmMessagesOptionsTests
 
         options.Enabled.ShouldBeFalse();
         options.Path.ShouldBe("/v1/chat/completions");
-        options.MaxAttempts.ShouldBe(3);
+        options.MaxAttempts.ShouldBe(2);
         options.TimeoutSeconds.ShouldBe(60);
+        options.RetryDelaySeconds.ShouldBe(5);
         options.CircuitBreakSeconds.ShouldBe(180);
         options.CacheTtlHours.ShouldBe(120);
         options.MinChars.ShouldBe(0);

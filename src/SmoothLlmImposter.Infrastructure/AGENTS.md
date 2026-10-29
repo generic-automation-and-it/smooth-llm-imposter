@@ -45,11 +45,15 @@ Implements the contracts defined in Application — EF Core + PostgreSQL persist
 
 - The `decision-service` client is auxiliary classification, not `imposter-upstream`: its full response body
   must remain inside the attempt timeout. Reusing inference header-only resilience would leave body stalls unbounded.
-- The process-wide gate is `DecisionServiceGate`, its own singleton that every client instance receives — never a
-  field on the client, or a second client registration would create a second budget ([HLD 015 LADR-03](../../docs/hlds/015-shared-decision-model-integration/ladrs/LADR-03-shared-uncached-resource-budget.md)).
+- The process-wide gate is `LocalLlmGate` (`Clients/LocalLlmGate.cs`), one singleton slot shared by the decision
+  and optimizer clients — never a field on a client, or a second registration would create a second budget
+  ([HLD 015 LADR-05](../../docs/hlds/015-shared-decision-model-integration/ladrs/LADR-05-per-section-profiles-circuits-gates.md)).
+  Each client enters it once per logical call, before retries, so the slot is held through retries and retry delays.
+  Do not attach `ConcurrencyLimitingHandler` to either client: that gate serves upstream/GitHub traffic and waits
+  without a bound, so an open upstream stream would block local-LLM calls.
   The uncached exception and retry-status contract live in [HLD 014 LADR-04](../../docs/hlds/014-decisions-tools-filter/ladrs/LADR-04-singleton-gate.md).
   Do not turn the gate into per-scope state or introduce a cache during a transport refactor.
-- The gate throws `DecisionGateTimeoutException` (Application contract), and the client translates the resilience
+- The gate throws `LocalLlmGateTimeoutException` (Application contract) after `LocalLlmGateOptions.WaitSeconds`, and the decision client translates the resilience
   library's timeout rejection into `DecisionServiceTimeoutException`; callers classify by these types, never by
   exception text.
 - The client reads `DecisionServiceOptions`, never the routing options. The resilience profile follows
@@ -60,6 +64,7 @@ Implements the contracts defined in Application — EF Core + PostgreSQL persist
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-29 | `DecisionServiceGate` → `LocalLlmGate`, now shared with the optimizer client; wait bounded by `LOCAL_LLM_GATE_WAIT_SECONDS` (default 60) instead of the decision `TimeoutSeconds`. `ConcurrencyLimitingHandler` removed from the decision and optimizer clients. Retry delay configurable on both (default 5 s, one retry) | HLD 015 LADR-05 |
 | 2026-10-28 | Added process-wide outbound HTTP concurrency gate (`ConcurrencyLimitingHandler` + shared `SemaphoreSlim`) on every HttpClient; size configurable via `Imposter:MaxConcurrentRequests` / `IMPOSTER_MAX_CONCURRENT_REQUESTS` (default 1) | — |
 | 2026-10-25 | Decision exceptions: gate timeout and attempt timeout have Application contract types (LADR-11) | — |
 | 2026-10-24 | Decision transport made consumer-neutral (HLD 015): `DecisionServiceGate` singleton, client reads `DecisionServiceOptions`, profile follows the any-consumer predicate; named client `decisions-tools` → `decision-service` | #156 |

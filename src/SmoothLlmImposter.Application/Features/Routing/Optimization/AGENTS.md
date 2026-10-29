@@ -27,6 +27,7 @@ Strategy interface + coordinator for HLD 017 message optimization. Read [LADR-08
 - **Transport resolution:** `LlmMessagesOptions` is resolved from the post-configured `ImposterOptions.LlmMessages` by `LlmMessagesOptionsSetup`. That setup is load-bearing: without it the client sees an empty `BaseUrl`/`Model`/`ApiKey` and the cache and optimizer circuit ignore the operator's TTL and cooldown.
 - **Log hygiene:** the strategy and coordinator log exception types (with section/model/endpoint), never the exception object, because a `JsonException` can carry message or reply text (NFR-04).
 - **Gate transport:** `MessageGate` posts one choice question through the shared decision client. It currently inherits the shared tool-section transport/model because per-section `DECISIONS_MESSAGES_*` profiles are not implemented; do not assume `DECISIONS_MESSAGES_*` transport settings apply yet.
+- **Local-LLM slot:** the gate and the optimizer share one process-wide slot with the tool filter (`LocalLlmGate`, HLD 015 LADR-05), so a turn's model calls run strictly one at a time. A call not admitted within `LOCAL_LLM_GATE_WAIT_SECONDS` (default 60) throws `LocalLlmGateTimeoutException`: the gate continues to the optimizer, the optimizer records and forwards the original, and neither circuit opens. The optimizer defaults to one retry after 5 s (`LLM_MESSAGES_MAX_ATTEMPTS` 2, `LLM_MESSAGES_RETRY_DELAY_SECONDS` 5) and keeps the slot through it.
 
 ## Test References
 
@@ -60,3 +61,4 @@ Strategy interface + coordinator for HLD 017 message optimization. Read [LADR-08
 | 2026-10-28 | Coordinator logs estimated token savings per request (chars/4 approximation) at Information after optimization | — |
 | 2026-10-28 | Coordinator log now includes elapsed milliseconds for the optimization pass | — |
 | 2026-10-28 | Message classifier gate is bypassed (not truncated) for payloads above `DecisionsMessages.MaxStateChars` (default 6000); optimizer still receives the full text | — |
+| 2026-10-29 | Gate and optimizer share one local-LLM slot with the tool filter; slot contention forwards the original without opening a circuit; optimizer retry default one retry after 5 s | NO-TICKET |

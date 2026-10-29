@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
+using SmoothLlmImposter.Application.Common.Clients.LocalLlm;
 
 namespace SmoothLlmImposter.Application.Features.Routing.Decisions;
 
@@ -84,7 +85,7 @@ internal sealed class DecisionCircuitBreaker(
 
     internal static bool IsServiceFailure(Exception failure) => failure switch
     {
-        DecisionGateTimeoutException => false,
+        LocalLlmGateTimeoutException => false,
         DecisionServiceTimeoutException => true,
         HttpRequestException http => IsFailingStatus(http.StatusCode),
         _ => false

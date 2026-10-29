@@ -49,6 +49,11 @@ internal sealed class DecisionServiceOptionsValidator(DecisionServiceDemand dema
             failures.Add($"{Prefix}:TimeoutSeconds must be between {MinTimeoutSeconds} and {MaxTimeoutSeconds} seconds.");
         }
 
+        if (options.RetryDelaySeconds is < 0 or > 60)
+        {
+            failures.Add($"{Prefix}:RetryDelaySeconds must be between 0 and 60 seconds.");
+        }
+
         return failures.Count > 0
             ? ValidateOptionsResult.Fail(failures)
             : ValidateOptionsResult.Success;

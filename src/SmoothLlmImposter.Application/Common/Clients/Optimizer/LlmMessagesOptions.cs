@@ -16,9 +16,11 @@ public sealed class LlmMessagesOptions
 
     public string Model { get; set; } = string.Empty;
 
-    public int MaxAttempts { get; set; } = 3;
+    public int MaxAttempts { get; set; } = 2;
 
     public int TimeoutSeconds { get; set; } = 60;
+
+    public int RetryDelaySeconds { get; set; } = 5;
 
     public int CircuitBreakSeconds { get; set; } = 180;
 

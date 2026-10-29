@@ -438,6 +438,22 @@ public class ImposterOptionsValidatorTests
     }
 
     [Theory]
+    [InlineData(-1, false)]
+    [InlineData(0, true)]
+    [InlineData(60, true)]
+    [InlineData(61, false)]
+    public void Enabled_optimizer_bounds_the_retry_delay_to_zero_to_sixty_seconds(int seconds, bool valid)
+    {
+        var options = Options(Valid("a"));
+        options.LlmMessages.Enabled = true;
+        options.LlmMessages.BaseUrl = "https://opt.example";
+        options.LlmMessages.Model = "opt-model";
+        options.LlmMessages.RetryDelaySeconds = seconds;
+
+        _validator.Validate(null, options).Failed.ShouldBe(!valid);
+    }
+
+    [Theory]
     [InlineData(0)]
     [InlineData(3601)]
     public void Enabled_message_gate_rejects_circuit_break_outside_range(int seconds)

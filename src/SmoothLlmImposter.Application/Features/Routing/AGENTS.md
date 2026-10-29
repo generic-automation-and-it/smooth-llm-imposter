@@ -362,7 +362,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   path and the pre-transform `InboundPath`; the message strategy uses the latter to skip Responses inbound
   requests even when the Host has downgraded them to a Chat body (HLD 017 Open item 4). The filter is one consumer of the shared decision service (HLD 015):
   `DecisionToolsConsumer` opts in through `DecisionsTools.Enabled`, and `DecisionServiceOptionsSetup` maps
-  BaseUrl/Path/Model/MaxAttempts/TimeoutSeconds onto `DecisionServiceOptions` after conventional precedence. The routing validator checks only consumer policy
+  BaseUrl/Path/Model/MaxAttempts/TimeoutSeconds/RetryDelaySeconds onto `DecisionServiceOptions` after conventional precedence. The routing validator checks only consumer policy
   (`MinProbability`, `MinKeepTools`); transport fields are validated by `DecisionServiceOptionsValidator`. Every
   `DecisionsToolsOptions` property needs an entry in `ImposterOptionsPostConfigure.DecisionsToolsVariables` — the
   reflection drift guard fails otherwise.
@@ -370,7 +370,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   `CircuitBreakSeconds`, passes then skip with reason `circuit-open` and never call the client (so they never
   reach the gate), and after the cooldown one trial admission decides close-or-reopen. Only service faults count
   (`HttpRequestException` with a 4xx status other than 408/429, 5xx, transport failure, `DecisionServiceTimeoutException`);
-  `DecisionGateTimeoutException` and caller cancellation do not. Do not move the breaker into the shared transport
+  `LocalLlmGateTimeoutException` and caller cancellation do not. Do not move the breaker into the shared transport
   profile — a second consumer registers its own.
 
 ## Credential Overrides

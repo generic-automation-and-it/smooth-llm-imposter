@@ -19,8 +19,9 @@ public class DecisionServiceOptionsSetupTests
         resolved.BaseUrl.ShouldBe("http://host.docker.internal:1234");
         resolved.Path.ShouldBe("/v1/systemone");
         resolved.Model.ShouldBe("openjev");
-        resolved.MaxAttempts.ShouldBe(3);
+        resolved.MaxAttempts.ShouldBe(2);
         resolved.TimeoutSeconds.ShouldBe(60);
+        resolved.RetryDelaySeconds.ShouldBe(5);
     }
 
     [Fact]
@@ -37,7 +38,9 @@ public class DecisionServiceOptionsSetupTests
             ["DECISIONS_TOOLS_PATH"] = "/conventional",
             ["DECISIONS_TOOLS_MODEL"] = "conventional-model",
             ["DECISIONS_TOOLS_MAX_ATTEMPTS"] = "5",
-            ["DECISIONS_TOOLS_TIMEOUT"] = "90"
+            ["DECISIONS_TOOLS_TIMEOUT"] = "90",
+            ["Imposter:DecisionsTools:RetryDelaySeconds"] = "3",
+            ["DECISIONS_TOOLS_RETRY_DELAY_SECONDS"] = "0"
         });
 
         DecisionServiceOptions resolved = services.GetRequiredService<IOptions<DecisionServiceOptions>>().Value;
@@ -47,6 +50,7 @@ public class DecisionServiceOptionsSetupTests
         resolved.Model.ShouldBe("conventional-model");
         resolved.MaxAttempts.ShouldBe(5);
         resolved.TimeoutSeconds.ShouldBe(90);
+        resolved.RetryDelaySeconds.ShouldBe(0);
     }
 
     [Theory]

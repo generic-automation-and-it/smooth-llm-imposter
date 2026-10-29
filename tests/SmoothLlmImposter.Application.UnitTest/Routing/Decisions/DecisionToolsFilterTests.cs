@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
+using SmoothLlmImposter.Application.Common.Clients.LocalLlm;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Application.Features.Routing.Decisions;
 using SmoothLlmImposter.Application.Features.Routing.Optimization;
@@ -753,7 +754,7 @@ public sealed class DecisionToolsFilterTests
     [Fact]
     public async Task Gate_contention_is_fail_open_without_opening_the_circuit()
     {
-        var client = new DecisionStub { FailCall = 1, Failure = new DecisionGateTimeoutException("gate") };
+        var client = new DecisionStub { FailCall = 1, Failure = new LocalLlmGateTimeoutException("gate") };
         IOptions<ImposterOptions> options = DecisionOptions();
         var breaker = new DecisionCircuitBreaker(options, TimeProvider.System, new BreakerLogger());
         DecisionToolsFilter filter = Create(options, client, new FilterLogger(), breaker);

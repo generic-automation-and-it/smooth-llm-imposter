@@ -130,6 +130,11 @@ internal sealed class ImposterOptionsPostConfigure(
             options.WhoMessage.Enabled = value;
         });
 
+        ApplyRootIntegerOverride(LocalLlmGateWaitVariable, nameof(options.LocalLlmGateWaitSeconds), value =>
+        {
+            options.LocalLlmGateWaitSeconds = value;
+        });
+
         ApplyDecisionsToolsOverrides(options.DecisionsTools);
 
         ApplyDecisionsMessagesOverrides(options.DecisionsMessages);
@@ -282,6 +287,8 @@ internal sealed class ImposterOptionsPostConfigure(
     /// Conventional variable per <see cref="DecisionsToolsOptions"/> property. The overrides below read their
     /// names from here, so the drift guard that reflects over the options type covers the applied surface.
     /// </summary>
+    internal const string LocalLlmGateWaitVariable = "LOCAL_LLM_GATE_WAIT_SECONDS";
+
     internal static readonly IReadOnlyDictionary<string, string> DecisionsToolsVariables =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -295,6 +302,7 @@ internal sealed class ImposterOptionsPostConfigure(
             [nameof(DecisionsToolsOptions.StickyPerSession)] = "DECISIONS_TOOLS_STICKY_PER_SESSION",
             [nameof(DecisionsToolsOptions.MaxAttempts)] = "DECISIONS_TOOLS_MAX_ATTEMPTS",
             [nameof(DecisionsToolsOptions.TimeoutSeconds)] = "DECISIONS_TOOLS_TIMEOUT",
+            [nameof(DecisionsToolsOptions.RetryDelaySeconds)] = "DECISIONS_TOOLS_RETRY_DELAY_SECONDS",
             [nameof(DecisionsToolsOptions.CircuitBreakSeconds)] = "DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS",
         };
 
@@ -310,6 +318,7 @@ internal sealed class ImposterOptionsPostConfigure(
         ApplyRootBooleanOverride(DecisionsToolsVariables[nameof(options.StickyPerSession)], nameof(options.StickyPerSession), value => options.StickyPerSession = value);
         ApplyRootIntegerOverride(DecisionsToolsVariables[nameof(options.MaxAttempts)], nameof(options.MaxAttempts), value => options.MaxAttempts = value);
         ApplyRootIntegerOverride(DecisionsToolsVariables[nameof(options.TimeoutSeconds)], nameof(options.TimeoutSeconds), value => options.TimeoutSeconds = value);
+        ApplyRootIntegerOverride(DecisionsToolsVariables[nameof(options.RetryDelaySeconds)], nameof(options.RetryDelaySeconds), value => options.RetryDelaySeconds = value);
         ApplyRootIntegerOverride(DecisionsToolsVariables[nameof(options.CircuitBreakSeconds)], nameof(options.CircuitBreakSeconds), value => options.CircuitBreakSeconds = value);
     }
 
@@ -334,6 +343,7 @@ internal sealed class ImposterOptionsPostConfigure(
             [nameof(LlmMessagesOptions.Model)] = "LLM_MESSAGES_MODEL",
             [nameof(LlmMessagesOptions.MaxAttempts)] = "LLM_MESSAGES_MAX_ATTEMPTS",
             [nameof(LlmMessagesOptions.TimeoutSeconds)] = "LLM_MESSAGES_TIMEOUT",
+            [nameof(LlmMessagesOptions.RetryDelaySeconds)] = "LLM_MESSAGES_RETRY_DELAY_SECONDS",
             [nameof(LlmMessagesOptions.CircuitBreakSeconds)] = "LLM_MESSAGES_CIRCUIT_BREAK_SECONDS",
             [nameof(LlmMessagesOptions.CacheTtlHours)] = "LLM_MESSAGES_CACHE_TTL_HOURS",
             [nameof(LlmMessagesOptions.MinChars)] = "LLM_MESSAGES_MIN_CHARS",
@@ -356,6 +366,7 @@ internal sealed class ImposterOptionsPostConfigure(
         ApplyRootStringOverride(LlmMessagesVariables[nameof(options.Model)], nameof(options.Model), value => options.Model = value);
         ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.MaxAttempts)], nameof(options.MaxAttempts), value => options.MaxAttempts = value);
         ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.TimeoutSeconds)], nameof(options.TimeoutSeconds), value => options.TimeoutSeconds = value);
+        ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.RetryDelaySeconds)], nameof(options.RetryDelaySeconds), value => options.RetryDelaySeconds = value);
         ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.CircuitBreakSeconds)], nameof(options.CircuitBreakSeconds), value => options.CircuitBreakSeconds = value);
         ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.CacheTtlHours)], nameof(options.CacheTtlHours), value => options.CacheTtlHours = value);
         ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.MinChars)], nameof(options.MinChars), value => options.MinChars = value);
