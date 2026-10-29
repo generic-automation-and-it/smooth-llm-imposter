@@ -4,7 +4,7 @@
 
 ## Requirement
 
-One process permits at most one in-flight decision chunk, including retries; tools answered from the memo (LADR-07) are not asked, so a fully memoised pass takes no gate. Every gate wait and every complete HTTP-response attempt is bounded by TimeoutSeconds. The service's 30-second 504 is not retried; exhausted chunks stop the pass. Default MaxAttempts and TimeoutSeconds bound a hung acquired chunk to 180 seconds of attempt time (retry delay is zero); gate waiting has its separate 60-second default budget.
+One process permits at most one in-flight decision chunk, including retries; tools answered from the memo (LADR-07) are not asked, so a fully memoised pass takes no gate. The slot is shared with the message gate and the message optimizer (HLD 015 LADR-05, amended 2026-10-29), so a chunk never overlaps any other local-LLM call. Every gate wait and every complete HTTP-response attempt is bounded by TimeoutSeconds. The service's 30-second 504 is not retried; exhausted chunks stop the pass. Default MaxAttempts (2), TimeoutSeconds (60) and RetryDelaySeconds (5) bound a hung acquired chunk to 125 seconds of attempt time; gate waiting has its separate 60-second default budget.
 
 ## Verification
 

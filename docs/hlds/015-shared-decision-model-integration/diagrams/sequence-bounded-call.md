@@ -4,7 +4,7 @@
 sequenceDiagram
     participant Consumer
     participant Integration as Shared integration
-    participant Gate as Gate for the section's endpoint + model
+    participant Gate as Process-wide local-LLM slot
     participant Service as Decision service
     Consumer->>Integration: Section, state, keyed questions, model selection, cancellation
     Integration->>Gate: Request bounded admission

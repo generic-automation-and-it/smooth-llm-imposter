@@ -21,7 +21,8 @@ public class DecisionServiceOptionsSetupTests
         resolved.BaseUrl.ShouldBe("http://host.docker.internal:1234");
         resolved.Path.ShouldBe("/v1/systemone");
         resolved.Model.ShouldBe("openjev");
-        resolved.MaxAttempts.ShouldBe(3);
+        resolved.MaxAttempts.ShouldBe(2);
+        resolved.RetryDelaySeconds.ShouldBe(5);
         resolved.TimeoutSeconds.ShouldBe(60);
     }
 

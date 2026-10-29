@@ -61,6 +61,11 @@ internal sealed class DecisionServiceOptionsValidator(IEnumerable<IDecisionServi
             failures.Add($"{prefix}:TimeoutSeconds must be between {MinTimeoutSeconds} and {MaxTimeoutSeconds} seconds.");
         }
 
+        if (options.RetryDelaySeconds is < 0 or > DecisionServiceOptions.MaxRetryDelaySeconds)
+        {
+            failures.Add($"{prefix}:RetryDelaySeconds must be between 0 and {DecisionServiceOptions.MaxRetryDelaySeconds} seconds.");
+        }
+
         return failures;
     }
 }

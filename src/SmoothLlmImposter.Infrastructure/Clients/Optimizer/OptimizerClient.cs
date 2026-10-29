@@ -73,7 +73,7 @@ string path = raw.StartsWith('/') ? raw : "/" + raw;
                 last = ex;
                 if (attempt < attempts - 1)
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(100 * (attempt + 1)), cancellationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(settings.RetryDelaySeconds), cancellationToken);
                 }
             }
             catch (HttpRequestException ex) when (IsRetryableStatus(ex))
@@ -81,7 +81,7 @@ string path = raw.StartsWith('/') ? raw : "/" + raw;
                 last = ex;
                 if (attempt < attempts - 1)
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(100 * (attempt + 1)), cancellationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(settings.RetryDelaySeconds), cancellationToken);
                 }
             }
             catch (HttpRequestException ex)

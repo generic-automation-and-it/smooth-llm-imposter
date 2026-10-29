@@ -51,10 +51,10 @@ public sealed class ImposterOptions
     public ToolOrderingOptions ToolOrdering { get; init; } = new();
 
     /// <summary>
-    /// Maximum number of outbound HTTP requests that may be in flight at once across the whole process
-    /// (HLD 017 follow-up). <c>1</c> (default) serializes every outbound call — local LLM (decision /
-    /// optimizer) and upstreams alike — so a slow backend cannot be hit concurrently. Higher values
-    /// allow overlap. Conventional env override <c>IMPOSTER_MAX_CONCURRENT_REQUESTS</c>.
+    /// Maximum number of upstream and GitHub HTTP requests that may be in flight at once across the whole
+    /// process (HLD 017 follow-up). <c>1</c> (default) serializes them so a slow backend cannot be hit
+    /// concurrently; higher values allow overlap. Conventional env override
+    /// <c>IMPOSTER_MAX_CONCURRENT_REQUESTS</c>.
     /// </summary>
     public int MaxConcurrentRequests { get; set; } = 1;
 }
@@ -78,6 +78,8 @@ public sealed class DecisionsOptions
     public int? MaxAttempts { get; set; }
 
     public int? TimeoutSeconds { get; set; }
+
+    public int? RetryDelaySeconds { get; set; }
 
     public int? CircuitBreakSeconds { get; set; }
 
@@ -105,6 +107,8 @@ public sealed class DecisionsMessagesOptions
     public int MaxAttempts { get; set; } = DecisionServiceOptions.DefaultMaxAttempts;
 
     public int TimeoutSeconds { get; set; } = DecisionServiceOptions.DefaultTimeoutSeconds;
+
+    public int RetryDelaySeconds { get; set; } = DecisionServiceOptions.DefaultRetryDelaySeconds;
 
     /// <summary>
     /// Minimum probability (inclusive) for a positive "can be optimized" answer.
@@ -152,6 +156,8 @@ public sealed class DecisionsToolsOptions
     public int MaxAttempts { get; set; } = DecisionServiceOptions.DefaultMaxAttempts;
 
     public int TimeoutSeconds { get; set; } = DecisionServiceOptions.DefaultTimeoutSeconds;
+
+    public int RetryDelaySeconds { get; set; } = DecisionServiceOptions.DefaultRetryDelaySeconds;
 
     /// <summary>
     /// Cooldown after one failed classifier call opens the tool-filter circuit (HLD 014 LADR-11, NFR-05).

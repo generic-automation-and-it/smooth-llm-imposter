@@ -24,7 +24,7 @@ This is a local budget, not distributed coordination or a fairness guarantee. Th
 - Head-of-line blocking and admission timeout are accepted costs.
 - Multiple Host processes can still contend at the same remote service.
 - Implemented 2026-10-24: the gate is a dedicated singleton component that every client instance receives, so a second client registration cannot create a second budget.
-- Amended by [LADR-05](LADR-05-per-section-profiles-circuits-gates.md) (implemented 2026-10-28): the singleton holds one gate per distinct endpoint plus model. This decision still holds per key, and is the whole behavior while every section resolves to the same pair.
+- Amended by [LADR-05](LADR-05-per-section-profiles-circuits-gates.md) (implemented 2026-10-28): the singleton holds one gate per distinct endpoint plus model. This decision still holds per key, and is the whole behavior while every section resolves to the same pair. Amended again 2026-10-29 (#247): one process-wide local-LLM slot, shared with the optimizer, replaces the keyed gates.
 
 ## Open
 

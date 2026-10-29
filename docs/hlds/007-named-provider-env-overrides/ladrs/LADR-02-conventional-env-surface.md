@@ -76,6 +76,7 @@ The structured equivalent is `Imposter:DecisionsTools:<field>`.
 | `DECISIONS_TOOLS_STICKY_PER_SESSION` | `StickyPerSession` |
 | `DECISIONS_TOOLS_MAX_ATTEMPTS` | `MaxAttempts` |
 | `DECISIONS_TOOLS_TIMEOUT` | `TimeoutSeconds` |
+| `DECISIONS_TOOLS_RETRY_DELAY_SECONDS` | `RetryDelaySeconds` |
 
 The timeout env spelling deliberately omits `_SECONDS`. Blank values are absent; unparseable
 booleans/numbers warn and preserve the bound value. Numeric parsing uses invariant culture.

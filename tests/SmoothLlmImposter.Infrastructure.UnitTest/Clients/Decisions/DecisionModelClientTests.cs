@@ -492,16 +492,18 @@ public class DecisionModelClientTests
     [Theory]
     [InlineData("https://other.test", "m")]
     [InlineData("https://shared.test", "other-model")]
-    public async Task Sections_on_a_different_endpoint_or_model_run_concurrently(string otherBaseUrl, string otherModel)
+    public async Task Sections_on_a_different_endpoint_or_model_still_take_turns(string otherBaseUrl, string otherModel)
     {
         var firstEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var secondEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var handler = new CallbackHandler(async (_, request, ct) =>
+        var handler = new CallbackHandler(async (call, _, ct) =>
         {
-            string body = await request.Content!.ReadAsStringAsync(ct);
-            (body.Contains("first", StringComparison.Ordinal) ? firstEntered : secondEntered).TrySetResult();
-            await release.Task.WaitAsync(ct);
+            if (call == 1)
+            {
+                firstEntered.TrySetResult();
+                await release.Task.WaitAsync(ct);
+            }
+
             return Success();
         });
         await using ServiceProvider provider = BuildSections(handler,
@@ -514,9 +516,10 @@ public class DecisionModelClientTests
         Task<JsonObject> firstCall = client.DecideAsync(Section, NonToolRequest("first"), ceiling.Token);
         await firstEntered.Task.WaitAsync(ceiling.Token);
         Task<JsonObject> secondCall = client.DecideAsync(OtherSection, NonToolRequest("second"), ceiling.Token);
+        await Task.Delay(TimeSpan.FromMilliseconds(200), ceiling.Token);
 
-        await secondEntered.Task.WaitAsync(ceiling.Token);
-        firstCall.IsCompleted.ShouldBeFalse();
+        handler.Calls.ShouldBe(1, "one local-LLM call at a time, whatever endpoint or model it uses");
+        secondCall.IsCompleted.ShouldBeFalse();
         release.TrySetResult();
         await Task.WhenAll(firstCall, secondCall);
         handler.Calls.ShouldBe(2);
@@ -555,6 +558,8 @@ public class DecisionModelClientTests
         services.Configure<DecisionServiceOptions>(Section, options =>
         {
             options.BaseUrl = "https://decisions.test";
+            options.MaxAttempts = 3;
+            options.RetryDelaySeconds = 0;
             configure?.Invoke(options);
         });
         foreach (IDecisionServiceConsumer consumer in consumers ?? [new FixtureConsumer(optedIn: true)])

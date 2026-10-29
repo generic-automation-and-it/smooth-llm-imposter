@@ -365,7 +365,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   path and the pre-transform `InboundPath`; the message strategy uses the latter to skip Responses inbound
   requests even when the Host has downgraded them to a Chat body (HLD 017 Open item 4). The filter is one consumer of the shared decision service (HLD 015):
   `DecisionToolsConsumer` opts in through `DecisionsTools.Enabled`, and `DecisionServiceOptionsSetup` maps
-  BaseUrl/Path/Model/MaxAttempts/TimeoutSeconds onto `DecisionServiceOptions` after conventional precedence. The routing validator checks only consumer policy
+  BaseUrl/Path/Model/MaxAttempts/TimeoutSeconds/RetryDelaySeconds onto `DecisionServiceOptions` after conventional precedence. The routing validator checks only consumer policy
   (`MinProbability`, `MinKeepTools`); transport fields are validated by `DecisionServiceOptionsValidator`. Every
   `DecisionsToolsOptions` property needs an entry in `ImposterOptionsPostConfigure.DecisionsToolsVariables` — the
   reflection drift guard fails otherwise.
@@ -487,6 +487,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 | Date | Change | Ref |
 |:-----|:-------|:----|
 | 2026-10-29 | Test References: sticky + ordering prefix-stability L2 proof with session-less negative control | #245 |
+| 2026-10-29 | `RetryDelaySeconds` layered like the other decision transport fields (`DECISIONS_TOOLS_`/`DECISIONS_MESSAGES_` → `DECISIONS_` → 5); decision and optimizer `MaxAttempts` default 3 → 2; every decision and optimizer call shares `LocalLlmSlot` | #247 |
 | 2026-10-28 | Per-section decision profiles: tool filter and message gate call their own named profile; gate per endpoint+model in Infrastructure (HLD 015 LADR-05, WT-23) | #228 |
 | 2026-10-28 | Shared `DECISIONS_*` layer and `DECISIONS_MESSAGES_*` transport settings: section → shared → default for structured and conventional configuration, tool-only shared settings, effective-state validation, drift guard (HLD 017 LADR-06, WT-22) | #225 |
 | 2026-10-28 | Sticky decision tools require `ToolOrdering.Enabled`; validator fails startup otherwise (LADR-13) | #237 |

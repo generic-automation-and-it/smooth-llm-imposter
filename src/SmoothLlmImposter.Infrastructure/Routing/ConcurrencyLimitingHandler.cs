@@ -3,9 +3,9 @@ using Microsoft.Extensions.Logging;
 namespace SmoothLlmImposter.Infrastructure.Routing;
 
 /// <summary>
-/// Serializes outbound HTTP sends across the whole process behind a single <see cref="SemaphoreSlim"/>,
-/// so a slow local LLM (decision/optimizer) or a stalled upstream cannot be hit by several requests at
-/// once. The semaphore is acquired before the inner send and released when the returned response is
+/// Serializes upstream and GitHub HTTP sends across the whole process behind a single <see cref="SemaphoreSlim"/>,
+/// so a stalled upstream cannot be hit by several requests at once. Decision and optimizer clients use
+/// <c>LocalLlmSlot</c> instead. The semaphore is acquired before the inner send and released when the returned response is
 /// disposed (or on failure), which keeps streaming bodies from overlapping with the next outbound call.
 /// </summary>
 internal sealed class ConcurrencyLimitingHandler(SemaphoreSlim semaphore, ILogger<ConcurrencyLimitingHandler> logger)

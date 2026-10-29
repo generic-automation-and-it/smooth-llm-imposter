@@ -226,6 +226,7 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
             Model = options.Model,
             MaxAttempts = options.MaxAttempts,
             TimeoutSeconds = options.TimeoutSeconds,
+            RetryDelaySeconds = options.RetryDelaySeconds,
         }));
 
         if (!double.IsFinite(options.MinProbability) || options.MinProbability is < 0 or > 1)
@@ -282,6 +283,10 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         if (options.TimeoutSeconds is < 1 or > 3600)
         {
             failures.Add($"{prefix}:TimeoutSeconds must be between 1 and 3600 seconds.");
+        }
+        if (options.RetryDelaySeconds is < 0 or > DecisionServiceOptions.MaxRetryDelaySeconds)
+        {
+            failures.Add($"{prefix}:RetryDelaySeconds must be between 0 and {DecisionServiceOptions.MaxRetryDelaySeconds} seconds.");
         }
         if (options.CircuitBreakSeconds is < 1 or > 3600)
         {

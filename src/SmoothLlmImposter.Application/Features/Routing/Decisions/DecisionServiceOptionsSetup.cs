@@ -17,11 +17,11 @@ internal sealed class DecisionServiceOptionsSetup(IOptions<ImposterOptions> impo
         {
             case DecisionToolsConsumer.SectionName:
                 DecisionsToolsOptions tools = imposter.Value.DecisionsTools;
-                Apply(options, tools.BaseUrl, tools.Path, tools.Model, tools.MaxAttempts, tools.TimeoutSeconds);
+                Apply(options, tools.BaseUrl, tools.Path, tools.Model, tools.MaxAttempts, tools.TimeoutSeconds, tools.RetryDelaySeconds);
                 break;
             case MessagesConsumer.SectionName:
                 DecisionsMessagesOptions messages = imposter.Value.DecisionsMessages;
-                Apply(options, messages.BaseUrl, messages.Path, messages.Model, messages.MaxAttempts, messages.TimeoutSeconds);
+                Apply(options, messages.BaseUrl, messages.Path, messages.Model, messages.MaxAttempts, messages.TimeoutSeconds, messages.RetryDelaySeconds);
                 break;
         }
     }
@@ -29,12 +29,14 @@ internal sealed class DecisionServiceOptionsSetup(IOptions<ImposterOptions> impo
     public void Configure(DecisionServiceOptions options) => Configure(Options.DefaultName, options);
 
     private static void Apply(
-        DecisionServiceOptions options, string baseUrl, string path, string model, int maxAttempts, int timeoutSeconds)
+        DecisionServiceOptions options, string baseUrl, string path, string model, int maxAttempts, int timeoutSeconds,
+        int retryDelaySeconds)
     {
         options.BaseUrl = baseUrl;
         options.Path = path;
         options.Model = model;
         options.MaxAttempts = maxAttempts;
         options.TimeoutSeconds = timeoutSeconds;
+        options.RetryDelaySeconds = retryDelaySeconds;
     }
 }

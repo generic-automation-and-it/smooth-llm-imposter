@@ -20,4 +20,4 @@ Strategy is chosen for the interchangeable, config-selected units; the concurren
 
 - Adding an optimization means adding a strategy, not editing the seam.
 - The tool filter's contract changes from "return a body" to "return an edit"; its behaviour does not.
-- Parallelism is bounded by admission gates: sections sharing one decision endpoint and model take turns (FR-13 of #164, HLD 015 amendment).
+- Parallelism is bounded by one process-wide local-LLM slot: every decision and optimizer call takes turns, whatever endpoint or model it uses (FR-13 of #164, HLD 015 LADR-05 amended 2026-10-29).

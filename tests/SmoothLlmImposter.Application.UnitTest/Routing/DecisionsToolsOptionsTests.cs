@@ -25,7 +25,8 @@ public class DecisionsToolsOptionsTests
         options.MinKeepTools.ShouldBe(20);
         options.AlwaysKeep.ShouldBe("Bash,Read,Edit,Write,Skill");
         options.StickyPerSession.ShouldBeFalse();
-        options.MaxAttempts.ShouldBe(3);
+        options.MaxAttempts.ShouldBe(2);
+        options.RetryDelaySeconds.ShouldBe(5);
         options.TimeoutSeconds.ShouldBe(60);
         options.CircuitBreakSeconds.ShouldBe(180);
     }
