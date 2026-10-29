@@ -47,8 +47,12 @@ Implements the contracts defined in Application — EF Core + PostgreSQL persist
   must remain inside the attempt timeout. Reusing inference header-only resilience would leave body stalls unbounded.
 - Admission is `DecisionServiceGate`, its own singleton that every client instance receives — never a field on the
   client, or a second client registration would create a second budget ([HLD 015 LADR-03](../../docs/hlds/015-shared-decision-model-integration/ladrs/LADR-03-shared-uncached-resource-budget.md)).
-  It holds one semaphore per resolved `(endpoint, model)` ([LADR-05](../../docs/hlds/015-shared-decision-model-integration/ladrs/LADR-05-per-section-profiles-circuits-gates.md)):
-  sections on the same pair take turns, different pairs run in parallel. Keys come only from registered sections'
+  It holds one process-wide admission slot shared by every decision section and the HLD 017 optimizer
+  (`LocalLlmGate`), whatever endpoint or model each resolves to; a call holds the slot across its retries and
+  retry delays, and the wait is bounded by `LocalLlmGateWaitSeconds`
+  ([LADR-05](../../docs/hlds/015-shared-decision-model-integration/ladrs/LADR-05-per-section-profiles-circuits-gates.md),
+  amended 2026-10-29). The earlier per-`(endpoint, model)` registry no longer applies. Keys come only from
+  registered sections'
   profiles, so the set stays bounded; the endpoint key is `BaseUrl` without trailing `/` plus `Path`.
   The uncached exception and retry-status contract live in [HLD 014 LADR-04](../../docs/hlds/014-decisions-tools-filter/ladrs/LADR-04-singleton-gate.md).
   Do not turn the gate into per-scope state or introduce a cache during a transport refactor.

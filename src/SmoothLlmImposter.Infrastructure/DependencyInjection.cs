@@ -77,7 +77,8 @@ public static class DependencyInjection
         services.AddTransient<ConcurrencyLimitingHandler>();
         IHttpClientBuilder decisionsClient = services.AddHttpClient(DecisionModelClient.HttpClientName, client =>
             client.Timeout = Timeout.InfiniteTimeSpan);
-        decisionsClient.AddHttpMessageHandler<ConcurrencyLimitingHandler>();
+        // Decision/optimizer calls serialize through LocalLlmGate (DecisionServiceGate / OptimizerAdmissionGate),
+        // not through the global outbound slot — see ConcurrencyLimitingHandler.
         decisionsClient.AddResilienceHandler("decision-service-retry", (builder, context) =>
             {
                 builder.AddRetry(new HttpRetryStrategyOptions
@@ -108,8 +109,8 @@ public static class DependencyInjection
         services.AddSingleton<IDecisionModelClient, DecisionModelClient>();
 
         services.AddHttpClient(OptimizerClient.HttpClientName, client =>
-            client.Timeout = Timeout.InfiniteTimeSpan)
-            .AddHttpMessageHandler<ConcurrencyLimitingHandler>();
+            client.Timeout = Timeout.InfiniteTimeSpan);
+        // Optimizer calls serialize through OptimizerAdmissionGate (LocalLlmGate), not the global outbound slot.
         services.AddSingleton<IOptimizerClient, OptimizerClient>();
 
         services.AddHttpClient(UpstreamForwarder.HttpClientName, client =>
