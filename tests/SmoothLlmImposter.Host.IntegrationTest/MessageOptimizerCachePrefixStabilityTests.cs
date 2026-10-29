@@ -364,7 +364,7 @@ public sealed class MessageOptimizerCachePrefixStabilityTests
 
         public void Script(Step step) => _script.Add(step);
 
-        public Task<JsonObject> DecideAsync(JsonObject request, CancellationToken cancellationToken)
+        public Task<JsonObject> DecideAsync(string section, JsonObject request, CancellationToken cancellationToken)
         {
             Step step = _script.Next();
             if (step == Step.Fail)

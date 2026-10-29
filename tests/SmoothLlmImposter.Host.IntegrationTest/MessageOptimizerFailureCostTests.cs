@@ -282,7 +282,7 @@ public sealed class MessageOptimizerFailureCostTests
         }
     }
 
-    /// <summary>The shared decision transport: the message gate and the tool classifier call the same URL.</summary>
+    /// <summary>The decision transport: both sections resolve the same URL from the shared Imposter:Decisions layer.</summary>
     private sealed class DecisionHandler(Endpoint gate, Endpoint tools) : HttpMessageHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(
@@ -485,11 +485,11 @@ public sealed class MessageOptimizerFailureCostTests
             ["Imposter:DecisionsMessages:CircuitBreakSeconds"] = "60",
 
             ["Imposter:DecisionsTools:Enabled"] = toolsEnabled.ToString(),
-            ["Imposter:DecisionsTools:BaseUrl"] = "https://gate.test",
-            ["Imposter:DecisionsTools:Path"] = "/v1/systemone",
-            ["Imposter:DecisionsTools:Model"] = "gate-model",
-            ["Imposter:DecisionsTools:MaxAttempts"] = "1",
-            ["Imposter:DecisionsTools:TimeoutSeconds"] = "10",
+            ["Imposter:Decisions:BaseUrl"] = "https://gate.test",
+            ["Imposter:Decisions:Path"] = "/v1/systemone",
+            ["Imposter:Decisions:Model"] = "gate-model",
+            ["Imposter:Decisions:MaxAttempts"] = "1",
+            ["Imposter:Decisions:TimeoutSeconds"] = "10",
             ["Imposter:DecisionsTools:MinKeepTools"] = "0",
             ["Imposter:DecisionsTools:AlwaysKeep"] = "none-configured"
         };

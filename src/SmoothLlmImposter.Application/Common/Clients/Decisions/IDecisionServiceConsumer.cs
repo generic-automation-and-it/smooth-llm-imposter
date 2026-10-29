@@ -6,5 +6,11 @@ namespace SmoothLlmImposter.Application.Common.Clients.Decisions;
 /// </summary>
 public interface IDecisionServiceConsumer
 {
+    /// <summary>
+    /// The decision section this consumer calls through: the name of its resolved transport profile and
+    /// the operator section its transport failures are reported under (HLD 015 LADR-05).
+    /// </summary>
+    string Section { get; }
+
     bool IsOptedIn { get; }
 }

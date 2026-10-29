@@ -21,3 +21,7 @@ Read [README.md](README.md) first — intent, goals, decisions and quality requi
 | 2026-10-27 | NFR-03 failure cost proven by an L2 file over the real clients and pipelines, plus a host-platform native smoke; no production change | #214 |
 | 2026-10-27 | NFR-04 message egress proven by an L2 request/log capture and a native smoke; two wording gaps recorded (Debug inbound dump, span hash not logged); no production change | #216 |
 | 2026-10-27 | NFR-04 wording amended to exclude the opt-in Debug request dump; span hash on the Debug outcome line tracked as follow-up WT-20 | #216 |
+| 2026-10-28 | LADR-04: optimizer gets the message as delimited data; validator rejects a rewrite keeping < 60% of content words; instruction revision 2 (WT-21) | #223 |
+| 2026-10-28 | LADR-06 settings implemented: shared `DECISIONS_*` layer, `DECISIONS_MESSAGES_*` transport settings, effective-state validation; the gate uses them from WT-23 | #225 |
+| 2026-10-28 | Dependencies: message gate calls its own decision profile; gate per endpoint+model (HLD 015 LADR-05) | #228 |
+| 2026-10-28 | Open item 7 resolved: per-request optimization budget (`LLM_MESSAGES_BUDGET_SECONDS`) | #234 |

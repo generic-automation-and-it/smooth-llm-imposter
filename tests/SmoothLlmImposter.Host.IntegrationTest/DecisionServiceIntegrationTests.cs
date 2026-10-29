@@ -48,6 +48,49 @@ public sealed class DecisionServiceIntegrationTests
         tools.Select(static tool => tool!["function"]!["name"]!.GetValue<string>()).ShouldBe(["read_file"]);
     }
 
+    [Fact]
+    public async Task Shared_decision_settings_reach_the_real_client_unless_the_tool_section_overrides_them()
+    {
+        // HLD 017 LADR-06: conventional and structured shared DECISIONS_* values fill the tool section,
+        // and a tool-section value still wins over them.
+        var decisions = new DecisionServiceHandler();
+        using var factory = new DecisionServiceFixture(decisions, new Dictionary<string, string?>
+        {
+            ["DECISIONS_TOOLS_ENABLED"] = "true",
+            ["DECISIONS_BASE_URL"] = "https://shared.test/root/",
+            ["Imposter:Decisions:Path"] = "/v1/shared",
+            ["DECISIONS_MODEL"] = "shared-model",
+            ["Imposter:DecisionsTools:Model"] = "tool-model",
+        });
+        HttpClient client = factory.CreateClient();
+
+        using HttpResponseMessage response = await client.PostAsync("/v1/chat/completions", new StringContent("""
+            { "model": "gpt-test", "messages": [{"role":"user","content":"Read the file"}],
+              "tools": [{"type":"function","function":{"name":"read_file","description":"Read a local file","parameters":{"type":"object"}}},
+                        {"type":"function","function":{"name":"web_search","description":"Search the web","parameters":{"type":"object"}}}] }
+            """, Encoding.UTF8, "application/json"), Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        decisions.Uris.ShouldBe([new Uri("https://shared.test/root/v1/shared")]);
+        decisions.Bodies.Single()["model"]!.GetValue<string>().ShouldBe("tool-model");
+    }
+
+    [Theory]
+    [InlineData("DECISIONS_TIMEOUT", "0", "Imposter:DecisionsTools:TimeoutSeconds")]
+    [InlineData("Imposter:Decisions:BaseUrl", "not-a-url", "Imposter:DecisionsTools:BaseUrl")]
+    public void Enabled_tool_filter_fails_startup_on_an_invalid_shared_setting(string key, string value, string failure)
+    {
+        using var factory = new DecisionServiceFixture(new DecisionServiceHandler(), new Dictionary<string, string?>
+        {
+            ["Imposter:DecisionsTools:Enabled"] = "true",
+            [key] = value,
+        });
+
+        var exception = Should.Throw<OptionsValidationException>(() => factory.CreateClient());
+
+        exception.Failures.ShouldContain(message => message.Contains(failure));
+    }
+
     [Theory]
     [InlineData("BaseUrl", "not-a-url")]
     [InlineData("Path", "relative")]

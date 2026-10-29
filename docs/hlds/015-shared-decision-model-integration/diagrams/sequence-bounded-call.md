@@ -4,9 +4,9 @@
 sequenceDiagram
     participant Consumer
     participant Integration as Shared integration
-    participant Gate as Process-wide gate
+    participant Gate as Gate for the section's endpoint + model
     participant Service as Decision service
-    Consumer->>Integration: State, keyed questions, model selection, cancellation
+    Consumer->>Integration: Section, state, keyed questions, model selection, cancellation
     Integration->>Gate: Request bounded admission
     alt Admission fails or caller cancels while waiting
         Gate-->>Integration: Timeout or cancellation

@@ -212,9 +212,9 @@ public class DecisionsToolsOptionsTests
 
         ValidateOptionsResult policy = new ImposterOptionsValidator().Validate(null, options);
         var transport = new DecisionServiceOptions();
-        new DecisionServiceOptionsSetup(Options.Create(options)).Configure(transport);
+        new DecisionServiceOptionsSetup(Options.Create(options)).Configure("Imposter:DecisionsTools", transport);
         ValidateOptionsResult shared = new DecisionServiceOptionsValidator(
-            new DecisionServiceDemand([new DecisionToolsConsumer(Options.Create(options))])).Validate(null, transport);
+            [new DecisionToolsConsumer(Options.Create(options))]).Validate("Imposter:DecisionsTools", transport);
 
         policy.Failed.ShouldBeTrue();
         policy.FailureMessage.ShouldContain("MinProbability");

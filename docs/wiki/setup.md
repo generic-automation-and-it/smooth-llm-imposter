@@ -198,8 +198,8 @@ appends new tools and leaves removed tools removed; see the guide's
 `DECISIONS_TOOLS_ENABLED=true` opts **all** supported imposter and passthrough routes into tool pruning
 before forwarding. It is **off by default**; no shipped `appsettings*.json` or default container command
 enables it. The [Conductor workspace installer](setups/conductor.build-smooth-llm-imposter.md#optional-decision-tool-filter)
-forwards the ten variables below without enabling the feature. Configuration is read at startup; restart
-or recreate the container after changing it.
+forwards the variables below, and the [shared `DECISIONS_*` layer](#shared-decision-settings), without enabling the
+feature. Configuration is read at startup; restart or recreate the container after changing it.
 
 | Environment variable | `Imposter:DecisionsTools` field | Default | Enabled-only validation |
 |---|---|---|---|
@@ -213,6 +213,10 @@ or recreate the container after changing it.
 | `DECISIONS_TOOLS_STICKY_PER_SESSION` | `StickyPerSession` | `false` | Requires `Imposter__ToolOrdering__Enabled=true` |
 | `DECISIONS_TOOLS_MAX_ATTEMPTS` | `MaxAttempts` | `3` | 1–10 inclusive |
 | `DECISIONS_TOOLS_TIMEOUT` | `TimeoutSeconds` | `60` | 1–3600 seconds |
+| `DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS` | `CircuitBreakSeconds` | `180` | 1–3600 seconds |
+
+Every setting except `DECISIONS_TOOLS_ENABLED` falls back to the matching shared `DECISIONS_*` value when the tool
+section leaves it unset, and only then to the default shown; see [Shared decision settings](#shared-decision-settings).
 
 The timeout env name has **no `_SECONDS` suffix**. Decimal overrides use invariant notation (`0.50`, not
 `0,50`). Conventional variables win over structured configuration; blank values are absent and invalid
@@ -240,11 +244,78 @@ every request usually means the model is not a decision model — LM Studio must
 in `/api/v1/models` (for example `kev-4b` or `openjev`); a model it lists as `llm` is rejected as
 `invalidModelIdentifier`.
 
-For bare-metal `dotnet run` or a native executable, set `DECISIONS_TOOLS_BASE_URL=http://127.0.0.1:1234`.
+For bare-metal `dotnet run` or a native executable, set `DECISIONS_TOOLS_BASE_URL=http://127.0.0.1:1234` (or the
+shared `DECISIONS_BASE_URL`).
 In Docker Desktop the default host name resolves natively; Linux Docker/Podman requires
 `--add-host=host.docker.internal:host-gateway`. Container `127.0.0.1` points to the container, not the host.
 See [Docker opt-in](setups/docker.run-smooth-llm-imposter.md#optional-decision-tool-filter) and
 [HLD 014](../hlds/014-decisions-tools-filter/README.md).
+
+### Shared decision settings
+
+The tool filter and the message optimizer's gate ([HLD 017](../hlds/017-message-optimizer/README.md)) are two
+sections of one decision model. Set the model once with the shared `DECISIONS_*` variables
+(`Imposter:Decisions` structured section) and override a section only where it differs. Every section setting
+resolves in this order ([LADR-06](../hlds/017-message-optimizer/ladrs/LADR-06-layered-settings.md)):
+
+1. the section's own value — `DECISIONS_TOOLS_*` / `DECISIONS_MESSAGES_*`, or `Imposter:DecisionsTools` /
+   `Imposter:DecisionsMessages`;
+2. the shared `DECISIONS_*` value, or `Imposter:Decisions`;
+3. the built-in default.
+
+Within one layer the conventional variable wins over the structured key. Blank values count as unset at every
+layer, and an invalid conventional value warns and falls through to the next layer. A section never takes a value
+from the other section, and existing `DECISIONS_TOOLS_*`-only deployments resolve exactly as before.
+
+| Shared variable | `Imposter:Decisions` field | Fills |
+|---|---|---|
+| `DECISIONS_BASE_URL` | `BaseUrl` | tool and message sections |
+| `DECISIONS_PATH` | `Path` | tool and message sections |
+| `DECISIONS_MODEL` | `Model` | tool and message sections |
+| `DECISIONS_MIN_PROBABILITY` | `MinProbability` | tool and message sections |
+| `DECISIONS_MAX_ATTEMPTS` | `MaxAttempts` | tool and message sections |
+| `DECISIONS_TIMEOUT` | `TimeoutSeconds` | tool and message sections |
+| `DECISIONS_CIRCUIT_BREAK_SECONDS` | `CircuitBreakSeconds` | tool and message sections |
+| `DECISIONS_MIN_KEEP` | `MinKeepTools` | tool section only |
+| `DECISIONS_ALWAYS_KEEP` | `AlwaysKeep` | tool section only |
+| `DECISIONS_STICKY_PER_SESSION` | `StickyPerSession` | tool section only |
+
+There is **no `DECISIONS_ENABLED`**: one variable must never switch on two features. Each section keeps its own
+switch. Shared values are validated only through a section that is on.
+
+The message gate's section (`Imposter:DecisionsMessages`):
+
+| Environment variable | `Imposter:DecisionsMessages` field | Default | Validation while the gate is on |
+|---|---|---|---|
+| `DECISIONS_MESSAGES_ENABLED` | `Enabled` | value of `LLM_MESSAGES_ENABLED` | — |
+| `DECISIONS_MESSAGES_BASE_URL` | `BaseUrl` | `http://host.docker.internal:1234` | Absolute HTTP(S) URL |
+| `DECISIONS_MESSAGES_PATH` | `Path` | `/v1/systemone` | Starts with `/` |
+| `DECISIONS_MESSAGES_MODEL` | `Model` | `openjev` | Non-empty |
+| `DECISIONS_MESSAGES_MIN_PROBABILITY` | `MinProbability` | `0.50` | 0–1 inclusive |
+| `DECISIONS_MESSAGES_MAX_ATTEMPTS` | `MaxAttempts` | `3` | 1–10 inclusive |
+| `DECISIONS_MESSAGES_TIMEOUT` | `TimeoutSeconds` | `60` | 1–3600 seconds |
+| `DECISIONS_MESSAGES_CIRCUIT_BREAK_SECONDS` | `CircuitBreakSeconds` | `180` | 1–3600 seconds |
+
+The gate is on only while `LLM_MESSAGES_ENABLED=true` and `DECISIONS_MESSAGES_ENABLED` is unset or `true`.
+The gate calls its own section's endpoint, path, model, attempts and timeout; the tool filter calls the tool
+section's. Each decision call waits for the admission gate of its resolved endpoint and model: when both sections
+resolve to the same pair they take turns (one call at a time), and on different endpoints or models they run in
+parallel.
+
+**Message optimizer time budget.** `LLM_MESSAGES_BUDGET_SECONDS` (`Imposter:LlmMessages:BudgetSeconds`, optional,
+default `30`, validated 1–600 while `LLM_MESSAGES_ENABLED=true`) bounds the time one request spends on gate and
+optimizer calls, admission waits included, before it is forwarded. When it runs out the call in flight is cancelled,
+rewrites finished earlier in the request still apply, and every remaining message is forwarded and remembered as
+written, so later turns replay it unchanged; no circuit opens. One Information line per such request reports the
+counts (`... budget of 30 s exhausted: 2 of 3 candidate segments forwarded as the original`). Raise it when a slow
+local optimizer leaves too much of a new conversation unoptimized; lower it to cap the first request's latency after
+a restart or enablement ([HLD 017 Open item 7](../hlds/017-message-optimizer/README.md#open-items)).
+
+**Upgrade note:** the message section never copies `DECISIONS_TOOLS_*`. Before per-section profiles the gate used
+the tool section's transport, so a deployment that points only `DECISIONS_TOOLS_*` at a non-default classifier now
+sends the gate to the built-in default (`http://host.docker.internal:1234/v1/systemone`, model `openjev`). Startup
+logs one Warning naming both endpoints when that happens. Set the shared `DECISIONS_*` value (both sections) or the
+`DECISIONS_MESSAGES_*` one to keep the gate on your classifier.
 
 ### Local debugging — .NET user secrets
 

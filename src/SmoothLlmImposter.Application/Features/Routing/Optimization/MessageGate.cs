@@ -2,23 +2,26 @@ using System.Text.Json.Nodes;
 using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
 using SmoothLlmImposter.Application.Features.Routing;
+using SmoothLlmImposter.Application.Features.Routing.Decisions;
 
 namespace SmoothLlmImposter.Application.Features.Routing.Optimization;
 
 internal sealed class MessageGate(
     IDecisionModelClient client,
     IOptions<ImposterOptions> options,
-    IOptions<DecisionServiceOptions> decision) : IMessageGate
+    DecisionServiceProfiles profiles) : IMessageGate
 {
     private const string QuestionKey = "optimize";
 
-    public string Model => decision.Value.Model;
+    public string Model => Profile.Model;
 
-    public string Endpoint => SectionCircuitBreaker.Endpoint(decision.Value.BaseUrl, decision.Value.Path);
+    public string Endpoint => SectionCircuitBreaker.Endpoint(Profile.BaseUrl, Profile.Path);
+
+    private DecisionServiceOptions Profile => profiles.Resolve(MessagesConsumer.SectionName);
 
     public async Task<bool> CanOptimizeAsync(string humanText, CancellationToken cancellationToken)
     {
-        JsonObject envelope = await client.DecideAsync(new JsonObject
+        JsonObject envelope = await client.DecideAsync(MessagesConsumer.SectionName, new JsonObject
         {
             ["state"] = humanText,
             ["questions"] = new JsonObject { [QuestionKey] = Question() }

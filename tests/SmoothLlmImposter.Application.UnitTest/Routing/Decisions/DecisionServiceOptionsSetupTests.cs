@@ -9,12 +9,14 @@ namespace SmoothLlmImposter.Application.UnitTest.Routing.Decisions;
 
 public class DecisionServiceOptionsSetupTests
 {
+    private const string ToolSection = "Imposter:DecisionsTools";
+
     [Fact]
     public void Defaults_resolve_to_the_documented_tool_filter_defaults()
     {
         using ServiceProvider services = Build(new Dictionary<string, string?>());
 
-        DecisionServiceOptions resolved = services.GetRequiredService<IOptions<DecisionServiceOptions>>().Value;
+        DecisionServiceOptions resolved = services.GetRequiredService<IOptionsMonitor<DecisionServiceOptions>>().Get(ToolSection);
 
         resolved.BaseUrl.ShouldBe("http://host.docker.internal:1234");
         resolved.Path.ShouldBe("/v1/systemone");
@@ -40,7 +42,7 @@ public class DecisionServiceOptionsSetupTests
             ["DECISIONS_TOOLS_TIMEOUT"] = "90"
         });
 
-        DecisionServiceOptions resolved = services.GetRequiredService<IOptions<DecisionServiceOptions>>().Value;
+        DecisionServiceOptions resolved = services.GetRequiredService<IOptionsMonitor<DecisionServiceOptions>>().Get(ToolSection);
 
         resolved.BaseUrl.ShouldBe("https://conventional.example");
         resolved.Path.ShouldBe("/conventional");
@@ -59,7 +61,35 @@ public class DecisionServiceOptionsSetupTests
             ["Imposter:DecisionsTools:Enabled"] = enabled.ToString()
         });
 
-        services.GetRequiredService<DecisionServiceDemand>().IsRequired.ShouldBe(enabled);
+        services.GetServices<IDecisionServiceConsumer>().Single(consumer => consumer.Section == ToolSection)
+            .IsOptedIn.ShouldBe(enabled);
+    }
+
+    [Fact]
+    public void A_disabled_section_resolves_to_defaults_so_its_invalid_settings_never_reach_the_transport()
+    {
+        using ServiceProvider services = Build(new Dictionary<string, string?>
+        {
+            ["Imposter:DecisionsTools:Enabled"] = "true",
+            ["DECISIONS_MESSAGES_BASE_URL"] = "not-a-url",
+            ["DECISIONS_MESSAGES_MAX_ATTEMPTS"] = "0"
+        });
+        var profiles = services.GetRequiredService<DecisionServiceProfiles>();
+
+        DecisionServiceOptions messages = profiles.Resolve("Imposter:DecisionsMessages");
+
+        messages.BaseUrl.ShouldBe(DecisionServiceOptions.DefaultBaseUrl);
+        messages.MaxAttempts.ShouldBe(DecisionServiceOptions.DefaultMaxAttempts);
+        profiles.Resolve(ToolSection).BaseUrl.ShouldBe(DecisionServiceOptions.DefaultBaseUrl);
+    }
+
+    [Fact]
+    public void An_unregistered_section_has_no_profile()
+    {
+        using ServiceProvider services = Build(new Dictionary<string, string?>());
+
+        Should.Throw<InvalidOperationException>(() =>
+            services.GetRequiredService<DecisionServiceProfiles>().Resolve("Imposter:DecisionsOther"));
     }
 
     [Fact]
@@ -72,7 +102,7 @@ public class DecisionServiceOptionsSetupTests
         });
 
         var failure = Should.Throw<OptionsValidationException>(() =>
-            services.GetRequiredService<IOptions<DecisionServiceOptions>>().Value);
+            services.GetRequiredService<IOptionsMonitor<DecisionServiceOptions>>().Get(ToolSection));
 
         failure.Failures.ShouldContain(message => message.Contains("Imposter:DecisionsTools:BaseUrl"));
     }

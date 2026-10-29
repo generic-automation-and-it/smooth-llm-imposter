@@ -24,6 +24,7 @@ internal sealed class LlmMessagesOptionsSetup(IOptions<ImposterOptions> imposter
         options.CircuitBreakSeconds = source.CircuitBreakSeconds;
         options.CacheTtlHours = source.CacheTtlHours;
         options.MinChars = source.MinChars;
+        options.BudgetSeconds = source.BudgetSeconds;
         options.ApiKey = source.ApiKey;
     }
 }

@@ -12,7 +12,7 @@
 
 **Resolve each decision setting per section: section value → `DECISIONS_*` → built-in default.** Shared `DECISIONS_*` covers `BASE_URL`, `PATH`, `MODEL`, `MIN_PROBABILITY`, `MAX_ATTEMPTS`, `TIMEOUT` and `CIRCUIT_BREAK_SECONDS`, and also `MIN_KEEP`, `ALWAYS_KEEP` and `STICKY_PER_SESSION`, which default the tool section only. There is no `DECISIONS_ENABLED`. Existing `DECISIONS_TOOLS_*` configurations keep their effective values. Structured configuration mirrors the same layering.
 
-`LLM_MESSAGES_*` is a complete, separate set — `ENABLED`, `BASE_URL`, `PATH`, `MODEL`, `MAX_ATTEMPTS`, `TIMEOUT`, `CIRCUIT_BREAK_SECONDS`, `MIN_CHARS`, `API_KEY` — with no fallback (LADR-01). `DECISIONS_MESSAGES_ENABLED` controls only the gate; when unset it takes the value of `LLM_MESSAGES_ENABLED`:
+`LLM_MESSAGES_*` is a complete, separate set — `ENABLED`, `BASE_URL`, `PATH`, `MODEL`, `MAX_ATTEMPTS`, `TIMEOUT`, `CIRCUIT_BREAK_SECONDS`, `MIN_CHARS`, `BUDGET_SECONDS`, `API_KEY` — with no fallback (LADR-01). `DECISIONS_MESSAGES_ENABLED` controls only the gate; when unset it takes the value of `LLM_MESSAGES_ENABLED`:
 
 | `LLM_MESSAGES_ENABLED` | `DECISIONS_MESSAGES_ENABLED` | Result |
 |---|---|---|

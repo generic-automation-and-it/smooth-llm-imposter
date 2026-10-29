@@ -46,16 +46,18 @@ public static class DependencyInjection
         services.AddSingleton<IMessageGate, MessageGate>();
         services.AddSingleton<MessageGateCircuitBreaker>();
         services.AddSingleton<MessageOptimizerCircuitBreaker>();
+        services.AddSingleton<OptimizerAdmissionGate>();
         services.AddSingleton<IOptimizationStrategy, MessageOptimizationStrategy>();
 
-        // Shared decision service (HLD 015): consumers opt in independently; the transport profile is mapped
-        // from the existing tool-filter operator surface and validated only while some consumer is opted in.
+        // Shared decision service (HLD 015): consumers opt in independently; each declares its section, whose
+        // transport profile is mapped from that section's operator surface and validated only while it is on.
         services.AddSingleton<IDecisionServiceConsumer, DecisionToolsConsumer>();
         services.AddSingleton<IDecisionServiceConsumer, MessagesConsumer>();
-        services.TryAddSingleton<DecisionServiceDemand>();
+        services.TryAddSingleton<DecisionServiceProfiles>();
         services.AddSingleton<IConfigureOptions<DecisionServiceOptions>, DecisionServiceOptionsSetup>();
         services.AddSingleton<IValidateOptions<DecisionServiceOptions>, DecisionServiceOptionsValidator>();
         services.AddHostedService<DecisionServiceStartupCheck>();
+        services.AddHostedService<MessageGateTransportWarning>();
         services.AddSingleton<IToolCatalogOrderer, ToolCatalogOrderer>();
         services.AddSingleton<IChatToResponsesTransformer, ChatToResponsesStreamTransformer>();
         // HLD 016 Messages-to-Chat bridge. Stateless per-request mappers; TimeProvider drives the stream

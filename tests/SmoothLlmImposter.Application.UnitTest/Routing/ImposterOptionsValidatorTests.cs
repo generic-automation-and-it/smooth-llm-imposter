@@ -491,6 +491,46 @@ public class ImposterOptionsValidatorTests
 
     [Theory]
     [InlineData(0)]
+    [InlineData(601)]
+    public void Enabled_optimizer_rejects_budget_outside_one_to_600_seconds(int seconds)
+    {
+        var options = Options(Valid("a"));
+        options.LlmMessages.Enabled = true;
+        options.LlmMessages.BaseUrl = "https://opt.example";
+        options.LlmMessages.Model = "opt-model";
+        options.LlmMessages.BudgetSeconds = seconds;
+
+        var result = _validator.Validate(null, options);
+
+        result.Failed.ShouldBeTrue();
+        result.FailureMessage.ShouldContain("Imposter:LlmMessages:BudgetSeconds must be between 1 and 600 seconds.");
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(600)]
+    public void Enabled_optimizer_accepts_budget_at_the_boundaries(int seconds)
+    {
+        var options = Options(Valid("a"));
+        options.LlmMessages.Enabled = true;
+        options.LlmMessages.BaseUrl = "https://opt.example";
+        options.LlmMessages.Model = "opt-model";
+        options.LlmMessages.BudgetSeconds = seconds;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Disabled_optimizer_ignores_an_invalid_budget()
+    {
+        var options = Options(Valid("a"));
+        options.LlmMessages.BudgetSeconds = 0;
+
+        _validator.Validate(null, options).Succeeded.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(0)]
     [InlineData(11)]
     public void Enabled_optimizer_rejects_max_attempts_outside_range(int attempts)
     {

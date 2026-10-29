@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Domain.Credentials;
 using SmoothLlmImposter.Domain.GithubCopilot;
 using SmoothLlmImposter.Domain.Routing;
+using SmoothLlmImposter.Application.Common.Clients.Decisions;
 using SmoothLlmImposter.Application.Common.Clients.Optimizer;
 
 namespace SmoothLlmImposter.Application.Features.Routing;
@@ -218,6 +219,15 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
 
         const string prefix = "Imposter:DecisionsMessages";
 
+        failures.AddRange(DecisionServiceOptionsValidator.TransportFailures(prefix, new DecisionServiceOptions
+        {
+            BaseUrl = options.BaseUrl,
+            Path = options.Path,
+            Model = options.Model,
+            MaxAttempts = options.MaxAttempts,
+            TimeoutSeconds = options.TimeoutSeconds,
+        }));
+
         if (!double.IsFinite(options.MinProbability) || options.MinProbability is < 0 or > 1)
         {
             failures.Add($"{prefix}:MinProbability must be a finite number between 0 and 1.");
@@ -251,6 +261,11 @@ internal sealed class ImposterOptionsValidator : IValidateOptions<ImposterOption
         if (options.MinChars is < 0 or > 10_000)
         {
             failures.Add($"{prefix}:MinChars must be between 0 and 10000.");
+        }
+
+        if (options.BudgetSeconds is < 1 or > 600)
+        {
+            failures.Add($"{prefix}:BudgetSeconds must be between 1 and 600 seconds.");
         }
 
         if (string.IsNullOrWhiteSpace(options.BaseUrl) ||
