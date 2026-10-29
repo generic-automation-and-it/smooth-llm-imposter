@@ -313,6 +313,247 @@ public sealed class DecisionToolsIntegrationTests
         (await Send("Read it again", null)).ShouldBe(["read_file"]);
     }
 
+    private static readonly string[] CatalogNames =
+        ["t_alpha", "t_beta", "t_gamma", "t_delta", "t_epsilon", "t_zeta"];
+
+    [Theory]
+    [InlineData("/v1/chat/completions", "chat", "chat-imposter")]
+    [InlineData("/v1/responses", "responses", "responses-imposter")]
+    [InlineData("/v1/messages", "anthropic", "anthropic-imposter")]
+    public async Task Sticky_with_ordering_forwards_identical_tools_across_a_reordered_catalog(
+        string path,
+        string shape,
+        string model)
+    {
+        int turn = 0;
+        var decisions = ScoringStub(name => turn == 0
+            ? (name == "t_epsilon" ? 0.1 : 0.9)
+            : (name is "t_beta" or "t_epsilon" ? 0.05 : 0.9));
+        using var app = new App(decisions, enabled: true, sticky: true);
+
+        JsonArray first = await SendCatalog(
+            app, path, shape, model, "Read the file",
+            ["t_alpha", "t_beta", "t_gamma", "t_delta", "t_epsilon"], session: "sticky-order");
+
+        turn = 1;
+        JsonArray second = await SendCatalog(
+            app, path, shape, model, "Summarise the change",
+            ["t_gamma", "t_epsilon", "t_alpha", "t_delta", "t_beta"], session: "sticky-order");
+
+        // Sticky membership plus first-seen ordering: the shuffled catalog forwards the same bytes,
+        // and the tool re-scored below the threshold on turn 2 is still present at its turn-1 index.
+        second.ToJsonString().ShouldBe(first.ToJsonString());
+        ToolNames(second, shape).ShouldBe(["t_alpha", "t_beta", "t_gamma", "t_delta"]);
+
+        JsonArray third = await SendCatalog(
+            app, path, shape, model, "Add the new tool",
+            ["t_zeta", "t_gamma", "t_epsilon", "t_alpha", "t_delta", "t_beta"], session: "sticky-order");
+
+        JsonArray expected = JsonNode.Parse(first.ToJsonString())!.AsArray();
+        expected.Add(ToolNode(shape, "t_zeta"));
+        third.ToJsonString().ShouldBe(expected.ToJsonString());
+    }
+
+    [Theory]
+    [InlineData("/v1/chat/completions", "chat", "chat-imposter")]
+    [InlineData("/v1/responses", "responses", "responses-imposter")]
+    [InlineData("/v1/messages", "anthropic", "anthropic-imposter")]
+    public async Task Without_a_session_id_the_forwarded_tools_follow_each_turns_inbound_order(
+        string path,
+        string shape,
+        string model)
+    {
+        int turn = 0;
+        var decisions = ScoringStub(name => turn == 0
+            ? (name == "t_epsilon" ? 0.1 : 0.9)
+            : (name is "t_beta" or "t_epsilon" ? 0.05 : 0.9));
+        using var app = new App(decisions, enabled: true, sticky: true);
+
+        JsonArray first = await SendCatalog(
+            app, path, shape, model, "Read the file",
+            ["t_alpha", "t_beta", "t_gamma", "t_delta", "t_epsilon"], session: null);
+
+        turn = 1;
+        JsonArray second = await SendCatalog(
+            app, path, shape, model, "Summarise the change",
+            ["t_gamma", "t_epsilon", "t_alpha", "t_delta", "t_beta"], session: null);
+
+        // Negative control: without a captured identity neither ordering nor sticky applies, so the
+        // reordered catalog reaches the upstream reordered — the main case is not vacuously true.
+        ToolNames(first, shape).ShouldBe(["t_alpha", "t_beta", "t_gamma", "t_delta"]);
+        ToolNames(second, shape).ShouldBe(["t_gamma", "t_alpha", "t_delta"]);
+        second.ToJsonString().ShouldNotBe(first.ToJsonString());
+    }
+
+    [Fact]
+    public async Task Sticky_with_ordering_keeps_the_anthropic_cache_tail_identical_across_turns()
+    {
+        var decisions = ScoringStub(name => name == "t_gamma" ? 0.1 : 0.9);
+        using var app = new App(decisions, enabled: true, sticky: true);
+        const string model = "anthropic-caching-imposter";
+
+        JsonObject first = await SendCatalogBody(
+            app, "/v1/messages", "anthropic", model, "Read the file",
+            ["t_alpha", "t_beta", "t_gamma", "t_delta"], session: "sticky-cache", system: "You are a careful assistant.");
+        JsonObject second = await SendCatalogBody(
+            app, "/v1/messages", "anthropic", model, "Summarise the change",
+            ["t_gamma", "t_delta", "t_alpha", "t_beta"], session: "sticky-cache", system: "You are a careful assistant.");
+
+        second["tools"]!.ToJsonString().ShouldBe(first["tools"]!.ToJsonString());
+        ToolNames(second["tools"]!.AsArray(), "anthropic").ShouldBe(["t_alpha", "t_beta", "t_delta"]);
+        first["tools"]!.AsArray().Any(tool => tool!["cache_control"] is not null).ShouldBeTrue();
+        second["tools"]!.AsArray().Any(tool => tool!["cache_control"] is not null).ShouldBeTrue();
+        SystemBreakpoints(second).ShouldBeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task Pruning_the_injected_tail_tool_keeps_the_system_breakpoint()
+    {
+        // Injection precedes filtering (HLD 014 LADR-05 seam), so the tail breakpoint lives on the last
+        // ordered tool and disappears with it; this pins that the system breakpoint is unaffected.
+        var decisions = ScoringStub(name => name == "t_delta" ? 0.1 : 0.9);
+        using var app = new App(decisions, enabled: true, sticky: true);
+
+        JsonObject forwarded = await SendCatalogBody(
+            app, "/v1/messages", "anthropic", "anthropic-caching-imposter", "Read the file",
+            ["t_alpha", "t_beta", "t_gamma", "t_delta"], session: "sticky-tail", system: "You are a careful assistant.");
+
+        ToolNames(forwarded["tools"]!.AsArray(), "anthropic").ShouldBe(["t_alpha", "t_beta", "t_gamma"]);
+        forwarded["tools"]!.AsArray().Any(tool => tool!["cache_control"] is not null).ShouldBeFalse();
+        SystemBreakpoints(forwarded).ShouldBeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task Sticky_with_ordering_keeps_identical_tools_on_a_bridged_route()
+    {
+        var decisions = ScoringStub(name => name == "t_gamma" ? 0.1 : 0.9);
+        using var app = new App(decisions, enabled: true, sticky: true);
+        app.Upstream.ResponseFactory = () => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                """{"id":"chatcmpl-1","model":"chat-model","choices":[{"index":0,"message":{"content":"Hello"},"finish_reason":"stop"}]}""",
+                Encoding.UTF8,
+                "application/json")
+        };
+
+        JsonArray first = await SendCatalog(
+            app, "/v1/messages", "anthropic", "bridged-imposter", "Read the file",
+            ["t_alpha", "t_beta", "t_gamma", "t_delta"], session: "sticky-bridge");
+        JsonArray second = await SendCatalog(
+            app, "/v1/messages", "anthropic", "bridged-imposter", "Summarise the change",
+            ["t_gamma", "t_delta", "t_alpha", "t_beta"], session: "sticky-bridge");
+
+        app.Upstream.LastRequestUri!.AbsolutePath.ShouldBe("/v1/chat/completions");
+        second.ToJsonString().ShouldBe(first.ToJsonString());
+        ToolNames(second, "chat").ShouldBe(["t_alpha", "t_beta", "t_delta"]);
+    }
+
+    private static StubDecisionClient ScoringStub(Func<string, double> score) => new()
+    {
+        Decide = (request, _) =>
+        {
+            var answers = new JsonObject();
+            foreach ((string key, JsonNode? question) in request["questions"]!.AsObject())
+            {
+                string instructions = question!["instructions"]!.GetValue<string>();
+                string name = CatalogNames.FirstOrDefault(instructions.Contains) ?? string.Empty;
+                double use = score(name);
+                answers[key] = new JsonObject { ["probabilities"] = new JsonObject { ["use"] = use, ["skip"] = 1 - use } };
+            }
+
+            return Task.FromResult(new JsonObject { ["answers"] = answers });
+        }
+    };
+
+    private static async Task<JsonArray> SendCatalog(
+        App app,
+        string path,
+        string shape,
+        string model,
+        string input,
+        string[] names,
+        string? session) =>
+        (await SendCatalogBody(app, path, shape, model, input, names, session))["tools"]!.AsArray();
+
+    private static async Task<JsonObject> SendCatalogBody(
+        App app,
+        string path,
+        string shape,
+        string model,
+        string input,
+        string[] names,
+        string? session,
+        string? system = null)
+    {
+        var body = new JsonObject { ["model"] = model };
+        if (shape == "anthropic")
+        {
+            if (system is not null)
+            {
+                body["system"] = new JsonArray { new JsonObject { ["type"] = "text", ["text"] = system } };
+            }
+
+            body["max_tokens"] = 100;
+            body["messages"] = new JsonArray { new JsonObject { ["role"] = "user", ["content"] = input } };
+        }
+        else if (shape == "responses")
+        {
+            body["input"] = input;
+        }
+        else
+        {
+            body["messages"] = new JsonArray { new JsonObject { ["role"] = "user", ["content"] = input } };
+        }
+
+        body["tools"] = new JsonArray(names.Select(name => ToolNode(shape, name)).ToArray<JsonNode?>());
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = Json(body.ToJsonString()) };
+        if (session is not null)
+        {
+            request.Headers.Add("x-session-id", session);
+        }
+
+        using HttpResponseMessage response = await app.Client.SendAsync(request, Ct);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, app.Upstream.LastRequestBody);
+        return JsonNode.Parse(app.Upstream.LastRequestBody!)!.AsObject();
+    }
+
+    private static JsonNode ToolNode(string shape, string name) => shape switch
+    {
+        "chat" => new JsonObject
+        {
+            ["type"] = "function",
+            ["function"] = new JsonObject
+            {
+                ["name"] = name,
+                ["description"] = $"Tool {name}",
+                ["parameters"] = new JsonObject { ["type"] = "object" }
+            }
+        },
+        "responses" => new JsonObject
+        {
+            ["type"] = "function",
+            ["name"] = name,
+            ["description"] = $"Tool {name}",
+            ["parameters"] = new JsonObject { ["type"] = "object" }
+        },
+        "anthropic" => new JsonObject
+        {
+            ["name"] = name,
+            ["description"] = $"Tool {name}",
+            ["input_schema"] = new JsonObject { ["type"] = "object" }
+        },
+        _ => throw new ArgumentOutOfRangeException(nameof(shape))
+    };
+
+    private static string[] ToolNames(JsonArray tools, string shape) =>
+        tools.Select(tool => ToolName(tool!, shape)).ToArray();
+
+    private static int SystemBreakpoints(JsonObject body) =>
+        body["system"] is JsonArray system
+            ? system.Count(block => block!["cache_control"] is not null)
+            : 0;
+
     private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
 
     private static string Body(string shape, string model) => shape switch
@@ -449,6 +690,20 @@ public sealed class DecisionToolsIntegrationTests
                     config[$"{prefix}:Models:0:Caching"] = "true";
                 }
             }
+
+            config["Imposter:Providers:anthropic-caching:Dialect"] = "anthropic";
+            config["Imposter:Providers:anthropic-caching:BaseUrl"] = "https://imposter.test";
+            config["Imposter:Providers:anthropic-caching:Models:0:From"] = "anthropic-caching-imposter";
+            config["Imposter:Providers:anthropic-caching:Models:0:To"] = "upstream-model";
+            config["Imposter:Providers:anthropic-caching:Models:0:Caching"] = "true";
+
+            config["Imposter:Providers:chat-bridged:Dialect"] = "anthropic";
+            config["Imposter:Providers:chat-bridged:BaseUrl"] = "https://chat.test";
+            config["Imposter:Providers:chat-bridged:Secret"] = "chat-key";
+            config["Imposter:Providers:chat-bridged:AuthScheme"] = "Bearer";
+            config["Imposter:Providers:chat-bridged:AnthropicUpstreamApi"] = "chat_completions";
+            config["Imposter:Providers:chat-bridged:Models:0:From"] = "bridged-imposter";
+            config["Imposter:Providers:chat-bridged:Models:0:To"] = "chat-model";
 
             return config;
         }
