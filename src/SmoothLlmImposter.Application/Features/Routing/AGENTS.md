@@ -424,7 +424,9 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 - **L2** `Host.IntegrationTest/DecisionServiceIntegrationTests` — real client/gate/pipeline end to end, enabled-invalid startup failure, disabled-invalid inert.
 - **L2** `Host.IntegrationTest/DecisionToolsIntegrationTests` — prefixed/legacy paths, passthrough, downgrade,
   who-probe bypass, disabled bytes, decision-stage caller abort, Claude Code reminder-shaped state with
-  verbatim forwarded messages, and sticky retention while session-less chats on a caching route share nothing.
+  verbatim forwarded messages, sticky retention while session-less chats on a caching route share nothing, and
+  byte-identical `tools` across a reordered catalog under sticky selection with ordering (Chat, Responses,
+  Messages, Anthropic cache tail, bridged route) with a session-less negative control.
 - **L2** `Host.IntegrationTest/ToolOrderingIntegrationTests` — config-enabled legacy/prefixed completion
   paths, ordering-before-cache injection, passthrough and current-catalog removals.
 - **L3** `Upstream.EvalTest` — **live** opencode-go conformance eval (HLD 004): a raw Codex catalog run through the
@@ -472,6 +474,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-29 | Test References: sticky + ordering prefix-stability L2 proof with session-less negative control | #245 |
 | 2026-10-28 | Sticky decision tools require `ToolOrdering.Enabled`; validator fails startup otherwise (LADR-13) | #237 |
 | 2026-10-27 | `ProviderOptions.OptimizeMessages` per-route message-optimizer opt-out (HLD 017 Open item 6); follows the HLD 011 plumbing rule end to end | #207 |
 | 2026-10-26 | Decision filter always keeps `ToolSearch` and `Agent` on top of the configured `AlwaysKeep` (HLD 014 LADR-08); a probe showed a 12-tool Claude Code catalog losing both | — |
