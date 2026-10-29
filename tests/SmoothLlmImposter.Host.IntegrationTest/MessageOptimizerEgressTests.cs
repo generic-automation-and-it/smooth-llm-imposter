@@ -164,6 +164,30 @@ public sealed class MessageOptimizerEgressTests
         JsonNode.DeepEquals(forwarded["messages"], sent["messages"]).ShouldBeTrue("messages are forwarded unchanged");
     }
 
+    [Fact]
+    public async Task Signed_model_output_pasted_into_a_human_message_reaches_neither_model_but_is_forwarded_unchanged()
+    {
+        const string signed = """[{"type":"thinking","thinking":"","signature":"SIGNATURE-SENTINEL"}]""";
+        using var app = new App();
+        string body = new JsonObject
+        {
+            ["model"] = "anthropic-imposter",
+            ["max_tokens"] = 100,
+            ["messages"] = new JsonArray(User(Text($"Review `gamma()` and explain {signed} please.")))
+        }.ToJsonString();
+
+        using HttpResponseMessage response = await app.SendAsync(body, Ct);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        app.Models.Of(ModelKind.Gate).ShouldHaveSingleItem().Json["state"]!.GetValue<string>()
+            .ShouldBe("Review `gamma()` and explain \n please.");
+        foreach (ModelRequest request in app.Models.Requests)
+        {
+            request.Raw.ShouldNotContain("SIGNATURE-SENTINEL", customMessage: $"{request.Kind} request leaked the signature");
+        }
+        app.Upstream.LastRequestBody!.ShouldContain("SIGNATURE-SENTINEL");
+    }
+
     /// <summary>
     /// A Claude Code-shaped Anthropic request: a system prompt and tools, then two human messages separated by an
     /// assistant tool round, with reminders, hook output, a skill command block, local-command output and an image.

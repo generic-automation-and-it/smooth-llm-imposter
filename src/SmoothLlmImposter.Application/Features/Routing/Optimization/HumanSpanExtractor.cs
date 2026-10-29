@@ -1,4 +1,6 @@
 using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace SmoothLlmImposter.Application.Features.Routing.Optimization;
 
@@ -6,7 +8,7 @@ namespace SmoothLlmImposter.Application.Features.Routing.Optimization;
 /// Extracts human-authored spans from a message's text, excluding harness spans and local-command
 /// blocks, so only those spans are rewritten (HLD 017 LADR-03). Harness tag sets mirror HLD 014.
 /// </summary>
-public static class HumanSpanExtractor
+public static partial class HumanSpanExtractor
 {
     private static string[] HarnessTags => HarnessSpans.HarnessTags;
 
@@ -65,6 +67,8 @@ public static class HumanSpanExtractor
             }
             cmdCursor = cEnd;
         }
+
+        ranges.AddRange(SignedJsonSpans(text));
 
         if (ranges.Count == 0)
         {
@@ -135,6 +139,128 @@ public static class HumanSpanExtractor
         return sb.ToString();
     }
 
+    private static List<(int Start, int End)> SignedJsonSpans(string text)
+    {
+        var spans = new List<(int Start, int End)>();
+        if (!StringSignatureKey().IsMatch(text))
+        {
+            return spans;
+        }
+
+        var openers = new Stack<(int Position, char Bracket)>();
+        bool inString = false;
+        for (int i = 0; i < text.Length; i++)
+        {
+            char c = text[i];
+            if (inString)
+            {
+                // Valid JSON strings never span a newline, so a stray quote in prose cannot hide the rest of the text.
+                if (c == '\\')
+                {
+                    i++;
+                }
+                else if (c == '"' || c == '\n')
+                {
+                    inString = false;
+                }
+                continue;
+            }
+
+            switch (c)
+            {
+                case '"':
+                    inString = true;
+                    break;
+                case '[' or '{':
+                    openers.Push((i, c));
+                    break;
+                case ']' or '}' when openers.Count > 0 && openers.Peek().Bracket == (c == ']' ? '[' : '{'):
+                    int start = openers.Pop().Position;
+                    if (StringSignatureKey().IsMatch(text.AsSpan(start, i - start + 1)) &&
+                        IsSignedJson(text[start..(i + 1)]))
+                    {
+                        spans.Add((start, i + 1));
+                    }
+                    break;
+            }
+        }
+
+        if (TruncatedSignedStart(text, openers, spans) is int truncatedStart)
+        {
+            spans.Add((truncatedStart, text.Length));
+        }
+
+        spans.Sort((a, b) => a.Start != b.Start ? a.Start.CompareTo(b.Start) : b.End.CompareTo(a.End));
+        var outermost = new List<(int Start, int End)>();
+        foreach ((int start, int end) in spans)
+        {
+            if (outermost.Count == 0 || start >= outermost[^1].End)
+            {
+                outermost.Add((start, end));
+            }
+        }
+        return outermost;
+    }
+
+    private static int? TruncatedSignedStart(
+        string text, Stack<(int Position, char Bracket)> unclosed, List<(int Start, int End)> spans)
+    {
+        int? lastFreeKey = null;
+        for (Match key = StringSignatureKey().Match(text); key.Success; key = key.NextMatch())
+        {
+            int index = key.Index;
+            if (!spans.Any(span => index >= span.Start && index < span.End))
+            {
+                lastFreeKey = index;
+            }
+        }
+        if (lastFreeKey is not int keyIndex)
+        {
+            return null;
+        }
+
+        foreach ((int position, char bracket) in unclosed.Reverse())
+        {
+            if (position < keyIndex && StartsJsonValue(text, position, bracket))
+            {
+                return position;
+            }
+        }
+        return null;
+    }
+
+    private static bool StartsJsonValue(string text, int opener, char bracket)
+    {
+        int next = opener + 1;
+        while (next < text.Length && char.IsWhiteSpace(text[next]))
+        {
+            next++;
+        }
+        return next < text.Length && (bracket == '{' ? text[next] == '"' : text[next] is '{' or '[' or '"');
+    }
+
+    private static bool IsSignedJson(string candidate)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(candidate);
+            return HasSignature(document.RootElement);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static bool HasSignature(JsonElement element) => element.ValueKind switch
+    {
+        JsonValueKind.Object => element.EnumerateObject().Any(property =>
+            property.Name == "signature" && property.Value.ValueKind == JsonValueKind.String ||
+            HasSignature(property.Value)),
+        JsonValueKind.Array => element.EnumerateArray().Any(HasSignature),
+        _ => false,
+    };
+
     private static (int Start, int End)? NextCommandBlock(string text, int from)
     {
         int searchFrom = from;
@@ -193,4 +319,7 @@ public static class HumanSpanExtractor
         }
         return null;
     }
+
+    [GeneratedRegex("\"signature\"\\s*:\\s*\"")]
+    private static partial Regex StringSignatureKey();
 }
