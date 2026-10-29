@@ -41,3 +41,12 @@ about and not removed while the harness still supplies them. New tools are class
 - The per-question memo (LADR-07) still saves classifier work; sticky tools additionally skip classification.
 - Tools sharing a label are kept together (conservative). Subagents that share a session id share one set.
 - Real upstream cache-hit gains are unmeasured; this only removes the filter as a source of prefix churn.
+
+## Amendment (2026-10-28)
+
+[LADR-13](LADR-13-sticky-selection-requires-ordering.md) makes the dependency behind this decision's prefix-stability
+consequence explicit. Membership stabilises **which** tools are forwarded, not their order: the filter prunes in
+place and keeps the caller's array order, so a harness that re-sends the same tools in a different order still
+changes the forwarded `tools` prefix unless HLD 001 LADR-008 ordering is enabled. The Host therefore refuses to
+start when `Imposter:DecisionsTools:Enabled` and `StickyPerSession` are both true and `Imposter:ToolOrdering:Enabled`
+is false. Recording, scope, bounds and the fail-open recording rules above are unchanged by that amendment.
