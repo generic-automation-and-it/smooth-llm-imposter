@@ -77,15 +77,6 @@ The structured equivalent is `Imposter:DecisionsTools:<field>`.
 | `DECISIONS_TOOLS_MAX_ATTEMPTS` | `MaxAttempts` |
 | `DECISIONS_TOOLS_TIMEOUT` | `TimeoutSeconds` |
 | `DECISIONS_TOOLS_RETRY_DELAY_SECONDS` | `RetryDelaySeconds` |
-| `DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS` | `CircuitBreakSeconds` |
-
-`DECISIONS_TOOLS_RETRY_DELAY_SECONDS` gates the decision transport's retry delay only. The optimizer has no
-separate retry-delay override (it uses its own fixed backoff), so no `DECISIONS_MESSAGES_*` or shared
-`DECISIONS_*` retry-delay variable exists — a deliberate exception to the no-cross-section rule, documented
-here rather than implied. The decision transport's retry delay is not shared across sections.
-
-`LOCAL_LLM_GATE_WAIT_SECONDS` is a further root override (`Imposter:LocalLlmGateWaitSeconds`): the wait for
-the single local-LLM slot shared by decision and optimizer calls (HLD 015 LADR-05).
 
 The timeout env spelling deliberately omits `_SECONDS`. Blank values are absent; unparseable
 booleans/numbers warn and preserve the bound value. Numeric parsing uses invariant culture.

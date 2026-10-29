@@ -12,9 +12,11 @@ public sealed class DecisionServiceOptions
     public const string DefaultBaseUrl = "http://host.docker.internal:1234";
     public const string DefaultPath = "/v1/systemone";
     public const string DefaultModel = "openjev";
-    public const int DefaultMaxAttempts = 3;
+    public const int DefaultMaxAttempts = 2;
     public const int DefaultTimeoutSeconds = 60;
     public const int MaxAttemptsLimit = 10;
+    public const int DefaultRetryDelaySeconds = 5;
+    public const int MaxRetryDelaySeconds = 60;
 
     public string BaseUrl { get; set; } = DefaultBaseUrl;
 
@@ -25,6 +27,8 @@ public sealed class DecisionServiceOptions
     public int MaxAttempts { get; set; } = DefaultMaxAttempts;
 
     public int TimeoutSeconds { get; set; } = DefaultTimeoutSeconds;
+
+    public int RetryDelaySeconds { get; set; } = DefaultRetryDelaySeconds;
 
     /// <summary>The full request URL; with <see cref="Model"/> it keys the admission gate.</summary>
     public string Endpoint => BaseUrl.TrimEnd('/') + Path;

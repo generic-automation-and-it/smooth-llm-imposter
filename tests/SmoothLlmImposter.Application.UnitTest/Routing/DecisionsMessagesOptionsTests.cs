@@ -20,7 +20,8 @@ public class DecisionsMessagesOptionsTests
         options.Path.ShouldBe("/v1/systemone");
         options.Model.ShouldBe("openjev");
         options.MinProbability.ShouldBe(0.50);
-        options.MaxAttempts.ShouldBe(3);
+        options.MaxAttempts.ShouldBe(2);
+        options.RetryDelaySeconds.ShouldBe(5);
         options.TimeoutSeconds.ShouldBe(60);
         options.CircuitBreakSeconds.ShouldBe(180);
     }

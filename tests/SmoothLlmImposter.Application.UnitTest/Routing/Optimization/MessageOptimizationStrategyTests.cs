@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using SmoothLlmImposter.Application.Common.Clients.LocalLlm;
 using SmoothLlmImposter.Application.Common.Clients.Optimizer;
 using SmoothLlmImposter.Application.Features.Routing;
 using SmoothLlmImposter.Application.Features.Routing.Optimization;
@@ -780,7 +781,7 @@ public sealed class MessageOptimizationStrategyTests
         const string busy = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
         const string later = """{"model":"x","messages":[{"role":"user","content":"Please kindly ask @reviewer."}]}""";
         var clock = new AdmissionClock(AdmissionWait);
-        using var admissionGate = new OptimizerAdmissionGate(clock);
+        var admissionGate = new OptimizerAdmissionGate(clock, new LocalLlmSlot());
         var cache = new FakeCache();
         var logs = new CollectingLogger();
         var gate = new StubGate((_, _) => Task.FromResult(true));
@@ -788,7 +789,7 @@ public sealed class MessageOptimizationStrategyTests
         MessageOptimizationStrategy strategy = Create(
             gate, optimizer, cache, logger: logs, clock: clock, admissionGate: admissionGate);
         OptimizerAdmissionGate.Admission otherRequest =
-            await admissionGate.EnterAsync(OptimizerEndpoint, OptimizerModel, AdmissionWait, Token);
+            await admissionGate.EnterAsync(AdmissionWait, Token);
         Task queued = clock.TimerCreated;
 
         Task<OptimizationEdit> waiting = strategy.OptimizeAsync(Request("/v1/chat/completions", busy), Token);
@@ -815,13 +816,13 @@ public sealed class MessageOptimizationStrategyTests
     {
         const string body = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
         var clock = new AdmissionClock(AdmissionWait);
-        using var admissionGate = new OptimizerAdmissionGate(clock);
+        var admissionGate = new OptimizerAdmissionGate(clock, new LocalLlmSlot());
         var cache = new FakeCache();
         var gate = new StubGate((_, _) => Task.FromResult(true));
         var optimizer = new StubOptimizer((_, _, _) => Task.FromResult("Review `foo()`."));
         MessageOptimizationStrategy strategy = Create(gate, optimizer, cache, clock: clock, admissionGate: admissionGate);
         OptimizerAdmissionGate.Admission otherRequest =
-            await admissionGate.EnterAsync(OptimizerEndpoint, OptimizerModel, AdmissionWait, Token);
+            await admissionGate.EnterAsync(AdmissionWait, Token);
         using var caller = new CancellationTokenSource();
         Task queued = clock.TimerCreated;
 
@@ -845,7 +846,7 @@ public sealed class MessageOptimizationStrategyTests
         const string trial = """{"model":"x","messages":[{"role":"user","content":"Please kindly ask @reviewer."}]}""";
         const string next = """{"model":"x","messages":[{"role":"user","content":"Please kindly check `bar()`."}]}""";
         var clock = new AdmissionClock(AdmissionWait);
-        using var admissionGate = new OptimizerAdmissionGate(clock);
+        var admissionGate = new OptimizerAdmissionGate(clock, new LocalLlmSlot());
         var gate = new StubGate((_, _) => Task.FromResult(true));
         int calls = 0;
         var optimizer = new StubOptimizer((_, _, _) => Interlocked.Increment(ref calls) == 1
@@ -855,7 +856,7 @@ public sealed class MessageOptimizationStrategyTests
         await strategy.OptimizeAsync(Request("/v1/chat/completions", failing), Token);
         clock.Advance(TimeSpan.FromSeconds(new LlmMessagesOptions().CircuitBreakSeconds + 1));
         OptimizerAdmissionGate.Admission otherRequest =
-            await admissionGate.EnterAsync(OptimizerEndpoint, OptimizerModel, AdmissionWait, Token);
+            await admissionGate.EnterAsync(AdmissionWait, Token);
         Task queued = clock.TimerCreated;
 
         Task<OptimizationEdit> waiting = strategy.OptimizeAsync(Request("/v1/chat/completions", trial), Token);
@@ -970,7 +971,7 @@ public sealed class MessageOptimizationStrategyTests
     {
         const string body = """{"model":"x","messages":[{"role":"user","content":"Please kindly review `foo()`."}]}""";
         var clock = new AdmissionClock(AdmissionWait);
-        using var admissionGate = new OptimizerAdmissionGate(clock);
+        var admissionGate = new OptimizerAdmissionGate(clock, new LocalLlmSlot());
         var cache = new FakeCache();
         var logs = new CollectingLogger();
         var gate = new StubGate((_, _) => Task.FromResult(true));
@@ -979,7 +980,7 @@ public sealed class MessageOptimizationStrategyTests
         MessageOptimizationStrategy strategy = Create(
             gate, optimizer, cache, logger: logs, clock: clock, admissionGate: admissionGate, budgetSeconds: BudgetSeconds);
         OptimizerAdmissionGate.Admission otherRequest =
-            await admissionGate.EnterAsync(OptimizerEndpoint, OptimizerModel, AdmissionWait, Token);
+            await admissionGate.EnterAsync(AdmissionWait, Token);
         Task queued = clock.TimerCreated;
 
         Task<OptimizationEdit> waiting = strategy.OptimizeAsync(Request("/v1/chat/completions", body), Token);
@@ -1053,7 +1054,7 @@ public sealed class MessageOptimizationStrategyTests
             cache ?? new FakeCache(),
             new MessageGateCircuitBreaker(bound, clock, NullLogger<MessageGateCircuitBreaker>.Instance),
             new MessageOptimizerCircuitBreaker(Options.Create(options.LlmMessages), clock, NullLogger<MessageOptimizerCircuitBreaker>.Instance),
-            admissionGate ?? new OptimizerAdmissionGate(clock),
+            admissionGate ?? new OptimizerAdmissionGate(clock, new LocalLlmSlot()),
             clock,
             logger ?? NullLogger<MessageOptimizationStrategy>.Instance);
     }

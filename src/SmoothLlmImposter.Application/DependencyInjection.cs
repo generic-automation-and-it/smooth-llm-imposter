@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using SmoothLlmImposter.Application.Common.Clients.Decisions;
+using SmoothLlmImposter.Application.Common.Clients.LocalLlm;
 using SmoothLlmImposter.Application.Common.Clients.Optimizer;
 using SmoothLlmImposter.Application.Common.Pipelines;
 using SmoothLlmImposter.Application.Features.AuthorizationOverride;
@@ -46,6 +47,7 @@ public static class DependencyInjection
         services.AddSingleton<IMessageGate, MessageGate>();
         services.AddSingleton<MessageGateCircuitBreaker>();
         services.AddSingleton<MessageOptimizerCircuitBreaker>();
+        services.TryAddSingleton<LocalLlmSlot>();
         services.AddSingleton<OptimizerAdmissionGate>();
         services.AddSingleton<IOptimizationStrategy, MessageOptimizationStrategy>();
 

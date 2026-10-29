@@ -56,7 +56,7 @@
 
 ## Implementation outcome (2026-10-25)
 
-Implemented as an Application-owned consumer singleton (`DecisionCircuitBreaker`, `Features/Routing/Decisions`) consulted by the filter before the client call, so an open circuit never reaches the gate. Failure classification treats 4xx as a configuration fault except 408 and 429, which are transient. A dedicated `DecisionServiceTimeoutException` (wrapped by the transport from the resilience library's timeout) and `LocalLlmGateTimeoutException` (thrown by the gate) keep classification off exception text. After the cooldown one caller wins a trial admission; a cancelled trial clears the admission so it cannot wedge the circuit, and only a trial's success closes the circuit (a pass admitted before the open cannot close it).
+Implemented as an Application-owned consumer singleton (`DecisionCircuitBreaker`, `Features/Routing/Decisions`) consulted by the filter before the client call, so an open circuit never reaches the gate. Failure classification treats 4xx as a configuration fault except 408 and 429, which are transient. A dedicated `DecisionServiceTimeoutException` (wrapped by the transport from the resilience library's timeout) and `DecisionGateTimeoutException` (thrown by the gate) keep classification off exception text. After the cooldown one caller wins a trial admission; a cancelled trial clears the admission so it cannot wedge the circuit, and only a trial's success closes the circuit (a pass admitted before the open cannot close it).
 
 ## Revisit when
 

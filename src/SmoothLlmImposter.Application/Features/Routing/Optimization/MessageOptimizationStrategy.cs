@@ -427,7 +427,7 @@ internal sealed class MessageOptimizationStrategy(
         OptimizerAdmissionGate.Admission turn;
         try
         {
-            turn = await admissionGate.EnterAsync(endpoint, model, AdmissionWait(), cancellationToken);
+            turn = await admissionGate.EnterAsync(AdmissionWait(), cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

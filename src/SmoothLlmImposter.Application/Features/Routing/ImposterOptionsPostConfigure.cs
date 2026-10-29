@@ -297,6 +297,7 @@ internal sealed class ImposterOptionsPostConfigure(
             [nameof(DecisionsToolsOptions.StickyPerSession)] = "DECISIONS_TOOLS_STICKY_PER_SESSION",
             [nameof(DecisionsToolsOptions.MaxAttempts)] = "DECISIONS_TOOLS_MAX_ATTEMPTS",
             [nameof(DecisionsToolsOptions.TimeoutSeconds)] = "DECISIONS_TOOLS_TIMEOUT",
+            [nameof(DecisionsToolsOptions.RetryDelaySeconds)] = "DECISIONS_TOOLS_RETRY_DELAY_SECONDS",
             [nameof(DecisionsToolsOptions.CircuitBreakSeconds)] = "DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS",
         };
 
@@ -313,6 +314,7 @@ internal sealed class ImposterOptionsPostConfigure(
             [nameof(DecisionsOptions.MinProbability)] = "DECISIONS_MIN_PROBABILITY",
             [nameof(DecisionsOptions.MaxAttempts)] = "DECISIONS_MAX_ATTEMPTS",
             [nameof(DecisionsOptions.TimeoutSeconds)] = "DECISIONS_TIMEOUT",
+            [nameof(DecisionsOptions.RetryDelaySeconds)] = "DECISIONS_RETRY_DELAY_SECONDS",
             [nameof(DecisionsOptions.CircuitBreakSeconds)] = "DECISIONS_CIRCUIT_BREAK_SECONDS",
             [nameof(DecisionsOptions.MinKeepTools)] = "DECISIONS_MIN_KEEP",
             [nameof(DecisionsOptions.AlwaysKeep)] = "DECISIONS_ALWAYS_KEEP",
@@ -331,6 +333,7 @@ internal sealed class ImposterOptionsPostConfigure(
         ApplyRootProbabilityOverride(DecisionsVariables[nameof(options.MinProbability)], nameof(options.MinProbability), value => options.MinProbability = value);
         ApplyRootIntegerOverride(DecisionsVariables[nameof(options.MaxAttempts)], nameof(options.MaxAttempts), value => options.MaxAttempts = value);
         ApplyRootIntegerOverride(DecisionsVariables[nameof(options.TimeoutSeconds)], nameof(options.TimeoutSeconds), value => options.TimeoutSeconds = value);
+        ApplyRootIntegerOverride(DecisionsVariables[nameof(options.RetryDelaySeconds)], nameof(options.RetryDelaySeconds), value => options.RetryDelaySeconds = value);
         ApplyRootIntegerOverride(DecisionsVariables[nameof(options.CircuitBreakSeconds)], nameof(options.CircuitBreakSeconds), value => options.CircuitBreakSeconds = value);
         ApplyRootIntegerOverride(DecisionsVariables[nameof(options.MinKeepTools)], nameof(options.MinKeepTools), value => options.MinKeepTools = value);
         ApplyRootStringOverride(DecisionsVariables[nameof(options.AlwaysKeep)], nameof(options.AlwaysKeep), value => options.AlwaysKeep = value);
@@ -352,6 +355,7 @@ internal sealed class ImposterOptionsPostConfigure(
         LayerBoolean(section, variables, nameof(options.StickyPerSession), shared.StickyPerSession, value => options.StickyPerSession = value);
         LayerInteger(section, variables, nameof(options.MaxAttempts), shared.MaxAttempts, value => options.MaxAttempts = value);
         LayerInteger(section, variables, nameof(options.TimeoutSeconds), shared.TimeoutSeconds, value => options.TimeoutSeconds = value);
+        LayerInteger(section, variables, nameof(options.RetryDelaySeconds), shared.RetryDelaySeconds, value => options.RetryDelaySeconds = value);
         LayerInteger(section, variables, nameof(options.CircuitBreakSeconds), shared.CircuitBreakSeconds, value => options.CircuitBreakSeconds = value);
     }
 
@@ -420,6 +424,7 @@ internal sealed class ImposterOptionsPostConfigure(
             [nameof(DecisionsMessagesOptions.MinProbability)] = "DECISIONS_MESSAGES_MIN_PROBABILITY",
             [nameof(DecisionsMessagesOptions.MaxAttempts)] = "DECISIONS_MESSAGES_MAX_ATTEMPTS",
             [nameof(DecisionsMessagesOptions.TimeoutSeconds)] = "DECISIONS_MESSAGES_TIMEOUT",
+            [nameof(DecisionsMessagesOptions.RetryDelaySeconds)] = "DECISIONS_MESSAGES_RETRY_DELAY_SECONDS",
             [nameof(DecisionsMessagesOptions.CircuitBreakSeconds)] = "DECISIONS_MESSAGES_CIRCUIT_BREAK_SECONDS",
             [nameof(DecisionsMessagesOptions.MaxStateChars)] = "DECISIONS_MESSAGES_MAX_STATE_CHARS",
         };
@@ -433,6 +438,7 @@ internal sealed class ImposterOptionsPostConfigure(
             [nameof(LlmMessagesOptions.Model)] = "LLM_MESSAGES_MODEL",
             [nameof(LlmMessagesOptions.MaxAttempts)] = "LLM_MESSAGES_MAX_ATTEMPTS",
             [nameof(LlmMessagesOptions.TimeoutSeconds)] = "LLM_MESSAGES_TIMEOUT",
+            [nameof(LlmMessagesOptions.RetryDelaySeconds)] = "LLM_MESSAGES_RETRY_DELAY_SECONDS",
             [nameof(LlmMessagesOptions.CircuitBreakSeconds)] = "LLM_MESSAGES_CIRCUIT_BREAK_SECONDS",
             [nameof(LlmMessagesOptions.CacheTtlHours)] = "LLM_MESSAGES_CACHE_TTL_HOURS",
             [nameof(LlmMessagesOptions.MinChars)] = "LLM_MESSAGES_MIN_CHARS",
@@ -452,6 +458,7 @@ internal sealed class ImposterOptionsPostConfigure(
         LayerProbability(section, variables, nameof(options.MinProbability), shared.MinProbability, value => options.MinProbability = value);
         LayerInteger(section, variables, nameof(options.MaxAttempts), shared.MaxAttempts, value => options.MaxAttempts = value);
         LayerInteger(section, variables, nameof(options.TimeoutSeconds), shared.TimeoutSeconds, value => options.TimeoutSeconds = value);
+        LayerInteger(section, variables, nameof(options.RetryDelaySeconds), shared.RetryDelaySeconds, value => options.RetryDelaySeconds = value);
         LayerInteger(section, variables, nameof(options.CircuitBreakSeconds), shared.CircuitBreakSeconds, value => options.CircuitBreakSeconds = value);
         ApplyRootIntegerOverride(variables[nameof(options.MaxStateChars)], nameof(options.MaxStateChars), value => options.MaxStateChars = value);
     }
@@ -464,6 +471,7 @@ internal sealed class ImposterOptionsPostConfigure(
         ApplyRootStringOverride(LlmMessagesVariables[nameof(options.Model)], nameof(options.Model), value => options.Model = value);
         ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.MaxAttempts)], nameof(options.MaxAttempts), value => options.MaxAttempts = value);
         ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.TimeoutSeconds)], nameof(options.TimeoutSeconds), value => options.TimeoutSeconds = value);
+        ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.RetryDelaySeconds)], nameof(options.RetryDelaySeconds), value => options.RetryDelaySeconds = value);
         ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.CircuitBreakSeconds)], nameof(options.CircuitBreakSeconds), value => options.CircuitBreakSeconds = value);
         ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.CacheTtlHours)], nameof(options.CacheTtlHours), value => options.CacheTtlHours = value);
         ApplyRootIntegerOverride(LlmMessagesVariables[nameof(options.MinChars)], nameof(options.MinChars), value => options.MinChars = value);

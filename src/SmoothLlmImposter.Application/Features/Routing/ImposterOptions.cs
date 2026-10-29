@@ -79,6 +79,8 @@ public sealed class DecisionsOptions
 
     public int? TimeoutSeconds { get; set; }
 
+    public int? RetryDelaySeconds { get; set; }
+
     public int? CircuitBreakSeconds { get; set; }
 
     public int? MinKeepTools { get; set; }
@@ -105,6 +107,8 @@ public sealed class DecisionsMessagesOptions
     public int MaxAttempts { get; set; } = DecisionServiceOptions.DefaultMaxAttempts;
 
     public int TimeoutSeconds { get; set; } = DecisionServiceOptions.DefaultTimeoutSeconds;
+
+    public int RetryDelaySeconds { get; set; } = DecisionServiceOptions.DefaultRetryDelaySeconds;
 
     /// <summary>
     /// Minimum probability (inclusive) for a positive "can be optimized" answer.
@@ -152,6 +156,8 @@ public sealed class DecisionsToolsOptions
     public int MaxAttempts { get; set; } = DecisionServiceOptions.DefaultMaxAttempts;
 
     public int TimeoutSeconds { get; set; } = DecisionServiceOptions.DefaultTimeoutSeconds;
+
+    public int RetryDelaySeconds { get; set; } = DecisionServiceOptions.DefaultRetryDelaySeconds;
 
     /// <summary>
     /// Cooldown after one failed classifier call opens the tool-filter circuit (HLD 014 LADR-11, NFR-05).

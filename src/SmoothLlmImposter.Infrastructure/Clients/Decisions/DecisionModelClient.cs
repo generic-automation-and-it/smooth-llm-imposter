@@ -17,13 +17,14 @@ internal sealed class DecisionModelClient(
     // resilience pipeline reads these back instead of baking one profile in (HLD 015 LADR-05).
     internal static readonly HttpRequestOptionsKey<int> MaxAttemptsKey = new("smoothllmimposter-decision-max-attempts");
     internal static readonly HttpRequestOptionsKey<int> TimeoutSecondsKey = new("smoothllmimposter-decision-timeout-seconds");
+    internal static readonly HttpRequestOptionsKey<int> RetryDelaySecondsKey = new("smoothllmimposter-decision-retry-delay-seconds");
 
     public async Task<JsonObject> DecideAsync(string section, JsonObject request, CancellationToken cancellationToken)
     {
         DecisionServiceOptions settings = profiles.Resolve(section);
         int gateSeconds = settings.TimeoutSeconds > 0 ? settings.TimeoutSeconds : DecisionServiceOptions.DefaultTimeoutSeconds;
         using DecisionServiceGate.Admission admission =
-            await gate.EnterAsync(settings, TimeSpan.FromSeconds(gateSeconds), cancellationToken);
+            await gate.EnterAsync(TimeSpan.FromSeconds(gateSeconds), cancellationToken);
 
         using HttpClient client = httpClientFactory.CreateClient(HttpClientName);
         using var message = new HttpRequestMessage(HttpMethod.Post, settings.Endpoint)
@@ -33,6 +34,7 @@ internal sealed class DecisionModelClient(
         };
         message.Options.Set(MaxAttemptsKey, settings.MaxAttempts);
         message.Options.Set(TimeoutSecondsKey, settings.TimeoutSeconds);
+        message.Options.Set(RetryDelaySecondsKey, settings.RetryDelaySeconds);
         HttpResponseMessage response;
         try
         {

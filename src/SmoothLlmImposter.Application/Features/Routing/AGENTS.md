@@ -384,7 +384,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
   `CircuitBreakSeconds`, passes then skip with reason `circuit-open` and never call the client (so they never
   reach the gate), and after the cooldown one trial admission decides close-or-reopen. Only service faults count
   (`HttpRequestException` with a 4xx status other than 408/429, 5xx, transport failure, `DecisionServiceTimeoutException`);
-  `LocalLlmGateTimeoutException` and caller cancellation do not. Do not move the breaker into the shared transport
+  `DecisionGateTimeoutException` and caller cancellation do not. Do not move the breaker into the shared transport
   profile — a second consumer registers its own.
 
 ## Credential Overrides
@@ -487,6 +487,7 @@ Stateless same-dialect LLM router: rewrites the inbound `model` to a configured 
 | Date | Change | Ref |
 |:-----|:-------|:----|
 | 2026-10-29 | Test References: sticky + ordering prefix-stability L2 proof with session-less negative control | #245 |
+| 2026-10-29 | `RetryDelaySeconds` layered like the other decision transport fields (`DECISIONS_TOOLS_`/`DECISIONS_MESSAGES_` → `DECISIONS_` → 5); decision and optimizer `MaxAttempts` default 3 → 2; every decision and optimizer call shares `LocalLlmSlot` | #247 |
 | 2026-10-28 | Per-section decision profiles: tool filter and message gate call their own named profile; gate per endpoint+model in Infrastructure (HLD 015 LADR-05, WT-23) | #228 |
 | 2026-10-28 | Shared `DECISIONS_*` layer and `DECISIONS_MESSAGES_*` transport settings: section → shared → default for structured and conventional configuration, tool-only shared settings, effective-state validation, drift guard (HLD 017 LADR-06, WT-22) | #225 |
 | 2026-10-28 | Sticky decision tools require `ToolOrdering.Enabled`; validator fails startup otherwise (LADR-13) | #237 |

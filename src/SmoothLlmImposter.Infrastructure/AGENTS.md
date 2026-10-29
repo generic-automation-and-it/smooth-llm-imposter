@@ -45,22 +45,25 @@ Implements the contracts defined in Application — EF Core + PostgreSQL persist
 
 - The `decision-service` client is auxiliary classification, not `imposter-upstream`: its full response body
   must remain inside the attempt timeout. Reusing inference header-only resilience would leave body stalls unbounded.
-- Admission is `DecisionServiceGate` (the decision section's `LocalLlmGate` slot): its own singleton that every
-  client instance receives — never a field on the client, or a second client registration would create a second
-  budget ([HLD 015 LADR-03](../../docs/hlds/015-shared-decision-model-integration/ladrs/LADR-03-shared-uncached-resource-budget.md)).
-  It holds one process-wide admission slot shared by every decision section and the HLD 017 optimizer
-  (`LocalLlmGate`), whatever endpoint or model each resolves to; a call holds the slot across its retries and
-  retry delays, and the wait is bounded by `LocalLlmGateWaitSeconds`
-  ([LADR-05](../../docs/hlds/015-shared-decision-model-integration/ladrs/LADR-05-per-section-profiles-circuits-gates.md),
-  amended 2026-10-29). The earlier per-`(endpoint, model)` registry no longer applies.
+- Admission is `DecisionServiceGate`, its own singleton that every client instance receives — never a field on the
+  client, or a second client registration would create a second budget ([HLD 015 LADR-03](../../docs/hlds/015-shared-decision-model-integration/ladrs/LADR-03-shared-uncached-resource-budget.md)).
+  It takes the Application singleton `LocalLlmSlot`, the one process-wide slot the message optimizer's
+  `OptimizerAdmissionGate` also takes ([LADR-05](../../docs/hlds/015-shared-decision-model-integration/ladrs/LADR-05-per-section-profiles-circuits-gates.md),
+  amended 2026-10-29): no two local-LLM calls overlap, whatever endpoint or model they use. Register the slot with
+  `TryAddSingleton` in both layers so Application and Infrastructure resolve the same instance.
+  Do not attach `ConcurrencyLimitingHandler` to the `decision-service` or `llm-messages` client: that gate serves
+  upstream/GitHub traffic, waits without a bound and holds its slot for a whole stream.
   The uncached exception and retry-status contract live in [HLD 014 LADR-04](../../docs/hlds/014-decisions-tools-filter/ladrs/LADR-04-singleton-gate.md).
   Do not turn the gate into per-scope state or introduce a cache during a transport refactor.
+- In `HttpRetryStrategyOptions`, set `ShouldRetryAfterHeader` **before** `DelayGenerator`: setting it to `false`
+  clears any generator assigned earlier in the initializer, and with the base `Delay` unset Polly then waits its
+  2 s exponential default regardless of the configured `RetryDelaySeconds`.
 - The gate throws `DecisionGateTimeoutException` (Application contract), and the client translates the resilience
   library's timeout rejection into `DecisionServiceTimeoutException`; callers classify by these types, never by
   exception text.
 - The client resolves the called section's profile through `DecisionServiceProfiles`, never the routing options.
   One named `decision-service` client serves every section, so the section's `MaxAttempts` and `TimeoutSeconds`
-  travel on the request (`DecisionModelClient.MaxAttemptsKey`/`TimeoutSecondsKey`) and the resilience pipeline
+  travel on the request (`DecisionModelClient.MaxAttemptsKey`/`TimeoutSecondsKey`/`RetryDelaySecondsKey`) and the resilience pipeline
   reads them back (`GetDecisionMaxAttempts`/`GetDecisionTimeoutSeconds`), the same pattern as HLD 012. The retry
   strategy is built for the 10-attempt maximum and stops at the stamped count; an unstamped or out-of-range value
   falls back to the defaults, so an unvalidated setting never reaches Polly. A section that is off resolves to
@@ -70,6 +73,7 @@ Implements the contracts defined in Application — EF Core + PostgreSQL persist
 
 | Date | Change | Ref |
 |:-----|:-------|:----|
+| 2026-10-29 | `DecisionServiceGate` takes the shared `LocalLlmSlot` instead of keyed semaphores; `ConcurrencyLimitingHandler` removed from the decision and optimizer clients; decision retry delay stamped on the request (`ShouldRetryAfterHeader = false` must precede `DelayGenerator`, because setting it clears the generator) | #247 |
 | 2026-10-28 | Gate per endpoint+model; per-section attempts/timeout stamped on the request instead of one profile baked into the pipeline (HLD 015 LADR-05, WT-23) | #228 |
 | 2026-10-28 | Added process-wide outbound HTTP concurrency gate (`ConcurrencyLimitingHandler` + shared `SemaphoreSlim`) on every HttpClient; size configurable via `Imposter:MaxConcurrentRequests` / `IMPOSTER_MAX_CONCURRENT_REQUESTS` (default 1) | — |
 | 2026-10-25 | Decision exceptions: gate timeout and attempt timeout have Application contract types (LADR-11) | — |

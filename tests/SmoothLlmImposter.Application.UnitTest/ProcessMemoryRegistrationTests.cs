@@ -21,8 +21,7 @@ public sealed class ProcessMemoryRegistrationTests
         ["GithubCopilotPrefixGate._gates"] = "one gate per Copilot provider prefix",
         ["InMemoryGithubCopilotConnectionRegistry._byPrefix"] = "published connection per Copilot prefix (HLD 013)",
         ["InMemoryProviderRegistry._providers"] = "runtime provider registry (HLD 008)",
-        ["InMemorySessionTranslationDictionary._map"] = "per-session but intentionally unbounded: HLD 010 NFR-04",
-        ["OptimizerAdmissionGate._gates"] = "one gate per optimizer endpoint + model; bounded by the configured transport (HLD 017 LADR-03)"
+        ["InMemorySessionTranslationDictionary._map"] = "per-session but intentionally unbounded: HLD 010 NFR-04"
     };
 
     private static readonly Type[] MutableCollections =

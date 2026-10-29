@@ -29,6 +29,7 @@ public class DecisionsSharedLayerTests
         nameof(DecisionsOptions.MinProbability),
         nameof(DecisionsOptions.MaxAttempts),
         nameof(DecisionsOptions.TimeoutSeconds),
+        nameof(DecisionsOptions.RetryDelaySeconds),
         nameof(DecisionsOptions.CircuitBreakSeconds),
     ];
 
@@ -327,7 +328,7 @@ public class DecisionsSharedLayerTests
         tools.MinKeepTools.ShouldBe(configured ? 12 : 20, deployment);
         tools.AlwaysKeep.ShouldBe(configured ? "shell,apply_patch" : "Bash,Read,Edit,Write,Skill", deployment);
         tools.StickyPerSession.ShouldBe(configured, deployment);
-        tools.MaxAttempts.ShouldBe(configured ? 5 : 3, deployment);
+        tools.MaxAttempts.ShouldBe(configured ? 5 : DecisionServiceOptions.DefaultMaxAttempts, deployment);
         tools.TimeoutSeconds.ShouldBe(configured ? 90 : 60, deployment);
         tools.CircuitBreakSeconds.ShouldBe(configured ? 45 : 180, deployment);
 
@@ -338,6 +339,7 @@ public class DecisionsSharedLayerTests
         transport.Model.ShouldBe(tools.Model);
         transport.MaxAttempts.ShouldBe(tools.MaxAttempts);
         transport.TimeoutSeconds.ShouldBe(tools.TimeoutSeconds);
+        transport.RetryDelaySeconds.ShouldBe(tools.RetryDelaySeconds);
 
         DecisionsMessagesOptions messages = options.DecisionsMessages;
         messages.Enabled.ShouldBeFalse();

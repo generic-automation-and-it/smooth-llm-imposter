@@ -211,8 +211,9 @@ feature. Configuration is read at startup; restart or recreate the container aft
 | `DECISIONS_TOOLS_MIN_KEEP` | `MinKeepTools` | `20` | 0–1000 (`0` disables the floor) |
 | `DECISIONS_TOOLS_ALWAYS_KEEP` | `AlwaysKeep` | `Bash,Read,Edit,Write,Skill` | — (comma-separated tool names) |
 | `DECISIONS_TOOLS_STICKY_PER_SESSION` | `StickyPerSession` | `false` | Requires `Imposter__ToolOrdering__Enabled=true` |
-| `DECISIONS_TOOLS_MAX_ATTEMPTS` | `MaxAttempts` | `3` | 1–10 inclusive |
+| `DECISIONS_TOOLS_MAX_ATTEMPTS` | `MaxAttempts` | `2` (one retry) | 1–10 inclusive |
 | `DECISIONS_TOOLS_TIMEOUT` | `TimeoutSeconds` | `60` | 1–3600 seconds |
+| `DECISIONS_TOOLS_RETRY_DELAY_SECONDS` | `RetryDelaySeconds` | `5` | 0–60 seconds |
 | `DECISIONS_TOOLS_CIRCUIT_BREAK_SECONDS` | `CircuitBreakSeconds` | `180` | 1–3600 seconds |
 
 Every setting except `DECISIONS_TOOLS_ENABLED` falls back to the matching shared `DECISIONS_*` value when the tool
@@ -275,6 +276,7 @@ from the other section, and existing `DECISIONS_TOOLS_*`-only deployments resolv
 | `DECISIONS_MIN_PROBABILITY` | `MinProbability` | tool and message sections |
 | `DECISIONS_MAX_ATTEMPTS` | `MaxAttempts` | tool and message sections |
 | `DECISIONS_TIMEOUT` | `TimeoutSeconds` | tool and message sections |
+| `DECISIONS_RETRY_DELAY_SECONDS` | `RetryDelaySeconds` | tool and message sections |
 | `DECISIONS_CIRCUIT_BREAK_SECONDS` | `CircuitBreakSeconds` | tool and message sections |
 | `DECISIONS_MIN_KEEP` | `MinKeepTools` | tool section only |
 | `DECISIONS_ALWAYS_KEEP` | `AlwaysKeep` | tool section only |
@@ -292,15 +294,26 @@ The message gate's section (`Imposter:DecisionsMessages`):
 | `DECISIONS_MESSAGES_PATH` | `Path` | `/v1/systemone` | Starts with `/` |
 | `DECISIONS_MESSAGES_MODEL` | `Model` | `openjev` | Non-empty |
 | `DECISIONS_MESSAGES_MIN_PROBABILITY` | `MinProbability` | `0.50` | 0–1 inclusive |
-| `DECISIONS_MESSAGES_MAX_ATTEMPTS` | `MaxAttempts` | `3` | 1–10 inclusive |
+| `DECISIONS_MESSAGES_MAX_ATTEMPTS` | `MaxAttempts` | `2` (one retry) | 1–10 inclusive |
 | `DECISIONS_MESSAGES_TIMEOUT` | `TimeoutSeconds` | `60` | 1–3600 seconds |
+| `DECISIONS_MESSAGES_RETRY_DELAY_SECONDS` | `RetryDelaySeconds` | `5` | 0–60 seconds |
 | `DECISIONS_MESSAGES_CIRCUIT_BREAK_SECONDS` | `CircuitBreakSeconds` | `180` | 1–3600 seconds |
 
 The gate is on only while `LLM_MESSAGES_ENABLED=true` and `DECISIONS_MESSAGES_ENABLED` is unset or `true`.
 The gate calls its own section's endpoint, path, model, attempts and timeout; the tool filter calls the tool
-section's. Each decision call waits for the admission gate of its resolved endpoint and model: when both sections
-resolve to the same pair they take turns (one call at a time), and on different endpoints or models they run in
-parallel.
+section's. Both share the one local-LLM slot described below, whatever endpoint or model each resolves to.
+
+**One local-LLM call at a time.** Every tool-filter decision, message-gate decision and optimizer call takes one
+process-wide slot, so a machine serving these models handles them strictly one after another
+([HLD 015 LADR-05](../hlds/015-shared-decision-model-integration/ladrs/LADR-05-per-section-profiles-circuits-gates.md)).
+A call keeps the slot through its retries and retry delays. A decision call waits for the slot up to its section's
+`TimeoutSeconds`, an optimizer call up to `LLM_MESSAGES_TIMEOUT` (both default 60); a call that gets no slot in
+time is skipped as contention — the tool filter keeps the unresolved tools, the gate continues to the optimizer, the
+optimizer forwards the original — and no circuit opens. Upstream forwarding does not use this slot, so a long
+upstream stream never blocks it; `IMPOSTER_MAX_CONCURRENT_REQUESTS` limits upstream and GitHub traffic only.
+Retries default to one (`MaxAttempts` 2) after `RetryDelaySeconds` (default 5, 0–60): `*_RETRY_DELAY_SECONDS` for
+each decision section or the shared layer, and `LLM_MESSAGES_RETRY_DELAY_SECONDS` / `LLM_MESSAGES_MAX_ATTEMPTS`
+(default 2) for the optimizer.
 
 **Message optimizer time budget.** `LLM_MESSAGES_BUDGET_SECONDS` (`Imposter:LlmMessages:BudgetSeconds`, optional,
 default `30`, validated 1–600 while `LLM_MESSAGES_ENABLED=true`) bounds the time one request spends on gate and

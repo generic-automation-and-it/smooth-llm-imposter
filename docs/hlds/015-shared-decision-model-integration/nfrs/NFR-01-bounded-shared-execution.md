@@ -4,7 +4,7 @@
 
 ## Requirement
 
-For one Host process and one gate key — a resolved endpoint plus model ([LADR-05](../ladrs/LADR-05-per-section-profiles-circuits-gates.md)) — admitted HTTP decision calls never overlap, including retries. Let T be TimeoutSeconds and A be MaxAttempts: admission wait is bounded by T, each complete successful response attempt by T, and attempts by A. With no deliberate retry delay, the configured waiting budget per call is at most T plus A × T, excluding local scheduling/serialization overhead. Defaults give 60 seconds admission plus 180 seconds attempt budget.
+For one Host process, admitted decision and optimizer calls never overlap, including retries, whatever endpoint or model they use ([LADR-05](../ladrs/LADR-05-per-section-profiles-circuits-gates.md), amended 2026-10-29). Let T be a section's TimeoutSeconds, A its MaxAttempts and D its RetryDelaySeconds: admission wait is bounded by T, each complete successful response attempt by T, and attempts by A. The configured waiting budget per decision call is at most T + A × T + (A − 1) × D, excluding local scheduling/serialization overhead. Defaults give 60 seconds admission plus 125 seconds attempt budget (2 × 60 + 5).
 
 ## Verification
 
