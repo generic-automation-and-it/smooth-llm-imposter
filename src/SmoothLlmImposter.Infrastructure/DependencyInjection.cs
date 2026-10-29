@@ -54,9 +54,31 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        // Global outbound concurrency gate. A single SemaphoreSlim shared by every HttpClient so a slow
+        // local LLM (decision/optimizer) or a stalled upstream cannot be hit by several requests at once.
+        // Size comes from Imposter:MaxConcurrentRequests (default 1), with the conventional env var
+        // IMPOSTER_MAX_CONCURRENT_REQUESTS taking precedence. Values < 1 are clamped to 1.
+        int maxConcurrent = 1;
+        string? envValue = Environment.GetEnvironmentVariable("IMPOSTER_MAX_CONCURRENT_REQUESTS");
+        if (!string.IsNullOrWhiteSpace(envValue) && int.TryParse(envValue, out int parsedEnv) && parsedEnv > 0)
+        {
+            maxConcurrent = parsedEnv;
+        }
+        else
+        {
+            string? configValue = configuration["Imposter:MaxConcurrentRequests"];
+            if (!string.IsNullOrWhiteSpace(configValue) && int.TryParse(configValue, out int parsedConfig) && parsedConfig > 0)
+            {
+                maxConcurrent = parsedConfig;
+            }
+        }
+
+        services.AddSingleton(new SemaphoreSlim(maxConcurrent, maxConcurrent));
+        services.AddTransient<ConcurrencyLimitingHandler>();
         IHttpClientBuilder decisionsClient = services.AddHttpClient(DecisionModelClient.HttpClientName, client =>
             client.Timeout = Timeout.InfiniteTimeSpan);
-        decisionsClient.AddResilienceHandler("decision-service-retry", builder =>
+        decisionsClient.AddHttpMessageHandler<ConcurrencyLimitingHandler>();
+        decisionsClient.AddResilienceHandler("decision-service-retry", (builder, context) =>
             {
                 builder.AddRetry(new HttpRetryStrategyOptions
                 {
@@ -86,11 +108,13 @@ public static class DependencyInjection
         services.AddSingleton<IDecisionModelClient, DecisionModelClient>();
 
         services.AddHttpClient(OptimizerClient.HttpClientName, client =>
-            client.Timeout = Timeout.InfiniteTimeSpan);
+            client.Timeout = Timeout.InfiniteTimeSpan)
+            .AddHttpMessageHandler<ConcurrencyLimitingHandler>();
         services.AddSingleton<IOptimizerClient, OptimizerClient>();
 
         services.AddHttpClient(UpstreamForwarder.HttpClientName, client =>
             client.Timeout = Timeout.InfiniteTimeSpan)
+            .AddHttpMessageHandler<ConcurrencyLimitingHandler>()
             .AddResilienceHandler("upstream-retry", builder =>
             {
                 builder.AddRetry(CreateUpstreamRetryOptions());
@@ -102,6 +126,7 @@ public static class DependencyInjection
         // is identical, so timeout/retry semantics (HLD 012) stay the same.
         services.AddHttpClient(UpstreamForwarder.CopilotHttpClientName, client =>
             client.Timeout = Timeout.InfiniteTimeSpan)
+            .AddHttpMessageHandler<ConcurrencyLimitingHandler>()
             .ConfigurePrimaryHttpMessageHandler(static () => new SocketsHttpHandler { AllowAutoRedirect = false })
             .AddResilienceHandler("upstream-retry-copilot", builder =>
             {
@@ -131,8 +156,10 @@ public static class DependencyInjection
         // must not be relayed to another origin), are time-bounded, and carry no automatic POST retry — the
         // login/refresh state machines own retry decisions. Model discovery is an uncached plural list call.
         services.AddHttpClient(GithubOAuthClient.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
+            .AddHttpMessageHandler<ConcurrencyLimitingHandler>()
             .ConfigurePrimaryHttpMessageHandler(static () => new SocketsHttpHandler { AllowAutoRedirect = false });
         services.AddHttpClient(GithubCopilotModelsClient.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
+            .AddHttpMessageHandler<ConcurrencyLimitingHandler>()
             .ConfigurePrimaryHttpMessageHandler(static () => new SocketsHttpHandler { AllowAutoRedirect = false });
         services.AddSingleton<IGithubOAuthClient, GithubOAuthClient>();
         services.AddSingleton<IGithubCopilotModelsClient, GithubCopilotModelsClient>();

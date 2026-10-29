@@ -49,6 +49,14 @@ public sealed class ImposterOptions
     public LlmMessagesOptions LlmMessages { get; init; } = new();
 
     public ToolOrderingOptions ToolOrdering { get; init; } = new();
+
+    /// <summary>
+    /// Maximum number of outbound HTTP requests that may be in flight at once across the whole process
+    /// (HLD 017 follow-up). <c>1</c> (default) serializes every outbound call — local LLM (decision /
+    /// optimizer) and upstreams alike — so a slow backend cannot be hit concurrently. Higher values
+    /// allow overlap. Conventional env override <c>IMPOSTER_MAX_CONCURRENT_REQUESTS</c>.
+    /// </summary>
+    public int MaxConcurrentRequests { get; set; } = 1;
 }
 
 /// <summary>
@@ -107,6 +115,15 @@ public sealed class DecisionsMessagesOptions
     /// Cooldown for the message-gate circuit (HLD 017 LADR-07), in seconds.
     /// </summary>
     public int CircuitBreakSeconds { get; set; } = DecisionsToolsOptions.DefaultCircuitBreakSeconds;
+
+    /// <summary>
+    /// Maximum size (in chars) of the combined human text sent to the message classifier gate.
+    /// Messages whose combined human text exceeds this are not classified (the gate is bypassed
+    /// and optimization proceeds directly), because the classifier model cannot handle the payload
+    /// and would only return HTTP 413. The optimizer still receives the full, untruncated text.
+    /// Default 6000.
+    /// </summary>
+    public int MaxStateChars { get; set; } = 6000;
 }
 
 public sealed class ToolOrderingOptions
@@ -240,9 +257,8 @@ public sealed class ProviderOptions
 
     /// <summary>
     /// Per-route opt-out for the HLD 017 message optimizer. <c>null</c> (default) and <c>true</c> both
-    /// leave message optimization on; only <c>false</c> skips it for this provider's routes. Request-billed
-    /// upstreams (for example GitHub Copilot routes) gain nothing from smaller messages and pay the gate
-    /// and optimizer latency. The tool-filter strategy is unaffected. Conventional env
+    /// leave message optimization on; only <c>false</c> skips it for this provider's routes. Use it where the
+    /// gate and optimizer latency outweighs the token saving, or for an upstream still billed per request. The tool-filter strategy is unaffected. Conventional env
     /// <c>&lt;PROVIDER&gt;_OPTIMIZE_MESSAGES</c>.
     /// </summary>
     public bool? OptimizeMessages { get; set; }

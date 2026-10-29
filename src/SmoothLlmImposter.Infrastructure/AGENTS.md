@@ -68,6 +68,7 @@ Implements the contracts defined in Application — EF Core + PostgreSQL persist
 | Date | Change | Ref |
 |:-----|:-------|:----|
 | 2026-10-28 | Gate per endpoint+model; per-section attempts/timeout stamped on the request instead of one profile baked into the pipeline (HLD 015 LADR-05, WT-23) | #228 |
+| 2026-10-28 | Added process-wide outbound HTTP concurrency gate (`ConcurrencyLimitingHandler` + shared `SemaphoreSlim`) on every HttpClient; size configurable via `Imposter:MaxConcurrentRequests` / `IMPOSTER_MAX_CONCURRENT_REQUESTS` (default 1) | — |
 | 2026-10-25 | Decision exceptions: gate timeout and attempt timeout have Application contract types (LADR-11) | — |
 | 2026-10-24 | Decision transport made consumer-neutral (HLD 015): `DecisionServiceGate` singleton, client reads `DecisionServiceOptions`, profile follows the any-consumer predicate; named client `decisions-tools` → `decision-service` | #156 |
 | 2026-10-24 | Renamed to nested `AGENTS.md` (Claude Code auto-discovery); in-file links updated. No behavior change. | #152 |

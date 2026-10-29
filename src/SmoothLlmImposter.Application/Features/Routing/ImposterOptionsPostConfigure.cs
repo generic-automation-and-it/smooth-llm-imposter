@@ -421,6 +421,7 @@ internal sealed class ImposterOptionsPostConfigure(
             [nameof(DecisionsMessagesOptions.MaxAttempts)] = "DECISIONS_MESSAGES_MAX_ATTEMPTS",
             [nameof(DecisionsMessagesOptions.TimeoutSeconds)] = "DECISIONS_MESSAGES_TIMEOUT",
             [nameof(DecisionsMessagesOptions.CircuitBreakSeconds)] = "DECISIONS_MESSAGES_CIRCUIT_BREAK_SECONDS",
+            [nameof(DecisionsMessagesOptions.MaxStateChars)] = "DECISIONS_MESSAGES_MAX_STATE_CHARS",
         };
 
     internal static readonly IReadOnlyDictionary<string, string> LlmMessagesVariables =
@@ -452,6 +453,7 @@ internal sealed class ImposterOptionsPostConfigure(
         LayerInteger(section, variables, nameof(options.MaxAttempts), shared.MaxAttempts, value => options.MaxAttempts = value);
         LayerInteger(section, variables, nameof(options.TimeoutSeconds), shared.TimeoutSeconds, value => options.TimeoutSeconds = value);
         LayerInteger(section, variables, nameof(options.CircuitBreakSeconds), shared.CircuitBreakSeconds, value => options.CircuitBreakSeconds = value);
+        ApplyRootIntegerOverride(variables[nameof(options.MaxStateChars)], nameof(options.MaxStateChars), value => options.MaxStateChars = value);
     }
 
     private void ApplyLlmMessagesOverrides(LlmMessagesOptions options)

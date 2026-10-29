@@ -190,6 +190,11 @@ public sealed class MessageOptimizerAdmissionTests
                 {
                     services.RemoveAll<TimeProvider>();
                     services.AddSingleton<TimeProvider>(Clock);
+                    // The outbound gate is sized at registration, before this config reaches the host, so a
+                    // config key cannot widen it; two slots let the second request's gate call proceed while
+                    // the first request's optimizer call is held.
+                    services.RemoveAll<SemaphoreSlim>();
+                    services.AddSingleton(new SemaphoreSlim(2, 2));
                     services.AddHttpClient("decision-service")
                         .ConfigurePrimaryHttpMessageHandler(() => new AlwaysOptimizeGate());
                     services.AddHttpClient("llm-messages")

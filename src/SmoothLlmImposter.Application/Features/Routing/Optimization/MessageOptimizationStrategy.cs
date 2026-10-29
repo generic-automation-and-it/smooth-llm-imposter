@@ -163,7 +163,9 @@ internal sealed class MessageOptimizationStrategy(
 
             if (cache.TryGet(session, headers, text, version, out string cached))
             {
-                logger.LogDebug("Message optimization: cache hit ({Length} chars)", cached.Length);
+                logger.LogInformation(
+                    "Message optimization: cache hit ({Length} chars, checksum {Checksum})",
+                    cached.Length, cache.Checksum(text, version));
                 rewritten[(block, segment)] = cached;
                 continue;
             }
@@ -179,7 +181,16 @@ internal sealed class MessageOptimizationStrategy(
         budget.CountCandidates(pending.Count);
         string gateText = string.Join(
             "\n", human.Where(static item => !string.IsNullOrWhiteSpace(item.Text)).Select(static item => item.Text));
-        bool? allowed = await GateWithinBudgetAsync(gateText, budget);
+        var messagesOptions = options.Value.DecisionsMessages;
+        bool gateSkipped = messagesOptions.Enabled && gateText.Length > messagesOptions.MaxStateChars;
+        if (gateSkipped)
+        {
+            logger.LogDebug(
+                "Message optimization: gate skipped (human text {Length} chars exceeds MaxStateChars {Limit})",
+                gateText.Length, messagesOptions.MaxStateChars);
+        }
+
+        bool? allowed = gateSkipped ? true : await GateWithinBudgetAsync(gateText, budget);
         if (allowed is null)
         {
             KeepOriginals(pending, session, headers, version, rewritten);
@@ -190,7 +201,9 @@ internal sealed class MessageOptimizationStrategy(
         if (allowed is false)
         {
             KeepOriginals(pending, session, headers, version, rewritten);
-            logger.LogDebug("Message optimization: declined by gate ({Segments} segments)", pending.Count);
+            logger.LogInformation(
+                "Message optimization: declined by gate ({Segments} segments, {Length} chars, checksum {Checksum})",
+                pending.Count, gateText.Length, cache.Checksum(gateText, version));
             return ReassembleChanged(blockSegments, rewritten);
         }
 
@@ -383,11 +396,12 @@ internal sealed class MessageOptimizationStrategy(
             cancellationToken);
 
         cache.Store(session, headers, original, version, forwardedText);
-        logger.LogDebug(
-            "Message optimization: {Outcome} ({OriginalLength}->{ForwardedLength} chars)",
+        logger.LogInformation(
+            "Message optimization: {Outcome} ({OriginalLength}->{ForwardedLength} chars, checksum {Checksum})",
             forwardedText == original ? "original" : "rewritten",
             original.Length,
-            forwardedText.Length);
+            forwardedText.Length,
+            cache.Checksum(original, version));
         return forwardedText;
     }
 

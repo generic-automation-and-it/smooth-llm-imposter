@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using SmoothLlmImposter.Application.Features.Routing;
@@ -17,6 +18,8 @@ internal sealed class OptimizationCoordinator(
             return request.Body;
         }
 
+        Stopwatch stopwatch = Stopwatch.StartNew();
+
         Task<OptimizationEdit>[] tasks = enabled
             .Select(strategy => RunOneAsync(strategy, request, cancellationToken))
             .ToArray();
@@ -31,7 +34,17 @@ internal sealed class OptimizationCoordinator(
             throw;
         }
 
-        return Merge(request.Body, results);
+        string optimized = Merge(request.Body, results);
+
+        // Rough token estimate (chars / 4) for operator visibility; not a tokenizer result.
+        int savedChars = request.Body.Length - optimized.Length;
+        int savedTokens = savedChars > 0 ? savedChars / 4 : 0;
+        stopwatch.Stop();
+        logger.LogInformation(
+            "LLM optimization complete in {ElapsedMs} ms: {OriginalChars} -> {OptimizedChars} chars (~{SavedTokens} tokens saved)",
+            stopwatch.ElapsedMilliseconds, request.Body.Length, optimized.Length, savedTokens);
+
+        return optimized;
     }
 
     private async Task<OptimizationEdit> RunOneAsync(

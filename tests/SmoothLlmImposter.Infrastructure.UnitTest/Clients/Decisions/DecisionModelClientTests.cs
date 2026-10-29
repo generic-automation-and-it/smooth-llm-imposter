@@ -573,7 +573,9 @@ public class DecisionModelClientTests
         Action<DecisionServiceOptions> configureSection,
         Action<DecisionServiceOptions> configureOther)
     {
-        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection([]).Build();
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Imposter:MaxConcurrentRequests"] = "2" })
+            .Build();
         var services = new ServiceCollection();
         services.AddLogging();
         services.Configure(Section, configureSection);

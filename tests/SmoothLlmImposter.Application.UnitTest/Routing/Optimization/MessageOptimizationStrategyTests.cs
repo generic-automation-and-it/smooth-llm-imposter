@@ -914,6 +914,7 @@ public sealed class MessageOptimizationStrategyTests
             ("Please kindly ask @reviewer.", "Please kindly ask @reviewer."),
             ("Please kindly check `bar()`.", "Please kindly check `bar()`.")]);
         logs.Events.Where(entry => entry.Level == LogLevel.Information).Select(entry => entry.Text).ShouldBe([
+            $"Message optimization: rewritten (29->15 chars, checksum {cache.Checksum("Please kindly review `foo()`.", $"{OptimizerModel}:{MessageOptimizationStrategy.InstructionRevision}")})",
             $"Message optimization budget of {BudgetSeconds} s exhausted: 2 of 3 candidate segments forwarded as the original"]);
         logs.Events.ShouldAllBe(entry => entry.Level < LogLevel.Warning, "budget expiry is not a failure");
         logs.Events.ShouldAllBe(entry => !entry.Text.Contains("Please kindly", StringComparison.Ordinal));
@@ -1129,6 +1130,9 @@ public sealed class MessageOptimizationStrategyTests
             Stored.Add((originalText, forwardedText));
             _values[originalText] = forwardedText;
         }
+
+        public string Checksum(string originalText, string optimizerVersion) =>
+            SessionScope.Hash(new System.Text.Json.Nodes.JsonArray(originalText, optimizerVersion).ToJsonString());
     }
 
     private sealed class CollectingLogger : ILogger<MessageOptimizationStrategy>
