@@ -54,8 +54,9 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        // Global outbound concurrency gate. A single SemaphoreSlim shared by every HttpClient so a slow
-        // local LLM (decision/optimizer) or a stalled upstream cannot be hit by several requests at once.
+        // Global outbound concurrency gate. A single SemaphoreSlim shared by the upstream and GitHub
+        // HttpClients so a stalled upstream cannot be hit by several requests at once. Decision and
+        // optimizer clients serialize through LocalLlmGate instead (see below).
         // Size comes from Imposter:MaxConcurrentRequests (default 1), with the conventional env var
         // IMPOSTER_MAX_CONCURRENT_REQUESTS taking precedence. Values < 1 are clamped to 1.
         int maxConcurrent = 1;
